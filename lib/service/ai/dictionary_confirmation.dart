@@ -22,6 +22,8 @@ String? dictionarySelectionFromRequest(ReadingRequestSnapshot? snapshot) {
   if (snapshot == null ||
       (snapshot.skillId != aiDictionarySkillId &&
           snapshot.skillId != aiDictionaryWebSkillId)) return null;
+  final selection = snapshot.request.selectionText?.trim();
+  if (selection != null && selection.isNotEmpty) return selection;
   final messages = snapshot.request.messages.whereType<HumanChatMessage>();
   if (messages.isEmpty) return null;
   const prefix = '待解释词语：';

@@ -51,6 +51,9 @@ class _Chat extends AiChat {
       bool selectionRequest = false,
       bool webSearch = false,
       String? homePromptId,
+      String? historyKey,
+      String? serviceIdentifier,
+      String Function(String)? responseFilter,
       CancelableLangchainRunner? requestRunner}) {
     requests.add((
       message: message,
@@ -146,7 +149,11 @@ void main() {
               : const [],
         );
     await tester.pumpWidget(ProviderScope(
-      overrides: [aiChatProvider(scope).overrideWith(() => chat)],
+      overrides: [
+        aiChatProvider(initial ? AiChatScope.knowledge : scope)
+            .overrideWith(() => chat),
+        if (initial) aiChatProvider(scope).overrideWith(() => chat = _Chat()),
+      ],
       child: MaterialApp(
         locale: locale,
         supportedLocales: L10n.supportedLocales,

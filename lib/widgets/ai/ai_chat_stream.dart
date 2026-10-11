@@ -4,6 +4,9 @@ import 'package:anx_reader/service/ai/answer_presentation.dart';
 import 'package:anx_reader/page/settings_page/ai_reading_skills.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_scroll_controller.dart';
 import 'package:anx_reader/widgets/ai/skill_template_draft_tile.dart';
+import 'package:anx_reader/widgets/dictionary/unified_query_settings.dart';
+import 'package:anx_reader/models/unified_query.dart';
+import 'package:anx_reader/page/settings_page/translate.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/hint_key.dart';
@@ -69,6 +72,8 @@ class AiChatStream extends ConsumerStatefulWidget {
     this.embedded = false,
     this.inlineResults = false,
     this.showSkillControls = true,
+    this.serviceIdentifier,
+    this.responseFilter,
   });
 
   final String? initialMessage;
@@ -88,13 +93,28 @@ class AiChatStream extends ConsumerStatefulWidget {
   final bool embedded;
   final bool inlineResults;
   final bool showSkillControls;
+  final String? serviceIdentifier;
+  final String Function(String)? responseFilter;
 
   @override
   ConsumerState<AiChatStream> createState() => AiChatStreamState();
 }
 
 class AiChatStreamState extends ConsumerState<AiChatStream> {
-  String get _draftScreen => widget.draftScreen ?? widget.scope.name;
+  late String _historyKey;
+  bool get _isKnowledge => _historyKey == 'skill.$aiDictionarySkillId';
+  AiChatScope get _scope => _isKnowledge
+      ? AiChatScope.knowledge
+      : _historyKey.startsWith('screen.')
+          ? AiChatScope.selection
+          : widget.scope;
+  String _keyFor({String? skillId, String? homePromptId}) =>
+      aiHistoryKey(widget.scope.storageKey,
+          skillId: skillId,
+          homePromptId: homePromptId,
+          screen: widget.draftScreen);
+  String get _draftScreen =>
+      widget.draftScreen ?? (_isKnowledge ? 'knowledge' : widget.scope.name);
   bool get _draftOnly =>
       Prefs().aiDraftFor(_draftScreen, legacyDefault: widget.initialDraftOnly);
   final TextEditingController inputController = TextEditingController();
@@ -108,7 +128,11 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   bool _isStreaming = false;
   bool _showSkillPrompts = false;
   bool get _isReaderSkills =>
-      widget.scope == AiChatScope.reader || widget.quickPromptChips.isNotEmpty;
+      !_isKnowledge &&
+      _scope != AiChatScope.selection &&
+      widget.showSkillControls &&
+      (widget.scope == AiChatScope.reader ||
+          widget.quickPromptChips.isNotEmpty);
   List<AiQuickPromptChip> get _readingChips =>
       widget.quickPromptChipsBuilder?.call() ?? widget.quickPromptChips;
 
@@ -131,12 +155,44 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
 
   Future<void> _manageReadingSkills() async {
     _inputFocusNode.unfocus();
+    if (_draftScreen == 'lookup.translation') {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+              appBar: AppBar(
+                  title: Text(
+                      ModuStrings.text(context, 'AI 翻译', 'AI Translation'))),
+              body: Column(children: [
+                SkillTemplateDraftTile(screen: _draftScreen),
+                const Expanded(child: TranslateSetting())
+              ]))));
+      if (mounted) setState(() {});
+      return;
+    }
+    if (_isKnowledge ||
+        _draftScreen == 'lookup.classical' ||
+        _draftScreen.contains('classical-chinese')) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => UnifiedQuerySettings(
+              section: _isKnowledge
+                  ? QuerySection.knowledge
+                  : QuerySection.classical,
+              draftScreen: _draftScreen)));
+      if (mounted) setState(() {});
+      return;
+    }
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (context) => Scaffold(
         appBar: AppBar(
-            title: Text(ModuStrings.text(context, 'AI 阅读技能', 'AI 阅读技能'))),
-        body: AiReadingSkillsSettings(
-            draftScreen: _draftScreen, draftDefault: widget.initialDraftOnly),
+            title: Text(ModuStrings.text(context, 'AI 设置', 'AI settings'))),
+        body: _isReaderSkills
+            ? AiReadingSkillsSettings(
+                draftScreen: _draftScreen,
+                draftDefault: widget.initialDraftOnly)
+            : ListView(children: [
+                SkillTemplateDraftTile(
+                    screen: _draftScreen,
+                    legacyDefault: widget.initialDraftOnly)
+              ]),
       ),
     ));
     if (mounted) setState(() {});
@@ -202,7 +258,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   @override
   void initState() {
     super.initState();
-    _fontSize = widget.inlineResults ? 15 : Prefs().aiChatFontSize;
+    _historyKey = _keyFor(skillId: widget.initialSkillId);
+    _fontSize = Prefs().aiChatFontSizeFor(_draftScreen,
+        fallback: widget.inlineResults ? 15 : null);
     _showSkillPrompts = _isReaderSkills && Prefs().aiReadingSkillsVisible;
     Prefs().addListener(_onSkillPreferencesChanged);
     inputController.text = widget.initialMessage ?? '';
@@ -211,6 +269,11 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.newConversation) _resetConversation();
+      if (!widget.newConversation && widget.initialSkillId == null) {
+        final currentKey =
+            ref.read(aiChatProvider(_scope).notifier).currentHistoryKey;
+        if (currentKey != null) setState(() => _historyKey = currentKey);
+      }
       _pendingSelectionSkill = widget.initialSkillId;
       _pendingSelectionContext = widget.initialSourceContext;
       _pendingSelectionRequest = widget.initialSelectionRequest;
@@ -232,7 +295,17 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   @override
   void didUpdateWidget(covariant AiChatStream oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialMessage != widget.initialMessage ||
+    final changedScreen = oldWidget.draftScreen != widget.draftScreen ||
+        oldWidget.scope != widget.scope;
+    if (changedScreen) {
+      _cancelStreaming();
+      _historyKey = _keyFor(skillId: widget.initialSkillId);
+      _resetConversation();
+      _fontSize = Prefs().aiChatFontSizeFor(_draftScreen,
+          fallback: widget.inlineResults ? 15 : null);
+    }
+    if (changedScreen ||
+        oldWidget.initialMessage != widget.initialMessage ||
         oldWidget.initialSourceText != widget.initialSourceText) {
       _readerSourceText = _normalizeSourceText(
           widget.initialSourceText ?? widget.initialMessage);
@@ -269,7 +342,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     _messageSubscription = null;
     _messageController?.close();
     _messageController = null;
-    ref.read(aiChatProvider(widget.scope).notifier).clear();
+    ref.read(aiChatProvider(_scope).notifier).clear();
     setState(() {
       _messageStream = null;
       _lastSubmittedSkillId = null;
@@ -331,6 +404,8 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       bool webSearch = false,
       String? skillId,
       bool sendImmediate = true}) {
+    _cancelStreaming();
+    _historyKey = _keyFor(skillId: skillId);
     _resetConversation();
     _readerSourceText = _normalizeSourceText(sourceText);
     _pendingSelectionSkill = skillId;
@@ -360,7 +435,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   }
 
   AiProvider? _currentProvider(List<AiProvider> enabledProviders) {
-    final selectedId = Prefs().selectedAiService;
+    final selectedId = widget.serviceIdentifier == null
+        ? Prefs().selectedAiService
+        : Prefs().translationAiService;
     try {
       return enabledProviders.firstWhere((p) => p.id == selectedId);
     } catch (_) {
@@ -381,6 +458,10 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
 
   void _onProviderSelected(String providerId) {
     if (_isStreaming) return;
+    if (widget.serviceIdentifier != null) {
+      setState(() => Prefs().translationAiService = providerId);
+      return;
+    }
     ref.read(aiProvidersProvider.notifier).setSelectedProvider(providerId);
   }
 
@@ -395,8 +476,66 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     _scrollController.followAfterLayout(force: force);
   }
 
-  Widget _buildHistoryDrawer(BuildContext context) {
-    final historyState = ref.watch(aiHistoryProvider);
+  Map<String, String> _historyChoices(List<AiChatHistoryEntry> entries) {
+    final choices = <String, String>{
+      widget.scope.storageKey: widget.title ?? L10n.of(context).aiChat,
+      for (final chip in _readingChips)
+        if (chip.skillId != aiDictionarySkillId)
+          _keyFor(skillId: chip.skillId): chip.label,
+      if (widget.scope == AiChatScope.library)
+        for (final prompt in _getStarterPrompts(context))
+          _keyFor(homePromptId: prompt.id): prompt.text,
+    };
+    for (final entry in entries) {
+      if (entry.scope == widget.scope.storageKey &&
+          entry.effectiveHistoryKey != 'skill.$aiDictionarySkillId') {
+        choices.putIfAbsent(entry.effectiveHistoryKey,
+            () => entry.skillLabels.values.firstOrNull ?? _deriveTitle(entry));
+      }
+    }
+    choices.putIfAbsent(
+        _historyKey, () => widget.title ?? L10n.of(context).aiChat);
+    return choices;
+  }
+
+  List<Widget> _menuActions(BuildContext context) => [
+        IconButton(
+            key: const ValueKey('manage-reading-skills'),
+            tooltip: ModuStrings.text(context, '设置', 'Settings'),
+            icon: const Icon(Icons.tune),
+            onPressed: _manageReadingSkills),
+        IconButton(
+            key: const ValueKey('ai-new-conversation'),
+            tooltip: ModuStrings.text(context, '新建对话', 'New conversation'),
+            icon: const Icon(Icons.edit_document),
+            onPressed: _isStreaming ? null : _clearMessage),
+        IconButton(
+            key: const ValueKey('ai-chat-history'),
+            icon: const Icon(Icons.history),
+            tooltip: L10n.of(context).history,
+            onPressed: () {
+              if (widget.inlineResults) {
+                showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => Consumer(
+                        builder: (context, historyRef, _) => SizedBox(
+                            height: MediaQuery.sizeOf(context).height * .7,
+                            child: _buildHistoryDrawer(context,
+                                historyRef: historyRef))));
+              } else {
+                _scaffoldKey.currentState?.openDrawer();
+              }
+            }),
+        Builder(
+            builder: (context) => IconButton(
+                key: const ValueKey('ai-chat-options'),
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => _showFontSizeMenu(context))),
+      ];
+
+  Widget _buildHistoryDrawer(BuildContext context, {WidgetRef? historyRef}) {
+    final historyState = (historyRef ?? ref).watch(aiHistoryProvider);
     return SafeArea(
       child: Column(
         children: [
@@ -407,11 +546,33 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
               deleteIcon: Icon(Icons.delete_sweep),
             ),
           ),
+          if ((_isReaderSkills || _scope == AiChatScope.library) &&
+              widget.showSkillControls)
+            Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: DropdownButton<String>(
+                    key: const ValueKey('ai-history-skill'),
+                    isExpanded: true,
+                    value: _historyKey,
+                    items:
+                        _historyChoices(historyState.asData?.value ?? const [])
+                            .entries
+                            .map((entry) => DropdownMenuItem(
+                                value: entry.key,
+                                child: Text(entry.value,
+                                    overflow: TextOverflow.ellipsis)))
+                            .toList(),
+                    onChanged: (value) {
+                      if (value != null && value != _historyKey) {
+                        _resetConversation();
+                        setState(() => _historyKey = value);
+                      }
+                    })),
           Expanded(
             child: historyState.when(
               data: (items) {
                 final scopedItems = items
-                    .where((entry) => entry.scope == widget.scope.storageKey)
+                    .where((entry) => entry.effectiveHistoryKey == _historyKey)
                     .toList(growable: false);
                 if (scopedItems.isEmpty) {
                   return Center(
@@ -557,7 +718,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     if (!mounted || !context.mounted) return;
     _messageController = null;
 
-    ref.read(aiChatProvider(widget.scope).notifier).loadHistoryEntry(entry);
+    ref.read(aiChatProvider(_scope).notifier).loadHistoryEntry(entry);
     _clearSelectionOptions();
 
     setState(() {
@@ -578,13 +739,18 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     BuildContext context,
     AiChatHistoryEntry entry,
   ) async {
+    final deletingCurrent =
+        ref.read(aiChatProvider(_scope).notifier).currentSessionId == entry.id;
+    if (deletingCurrent) {
+      _cancelStreaming();
+      ref.read(aiChatProvider(_scope).notifier).clear();
+    }
     await ref.read(aiHistoryProvider.notifier).remove(entry.id);
 
-    final currentSessionId =
-        ref.read(aiChatProvider(widget.scope).notifier).currentSessionId;
-    if (currentSessionId == entry.id) {
+    if (!mounted) return;
+    if (deletingCurrent) {
       _clearSelectionOptions();
-      ref.read(aiChatProvider(widget.scope).notifier).clear();
+      ref.read(aiChatProvider(_scope).notifier).clear();
       setState(() {
         _lastSubmittedSkillId = null;
         _lastSubmittedSourceText = null;
@@ -596,11 +762,12 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   }
 
   Future<void> _confirmClearHistory(BuildContext context) async {
+    _cancelStreaming();
+    ref.read(aiChatProvider(_scope).notifier).clear();
     _clearSelectionOptions();
-    await ref
-        .read(aiHistoryProvider.notifier)
-        .clearScope(widget.scope.storageKey);
-    ref.read(aiChatProvider(widget.scope).notifier).clear();
+    await ref.read(aiHistoryProvider.notifier).clearHistoryKey(_historyKey);
+    if (!mounted) return;
+    ref.read(aiChatProvider(_scope).notifier).clear();
     setState(() {
       _lastSubmittedSkillId = null;
       _lastSubmittedSourceText = null;
@@ -654,11 +821,19 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     // Only an explicitly invoked skill/selection starts an independent task.
     // Text entered in this conversation (also after restoring history) is a
     // follow-up: retain its session and previous user/assistant messages.
-    if (widget.scope == AiChatScope.reader &&
+    if (!isRegenerate &&
+        !confirmingDictionarySearch &&
+        (skillId != null || selectionRequest || homePromptId != null)) {
+      _historyKey = _keyFor(skillId: skillId, homePromptId: homePromptId);
+    }
+    if (_scope != AiChatScope.library &&
         !isRegenerate &&
         !confirmingDictionarySearch &&
         (skillId != null || selectionRequest)) {
-      ref.read(aiChatProvider(widget.scope).notifier).clear();
+      ref.read(aiChatProvider(_scope).notifier).clear();
+    }
+    if (!isRegenerate && homePromptId != null) {
+      ref.read(aiChatProvider(_scope).notifier).clear();
     }
     // A follow-up action must not overwrite an unsent question or template.
     if (messageOverride == null) inputController.clear();
@@ -676,19 +851,23 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final requestRunner = _requestRunner = CancelableLangchainRunner();
     final controller = StreamController<List<ChatMessage>>();
     var requestFailed = false;
-    final stream =
-        ref.read(aiChatProvider(widget.scope).notifier).sendMessageStream(
-              message,
-              ref,
-              isRegenerate,
-              skillId: skillId,
-              sourceText: _lastSubmittedSourceText,
-              sourceContext: _lastSubmittedSourceContext,
-              selectionRequest: _lastSelectionRequest,
-              webSearch: _lastWebSearch,
-              homePromptId: homePromptId,
-              requestRunner: requestRunner,
-            );
+    final stream = ref.read(aiChatProvider(_scope).notifier).sendMessageStream(
+          message,
+          ref,
+          isRegenerate,
+          skillId: skillId,
+          sourceText: _lastSubmittedSourceText,
+          sourceContext: _lastSubmittedSourceContext,
+          selectionRequest: _lastSelectionRequest,
+          webSearch: _lastWebSearch,
+          homePromptId: homePromptId,
+          historyKey: _historyKey,
+          serviceIdentifier: widget.serviceIdentifier == null
+              ? null
+              : Prefs().translationAiService,
+          responseFilter: widget.responseFilter,
+          requestRunner: requestRunner,
+        );
 
     setState(() {
       _messageController = controller;
@@ -764,7 +943,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     _messageController?.close();
     _messageController = null;
     setState(() {
-      ref.read(aiChatProvider(widget.scope).notifier).clear();
+      ref.read(aiChatProvider(_scope).notifier).clear();
       _showSkillPrompts = _isReaderSkills && Prefs().aiReadingSkillsVisible;
       _readerSourceText = null;
       _lastSubmittedSkillId = null;
@@ -778,7 +957,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     if (_isStreaming) {
       return;
     }
-    final messages = ref.read(aiChatProvider(widget.scope)).value;
+    final messages = ref.read(aiChatProvider(_scope)).value;
     if (messages == null || messages.isEmpty) {
       return;
     }
@@ -872,7 +1051,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
                             setState(() {
                               _fontSize = value;
                             });
-                            Prefs().aiChatFontSize = value;
+                            Prefs().setAiChatFontSizeFor(_draftScreen, value);
                           },
                         ),
                       ),
@@ -890,7 +1069,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
   ChatMessage? _getLastAssistantMessage() {
     // The message stream/list already drives rendering. Watching here would
     // also rebuild the entire Scaffold for each partial response.
-    final messages = ref.read(aiChatProvider(widget.scope)).asData?.value;
+    final messages = ref.read(aiChatProvider(_scope)).asData?.value;
     if (messages == null || messages.isEmpty) {
       return null;
     }
@@ -983,7 +1162,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final allProviders = ref.watch(aiProvidersProvider);
     final enabledProviders = allProviders.where((p) => p.enabled).toList();
     final currentProvider = _currentProvider(enabledProviders);
-    final selectedId = Prefs().selectedAiService;
+    final selectedId = currentProvider?.id;
 
     var aiService = PopupMenuButton<String>(
       popUpAnimationStyle: AppMotion.style,
@@ -1126,7 +1305,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
                           ],
                         ),
                       ),
-                      if (!widget.inlineResults && widget.showSkillControls)
+                      if (!widget.inlineResults &&
+                          widget.showSkillControls &&
+                          (_isReaderSkills || _scope == AiChatScope.library))
                         IconButton(
                           key: const ValueKey('ai-skill-prompts-toggle'),
                           tooltip: _showSkillPrompts
@@ -1171,6 +1352,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
           padding: EdgeInsets.all(16),
           child: EinkStaticIndicator(child: LinearProgressIndicator()));
       return Column(mainAxisSize: MainAxisSize.min, children: [
+        Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(children: _menuActions(context))),
         if (_messageStream != null)
           StreamBuilder<List<ChatMessage>>(
               stream: _messageStream,
@@ -1184,7 +1368,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
                 return _buildMessageList(snapshot.data!);
               })
         else
-          ref.watch(aiChatProvider(widget.scope)).when(
+          ref.watch(aiChatProvider(_scope)).when(
               data: _buildMessageList,
               loading: loading,
               error: (e, _) => error(e)),
@@ -1196,34 +1380,13 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       key: _scaffoldKey,
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(widget.title ?? L10n.of(context).aiChat),
+        title: Text(widget.title ??
+            (_isKnowledge
+                ? ModuStrings.text(context, 'AI 知识', 'AI Knowledge')
+                : L10n.of(context).aiChat)),
         automaticallyImplyLeading: false,
         actions: [
-          if (_isReaderSkills && widget.showSkillControls)
-            IconButton(
-              key: const ValueKey('manage-reading-skills'),
-              tooltip: ModuStrings.value(Localizations.localeOf(context),
-                  'reading_skills_manage', 'Manage reading skills'),
-              icon: const Icon(Icons.tune),
-              onPressed: _manageReadingSkills,
-            ),
-          IconButton(
-            icon: const Icon(Icons.edit_document),
-            onPressed: _clearMessage,
-          ),
-          IconButton(
-            key: const ValueKey('ai-chat-history'),
-            icon: const Icon(Icons.history),
-            tooltip: L10n.of(context).history,
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          Builder(
-            builder: (context) => IconButton(
-              key: const ValueKey('ai-chat-options'),
-              icon: const Icon(Icons.more_vert),
-              onPressed: () => _showFontSizeMenu(context),
-            ),
-          ),
+          ..._menuActions(context),
           if (widget.trailing != null) ...widget.trailing!,
         ],
       ),
@@ -1286,9 +1449,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
                                             return _buildMessageList(messages);
                                           },
                                         )
-                                      : ref
-                                          .watch(aiChatProvider(widget.scope))
-                                          .when(
+                                      : ref.watch(aiChatProvider(_scope)).when(
                                             data: (messages) {
                                               if (messages.isEmpty) {
                                                 return const SizedBox.expand();
@@ -1387,9 +1548,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final latestReplyIndex =
         messages.lastIndexWhere((message) => message is AIChatMessage);
     final sessionId =
-        ref.read(aiChatProvider(widget.scope).notifier).currentSessionId;
-    final history =
-        ref.watch(aiHistoryProvider).value ?? const <AiChatHistoryEntry>[];
+        ref.read(aiChatProvider(_scope).notifier).currentSessionId;
+    final history = ref.watch(aiHistoryProvider).asData?.value ??
+        const <AiChatHistoryEntry>[];
     final labels = <int, String>{};
     for (final entry in history) {
       if (entry.id == sessionId) {
@@ -1457,12 +1618,10 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final isLongMessage = content.length > 300;
     final lastAssistantMessage = _getLastAssistantMessage();
     final canSearchOnline = !isUser &&
-        widget.scope == AiChatScope.reader &&
+        _scope != AiChatScope.library &&
         identical(message, lastAssistantMessage) &&
         content.trim().isNotEmpty &&
-        ref
-                .read(aiChatProvider(widget.scope).notifier)
-                .currentDictionarySelection !=
+        ref.read(aiChatProvider(_scope).notifier).currentDictionarySelection !=
             null;
 
     return Padding(

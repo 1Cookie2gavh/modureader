@@ -40,6 +40,23 @@ void main() {
     expect(Prefs().prefs.getBool('aiSkillTemplateDraft'), true);
   });
 
+  test('AI menu font sizes are local and independent across screens', () async {
+    SharedPreferences.setMockInitialValues({'aiChatFontSize': 14.0});
+    await Prefs().initPrefs();
+    Prefs().setAiChatFontSizeFor('lookup.knowledge', 18);
+    Prefs().setAiChatFontSizeFor('lookup.classical', 12);
+    await Prefs().initPrefs();
+    expect(Prefs().aiChatFontSizeFor('lookup.knowledge'), 18);
+    expect(Prefs().aiChatFontSizeFor('lookup.classical'), 12);
+    expect(Prefs().aiChatFontSizeFor('lookup.book'), 14);
+    for (final snapshot in [
+      await Prefs().buildPrefsBackupMap(),
+      collectAiSettingsForSync(Prefs().prefs)
+    ]) {
+      expect(snapshot.containsKey('aiChatAppearanceByScreen'), false);
+    }
+  });
+
   test(
       'backup, settings import and cloud sync never transfer screen preferences',
       () async {

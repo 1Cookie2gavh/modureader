@@ -7,7 +7,9 @@ import 'package:anx_reader/service/ai/prompt_generate.dart';
 import 'package:anx_reader/service/ai/index.dart';
 import 'package:anx_reader/service/config/config_item.dart';
 import 'package:anx_reader/service/translate/index.dart';
-import 'package:anx_reader/widgets/ai/ai_stream.dart';
+import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
+import 'package:anx_reader/providers/ai_chat.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/service/ai/langchain_runner.dart';
 import 'package:anx_reader/service/translate/translation_answer.dart';
@@ -46,13 +48,26 @@ class AiTranslateProvider extends TranslateServiceProvider {
             contextText: contextText,
           );
 
-    return AiStream(
-      outputFilter: translationAnswer,
-      scrollable: false,
-      prompt: prompt,
-      identifier: Prefs().translationAiService,
-      regenerate: true,
-    );
+    return ProviderScope(
+        overrides: [
+          aiChatProvider(AiChatScope.selection).overrideWith(AiChat.new),
+        ],
+        child: AiChatStream(
+          scope: AiChatScope.selection,
+          draftScreen: 'lookup.translation',
+          inlineResults: true,
+          embedded: true,
+          showSkillControls: false,
+          initialMessage: prompt.buildString(),
+          initialSourceText: text,
+          initialSourceContext: contextText,
+          initialSkillId: 'selection_toolbar',
+          initialSelectionRequest: true,
+          newConversation: true,
+          sendImmediate: true,
+          serviceIdentifier: Prefs().translationAiService,
+          responseFilter: translationAnswer,
+        ));
   }
 
   @override

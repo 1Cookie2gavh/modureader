@@ -2,11 +2,28 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:anx_reader/service/ai/readany_skills.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ai/reading_request_snapshot.dart';
+import 'package:anx_reader/service/ai/reading_skill_execution.dart';
 import 'package:anx_reader/utils/get_path/get_cache_dir.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:path/path.dart' as p;
 import 'package:langchain_core/chat_models.dart';
+
+String aiHistoryKey(String scope,
+    {String? skillId, String? homePromptId, String? screen}) {
+  if (skillId == aiDictionarySkillId ||
+      skillId == aiDictionaryWebSkillId ||
+      scope == 'knowledge') return 'skill.$aiDictionarySkillId';
+  if (skillId != null && skillId != selectionToolbarSkillId)
+    return 'skill.$skillId';
+  if (homePromptId != null) return 'home.$homePromptId';
+  if (screen != null &&
+      screen != 'reader' &&
+      screen != 'library' &&
+      screen != 'lookup.book') return 'screen.$screen';
+  return scope;
+}
 
 class AiChatHistoryEntry {
   static const Object _unchanged = Object();
@@ -23,6 +40,7 @@ class AiChatHistoryEntry {
     this.homePromptId,
     this.readingRequest,
     this.skillLabels = const {},
+    this.historyKey,
   });
 
   final String id;
@@ -38,6 +56,28 @@ class AiChatHistoryEntry {
 
   /// Human-message index to skill name; display metadata, not model context.
   final Map<int, String> skillLabels;
+  final String? historyKey;
+
+  String get effectiveHistoryKey {
+    if (historyKey != null) return historyKey!;
+    var skillId = readingRequest?.skillId;
+    // Older follow-ups overwrote the request's skill; the first label remains.
+    if (skillId == null) {
+      final label = skillLabels[0];
+      final first =
+          messages.whereType<HumanChatMessage>().firstOrNull?.contentAsString;
+      for (final skill in readingSkillPromptDefinitions) {
+        if ((label != null &&
+                ModuStrings.isDefault(
+                    'skill_${skill.id}_name', label, skill.name)) ||
+            (first != null && skill.isDefaultPrompt(first))) {
+          skillId = skill.id;
+          break;
+        }
+      }
+    }
+    return aiHistoryKey(scope, skillId: skillId, homePromptId: homePromptId);
+  }
 
   AiChatHistoryEntry copyWith({
     List<ChatMessage>? messages,
@@ -49,6 +89,7 @@ class AiChatHistoryEntry {
     Object? homePromptId = _unchanged,
     Object? readingRequest = _unchanged,
     Map<int, String>? skillLabels,
+    String? historyKey,
   }) {
     return AiChatHistoryEntry(
       id: id,
@@ -59,6 +100,7 @@ class AiChatHistoryEntry {
       updatedAt: updatedAt ?? this.updatedAt,
       messages: messages ?? this.messages,
       skillLabels: skillLabels ?? this.skillLabels,
+      historyKey: historyKey ?? this.historyKey,
       completed: completed ?? this.completed,
       homePromptId: identical(homePromptId, _unchanged)
           ? this.homePromptId
@@ -73,6 +115,7 @@ class AiChatHistoryEntry {
     return {
       'id': id,
       'scope': scope,
+      'historyKey': effectiveHistoryKey,
       'serviceId': serviceId,
       'model': model,
       'createdAt': createdAt,
@@ -136,6 +179,8 @@ class AiChatHistoryEntry {
                 index: entry.value as String,
       },
       homePromptId: json['homePromptId']?.toString(),
+      historyKey:
+          json['historyKey'] is String ? json['historyKey'] as String : null,
       readingRequest: readingRequest,
     );
   }
@@ -269,6 +314,15 @@ class AiHistoryStore {
             .where((entry) => entry.scope != scope)
             .toList(growable: false);
         await _write(file, remaining);
+      });
+
+  static Future<void> clearHistoryKey(String key) => _mutate((file) async {
+        final history = await _read(file, backupCorrupt: true);
+        await _write(
+            file,
+            history
+                .where((entry) => entry.effectiveHistoryKey != key)
+                .toList(growable: false));
       });
 
   static Future<File> _resolveFile() async {

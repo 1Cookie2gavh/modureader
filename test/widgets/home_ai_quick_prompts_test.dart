@@ -42,6 +42,9 @@ class _RecordingAiChat extends AiChat {
     bool selectionRequest = false,
     bool webSearch = false,
     String? homePromptId,
+    String? historyKey,
+    String? serviceIdentifier,
+    String Function(String)? responseFilter,
     CancelableLangchainRunner? requestRunner,
   }) async* {
     requests.add((id: homePromptId, text: message));

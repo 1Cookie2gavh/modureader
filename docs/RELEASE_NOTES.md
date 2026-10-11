@@ -2,9 +2,11 @@
 
 ## English
 
-**Modu 1.2.6 (build 10106)** — changes since stable **1.2.5**.
+**Modu 1.2.6 (build 10107)** — changes since stable **1.2.5**.
 
 - Fix(ai): Remember edit-before-send independently for each AI screen and selection action on this device; exclude these preferences from sync and settings transfer.
+- Fix(ai): Keep AI Knowledge on model/web knowledge for follow-ups, history restore and retries; never use local book tools. Keep Book AI follow-ups grounded in their original book or skill source.
+- Feat(ai): Add independent settings, new-chat, history and display menus to AI Knowledge, AI translation, Classical Chinese translation and other AI panels. Separate history by built-in/custom skill and home task; clearing one history does not remove another. Retain legacy conversations.
 - Fix(reader): Unify Android reader touch-selection handles in blue and remove the native drag magnifier, retaining range adjustment, copy and annotation actions.
 - Ci(lint): Update custom_lint to 0.7.6 to fix its startup failure on the current Dart SDK; keep custom checks enabled.
 
@@ -32,9 +34,11 @@ The custom lint startup failure is fixed, but separately running the legacy Rive
 
 ## 简体中文
 
-**Modu 1.2.6（构建 10106）**，以下为 **1.2.5 正式版以来**的变化。
+**Modu 1.2.6（构建 10107）**，以下为 **1.2.5 正式版以来**的变化。
 
 - Fix(ai): 各 AI 界面与划词 AI 入口独立记忆「编辑后发送」开关，仅保存在本机，不参与同步和设置导入导出。
+- Fix(ai): AI 知识的追问、历史恢复和重试始终使用大模型／联网知识，不调用本地或本书检索工具；本书 AI 继续围绕原书籍或原技能的原文范围回答。
+- Feat(ai): 为 AI 知识、AI 翻译、文言文翻译等 AI 界面补齐独立的设置、新建对话、历史和显示菜单；内置技能、自定义技能与首页任务分别保存历史，清空互不影响，保留旧记录。
 - Fix(reader): 安卓阅读选区统一蓝色触控手柄，去除原生拖动放大浮框，保留选区调整、复制与批注操作。
 - Ci(lint): 将 custom_lint 更新至 0.7.6，修复当前 Dart SDK 下检查插件无法启动的问题，保留自定义检查。
 

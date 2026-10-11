@@ -46,6 +46,11 @@ class AiHistoryNotifier
     await _load();
   }
 
+  Future<void> clearHistoryKey(String key) async {
+    await AiHistoryStore.clearHistoryKey(key);
+    await _load();
+  }
+
   AiChatHistoryEntry? findById(String id) {
     return state.maybeWhen(
       data: (entries) {

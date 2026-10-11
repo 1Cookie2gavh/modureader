@@ -77,5 +77,19 @@ void main() {
     expect(info.backgroundSize, 10);
     expect(info.booksSize, 10);
     expect(info.aiHistorySize, greaterThan(0));
+    await AiHistoryStore.upsertEntry(
+        history.copyWith(historyKey: 'skill.summary'));
+    await AiHistoryStore.upsertEntry(AiChatHistoryEntry(
+        id: 'other-skill',
+        scope: 'reader',
+        historyKey: 'skill.translate',
+        serviceId: 'fake',
+        model: 'fake',
+        createdAt: 1,
+        updatedAt: 1,
+        messages: [ChatMessage.humanText('keep translation')],
+        completed: true));
+    await AiHistoryStore.clearHistoryKey('skill.summary');
+    expect((await AiHistoryStore.readHistory()).single.id, 'other-skill');
   });
 }

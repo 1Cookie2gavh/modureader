@@ -59,6 +59,7 @@ const String _prefsBackupEntryValueKey = 'value';
 const Set<String> _prefsImportSkipKeys = {
   'aiSkillTemplateDraft',
   'aiDraftByScreen',
+  'aiChatAppearanceByScreen',
   'unifiedQueryPreferences',
   'dictionaryLookupSources',
   'documentDetectedTypes',
@@ -85,6 +86,7 @@ const Set<String> _prefsImportSkipKeys = {
 const Set<String> _prefsExportSkipKeys = {
   'aiSkillTemplateDraft',
   'aiDraftByScreen',
+  'aiChatAppearanceByScreen',
   'unifiedQueryPreferences',
   'dictionaryLookupSources',
   'documentDetectedTypes',
@@ -1404,6 +1406,30 @@ class Prefs extends ChangeNotifier {
   void setAiDraftFor(String screen, bool value) {
     final screens = _aiDraftScreens()..[screen] = value;
     prefs.setString('aiDraftByScreen', jsonEncode(screens));
+    notifyListeners();
+  }
+
+  double aiChatFontSizeFor(String screen, {double? fallback}) {
+    final value = _aiChatAppearance()[screen];
+    return value is num && value.isFinite
+        ? value.toDouble().clamp(10.0, 24.0)
+        : fallback ?? aiChatFontSize;
+  }
+
+  Map<String, dynamic> _aiChatAppearance() {
+    try {
+      return Map<String, dynamic>.from(
+          jsonDecode(prefs.getString('aiChatAppearanceByScreen') ?? '{}')
+              as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  void setAiChatFontSizeFor(String screen, double value) {
+    if (!value.isFinite) return;
+    final screens = _aiChatAppearance()..[screen] = value.clamp(10.0, 24.0);
+    prefs.setString('aiChatAppearanceByScreen', jsonEncode(screens));
     notifyListeners();
   }
 

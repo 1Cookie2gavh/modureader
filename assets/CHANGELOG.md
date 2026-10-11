@@ -1,6 +1,6 @@
 # Modu changelog
 
-Current release: **1.2.6+10106**. Updated 2026-10-11.
+Current release: **1.2.6+10107**. Updated 2026-10-11.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
@@ -11,6 +11,8 @@ Older sections retain their original version scope; they are not current accepta
 ### English
 
 - Fix(ai): Remember edit-before-send independently for each AI screen and selection action on this device; exclude these preferences from sync and settings transfer.
+- Fix(ai): Keep AI Knowledge on model/web knowledge for follow-ups, history restore and retries; never use local book tools. Keep Book AI follow-ups grounded in their original book or skill source.
+- Feat(ai): Add independent settings, new-chat, history and display menus to AI Knowledge, AI translation, Classical Chinese translation and other AI panels. Separate history by built-in/custom skill and home task; clearing one history does not remove another. Retain legacy conversations.
 - Fix(reader): Use the same blue touch handles for Android reader selections, including already-expanded words and unexpanded text; replace native drag handles to avoid their magnifier. Preserve manual range edits, copy and annotation actions.
 - Ci(lint): Update custom_lint to 0.7.6 to fix its startup failure on the current Dart SDK; keep custom checks enabled.
 - Fix(pdf): Restore highlight, underline and annotation actions for PDF/OCR selections; align marks with cropped, zoomed and rotated pages.
@@ -26,6 +28,8 @@ Older sections retain their original version scope; they are not current accepta
 ### 简体中文
 
 - Fix(ai): 各 AI 界面与划词 AI 入口独立记忆「编辑后发送」开关，仅保存在本机，不参与同步和设置导入导出。
+- Fix(ai): AI 知识的追问、历史恢复和重试始终使用大模型／联网知识，不调用本地或本书检索工具；本书 AI 继续围绕原书籍或原技能的原文范围回答。
+- Feat(ai): 为 AI 知识、AI 翻译、文言文翻译等 AI 界面补齐独立的设置、新建对话、历史和显示菜单；内置技能、自定义技能与首页任务分别保存历史，清空互不影响，保留旧记录。
 - Fix(reader): 安卓阅读选区统一使用蓝色触控手柄，覆盖原生已选中整词及不扩词的文字选区；替换原生拖动手柄，避免其放大浮框，保留拖动调整范围、复制与批注操作。
 - Ci(lint): 将 custom_lint 更新至 0.7.6，修复当前 Dart SDK 下检查插件无法启动的问题，保留自定义检查。
 - Fix(pdf): 恢复 PDF／OCR 选词的高亮、下划线与批注操作，使标记随裁边、缩放和旋转正确对齐。

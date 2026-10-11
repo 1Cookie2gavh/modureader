@@ -38,7 +38,8 @@ List<AiQuickPromptChip> configuredReadingSkillChips(Locale locale) {
         chips.add(AiQuickPromptChip(
             icon: Icons.person_outline,
             label: skill.name,
-            prompt: skill.content));
+            prompt: skill.content,
+            skillId: 'custom.${skill.id}'));
       }
     }
   }

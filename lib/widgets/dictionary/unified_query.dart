@@ -123,10 +123,14 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
         // chat or mixes classical translation into the reader's existing AI.
         return ProviderScope(
             overrides: [
-              aiChatProvider(AiChatScope.reader).overrideWith(AiChat.new)
+              aiChatProvider(AiChatScope.reader).overrideWith(AiChat.new),
+              aiChatProvider(AiChatScope.knowledge).overrideWith(AiChat.new),
+              aiChatProvider(AiChatScope.selection).overrideWith(AiChat.new),
             ],
             child: AiChatStream(
-                scope: AiChatScope.reader,
+                scope: section == QuerySection.knowledge
+                    ? AiChatScope.knowledge
+                    : AiChatScope.reader,
                 title: label(section),
                 embedded: true,
                 inlineResults: section == QuerySection.knowledge,

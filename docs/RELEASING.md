@@ -1,6 +1,6 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.6+10106**, 2026-10-11.
+Single-edition guide in English. Prepared for stable **1.2.6+10107**, 2026-10-11.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
@@ -19,6 +19,8 @@ The same overlay also migrates deprecated Groovy property assignment syntax, wit
 CI pins command-line tools 16.0 (12266719) and points `cmdline-tools/latest` to the selected installation, preserving the runner's previous directory. The emulator action prepends this path and would otherwise use its outdated XML parser despite a newer tool on PATH.
 
 Validation (2026-10-11): the ARM64 preview.2 APK passed release-signature, native JNI retention and 16 KB ELF/ZIP alignment checks. Full Flutter regression passed 2528 tests with 13 skipped; 60 focused JavaScript tests also passed. Gradle configuration, database-plugin Java compilation and AAR metadata checks pass without the reported Java/Groovy deprecations. Flutter still requires `android.newDsl=false`; its AGP deprecation warning remains visible. SDK parser selection has regression tests; full stable packages must pass the cloud release gates before publishing. These checks do not replace device acceptance.
+
+Build 10107 adds isolated AI menus/history and prevents AI Knowledge follow-ups from invoking book tools. Local regression passed 2,538 Flutter tests (13 skipped), 487 JavaScript tests, and 186 Python checks (15 skipped); the latest focused AI/history/storage checks also passed. Cloud package gates and device acceptance remain separate checks.
 
 The development-only `custom_lint` is pinned to 0.7.6, whose upstream fix invokes the Dart executable rather than the analysis server's AOT runtime for `pub get`. The previous 0.7.5 startup error (`pub is not an AOT snapshot`) was a lint-tool failure, not an application runtime failure. Keep the plugin enabled when validating the release. Standard Dart analysis completes without code errors. Running custom_lint separately still exposes an old Riverpod/analyzer incompatibility (`visitDotShorthandPropertyAccess`); do not claim complete custom-rule validation. Flutter's local analysis client also has a Chinese-workspace-path LSP framing error; direct Dart analysis avoids that client issue without disabling rules. CI uses an ASCII checkout path and retains its analyzer and test gates.
 

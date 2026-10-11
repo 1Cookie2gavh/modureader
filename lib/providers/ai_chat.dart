@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/toc_item.dart';
@@ -32,6 +33,8 @@ part 'ai_chat.g.dart';
 
 enum AiChatScope {
   library,
+  knowledge,
+  selection,
   reader;
 
   String get storageKey => name;
@@ -41,6 +44,7 @@ enum AiChatScope {
 class AiChat extends _$AiChat {
   String? _currentSessionId;
   ReadingRequestSnapshot? _lastReadingRequest;
+  String? _historyKey;
   late final AiChatScope _scope;
 
   @override
@@ -74,12 +78,18 @@ class AiChat extends _$AiChat {
     bool selectionRequest = false,
     bool webSearch = false,
     String? homePromptId,
+    String? historyKey,
+    String? serviceIdentifier,
+    String Function(String)? responseFilter,
     CancelableLangchainRunner? requestRunner,
   }) async* {
     final sessionId = _ensureSessionId();
-    final selectedProvider =
-        widgetRef.read(aiProvidersProvider.notifier).getSelectedProvider();
-    final serviceId = selectedProvider?.id ?? Prefs().selectedAiService;
+    final providers = widgetRef.read(aiProvidersProvider.notifier);
+    final selectedProvider = serviceIdentifier == null
+        ? providers.getSelectedProvider()
+        : providers.getProviderById(serviceIdentifier);
+    final serviceId =
+        serviceIdentifier ?? selectedProvider?.id ?? Prefs().selectedAiService;
     final config = Prefs().getAiConfig(serviceId);
     final model = selectedProvider?.model.trim().isNotEmpty == true
         ? selectedProvider!.model.trim()
@@ -96,9 +106,9 @@ class AiChat extends _$AiChat {
       }
     }
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (isRegenerate) homePromptId ??= entry?.homePromptId;
+    homePromptId ??= entry?.homePromptId;
 
-    if (_scope == AiChatScope.reader &&
+    if (_scope != AiChatScope.library &&
         !isRegenerate &&
         skillId == null &&
         isDictionaryWebConfirmation(message)) {
@@ -136,19 +146,59 @@ class AiChat extends _$AiChat {
             skillMessageLabel(message, skillId: skillId);
     if (skillLabel != null) skillLabels[previousMessages.length] = skillLabel;
 
+    final saved = _lastReadingRequest ?? entry?.readingRequest;
+    final key = _historyKey ??
+        entry?.effectiveHistoryKey ??
+        historyKey ??
+        aiHistoryKey(_scope.storageKey,
+            skillId: skillId, homePromptId: homePromptId);
+    final knowledge =
+        _scope == AiChatScope.knowledge || key == 'skill.$aiDictionarySkillId';
+    final legacyKnowledge = knowledge &&
+        saved != null &&
+        saved.skillId != aiDictionarySkillId &&
+        saved.skillId != aiDictionaryWebSkillId;
     ReadingSkillRequest? replay;
-    if (isRegenerate && _scope == AiChatScope.reader) {
-      final saved = _lastReadingRequest ?? entry?.readingRequest;
+    if (isRegenerate && _scope != AiChatScope.library) {
       if (saved == null) {
         throw StateError('这条旧对话没有保存原文范围，无法安全重试。请重新选择阅读技能发起请求。');
       }
       final reading = widgetRef.read(currentReadingProvider);
-      replay = saved.replay(
-          currentBookId: reading.book?.id,
-          currentChapterHref: reading.chapterHref);
+      replay = legacyKnowledge
+          ? ReadingSkillRequest(messages: messages, useAgent: false)
+          : (_scope == AiChatScope.knowledge || _scope == AiChatScope.selection)
+              ? saved.request
+              : saved.replay(
+                  currentBookId: reading.book?.id,
+                  currentChapterHref: reading.chapterHref);
+    }
+    final followUp = !isRegenerate && skillId == null && saved != null;
+    // Never let a free-form follow-up silently fall back to the book agent.
+    final continuation = followUp && saved.skillId != null && !legacyKnowledge
+        ? ReadingSkillRequest(
+            messages: [
+                ...saved.request.messages.whereType<SystemChatMessage>(),
+                if (knowledge && saved.request.selectionText != null)
+                  ChatMessage.humanText(
+                      '待解释词语：${jsonEncode(saved.request.selectionText)}')
+                else if (messages.isNotEmpty)
+                  messages.first,
+                ...messages.skip(1),
+              ],
+            useAgent: knowledge ? false : saved.request.useAgent,
+            allowedToolIds: knowledge ? const {} : saved.request.allowedToolIds,
+            selectionText: saved.request.selectionText,
+            selectionContext: saved.request.selectionContext)
+        : null;
+    if (followUp &&
+        !knowledge &&
+        saved.skillId == null &&
+        saved.bookId != widgetRef.read(currentReadingProvider).book?.id) {
+      throw StateError('请回到这段对话对应的书籍后继续提问，或新建对话。');
     }
     final skillPolicy = readingSkillPolicyFor(skillId);
-    final skillRequest = replay ??
+    var skillRequest = replay ??
+        continuation ??
         (skillPolicy == null
             ? null
             : await _buildReadingSkillRequest(
@@ -160,6 +210,16 @@ class AiChat extends _$AiChat {
                 selectionRequest: selectionRequest,
                 webSearch: webSearch,
               ));
+    if (knowledge || _scope == AiChatScope.selection) {
+      // Enforce at the tool boundary, including restored legacy snapshots.
+      skillRequest = ReadingSkillRequest(
+          messages: skillRequest?.messages ?? messages,
+          useAgent: false,
+          allowedToolIds: const {},
+          selectionText: skillRequest?.selectionText,
+          selectionContext: skillRequest?.selectionContext,
+          webSearch: skillRequest?.webSearch ?? false);
+    }
     final homeRequest = skillRequest == null && _scope == AiChatScope.library
         ? buildHomeAiRequest(
             conversation: messages,
@@ -181,13 +241,13 @@ class AiChat extends _$AiChat {
     if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
       return;
     final reading = widgetRef.read(currentReadingProvider);
-    final readingRequest = _scope == AiChatScope.reader
+    final readingRequest = _scope != AiChatScope.library
         ? (isRegenerate
             ? (_lastReadingRequest ?? entry?.readingRequest)
             : ReadingRequestSnapshot(
-                skillId: skillPolicy?.id,
-                bookId: reading.book?.id,
-                chapterHref: reading.chapterHref,
+                skillId: skillPolicy?.id ?? (followUp ? saved.skillId : null),
+                bookId: knowledge ? null : reading.book?.id,
+                chapterHref: knowledge ? null : reading.chapterHref,
                 request: skillRequest ??
                     ReadingSkillRequest(
                         messages: requestMessages, useAgent: true),
@@ -221,12 +281,14 @@ class AiChat extends _$AiChat {
       homePromptId: homePromptId,
       readingRequest: readingRequest,
       skillLabels: skillLabels,
+      historyKey: key,
     );
 
     await historyNotifier.upsert(draftEntry);
     if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
       return;
     _lastReadingRequest = readingRequest;
+    _historyKey = key;
     state = AsyncData(updatedMessages);
 
     yield updatedMessages;
@@ -265,8 +327,9 @@ class AiChat extends _$AiChat {
         }
       }
 
-      final responseStream = skillRequest?.webSearch == true ||
-              readingRequest?.skillId == aiDictionaryWebSkillId
+      final dictionaryInitial = requestMessages.last is HumanChatMessage &&
+          requestMessages.last.contentAsString.startsWith('待解释词语：');
+      final responseStream = skillRequest?.webSearch == true
           ? dictionaryWebLookup(
               messages: requestMessages,
               selectedText: skillRequest?.selectionText,
@@ -275,7 +338,7 @@ class AiChat extends _$AiChat {
                   .search(term, cancelled: requestRunner?.whenCancelled),
               isCancelled: () => requestRunner?.isCancelled == true,
             )
-          : readingRequest?.skillId == aiDictionarySkillId
+          : readingRequest?.skillId == aiDictionarySkillId && dictionaryInitial
               ? dictionaryLookup(
                   messages: requestMessages,
                   generate: dictionaryGenerate,
@@ -283,6 +346,7 @@ class AiChat extends _$AiChat {
                 )
               : aiGenerateStream(
                   requestMessages,
+                  identifier: serviceId,
                   regenerate: isRegenerate,
                   useAgent:
                       skillRequest?.useAgent ?? homeRequest?.useAgent ?? true,
@@ -296,7 +360,7 @@ class AiChat extends _$AiChat {
         // Its late output must not replace the new conversation or its history.
         if (requestRunner?.isCancelled == true ||
             _currentSessionId != sessionId) return;
-        assistantResponse = chunk;
+        assistantResponse = responseFilter?.call(chunk) ?? chunk;
 
         final updatedMessagesWithResponse =
             List<ChatMessage>.from(updatedMessages);
@@ -618,15 +682,18 @@ class AiChat extends _$AiChat {
     state = AsyncData(List<ChatMessage>.empty());
     _currentSessionId = null;
     _lastReadingRequest = null;
+    _historyKey = null;
   }
 
   void loadHistoryEntry(AiChatHistoryEntry entry) {
     _currentSessionId = entry.id;
     _lastReadingRequest = entry.readingRequest;
+    _historyKey = entry.effectiveHistoryKey;
     state = AsyncData(List<ChatMessage>.from(entry.messages));
   }
 
   String? get currentSessionId => _currentSessionId;
+  String? get currentHistoryKey => _historyKey;
   String? get currentDictionarySelection =>
       dictionarySelectionFromRequest(_lastReadingRequest);
 

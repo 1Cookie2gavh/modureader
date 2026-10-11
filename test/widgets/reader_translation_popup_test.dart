@@ -5,7 +5,8 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/service/translate/ai.dart';
 import 'package:anx_reader/service/translate/index.dart';
 import 'package:anx_reader/enums/lang_list.dart';
-import 'package:anx_reader/widgets/ai/ai_stream.dart';
+import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:anx_reader/widgets/context_menu/translation_menu.dart';
 import 'package:anx_reader/widgets/context_menu/translation_result.dart';
 import 'package:anx_reader/widgets/markdown/styled_markdown.dart';
@@ -328,8 +329,12 @@ void main() {
   test('AI translation delegates scrolling to the translation viewport', () {
     final widget = AiTranslateProvider()
         .translate('hello', LangListEnum.auto, LangListEnum.english);
-    expect(widget, isA<AiStream>());
-    expect((widget as AiStream).scrollable, isFalse);
+    expect(widget, isA<ProviderScope>());
+    final chat = (widget as ProviderScope).child as AiChatStream;
+    expect(chat.inlineResults, isTrue);
+    expect(chat.embedded, isTrue);
+    expect(chat.draftScreen, 'lookup.translation');
+    expect(chat.serviceIdentifier, Prefs().translationAiService);
   });
 
   testWidgets('popup remains above the keyboard and inside the viewport',

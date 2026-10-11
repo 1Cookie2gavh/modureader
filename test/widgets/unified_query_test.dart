@@ -9,6 +9,9 @@ import 'package:anx_reader/models/unified_query.dart';
 import 'package:anx_reader/widgets/dictionary/unified_query.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
 import 'package:anx_reader/widgets/ai/skill_template_draft_tile.dart';
+import 'package:anx_reader/service/ai/ai_history.dart';
+import 'package:anx_reader/providers/ai_history.dart';
+import 'package:langchain_core/chat_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:flutter/material.dart';
@@ -51,6 +54,27 @@ void main() {
       ..included = {QuerySection.knowledge};
     await prefs.save(Prefs().prefs);
     Prefs().aiReadingSkillsVisible = true;
+    await tester.runAsync(() async {
+      for (final key in [
+        'skill.ai_dictionary',
+        'screen.lookup.classical',
+        'reader'
+      ]) {
+        await AiHistoryStore.upsertEntry(AiChatHistoryEntry(
+            id: key,
+            scope: 'reader',
+            historyKey: key,
+            serviceId: 'fake',
+            model: 'fake',
+            createdAt: 1,
+            updatedAt: 1,
+            completed: true,
+            messages: [
+              ChatMessage.humanText('HISTORY:$key'),
+              ChatMessage.ai('Saved answer')
+            ]));
+      }
+    });
     await tester.pumpWidget(ProviderScope(
         child: MaterialApp(
             locale: const Locale('zh'),
@@ -65,6 +89,18 @@ void main() {
     final knowledgeState =
         tester.state<AiChatStreamState>(find.byType(AiChatStream));
     expect(knowledgeState.inputController.text, contains('学而不思则罔'));
+    await tester.runAsync(() =>
+        ProviderScope.containerOf(tester.element(find.byType(AiChatStream)))
+            .read(aiHistoryProvider.notifier)
+            .refresh());
+    await tester.tap(find.byKey(const ValueKey('ai-chat-history')));
+    await tester.pumpAndSettle();
+    expect(find.text('HISTORY:skill.ai_dictionary'), findsOneWidget);
+    expect(find.text('HISTORY:screen.lookup.classical'), findsNothing);
+    expect(find.text('HISTORY:reader'), findsNothing);
+    await tester.tap(find.text('HISTORY:skill.ai_dictionary'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     knowledgeState.inputController.text = '等待发送的问题';
     await tester
         .ensureVisible(find.byKey(const ValueKey('query-tab-classical')));
@@ -76,7 +112,17 @@ void main() {
     expect(classicalState.inputController.text, contains('现代汉语'));
     expect(find.byKey(const ValueKey('ai-skill-picker')), findsNothing);
     expect(find.byKey(const ValueKey('ai-skill-prompts-toggle')), findsNothing);
-    expect(find.byKey(const ValueKey('manage-reading-skills')), findsNothing);
+    // Classical translation now has independent settings, not reading skills.
+    expect(find.byKey(const ValueKey('manage-reading-skills')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ai-new-conversation')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ai-chat-options')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ai-chat-history')));
+    await tester.pumpAndSettle();
+    expect(find.text('HISTORY:screen.lookup.classical'), findsOneWidget);
+    expect(find.text('HISTORY:skill.ai_dictionary'), findsNothing);
+    expect(find.text('HISTORY:reader'), findsNothing);
+    await tester.tap(find.text('HISTORY:screen.lookup.classical'));
+    await tester.pumpAndSettle();
     expect(find.byType(SkillTemplateDraftTile), findsNothing);
     expect(find.textContaining('尚未启用阅读技能'), findsNothing);
     expect(find.byKey(const ValueKey('ai-send-message')), findsOneWidget);

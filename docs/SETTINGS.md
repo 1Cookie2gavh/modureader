@@ -125,6 +125,8 @@ Add an endpoint, model and API key in **Settings → AI Settings → Provider co
 
 A skill can start a new task conversation. Follow-up questions typed into the current or a restored historical conversation continue with its permitted history. The history entry restores the conversation, not only its question. Completed replies return to their beginning for reading. AI font size is independent; mind maps support full screen, zoom, pan, branch collapse and PNG / SVG / Markdown / FreeMind / JSON export.
 
+AI Knowledge never calls local book/library tools, including follow-ups and retries. Book AI retains the original book or bounded skill source. AI Knowledge, AI translation, Classical Chinese translation and the other AI panels have their own settings, new-conversation, history and display menus. Font size and edit-before-send are remembered locally per screen. Histories are partitioned by built-in skill, custom skill and home task; choose a skill in the history menu to view or clear only that skill. Recognizable older histories are classified without deleting records; unclassified legacy conversations remain in their original general history.
+
 Backups store your changes to built-in prompts and your custom templates, not redundant copies of unchanged defaults. Restoring a default replaces its customization. Remote AI receives the actual request text and supplied context; see [Privacy](../PRIVACY.md).
 
 ## Vector indexing and semantic retrieval

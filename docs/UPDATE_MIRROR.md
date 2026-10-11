@@ -1,6 +1,6 @@
 # Application update mirror
 
-## Release procedure: Modu 1.2.6+10106
+## Release procedure: Modu 1.2.6+10107
 
 This guide describes the Modu publishing repository's `v1.2.6` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
 

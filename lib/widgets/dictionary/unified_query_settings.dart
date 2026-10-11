@@ -10,8 +10,9 @@ import 'package:anx_reader/page/settings_page/ai_reading_skills.dart';
 import 'package:flutter/material.dart';
 
 class UnifiedQuerySettings extends StatefulWidget {
-  const UnifiedQuerySettings({super.key, this.section});
+  const UnifiedQuerySettings({super.key, this.section, this.draftScreen});
   final QuerySection? section;
+  final String? draftScreen;
   @override
   State<UnifiedQuerySettings> createState() => _UnifiedQuerySettingsState();
 }
@@ -106,7 +107,7 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           for (final s in [QuerySection.knowledge, QuerySection.classical])
             if (section == null || section == s)
               SkillTemplateDraftTile(
-                  screen: 'lookup.${s.name}',
+                  screen: widget.draftScreen ?? 'lookup.${s.name}',
                   legacyDefault: prefs.manualAi,
                   title:
                       '${t(s.zh, s.en)} · ${t('编辑后发送', 'Edit before sending')}'),
@@ -149,8 +150,7 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           destination(t('联网搜索引擎', 'Web search engines'),
               const SelectionSearchSettings()),
         if (section == null || section == QuerySection.book)
-          destination(
-              t('本书 AI 阅读技能', 'Book AI reading skills'),
+          destination(t('本书 AI 阅读技能', 'Book AI reading skills'),
               const AiReadingSkillsSettings(draftScreen: 'lookup.book')),
         if (error != null)
           Text(error!,
