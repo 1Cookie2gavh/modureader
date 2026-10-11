@@ -38,7 +38,6 @@ import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/ui/status_bar.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
-import 'package:anx_reader/widgets/ai/ai_stream.dart';
 import 'package:anx_reader/widgets/reading_page/notes_widget.dart';
 import 'package:anx_reader/widgets/dictionary/dictionary_lookup.dart';
 import 'package:anx_reader/widgets/dictionary/unified_query.dart';
@@ -966,12 +965,25 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     if (Prefs().autoSummaryPreviousContent) {
       final previousContent =
           await epubPlayerKey.currentState!.previousContent(2000);
+      if (!mounted) return;
       final prompt = generatePromptSummaryThePreviousContent(previousContent);
-      SmartDialog.show(
-        builder: (context) => AlertDialog(
-          title: Text(L10n.of(context).readingPageSummaryPreviousContent),
-          content: AiStream(
-            prompt: prompt,
+      await showReaderPopup(
+        context,
+        builder: (context) => ProviderScope(
+          overrides: [
+            aiChatProvider(AiChatScope.selection).overrideWith(AiChat.new),
+          ],
+          child: AiChatStream(
+            scope: AiChatScope.selection,
+            draftScreen: 'reader.previous-content',
+            title: L10n.of(context).readingPageSummaryPreviousContent,
+            initialMessage: prompt.buildString(),
+            initialSourceText: previousContent,
+            initialSkillId: 'selection_toolbar',
+            initialSelectionRequest: true,
+            newConversation: true,
+            sendImmediate: true,
+            showSkillControls: false,
           ),
         ),
       );

@@ -126,6 +126,7 @@ void main() {
       bool popup = false,
       bool inlineResults = false,
       bool selection = false,
+      String? draftScreen,
       String? sourceContext,
       bool webSearch = false,
       Locale locale = const Locale('zh'),
@@ -148,6 +149,7 @@ void main() {
     Widget conversation() => AiChatStream(
         key: key,
         scope: AiChatScope.reader,
+        draftScreen: draftScreen,
         embedded: inlineResults,
         inlineResults: inlineResults,
         initialDraftOnly: inlineResults ? false : null,
@@ -162,7 +164,10 @@ void main() {
         newConversation: true);
     await tester.pumpWidget(ProviderScope(
         overrides: [
-          aiChatProvider(AiChatScope.reader).overrideWith(() => chat)
+          aiChatProvider(draftScreen == null
+                  ? AiChatScope.reader
+                  : AiChatScope.selection)
+              .overrideWith(() => chat)
         ],
         child: MaterialApp(
             locale: locale,
@@ -194,6 +199,32 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets('previous-content summary has independent menus and history key',
+      (tester) async {
+    await mount(tester,
+        immediate: true,
+        popup: true,
+        selection: true,
+        draftScreen: 'reader.previous-content');
+    for (final key in [
+      'manage-reading-skills',
+      'ai-new-conversation',
+      'ai-chat-history',
+      'ai-chat-options'
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    expect(chat.requests.single.source, '原文 {selection}');
+    expect(
+        aiHistoryKey('selection',
+            skillId: selectionToolbarSkillId,
+            screen: 'reader.previous-content'),
+        'screen.reader.previous-content');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(chat.streams.single.close());
+  });
 
   testWidgets(
       'inline automatic AI results grow with streamed content and accept follow-up',
