@@ -14,7 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AiReadingSkillsSettings extends ConsumerStatefulWidget {
-  const AiReadingSkillsSettings({super.key});
+  const AiReadingSkillsSettings(
+      {super.key, this.draftScreen = 'reader', this.draftDefault});
+  final String draftScreen;
+  final bool? draftDefault;
 
   @override
   ConsumerState<AiReadingSkillsSettings> createState() =>
@@ -70,7 +73,8 @@ class _AiReadingSkillsSettingsState
             onChanged: (value) =>
                 setState(() => Prefs().aiReadingSkillsVisible = value),
           ),
-          const SkillTemplateDraftTile(),
+          SkillTemplateDraftTile(
+              screen: widget.draftScreen, legacyDefault: widget.draftDefault),
           _hint(ModuStrings.value(
               Localizations.localeOf(context),
               'reading_skills_layout_help',

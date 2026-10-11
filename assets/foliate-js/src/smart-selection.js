@@ -1,6 +1,6 @@
 // Like a native reader's word-boundary iterator, Intl.Segmenter resolves the
 // pressed word in its paragraph. Only the initial long press is normalized;
-// native selection handles and ordinary mouse dragging keep their own ranges.
+// handle adjustments and ordinary mouse dragging keep their own ranges.
 const interactive = 'a[href],button,input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],img,svg,video,audio,rt';
 const paragraphTags = 'p,li,dt,dd,blockquote,figcaption,pre,td,th,h1,h2,h3,h4,h5,h6';
 const maxText = 65536;
@@ -140,8 +140,8 @@ export function isInitialSmartSelection(doc, range) {
 }
 
 // Chromium clears ShouldShowHandle for script-created selections (including
-// setBaseAndExtent and live Range edits). Supply touch handles only for ranges
-// we expanded ourselves; ordinary native selections keep their native handles.
+// setBaseAndExtent and live Range edits). Use one set of reader touch handles
+// for Android text selections, without the native drag magnifier.
 function installExpandedSelectionHandles(doc, { onDragStart }) {
   let host, controls = [], owned, drag, disposed = false;
   const win = doc.defaultView, listeners = [];
@@ -288,6 +288,7 @@ function installExpandedSelectionHandles(doc, { onDragStart }) {
 function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentWord, onAdjusted, now }) {
   let session = null, hadSelection = !!activeRange(doc), excluded = false;
   let disposed = false, touch = null, suppressClickUntil = 0;
+  let touchHandlesAllowed = true;
   const listeners = [];
   const handles = installExpandedSelectionHandles(doc, { onDragStart: () => {
     session = null; touch = null; excluded = true; hadSelection = true;
@@ -324,11 +325,12 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
     if (preserveActiveSelection && session && range &&
         (sameRange(session.seed, range) || sameRange(session.normalized, range))) return;
     session = null; touch = null;
+    touchHandlesAllowed = false;
     handles.hide();
     hadSelection = !!range; excluded = true;
     delete doc.__moduInitialSmartSelectionRange;
   };
-  const beforeSelection = () => {
+  const normalizeSelection = () => {
     change();
     const current = session;
     if (!current || current.finished || !permitted()) return Promise.resolve();
@@ -364,11 +366,27 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
       if (selection.setBaseAndExtent)
         selection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
       else { selection.removeAllRanges(); selection.addRange(range); }
-      handles.show(range);
       onAdjusted(range);
       doc.dispatchEvent(new doc.defaultView.Event('selectionchange'));
     })();
     return current.pending;
+  };
+  const beforeSelection = async () => {
+    const previous = activeRange(doc)?.cloneRange();
+    await normalizeSelection();
+    const range = activeRange(doc);
+    if (disposed || !touchHandlesAllowed || doc.__moduQuickMarkEnabled ||
+        handles.ownsSelection() || !range ||
+        (!sameRange(previous, range) && !sameRange(session?.normalized, range)) ||
+        !contextAt(doc, range.startContainer, range.startOffset) ||
+        !contextAt(doc, range.endContainer, range.endOffset)) return;
+    // Reset even an unchanged native word/paragraph: otherwise Chromium keeps
+    // its OEM-coloured handles and magnifier alongside the reader controls.
+    const selection = doc.getSelection(), owned = range.cloneRange();
+    selection.removeAllRanges();
+    selection.addRange(owned);
+    handles.show(owned);
+    doc.dispatchEvent(new doc.defaultView.Event('selectionchange'));
   };
   const nativeLongPress = () => {
     if (!permitted()) return;
@@ -382,11 +400,12 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
     const point = e.touches?.[0] ?? e;
     const isTouch = e.type === 'touchstart' || e.pointerType === 'touch' || e.pointerType === 'pen';
     if (!isTouch || e.touches?.length > 1 || e.isPrimary === false || e.button > 0 ||
-        blocked(e.target) || !permitted()) { cancel(); return; }
+        blocked(e.target) || disposed || doc.__moduQuickMarkEnabled) { cancel(); return; }
     // Browsers dispatch both pointerdown and touchstart for one contact.
     if (touch && now() - touch.at < 50 &&
         Math.hypot(point.clientX - touch.x, point.clientY - touch.y) < 2) return;
     session = null;
+    touchHandlesAllowed = true;
     hadSelection = !!activeRange(doc); excluded = hadSelection;
     touch = { x: point.clientX, y: point.clientY, at: now(), handles: hadSelection };
     delete doc.__moduInitialSmartSelectionRange;

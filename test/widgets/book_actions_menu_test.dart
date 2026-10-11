@@ -145,42 +145,54 @@ void main() {
         ],
         child: legacy.ChangeNotifierProvider<Prefs>.value(
             value: Prefs(),
-            child: MaterialApp(
-              locale: const Locale('zh'),
-              supportedLocales: L10n.supportedLocales,
-              localizationsDelegates: const [
-                L10n.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate
-              ],
-              home: shelf
-                  ? const BookshelfPage()
-                  : Scaffold(
-                      body: Center(
-                          child: bottom
-                              ? BookBottomSheet(book: book)
-                              : SizedBox(
-                                  width: 160,
-                                  height: 340,
-                                  child: folder
-                                      ? BookFolder(
-                                          books: [
-                                            book.copyWith(groupId: 42),
-                                            if (!singleInFolder)
-                                              book.copyWith(
-                                                  id: 790,
-                                                  groupId: 42,
-                                                  coverPath: 'cover/second.png')
-                                          ],
-                                          selectionMode: selection,
-                                          onSelectionChanged: select,
-                                        )
-                                      : BookItem(
-                                          book: book,
-                                          selectionMode: selection,
-                                          onSelectionChanged: select)))),
-            )),
+            child: StatefulBuilder(
+                builder: (context, setState) => MaterialApp(
+                      locale: const Locale('zh'),
+                      supportedLocales: L10n.supportedLocales,
+                      localizationsDelegates: const [
+                        L10n.delegate,
+                        GlobalMaterialLocalizations.delegate,
+                        GlobalWidgetsLocalizations.delegate,
+                        GlobalCupertinoLocalizations.delegate
+                      ],
+                      home: shelf
+                          ? const BookshelfPage()
+                          : Scaffold(
+                              body: Center(
+                                  child: bottom
+                                      ? BookBottomSheet(book: book)
+                                      : SizedBox(
+                                          width: 160,
+                                          height: 340,
+                                          child: folder
+                                              ? BookFolder(
+                                                  books: [
+                                                    book.copyWith(groupId: 42),
+                                                    if (!singleInFolder)
+                                                      book.copyWith(
+                                                          id: 790,
+                                                          groupId: 42,
+                                                          coverPath:
+                                                              'cover/second.png')
+                                                  ],
+                                                  selectionMode: selection,
+                                                  onSelectionChanged:
+                                                      (book, value) {
+                                                    setState(
+                                                        () => selection = true);
+                                                    select?.call(book, value);
+                                                  },
+                                                )
+                                              : BookItem(
+                                                  book: book,
+                                                  selectionMode: selection,
+                                                  onSelectionChanged:
+                                                      (book, value) {
+                                                    setState(
+                                                        () => selection = true);
+                                                    select?.call(book, value);
+                                                  })))),
+                    ))),
       ));
       // Index badges read real file metadata; let that I/O complete outside the
       // widget test's fake clock before taking a menu snapshot.
@@ -198,6 +210,17 @@ void main() {
           find.byType(PopupMenuItem<BookAction>))
       .map((w) => w.value!)
       .toList();
+
+  Future<void> openBookMenu(WidgetTester tester) async {
+    if (find.byTooltip('书籍操作').evaluate().isEmpty) {
+      await tester.longPress(find.byType(BookItem).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<BookAction>), findsNothing);
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('书籍操作').first);
+    await tester.pumpAndSettle();
+  }
 
   for (final createNew in [true, false]) {
     testWidgets('narrow bookshelf batch folder action create=$createNew',
@@ -259,8 +282,8 @@ void main() {
     await Navigator.of(context).maybePop();
     await tester.pumpAndSettle();
     expect(find.text('选择'), findsOneWidget);
-    await tester.tap(find.byTooltip('书籍操作').first);
-    await tester.pumpAndSettle();
+    expect(find.byTooltip('书籍操作'), findsNothing);
+    await openBookMenu(tester);
     expect(actions(tester), BookAction.values);
     await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
@@ -290,7 +313,11 @@ void main() {
     expect(find.text('已选 2 本'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('书籍操作'), findsNWidgets(2));
+    expect(find.byTooltip('书籍操作'), findsNothing);
+    await openBookMenu(tester);
+    expect(actions(tester), BookAction.values);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
     expect(File(book.fileFullPath).existsSync(), isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -299,7 +326,7 @@ void main() {
       (tester) async {
     await mount(tester, folder: true, singleInFolder: true);
     expect(find.text('测试文件夹'), findsOneWidget);
-    expect(find.byTooltip('文件夹操作'), findsOneWidget);
+    expect(find.byTooltip('文件夹操作'), findsNothing);
     expect(find.byType(BookItem), findsNothing);
     await tester.tap(find.byType(BookFolder));
     await tester.pumpAndSettle();
@@ -352,7 +379,7 @@ void main() {
             {TargetPlatform.android, TargetPlatform.iOS}));
   }
 
-  testWidgets('folder tile long press offers pin, selection mode hides menu',
+  testWidgets('folder tile long press selects and reveals the pin menu',
       (tester) async {
     await mount(tester, folder: true);
     void expectTranslucentCoverMenu(IconData icon) {
@@ -372,8 +399,12 @@ void main() {
       expect(iconWidget.size, 18);
     }
 
-    expectTranslucentCoverMenu(Icons.more_vert);
+    expect(find.byTooltip('文件夹操作'), findsNothing);
     await tester.longPress(find.byType(BookFolder));
+    await tester.pumpAndSettle();
+    expect(find.text('置顶'), findsNothing);
+    expectTranslucentCoverMenu(Icons.more_vert);
+    await tester.tap(find.byTooltip('文件夹操作'));
     await tester.pumpAndSettle();
     expect(find.text('置顶'), findsOneWidget);
     await tester.tap(find.text('置顶'));
@@ -389,7 +420,7 @@ void main() {
     await mount(tester, folder: true, selection: true, select: (_, value) {
       if (value) selected++;
     });
-    expect(find.byTooltip('文件夹操作'), findsNothing);
+    expect(find.byTooltip('文件夹操作'), findsOneWidget);
     await tester.tap(find.byType(BookFolder));
     await tester.pumpAndSettle();
     expect(selected, 2);
@@ -412,7 +443,7 @@ void main() {
             ProviderScope.containerOf(tester.element(find.byType(BookItem)));
         final status =
             container.read(syncStatusProvider.notifier) as _SyncStatus;
-        await tester.tap(find.byTooltip('书籍操作'));
+        await openBookMenu(tester);
         await tester.pumpAndSettle();
         status.syncing(true);
         await tester.pump();
@@ -430,10 +461,10 @@ void main() {
     });
   }
 
-  testWidgets('cover dots, long press and drag bottom bar share all actions',
+  testWidgets('editing cover dots and drag bottom bar share all actions',
       (tester) async {
     await mount(tester);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(actions(tester), BookAction.values);
     final labels = tester
@@ -445,11 +476,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.longPress(find.byType(BookItem));
     await tester.pumpAndSettle();
+    expect(actions(tester), isEmpty);
+    await openBookMenu(tester);
     expect(actions(tester), BookAction.values);
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
     await mount(tester, bottom: true);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(actions(tester), BookAction.values);
     expect(
@@ -470,7 +503,7 @@ void main() {
     final time = book.updateTime;
     final container =
         ProviderScope.containerOf(tester.element(find.byType(BookItem)));
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(find.text('置顶'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book-action-pin')));
@@ -478,7 +511,7 @@ void main() {
     expect(container.read(bookshelfPinsProvider), contains(bookPinKey(book)));
     expect(book.lastReadPosition, position);
     expect(book.updateTime, time);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(find.text('取消置顶'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book-action-pin')));
@@ -493,13 +526,13 @@ void main() {
     await mount(tester);
     final position = book.lastReadPosition;
     final store = DocumentReadingModeStore(Prefs().prefs);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(find.text('设为扫描图片书籍'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book-action-scanned')));
     await tester.pumpAndSettle();
     expect(store.read(book), DocumentReadingMode.imageEpub);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     expect(find.text('恢复普通书籍阅读'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('book-action-scanned')));
@@ -561,8 +594,9 @@ void main() {
         await tester.runAsync(() => BookKnowledgeIndexService().hasIndex(book)),
         isTrue);
     for (final bottom in [false, true]) {
-      await mount(tester, bottom: bottom);
-      await tester.tap(find.byTooltip('书籍操作'));
+      // Mount the editable menu before awaiting its real index metadata.
+      await mount(tester, bottom: bottom, selection: true);
+      await openBookMenu(tester);
       await tester.pumpAndSettle();
       expect(find.text('重新向量化'), findsOneWidget,
           reason:
@@ -578,8 +612,8 @@ void main() {
     }
     File(book.fileFullPath).deleteSync();
     for (final bottom in [false, true]) {
-      await mount(tester, bottom: bottom);
-      await tester.tap(find.byTooltip('书籍操作'));
+      await mount(tester, bottom: bottom, selection: true);
+      await openBookMenu(tester);
       await tester.pumpAndSettle();
       expect(
           tester
@@ -612,7 +646,7 @@ void main() {
   testWidgets('delete requires confirmation and cancel preserves the book',
       (tester) async {
     await mount(tester);
-    await tester.tap(find.byTooltip('书籍操作'));
+    await openBookMenu(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('book-action-delete')));
     await tester.pumpAndSettle();

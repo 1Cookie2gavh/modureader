@@ -280,6 +280,27 @@ jobs:
           dart run build_runner build --delete-conflicting-outputs
           npm ci --prefix assets/foliate-js
           (cd assets/foliate-js && node node_modules/webpack-cli/bin/cli.js --config webpack.config.js)
+      - name: Install XML-v4-capable Android command-line tools
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          accept-android-sdk-licenses: false
+          packages: ''
+      - name: Use the same SDK parser for the emulator runner
+        # emulator-runner prepends cmdline-tools/latest, overriding PATH.
+        run: |
+          tools_root="$ANDROID_HOME/cmdline-tools"
+          selected_tools="$(dirname "$(dirname "$(realpath "$(command -v sdkmanager)")")")"
+          grep -qx 'Pkg.Revision=16.0' "$selected_tools/source.properties"
+          if [[ ! -e "$tools_root/latest" || "$(realpath "$tools_root/latest")" != "$selected_tools" ]]; then
+            if [[ -e "$tools_root/latest" || -L "$tools_root/latest" ]]; then
+              test ! -e "$tools_root/modu-runner-original"
+              test ! -L "$tools_root/modu-runner-original"
+              mv "$tools_root/latest" "$tools_root/modu-runner-original"
+            fi
+            ln -s "$selected_tools" "$tools_root/latest"
+          fi
+          "$tools_root/latest/bin/sdkmanager" --version
       - name: Load dedicated release signing identity
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

@@ -40,7 +40,6 @@ void main() {
     'enabledAiTools': <String>['search_books'],
     'readAnySkillStates': '{"summary":false}',
     'aiReadingSkillsVisible': false,
-    'aiSkillTemplateDraft': true,
     'readAnySkillOrder': <String>['custom:first', 'builtin:mindmap'],
     'readAnySkillPrompts': '{"summary":"Summarize briefly"}',
     'vectorModelEnabled': false,

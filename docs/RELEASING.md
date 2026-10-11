@@ -1,6 +1,6 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.6+10104**, 2026-10-11.
+Single-edition guide in English. Prepared for stable **1.2.6+10106**, 2026-10-11.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
@@ -14,7 +14,13 @@ Library modules with an older compile SDK are raised to API 36 at DSL finalizati
 
 `android/modu_builtin_kotlin.gradle` migrates the 14 pinned legacy plugin build scripts into build-only overlays under `build/plugin-gradle/`, following the [Flutter plugin migration](https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors). It removes explicit KGP application/classpath and uses `kotlin.compilerOptions`, preserving each plugin's Java/Kotlin target, runtime sources, dependencies and resources. Neither Pub cache nor other platforms' builds are edited. The normalized source SHA-256 pins in `android/modu_builtin_kotlin.json` fail closed on upstream build-script changes: review the migration when upgrading a plugin, then update/remove its pin. Java/Kotlin target validation is enabled, not suppressed.
 
-Validation (2026-10-11): the ARM64 release build passes with no legacy-KGP or embedded-Kotlin version warning; release signing, native JNI retention, 16 KB ELF/ZIP alignment and exclusion of integration-test DEX were checked. This is not a claim of a warning-free clean build: SDK XML processing, three `sqflite_android` deprecated Java API warnings and Gradle 10 deprecation notices remain. No warning suppression was added; device behavior and other-platform builds were not revalidated in this toolchain pass.
+The same overlay also migrates deprecated Groovy property assignment syntax, with additional non-Kotlin build scripts pinned in `android/modu_gradle_syntax.json`. Jetifier is disabled: the current dependency graph passes AAR metadata checks without it. `sqflite_android` 2.4.2+2 provides Android 16 Locale/thread API guards; `sqflite_common` is pinned to 2.5.6, before later transaction behavior changes. Database schemas and sync protocols are unchanged.
+
+CI pins command-line tools 16.0 (12266719) and points `cmdline-tools/latest` to the selected installation, preserving the runner's previous directory. The emulator action prepends this path and would otherwise use its outdated XML parser despite a newer tool on PATH.
+
+Validation (2026-10-11): the ARM64 preview.2 APK passed release-signature, native JNI retention and 16 KB ELF/ZIP alignment checks. Full Flutter regression passed 2528 tests with 13 skipped; 60 focused JavaScript tests also passed. Gradle configuration, database-plugin Java compilation and AAR metadata checks pass without the reported Java/Groovy deprecations. Flutter still requires `android.newDsl=false`; its AGP deprecation warning remains visible. SDK parser selection has regression tests; full stable packages must pass the cloud release gates before publishing. These checks do not replace device acceptance.
+
+The development-only `custom_lint` is pinned to 0.7.6, whose upstream fix invokes the Dart executable rather than the analysis server's AOT runtime for `pub get`. The previous 0.7.5 startup error (`pub is not an AOT snapshot`) was a lint-tool failure, not an application runtime failure. Keep the plugin enabled when validating the release. Standard Dart analysis completes without code errors. Running custom_lint separately still exposes an old Riverpod/analyzer incompatibility (`visitDotShorthandPropertyAccess`); do not claim complete custom-rule validation. Flutter's local analysis client also has a Chinese-workspace-path LSP framing error; direct Dart analysis avoids that client issue without disabling rules. CI uses an ASCII checkout path and retains its analyzer and test gates.
 
 Native library extraction remains enabled through `packagingOptions.jniLibs.useLegacyPackaging=true`. Do not restore the old explicit `android:extractNativeLibs` manifest attribute: AGP 9 rejects that configuration at packaging time. Native JNI and 16 KB alignment verification still apply.
 

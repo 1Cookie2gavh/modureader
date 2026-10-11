@@ -131,7 +131,8 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
                 embedded: true,
                 inlineResults: section == QuerySection.knowledge,
                 showSkillControls: section != QuerySection.classical,
-                initialDraftOnly: prefs.manualAi,
+                initialDraftOnly: book ? null : prefs.manualAi,
+                draftScreen: 'lookup.${section.name}',
                 initialMessage: book
                     ? query
                     : (override.isNotEmpty && !override.contains('{selection}')
@@ -142,7 +143,7 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
                 initialSelectionRequest: !book,
                 initialSkillId: book ? null : command.skillId,
                 newConversation: true,
-                sendImmediate: !book && !prefs.manualAi,
+                sendImmediate: !book,
                 quickPromptChips: book
                     ? configuredReadingSkillChips(
                         Localizations.localeOf(context))

@@ -32,7 +32,16 @@ try {
     assert expected.message.contains('Unsupported plugin JVM target')
 }
 
-def pins = new groovy.json.JsonSlurper().parse(file('modu_builtin_kotlin.json'))
+// Only migrate known property setters; dependency/method DSL calls stay intact.
+def migrateAssignments = { String source ->
+    source.replaceAll(/(?m)^(\s*)(group|version|namespace|checkAllWarnings|warningsAsErrors|buildConfig)\s+(?![=\s])([^\r\n]+)$/, '$1$2 = $3')
+}
+assert migrateAssignments("group 'example'\nnamespace = 'kept'\nimplementation 'dep'\n") ==
+        "group = 'example'\nnamespace = 'kept'\nimplementation 'dep'\n"
+assert migrateAssignments('    warningsAsErrors true\n') == '    warningsAsErrors = true\n'
+
+def kotlinPins = new groovy.json.JsonSlurper().parse(file('modu_builtin_kotlin.json'))
+def pins = kotlinPins + new groovy.json.JsonSlurper().parse(file('modu_gradle_syntax.json'))
 pins.each { name, expectedHash ->
     def plugin = project(":${name}")
     def upstream = new File(plugin.projectDir, 'build.gradle')
@@ -42,7 +51,7 @@ pins.each { name, expectedHash ->
         throw new GradleException("${name}: build.gradle changed; review the built-in Kotlin migration before updating its checksum.")
     }
     def output = file("../build/plugin-gradle/${name}.gradle")
-    def migrated = migrateKotlin(source)
+    def migrated = migrateAssignments(kotlinPins.containsKey(name) ? migrateKotlin(source) : source)
     output.parentFile.mkdirs()
     if (!output.exists() || output.getText('UTF-8') != migrated) output.setText(migrated, 'UTF-8')
     plugin.buildFileName = plugin.projectDir.toPath().relativize(output.toPath()).toString()

@@ -1,0 +1,15 @@
+{
+  "app_links": "e1b3670e0000bc6d82b7d6613c5289a55583514072b4a8129c2c98867c34a38c",
+  "audio_service": "a8891d804073b9d10b252721cc52850a621272d3547e4243eaac91ea0b4fdc83",
+  "audio_session": "888f7f7dff9fc12f71bbfe4ae4cb0723c2048c27afab3578d95e2ac90ebb7910",
+  "connectivity_plus": "3c343089242ccda6037df2d75fd813f122fa905234166f552d5e52b748972c78",
+  "file_picker": "f407f99bc9c6daf2cd4bb3680c6df407b7258e39e7b481e08d640a0517915777",
+  "flutter_inappwebview_android": "84ef44b07aa34fbf4f974b29409c6deb73853df8c4d90ce62e824f6cc29d3408",
+  "flutter_keyboard_visibility": "65a2d58c3716517e2e7188a984d49d7f6f34e26cf8e2aafe91fa2de6042e394d",
+  "flutter_plugin_android_lifecycle": "a5d8b3dcd7838bf553057edc78807dadaadea8de8daafd0330d2a4f4633c6ecf",
+  "path_provider_android": "6791a986b1ad847d328b8c01361db54b6703f07ef2e0ea88699c36f16265bf07",
+  "permission_handler_android": "a7eb30be9254f9b4be2ab15d7ec4377432bf2906c65ea81ba2eb0bbda87ef967",
+  "sqflite_android": "0e9d9cafc75088176ea8c9a06965856e2d06f7ffa6d373c4630711965a810431",
+  "sqlite3_flutter_libs": "39bfb9935ddf61c9e693f73a339a5e40e32153258d9b9fb7f35f25c52939568e",
+  "url_launcher_android": "96f6581abd8adb8df6c1235d1f945f54e4c1bd9ae8259c6d59362043861ca34d"
+}

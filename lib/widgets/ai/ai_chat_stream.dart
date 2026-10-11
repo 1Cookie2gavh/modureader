@@ -65,6 +65,7 @@ class AiChatStream extends ConsumerStatefulWidget {
     this.scope = AiChatScope.library,
     this.title,
     this.initialDraftOnly,
+    this.draftScreen,
     this.embedded = false,
     this.inlineResults = false,
     this.showSkillControls = true,
@@ -83,6 +84,7 @@ class AiChatStream extends ConsumerStatefulWidget {
   final AiChatScope scope;
   final String? title;
   final bool? initialDraftOnly;
+  final String? draftScreen;
   final bool embedded;
   final bool inlineResults;
   final bool showSkillControls;
@@ -92,6 +94,9 @@ class AiChatStream extends ConsumerStatefulWidget {
 }
 
 class AiChatStreamState extends ConsumerState<AiChatStream> {
+  String get _draftScreen => widget.draftScreen ?? widget.scope.name;
+  bool get _draftOnly =>
+      Prefs().aiDraftFor(_draftScreen, legacyDefault: widget.initialDraftOnly);
   final TextEditingController inputController = TextEditingController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Stream<List<ChatMessage>>? _messageStream;
@@ -130,7 +135,8 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       builder: (context) => Scaffold(
         appBar: AppBar(
             title: Text(ModuStrings.text(context, 'AI 阅读技能', 'AI 阅读技能'))),
-        body: const AiReadingSkillsSettings(),
+        body: AiReadingSkillsSettings(
+            draftScreen: _draftScreen, draftDefault: widget.initialDraftOnly),
       ),
     ));
     if (mounted) setState(() {});
@@ -212,7 +218,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
       _hasPendingTemplate =
           widget.initialSelectionRequest || widget.initialSkillId != null;
       _pendingSourceText = _readerSourceText;
-      final draftOnly = widget.initialDraftOnly ?? Prefs().aiSkillTemplateDraft;
+      final draftOnly = _draftOnly;
       if (widget.sendImmediate && !(_hasPendingTemplate && draftOnly)) {
         _sendMessage(
             skillId: widget.initialSkillId, sourceText: _readerSourceText);
@@ -309,7 +315,7 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     inputController.value = TextEditingValue(
         text: prompt,
         selection: TextSelection.collapsed(offset: prompt.length));
-    if (Prefs().aiSkillTemplateDraft) {
+    if (_draftOnly) {
       _focusDraft();
     } else {
       _sendMessage();
@@ -334,10 +340,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     _hasPendingTemplate = selectionRequest || skillId != null;
     _pendingSourceText = _readerSourceText;
     inputController.text = message;
-    if (sendImmediate &&
-        !(_hasPendingTemplate && Prefs().aiSkillTemplateDraft)) {
+    if (sendImmediate && !(_hasPendingTemplate && _draftOnly)) {
       _sendMessage(skillId: skillId, sourceText: _readerSourceText);
-    } else if (_hasPendingTemplate && Prefs().aiSkillTemplateDraft) {
+    } else if (_hasPendingTemplate && _draftOnly) {
       _focusDraft();
     }
   }
@@ -1045,7 +1050,10 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
                 if (!compact &&
                     !widget.inlineResults &&
                     widget.showSkillControls)
-                  const SkillTemplateDraftTile(compact: true),
+                  SkillTemplateDraftTile(
+                      compact: true,
+                      screen: _draftScreen,
+                      legacyDefault: widget.initialDraftOnly),
                 TextField(
                   key: const ValueKey('ai-message-input'),
                   controller: inputController,

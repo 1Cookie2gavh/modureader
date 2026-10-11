@@ -2,7 +2,7 @@ name: anx_reader
 description: "Modu: an open-source AI reader derived from Anx Reader and ReadAny."
 publish_to: 'none'
 
-version: 1.2.6+10104
+version: 1.2.6+10106
 
 environment:
   sdk: '>=3.5.2 <4.0.0'
@@ -20,6 +20,10 @@ dependencies:
   image: ^4.3.0
   zxing2: ^0.2.4
   sqflite: ^2.3.2
+  # Android 36 Locale/thread API guards; avoid the later SQL execution change.
+  sqflite_android: 2.4.2+2
+  # Minimum required by the Android fix; preserve existing transaction semantics.
+  sqflite_common: 2.5.6
   path: ^1.9.0
   shared_preferences: ^2.2.2
   provider: ^6.1.2
@@ -180,7 +184,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   build_runner: ^2.4.13
-  custom_lint: ^0.7.5
+  custom_lint: 0.7.6
   riverpod_generator: ^2.4.3
   riverpod_lint: ^2.3.13
   freezed: ^3.0.2

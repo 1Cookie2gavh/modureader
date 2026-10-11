@@ -111,6 +111,8 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
       values.putIfAbsent(
           'ttsVoiceModel_$service', () => {'type': 'reset', 'value': null});
     }
+    // Accept the retired global flag in old files, but never export/apply it.
+    values.remove('aiSkillTemplateDraft');
     values.removeWhere(
         (key, _) => key != prefsBackupVersionKey && _type(key) == null);
     values.removeWhere(
@@ -422,7 +424,8 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
     validate(values);
     final pending = <String, Object?>{};
     for (final entry in values.entries) {
-      if (entry.key == prefsBackupVersionKey) continue;
+      if (entry.key == prefsBackupVersionKey ||
+          entry.key == 'aiSkillTemplateDraft') continue;
       if (_isReset(entry.value)) {
         pending[entry.key] = null;
         continue;

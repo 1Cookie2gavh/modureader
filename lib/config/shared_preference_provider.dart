@@ -57,6 +57,8 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'aiSkillTemplateDraft',
+  'aiDraftByScreen',
   'unifiedQueryPreferences',
   'dictionaryLookupSources',
   'documentDetectedTypes',
@@ -81,6 +83,8 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'aiSkillTemplateDraft',
+  'aiDraftByScreen',
   'unifiedQueryPreferences',
   'dictionaryLookupSources',
   'documentDetectedTypes',
@@ -1371,11 +1375,35 @@ class Prefs extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get aiSkillTemplateDraft =>
-      prefs.getBool('aiSkillTemplateDraft') ?? false;
+  // Legacy callers are the reading-skills settings, not a global switch.
+  bool get aiSkillTemplateDraft => aiDraftFor('reader');
 
   set aiSkillTemplateDraft(bool value) {
-    prefs.setBool('aiSkillTemplateDraft', value);
+    setAiDraftFor('reader', value);
+  }
+
+  Map<String, bool> _aiDraftScreens() {
+    try {
+      final raw = jsonDecode(prefs.getString('aiDraftByScreen') ?? '{}');
+      if (raw is Map) {
+        return {
+          for (final entry in raw.entries)
+            if (entry.key is String && entry.value is bool)
+              entry.key as String: entry.value as bool
+        };
+      }
+    } catch (_) {/* Invalid local preferences retain the prior default. */}
+    return {};
+  }
+
+  bool aiDraftFor(String screen, {bool? legacyDefault}) =>
+      _aiDraftScreens()[screen] ??
+      legacyDefault ??
+      (prefs.get('aiSkillTemplateDraft') == true);
+
+  void setAiDraftFor(String screen, bool value) {
+    final screens = _aiDraftScreens()..[screen] = value;
+    prefs.setString('aiDraftByScreen', jsonEncode(screens));
     notifyListeners();
   }
 

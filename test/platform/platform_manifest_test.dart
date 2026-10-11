@@ -10,7 +10,7 @@ void main() {
       'android/app/src/main/kotlin/com/modu/reader/MainActivity.kt',
     ).readAsStringSync();
 
-    expect(buildGradle, contains('namespace "${AppIdentity.bundleId}"'));
+    expect(buildGradle, contains('namespace = "${AppIdentity.bundleId}"'));
     expect(buildGradle, contains('applicationId "${AppIdentity.bundleId}"'));
     expect(buildGradle, contains('minSdkVersion 26'));
     expect(activity, contains('package com.modu.reader'));

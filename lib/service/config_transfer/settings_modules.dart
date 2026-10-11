@@ -22,7 +22,7 @@ writingMode verticalRedFrame textAlignment bgimgFit bgimg selectionToolbar''',
 aiTemperature aiChatFontSize aiPanelWidth aiPanelHeight aiPanelPosition aiChatDisplayMode
 codeHighlightTheme enabledAiTools''',
   'ai-skills':
-      '''readAnySkillStates readAnySkillPrompts userPrompts autoSummaryPreviousContent aiReadingSkillsVisible aiSkillTemplateDraft readAnySkillOrder''',
+      '''readAnySkillStates readAnySkillPrompts userPrompts autoSummaryPreviousContent aiReadingSkillsVisible readAnySkillOrder''',
   'vector':
       '''vectorModelEnabled autoVectorizeOnImport vectorModelMode vectorLocalModelId
 vectorModelDownloadSource vectorModelConfig''',

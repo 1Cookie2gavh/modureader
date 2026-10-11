@@ -380,8 +380,10 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         if (reader != null) {
           await reader.showUnifiedQuery(text, contextText: sourceContext);
         } else if (popupContext.mounted) {
-          await showReaderPopup(popupContext, enableDrag: false,
-              builder: (_) => UnifiedQuery(text: text, contextText: sourceContext));
+          await showReaderPopup(popupContext,
+              enableDrag: false,
+              builder: (_) =>
+                  UnifiedQuery(text: text, contextText: sourceContext));
         }
         break;
       case 'copy':
@@ -440,6 +442,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                 locale: Localizations.localeOf(context));
         widget.onClose();
         await reader?.showAiChat(
+          draftScreen: 'selection.${item.id}',
           content: prompt,
           sourceText: text,
           sourceContext: item.scope == SelectionAiScope.context

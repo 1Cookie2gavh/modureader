@@ -1,6 +1,7 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/unified_query.dart';
+import 'package:anx_reader/widgets/ai/skill_template_draft_tile.dart';
 import 'package:anx_reader/page/settings_page/dictionaries.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
 import 'package:anx_reader/page/settings_page/selection_search.dart';
@@ -102,14 +103,13 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
         if (section == null ||
             section == QuerySection.knowledge ||
             section == QuerySection.classical) ...[
-          SwitchListTile(
-              key: const ValueKey('query-manual-ai'),
-              title:
-                  Text(t('AI 提问先编辑，点击发送', 'Edit AI questions before sending')),
-              subtitle: Text(t('关闭后首次打开 AI 知识／文言文翻译即发送，可能产生服务费用。',
-                  'When off, opening AI knowledge/classical translation sends immediately and may incur provider charges.')),
-              value: prefs.manualAi,
-              onChanged: (v) => setState(() => prefs.manualAi = v)),
+          for (final s in [QuerySection.knowledge, QuerySection.classical])
+            if (section == null || section == s)
+              SkillTemplateDraftTile(
+                  screen: 'lookup.${s.name}',
+                  legacyDefault: prefs.manualAi,
+                  title:
+                      '${t(s.zh, s.en)} · ${t('编辑后发送', 'Edit before sending')}'),
           if (section == null || section == QuerySection.knowledge)
             TextField(
                 controller: knowledge,
@@ -149,8 +149,9 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           destination(t('联网搜索引擎', 'Web search engines'),
               const SelectionSearchSettings()),
         if (section == null || section == QuerySection.book)
-          destination(t('本书 AI 阅读技能', 'Book AI reading skills'),
-              const AiReadingSkillsSettings()),
+          destination(
+              t('本书 AI 阅读技能', 'Book AI reading skills'),
+              const AiReadingSkillsSettings(draftScreen: 'lookup.book')),
         if (error != null)
           Text(error!,
               style: TextStyle(color: Theme.of(context).colorScheme.error)),

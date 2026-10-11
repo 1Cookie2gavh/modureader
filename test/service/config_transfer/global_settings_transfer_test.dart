@@ -94,7 +94,7 @@ void main() {
     }
   });
 
-  test('template drafting defaults off and survives file and modu link import',
+  test('template drafting is device-local and excluded from file and link import',
       () async {
     expect(Prefs().aiSkillTemplateDraft, false);
     final defaults = await GlobalSettingsTransfer.export(Prefs());
@@ -103,9 +103,10 @@ void main() {
     for (final input in [enabled, GlobalSettingsTransfer.link(enabled)]) {
       Prefs().aiSkillTemplateDraft = false;
       final data = await GlobalSettingsTransfer.decode(input);
-      expect(data['aiSkillTemplateDraft']['type'], 'bool');
+      expect(data.containsKey('aiSkillTemplateDraft'), false);
+      expect(data.containsKey('aiDraftByScreen'), false);
       await GlobalSettingsTransfer.apply(Prefs(), data);
-      expect(Prefs().aiSkillTemplateDraft, true);
+      expect(Prefs().aiSkillTemplateDraft, false);
     }
     await GlobalSettingsTransfer.apply(
         Prefs(), await GlobalSettingsTransfer.decode(defaults));

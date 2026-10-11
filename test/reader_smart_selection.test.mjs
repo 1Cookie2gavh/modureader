@@ -152,12 +152,51 @@ test('Android automatic word and paragraph expansion immediately displays two dr
   }
 });
 
-test('native word selection that already has the desired range gets no duplicate handles', async () => {
+test('native word selection with unchanged bounds adopts the same blue handles only once', async () => {
   const f = fixture(undefined, { nativeTouchSelection: true });
+  let resets = 0;
+  const selection = f.doc.getSelection(), clear = selection.removeAllRanges.bind(selection);
+  selection.removeAllRanges = () => { resets++; clear(); };
   f.select(3, 5); await f.control.beforeSelection();
   assert.equal(f.text(), '中国');
-  assert.equal(handlesHost(f), null);
+  assert.ok(handleAt(f, 'start')); assert.ok(handleAt(f, 'end'));
+  assert.equal(resets, 2); // Native creation, then explicit native-UI dismissal.
+  const host = handlesHost(f);
+  await f.control.beforeSelection();
+  assert.equal(handlesHost(f), host);
+  assert.equal(resets, 2);
   f.close();
+});
+
+test('Android unexpanded text/PDF selections get blue handles without changing their text', async () => {
+  for (const paragraph of [false, true]) {
+    const f = fixture(undefined, { nativeTouchSelection: true, enabled: () => false,
+      paragraph: () => paragraph });
+    f.send('pointerdown'); f.select(2, 6); await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文'); assert.equal(f.adjusted.length, 0);
+    const control = handleAt(f, 'end');
+    assert.ok(control);
+    assert.match(handlesHost(f).shadowRoot.querySelector('style').textContent, /background:#1976d2/);
+    for (const type of ['touchstart', 'touchmove', 'touchend', 'contextmenu'])
+      assert.equal(f.send(type, {}, control).defaultPrevented, true);
+    f.send('pointerdown', { pointerId: 1 }, control);
+    f.hit(f.doc.querySelector('p').firstChild, 7);
+    f.send('pointermove', { pointerId: 1 }); f.send('pointerup', { pointerId: 1 });
+    await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文化');
+    f.close();
+  }
+});
+
+test('Android mouse and keyboard selections do not acquire touch handles', async () => {
+  for (const input of ['mouse', 'keyboard']) {
+    const f = fixture(undefined, { nativeTouchSelection: true });
+    if (input === 'mouse') f.send('pointerdown', { pointerType: 'mouse' });
+    else f.send('keydown', { key: 'ArrowRight' });
+    f.select(3, 4); await f.control.beforeSelection();
+    assert.equal(handlesHost(f), null); assert.equal(f.text(), '中');
+    f.close();
+  }
 });
 
 test('expanded handles drag either endpoint and cross without snapping back to the word', async () => {

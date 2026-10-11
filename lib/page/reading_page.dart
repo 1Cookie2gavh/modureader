@@ -255,6 +255,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   bool bottomBarOffstage = true;
   late String heroTag;
   Widget? _aiChat;
+  String _aiDraftScreen = 'reader';
   Locale? _aiLocale;
   final aiChatKey = GlobalKey<AiChatStreamState>();
   static const double _aiChatMinWidth = 240;
@@ -1019,6 +1020,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
           child: AiChatStream(
             key: aiChatKey,
             scope: AiChatScope.reader,
+            draftScreen: _aiDraftScreen,
             initialMessage: null,
             sendImmediate: false,
             quickPromptChips: _getAiQuickPromptChips(),
@@ -1093,6 +1095,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> showAiChat({
+    String draftScreen = 'reader',
     String? content,
     String? sourceText,
     String? sourceContext,
@@ -1103,6 +1106,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     bool newConversation = false,
     bool forcePopup = false,
   }) async {
+    _aiDraftScreen = draftScreen;
     List<AiQuickPromptChip> quickPrompts = _getAiQuickPromptChips();
 
     // Determine display mode
@@ -1139,6 +1143,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
           builder: (context) => AiChatStream(
                 key: aiChatKey,
                 scope: AiChatScope.reader,
+                draftScreen: draftScreen,
                 initialMessage: content,
                 initialSourceText: sourceText,
                 initialSourceContext: sourceContext,
@@ -1165,6 +1170,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
               child: AiChatStream(
                 key: aiChatKey,
                 scope: AiChatScope.reader,
+                draftScreen: draftScreen,
                 initialMessage: content,
                 initialSourceText: sourceText,
                 initialSourceContext: sourceContext,

@@ -93,12 +93,17 @@ void main() {
       {bool draft = false,
       bool initial = false,
       bool popup = false,
+      bool settle = true,
       AiChatScope scope = AiChatScope.reader,
+      String? draftScreen,
+      bool? initialDraftOnly,
+      Map<String, bool> screenDrafts = const {},
       Size size = const Size(390, 800),
       double scale = 1,
       Locale locale = const Locale('zh', 'CN')}) async {
     SharedPreferences.setMockInitialValues({'aiSkillTemplateDraft': draft});
     await Prefs().initPrefs();
+    screenDrafts.forEach(Prefs().setAiDraftFor);
     final directory =
         Directory.systemTemp.createTempSync('modu-template-draft-');
     final oldPaths = PathProviderPlatform.instance;
@@ -118,6 +123,8 @@ void main() {
     Widget conversation() => AiChatStream(
           key: key,
           scope: scope,
+          draftScreen: draftScreen,
+          initialDraftOnly: initialDraftOnly,
           initialMessage: initial ? '说明选中文字的知识。' : null,
           initialSourceText: original,
           initialSourceContext: initial ? '选区附近的上下文' : null,
@@ -161,7 +168,11 @@ void main() {
             : conversation(),
       ),
     ));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     if (popup) {
       await tester.tap(find.text('打开对话'));
       await tester.pumpAndSettle();
@@ -174,6 +185,37 @@ void main() {
       expect(catalog['ai_skill_template_draft_help'], isNotEmpty);
     }
   });
+
+  for (final manual in [false, true]) {
+    testWidgets('lookup sends according to its own remembered switch: $manual',
+        (tester) async {
+      await mount(tester,
+          settle: manual,
+          initial: true,
+          draft: !manual,
+          draftScreen: 'lookup.knowledge',
+          initialDraftOnly: !manual,
+          screenDrafts: {
+            'lookup.knowledge': manual,
+            'lookup.classical': !manual
+          });
+      if (!manual) {
+        for (var i = 0; i < 10 && chat.requests.isEmpty; i++) {
+          await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)));
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+      }
+      expect(chat.requests.length, manual ? 0 : 1);
+      expect(tester.widget<SwitchListTile>(draftSwitch).value, manual);
+      Prefs().setAiDraftFor('lookup.classical', manual);
+      Prefs().setAiDraftFor('library', !manual);
+      await tester.pump();
+      expect(tester.widget<SwitchListTile>(draftSwitch).value, manual);
+      expect(chat.requests.length, manual ? 0 : 1);
+      if (!manual) await chat.finish();
+    });
+  }
 
   testWidgets(
       'default stays immediate; dialog switch tracks the shared preference',
