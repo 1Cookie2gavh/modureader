@@ -43,6 +43,60 @@ function fixture(ready = Promise.resolve(), waitForFonts = waitForReaderFonts) {
   return {reader: new Harness(doc), doc, timers};
 }
 
+test('null or body-less iframe documents fail before chapter hooks and layout run', async () => {
+  for (const invalid of [null, {head: null}]) {
+    const {reader} = fixture(); reader.doc = invalid;
+    let hooks = 0;
+    const pending = reader.load('blob:chapter', () => hooks++, () => ({}));
+    const rejected = assert.rejects(pending, {name: 'ReaderChapterDocumentError'});
+    reader.frame.dispatchEvent(new Event('load'));
+    await rejected;
+    assert.equal(hooks, 0); assert.equal(reader.renders, 0);
+    reader.close();
+  }
+});
+
+test('initial blank iframe load waits for the chapter and duplicate load events do not reenter', async () => {
+  let release;
+  const {reader, doc} = fixture(new Promise(r => release = r));
+  let hooks = 0;
+  reader.doc = {URL: 'about:blank', body: {}};
+  const pending = reader.load('blob:chapter', () => hooks++, () => ({}));
+  reader.frame.dispatchEvent(new Event('load'));
+  assert.equal(hooks, 0); assert.equal(reader.renders, 0);
+  reader.doc = doc;
+  reader.frame.dispatchEvent(new Event('load'));
+  reader.frame.dispatchEvent(new Event('load'));
+  assert.equal(hooks, 1);
+  release(); await pending;
+  assert.equal(reader.renders, 1);
+  reader.frame.dispatchEvent(new Event('error'));
+  reader.close();
+});
+
+test('waiting for the real chapter after a blank load remains cancellable', async () => {
+  const {reader} = fixture(); reader.doc = {URL: 'about:blank', body: {}};
+  const pending = reader.load('blob:chapter', () => assert.fail('blank document hook'), () => ({}));
+  const rejected = assert.rejects(pending, {name: 'AbortError'});
+  reader.frame.dispatchEvent(new Event('load')); reader.close(); await rejected;
+  reader.frame.dispatchEvent(new Event('load'));
+  assert.equal(reader.renders, 0);
+});
+
+test('iframe errors and documents replaced during font loading fail without rendering', async () => {
+  for (const event of ['error', 'replacement']) {
+    let release;
+    const {reader} = fixture(new Promise(r => release = r));
+    const pending = reader.load('blob:chapter', () => {}, () => ({}));
+    const rejected = assert.rejects(pending, {name: 'ReaderChapterDocumentError'});
+    reader.frame.dispatchEvent(new Event('load'));
+    if (event === 'error') reader.frame.dispatchEvent(new Event('error'));
+    else reader.doc = null;
+    release(); await rejected;
+    assert.equal(reader.renders, 0); reader.close();
+  }
+});
+
 test('slow fonts remain hidden beyond 250ms and reveal only after readiness', async () => {
   let release;
   const {reader, doc, timers} = fixture(new Promise(r => release = r));

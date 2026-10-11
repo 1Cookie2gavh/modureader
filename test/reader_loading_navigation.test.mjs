@@ -60,3 +60,36 @@ test('real font errors unlock navigation and retry the same chapter', async () =
   assert.equal(await r.retryNavigation(),true);
   assert.equal(r.current,1);
 });
+
+test('chapter failures report the target and safe reason; cancellation is not logged as failure', async () => {
+  const start = source.indexOf('  async #goTo({ index, anchor, select })');
+  const end = source.indexOf('  async #loadSection(', start);
+  const warnings = [];
+  const Reporter = runInNewContext(`class Reporter {
+    #lastNavigation; events = []; error;
+    dispatchEvent(event) {this.events.push(event.detail)}
+    async #loadSection() {if (this.error) throw this.error}
+    goTo(target) {return this.#goTo(target)}
+    ${source.slice(start, end)}
+  }; Reporter`, {
+    console: {warn: message => warnings.push(message)},
+    CustomEvent: class {constructor(type, {detail}) {this.detail = detail}},
+  });
+  for (const [error, reason, state] of [
+    [Object.assign(Error('resource detail'), {name:'ReaderChapterDocumentError'}), 'document', 'failed'],
+    [Error('Reader font loading failed'), 'font', 'failed'],
+    [Error('resource detail'), 'chapter', 'failed'],
+    [Object.assign(Error('cancelled'), {name:'AbortError'}), 'chapter', 'cancelled'],
+  ]) {
+    const r = new Reporter(); r.error = error;
+    const count = warnings.length;
+    await assert.rejects(r.goTo({index:3}), e => e === error);
+    assert.equal(r.events[0].state, 'loading');
+    assert.equal(r.events[1].state, state);
+    assert.equal(r.events[1].index, 3); assert.equal(r.events[1].reason, reason);
+    if (state === 'cancelled') assert.equal(warnings.length, count);
+    else assert.equal(warnings.at(-1), `Reader chapter load failed: index=3, reason=${reason}`);
+    r.error = null; await r.goTo({index:3});
+    assert.equal(r.events.at(-1).state, 'ready');
+  }
+});

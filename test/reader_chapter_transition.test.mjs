@@ -7,15 +7,19 @@ const source = await readFile(new URL('../assets/foliate-js/src/paginator.js', i
 const between = (a, b) => source.slice(source.indexOf(a), source.indexOf(b));
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => {resolve = a; reject = b;}); return {promise, resolve, reject}; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const cacheSource = await readFile(new URL('../assets/foliate-js/src/section-window-cache.js', import.meta.url), 'utf8');
+const {SectionWindowCache} = await import(`data:text/javascript;base64,${Buffer.from(cacheSource).toString('base64')}`);
 
 // Execute the production transaction against controlled iframe readiness.
-function fixture() {
+function fixture(cache) {
   const gate = deferred(), views = [];
   class View {
     element = {style: {}, inert: false, removed: false, remove() {this.removed = true;}};
     document = {head: null}; destroyed = false;
     constructor({onExpand}) {this.onExpand = onExpand; views.push(this);}
     async load(src, afterLoad, beforeRender) {
+      if (src === 'blob:unavailable') throw Object.assign(Error('Reader chapter document unavailable'),
+        {name: 'ReaderChapterDocumentError'});
       afterLoad(this.document);
       await gate.promise;
       beforeRender({vertical: false, rtl: false});
@@ -29,6 +33,7 @@ function fixture() {
     #vertical = false; #rtl = false;
     #index = 0; #anchor = .8; #styleMap = new WeakMap(); #pendingRelocate;
     #container = {append(){}};
+    #sectionCache = cache;
     anchors = []; events = []; loads = [];
     constructor() {this.#view = new View({onExpand(){}});}
     get view() {return this.#view} get index() {return this.#index}
@@ -37,15 +42,18 @@ function fixture() {
     render() {this.anchors.push('restore')}
     scrollToAnchor(anchor) {this.#anchor = anchor; this.anchors.push(anchor)}
     dispatchEvent(e) {this.events.push(e.type)}
-    display() {return this.#display({index: 1, src: 'blob:next', anchor: () => 0,
-      onLoad: ({index}) => this.loads.push(index)})}
+    async display() {
+      await this.#display({index: 1, src: cache ? await cache.load(1) : 'blob:next', anchor: () => 0,
+        onLoad: ({index}) => this.loads.push(index)});
+      cache?.setCurrent(1);
+    }
     close() {
       this.#destroyed = true; this.#view?.destroy(); this.#retiringView?.destroy();
       this.#view = null; this.#retiringView = null;
     }
     ${between('  #createView()', '  #beforeRender(')}
     ${between('  async #display(promise)', '  #canGoToIndex(')}
-  }; Renderer`, {View, CustomEvent: class {constructor(type) {this.type = type}}, console});
+  }; Renderer`, {View, cache, CustomEvent: class {constructor(type) {this.type = type}}, console});
   return {renderer: new Renderer(), views, gate};
 }
 
@@ -83,6 +91,33 @@ test('closing during a chapter load cannot revive a view or emit a relocation', 
   await tick(); renderer.close(); gate.resolve(); await pending;
   assert.equal(renderer.view, null);
   assert.equal(renderer.events.length, 0); assert.equal(renderer.anchors.length, 0);
+});
+
+test('unavailable chapter rolls back safely and retry reloads its resource instead of reusing the failed URL', async () => {
+  let attempts = 0;
+  const unloads = [];
+  const cache = new SectionWindowCache([
+    {load: async () => 'blob:visible', unload: () => unloads.push(0)},
+    {load: async () => ++attempts === 1 ? 'blob:unavailable' : 'blob:recovered', unload: () => unloads.push(1)},
+  ], {schedule: () => 1, cancel() {}});
+  await cache.load(0); cache.setCurrent(0);
+  await cache.load(1); // The resource prefetch succeeded, but its iframe will fail.
+  const {renderer, views, gate} = fixture(cache), old = renderer.view;
+  await assert.rejects(renderer.display(), {name: 'ReaderChapterDocumentError'});
+  assert.equal(renderer.view, old); assert.equal(renderer.index, 0);
+  assert.equal(old.destroyed, false); assert.equal(old.element.inert, false);
+  assert.equal(views[1].destroyed, true); assert.equal(views[1].element.removed, true);
+  assert.deepEqual(unloads, [1], 'visible chapter remains owned and readable');
+  assert.deepEqual(cache.indices, [0]);
+  assert.equal(renderer.events.length, 0, 'failed chapter must not commit a relocation');
+  const pending = renderer.display(); await tick();
+  assert.equal(attempts, 2); assert.equal(old.destroyed, false);
+  gate.resolve(); await pending;
+  assert.equal(renderer.index, 1); assert.equal(old.destroyed, true);
+  assert.equal(renderer.view, views[2]);
+  assert.deepEqual(Array.from(renderer.anchors), ['restore', 0]);
+  cache.destroy();
+  assert.deepEqual(unloads, [1, 0, 1], 'each resource generation is released once');
 });
 
 test('e-ink disables animation for every layout without changing scroll mode', async () => {

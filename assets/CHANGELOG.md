@@ -1,6 +1,6 @@
 # Modu changelog
 
-Current release: **1.2.6+10107**. Updated 2026-10-11.
+Current release: **1.2.6+10108**. Updated 2026-10-11.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
@@ -10,6 +10,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### English
 
+- Fix(reader): Handle unavailable chapter documents before accessing their DOM; discard failed chapter resources so retry reloads them. Preserve the outgoing page and reading position, keep slow loads cancellable, and log chapter failure reasons without book text or resource URLs.
 - Fix(ai): Remember edit-before-send independently for each AI screen and selection action on this device; exclude these preferences from sync and settings transfer.
 - Fix(ai): Keep AI Knowledge on model/web knowledge for follow-ups, history restore and retries; never use local book tools. Keep Book AI follow-ups grounded in their original book or skill source.
 - Feat(ai): Add independent settings, new-chat, history and display menus to AI Knowledge, AI translation, Classical Chinese translation and other AI panels. Separate history by built-in/custom skill and home task; clearing one history does not remove another. Retain legacy conversations.
@@ -27,6 +28,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### 简体中文
 
+- Fix(reader): 修复切章时空文档导致的加载失败，清理失败章节资源，使重试重新加载；保留原页与阅读位置，慢加载仍可取消，并记录不含正文或资源地址的章节失败原因。
 - Fix(ai): 各 AI 界面与划词 AI 入口独立记忆「编辑后发送」开关，仅保存在本机，不参与同步和设置导入导出。
 - Fix(ai): AI 知识的追问、历史恢复和重试始终使用大模型／联网知识，不调用本地或本书检索工具；本书 AI 继续围绕原书籍或原技能的原文范围回答。
 - Feat(ai): 为 AI 知识、AI 翻译、文言文翻译等 AI 界面补齐独立的设置、新建对话、历史和显示菜单；内置技能、自定义技能与首页任务分别保存历史，清空互不影响，保留旧记录。

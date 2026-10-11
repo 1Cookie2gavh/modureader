@@ -2,8 +2,9 @@
 
 ## English
 
-**Modu 1.2.6 (build 10107)** — changes since stable **1.2.5**.
+**Modu 1.2.6 (build 10108)** — changes since stable **1.2.5**.
 
+- Fix(reader): Handle unavailable chapter documents and reload failed resources on retry while preserving the outgoing page and reading position. Keep slow loads cancellable and add privacy-safe chapter failure diagnostics.
 - Fix(ai): Remember edit-before-send independently for each AI screen and selection action on this device; exclude these preferences from sync and settings transfer.
 - Fix(ai): Keep AI Knowledge on model/web knowledge for follow-ups, history restore and retries; never use local book tools. Keep Book AI follow-ups grounded in their original book or skill source.
 - Feat(ai): Add independent settings, new-chat, history and display menus to AI Knowledge, AI translation, Classical Chinese translation and other AI panels. Separate history by built-in/custom skill and home task; clearing one history does not remove another. Retain legacy conversations.
@@ -28,14 +29,17 @@
 
 The custom lint startup failure is fixed, but separately running the legacy Riverpod rules still exposes a newer-Dart syntax incompatibility. Standard analysis and automated tests are distinct from complete custom-rule validation; the runtime framework was not upgraded to address this development-tool limitation.
 
+Chapter recovery passed controlled null-document and cache-reload regressions as part of 585 JavaScript tests; the reported intermittent Xiaomi-device scenario still needs device revalidation. The reader script build retains three legacy-target top-level-await compatibility warnings.
+
 [Source](https://github.com/sobranie2406/modureader/tree/v1.2.6) · [Changes since 1.2.5](https://github.com/sobranie2406/modureader/compare/v1.2.5...v1.2.6) · [Installation guide](https://github.com/sobranie2406/modureader/blob/v1.2.6/docs/RELEASING.md)
 
 ---
 
 ## 简体中文
 
-**Modu 1.2.6（构建 10107）**，以下为 **1.2.5 正式版以来**的变化。
+**Modu 1.2.6（构建 10108）**，以下为 **1.2.5 正式版以来**的变化。
 
+- Fix(reader): 处理切章空文档，重试时重新加载失败资源，保留原页与阅读位置；慢加载仍可取消，并补充不含正文和资源地址的失败诊断。
 - Fix(ai): 各 AI 界面与划词 AI 入口独立记忆「编辑后发送」开关，仅保存在本机，不参与同步和设置导入导出。
 - Fix(ai): AI 知识的追问、历史恢复和重试始终使用大模型／联网知识，不调用本地或本书检索工具；本书 AI 继续围绕原书籍或原技能的原文范围回答。
 - Feat(ai): 为 AI 知识、AI 翻译、文言文翻译等 AI 界面补齐独立的设置、新建对话、历史和显示菜单；内置技能、自定义技能与首页任务分别保存历史，清空互不影响，保留旧记录。
@@ -59,5 +63,7 @@ The custom lint startup failure is fixed, but separately running the legacy Rive
 **验证与限制：**自动回归覆盖 PDF 选词及批注对齐、滑动惯性、夜间反色、亮度、标签、选择菜单和打包检查；包构建成功不代表所有设备均已验收。Flutter 仍需要已弃用的 `android.newDsl=false` 兼容开关，保留其警告。词典图片需要配套 MDD／本地资源，本版不补造缺失图片。
 
 自定义 lint 的启动异常已修复，但单独运行旧 Riverpod 规则仍有新版 Dart 语法兼容问题。标准分析与自动测试不等同于全部自定义规则验证；本版不因此升级应用运行框架。
+
+章节恢复已通过空文档、缓存重载等受控回归，共 585 项 JavaScript 测试通过；用户报告的小米设备偶发场景仍待实机复验。阅读器脚本构建保留三条旧目标环境的 top-level-await 兼容性警告。
 
 [对应源码](https://github.com/sobranie2406/modureader/tree/v1.2.6) · [1.2.5 至 1.2.6 源码差异](https://github.com/sobranie2406/modureader/compare/v1.2.5...v1.2.6) · [安装说明](https://github.com/sobranie2406/modureader/blob/v1.2.6/docs/RELEASING.md)

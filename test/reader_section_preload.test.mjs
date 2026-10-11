@@ -119,6 +119,20 @@ test('a failed background chapter does not poison the foreground retry', async (
   f.cache.destroy();
 });
 
+test('invalidating a loaded target regenerates its URL and never revokes the visible chapter', async () => {
+  const f = fixture(); let generation = 0;
+  f.sections[2].load = async () => { f.loads.push(2); return `blob:two-${++generation}`; };
+  await f.cache.load(1); f.cache.setCurrent(1);
+  assert.equal(await f.cache.load(2), 'blob:two-1');
+  f.cache.invalidate(1); f.cache.invalidate(2); f.cache.invalidate(2);
+  assert.deepEqual(f.unloads, [2]);
+  assert.equal(await f.cache.load(1), 'blob:chapter-1');
+  assert.equal(await f.cache.load(2), 'blob:two-2');
+  assert.deepEqual(f.loads, [1, 2, 2]);
+  f.cache.destroy();
+  assert.deepEqual(f.unloads, [2, 1, 2]);
+});
+
 test('closing cancels scheduled work and releases late-running loads exactly once', async () => {
   const f = fixture(); const gate = deferred();
   f.sections[2].load = async () => { f.loads.push(2); await gate.promise; return 'blob:late'; };
@@ -198,6 +212,16 @@ for (const kindleFont of [false, true]) test(`real EPUB loader keeps shared CSS,
     for (const href of ['shared.css', fontPath, 'image.png'])
       assert.equal(reads.filter(value => value === href).length, 1, href);
     assert.equal(urls.size, 6, 'three chapters plus three shared assets');
+    const failed = await cache.load(2);
+    cache.invalidate(2);
+    assert.equal(urls.has(failed), false);
+    assert.ok(urls.has(original), 'recovery must not revoke the visible chapter');
+    const recovered = await cache.load(2);
+    assert.notEqual(recovered, failed);
+    assert.equal(reads.filter(href => href === '2.xhtml').length, 2);
+    for (const href of ['shared.css', fontPath, 'image.png'])
+      assert.equal(reads.filter(value => value === href).length, 1, 'shared assets survive target reload');
+    assert.equal(urls.size, 6);
   } finally {
     cache.destroy();
     assert.equal(urls.size, 0, 'all cache-owned object URLs released');

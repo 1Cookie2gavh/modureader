@@ -239,23 +239,32 @@ class View {
     if (typeof src !== 'string') throw new Error(`${src} is not string`)
     return new Promise((resolve, reject) => {
       let settled = false
+      let processing = false
       const fonts = new AbortController()
+      const documentError = () => Object.assign(new Error('Reader chapter document unavailable'),
+        { name: 'ReaderChapterDocumentError' })
+      const failed = () => finish(documentError())
       const finish = error => {
         if (settled) return
         settled = true
         fonts.abort()
         this.#iframe.removeEventListener('load', loaded)
+        this.#iframe.removeEventListener('error', failed)
         this.#cancelLoad = null
         if (error) reject(error)
         else resolve()
       }
       const loaded = async () => {
         try {
-          if (settled) return
+          if (settled || processing) return
           // The native load event can itself wait for publisher fonts. Do not
           // impose a second deadline that defeats the cancellable font wait.
           if (this.#destroyed) throw new Error('Reader view closed')
           const doc = this.document
+          // Ignore the initial blank iframe event, not the requested chapter.
+          if (doc?.URL === 'about:blank' && src !== 'about:blank') return
+          if (!doc?.body) throw documentError()
+          processing = true
           afterLoad?.(doc)
 
           // it needs to be visible for Firefox to get computed style
@@ -275,6 +284,7 @@ class View {
           const ready = await waitForReaderFonts(doc, fonts.signal)
           if (settled) return
           if (this.#destroyed) throw new Error('Reader view closed')
+          if (this.document !== doc || !doc.body) throw documentError()
           if (!ready) throw new Error('Reader font loading failed')
           // Measure the latest viewport, including resizes during font loading.
           const layout = beforeRender?.({ vertical, rtl })
@@ -307,7 +317,8 @@ class View {
         }
       }
       this.#cancelLoad = () => finish(Object.assign(new Error('Reader view closed or navigation cancelled'), { name: 'AbortError' }))
-      this.#iframe.addEventListener('load', loaded, { once: true })
+      this.#iframe.addEventListener('load', loaded)
+      this.#iframe.addEventListener('error', failed, { once: true })
       this.#iframe.src = src
     })
   }
@@ -1537,6 +1548,7 @@ export class Paginator extends HTMLElement {
       } catch (error) {
         view.destroy()
         view.element.remove()
+        if (error.name === 'ReaderChapterDocumentError') this.#sectionCache.invalidate(index)
         this.#preparingView = false
         this.#retiringView = null
         if (!this.#destroyed) {
@@ -1674,9 +1686,13 @@ export class Paginator extends HTMLElement {
       this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'ready' } }))
       return result
     } catch (error) {
+      const reason = error.message === 'Reader font loading failed' ? 'font'
+        : error.name === 'ReaderChapterDocumentError' ? 'document' : 'chapter'
+      if (error.name !== 'AbortError')
+        console.warn(`Reader chapter load failed: index=${index}, reason=${reason}`)
       this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
         state: error.name === 'AbortError' ? 'cancelled' : 'failed',
-        reason: error.message === 'Reader font loading failed' ? 'font' : 'chapter',
+        reason, index,
       } }))
       throw error
     }
@@ -1744,6 +1760,7 @@ export class Paginator extends HTMLElement {
     this.#navigationWaiters.clear()
   }
   retryNavigation() {
+    if (this.#lastNavigation) console.log(`Reader chapter retry: index=${this.#lastNavigation.index}`)
     return this.#lastNavigation ? this.goTo(this.#lastNavigation) : Promise.resolve(false)
   }
   #scrollPrev(distance) {

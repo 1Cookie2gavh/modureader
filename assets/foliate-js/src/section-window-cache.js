@@ -34,6 +34,12 @@ export class SectionWindowCache {
     this.#entries.delete(index)
     return entry.src
   }
+  invalidate(index) {
+    // Never revoke resources still owned by the visible chapter.
+    if (index === this.#current) return
+    const entry = this.#entries.get(index)
+    if (entry) this.#discard(entry)
+  }
   #stopTimer() {
     if (this.#timer !== null) this.#cancel(this.#timer)
     this.#timer = null
