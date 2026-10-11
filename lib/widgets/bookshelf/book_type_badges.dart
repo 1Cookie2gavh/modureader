@@ -71,13 +71,15 @@ class _BookTypeBadgesState extends State<BookTypeBadges> {
                   : BookTypeBadges.formatFor(widget.book);
               if (format.isEmpty) return const SizedBox.shrink();
               final labels = <(String, Color)>[
-                (format, BookTypeBadges.formatColor(format)),
+                if (Prefs().showBookFormatBadge)
+                  (format, BookTypeBadges.formatColor(format)),
                 if (BookTypeBadges.scanned(widget.book))
                   (
                     ModuStrings.text(context, '扫描版', 'Scanned'),
                     const Color(0xFFAC5B00)
                   ),
               ];
+              if (labels.isEmpty) return const SizedBox.shrink();
               return IgnorePointer(
                   child: LayoutBuilder(builder: (context, constraints) {
                 return Wrap(

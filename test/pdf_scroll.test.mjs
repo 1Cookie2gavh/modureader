@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 const {JSDOM}=createRequire(`${process.env.MODU_JSDOM_ROOT || '/private/tmp/modu-119-js-tests'}/package.json`)('jsdom');
-const dom=new JSDOM('<body></body>');globalThis.document=dom.window.document;globalThis.devicePixelRatio=1;
+const dom=new JSDOM('<body></body>',{pretendToBeVisual:true});globalThis.document=dom.window.document;globalThis.devicePixelRatio=1;
 const uri=code=>`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const source=name=>readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url),'utf8');
 const geometry=uri(await source('document-regions'));
@@ -122,5 +122,81 @@ test('zoom and window resize keep the normalized current point; saved point reop
         const e=h.flow.current;assert.ok(e.plan.height>2000);
         h.bounds.width=390;h.bounds.height=844;h.flow.resize();near(h.flow.location.center.y,before.center.y);
     }finally{h.close()}
+});
+function momentumClock() {
+    const host=dom.window,request=host.requestAnimationFrame,cancel=host.cancelAnimationFrame;
+    const pending=new Map();let next=0,now=0;
+    host.requestAnimationFrame=fn=>{pending.set(++next,fn);return next};
+    host.cancelAnimationFrame=id=>pending.delete(id);
+    return {pending,step(ms=16){now+=ms;const callbacks=[...pending.values()];pending.clear();callbacks.forEach(fn=>fn(now))},
+        close(){host.requestAnimationFrame=request;host.cancelAnimationFrame=cancel}};
+}
+function touch(doc,type,y,time,count=1) {
+    const event=new doc.defaultView.Event(type,{bubbles:true,cancelable:true});
+    Object.defineProperties(event,{timeStamp:{value:time},touches:{value:y===null?[]:
+        Array.from({length:count},()=>({screenX:100,screenY:y}))}});
+    doc.dispatchEvent(event);
+}
+test('touch release coasts with decaying velocity across PDF pages and saves the final position',async()=>{
+    const h=harness(),clock=momentumClock();try{
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        const doc=h.flow.getContents()[0].doc;
+        touch(doc,'touchstart',200,0);touch(doc,'touchmove',150,16);touch(doc,'touchend',null,20);
+        const released=h.flow.element.scrollTop;
+        assert.equal(clock.pending.size,1);
+        clock.step();const first=h.flow.element.scrollTop-released;
+        clock.step();const second=h.flow.element.scrollTop-released-first;
+        assert.ok(first>second&&second>0);
+        for(let i=0;i<200&&clock.pending.size;i++){clock.step();await h.flow.ensureNeighbors()}
+        assert.equal(clock.pending.size,0,'coasting naturally stops');
+        assert.ok(h.flow.element.scrollTop>released+500);
+        assert.ok(h.flow.entries.length<=7);
+        near(h.flow.savedLocation.center.y,h.flow.location.center.y);
+        await new Promise(r=>setTimeout(r,120));
+        assert.equal(h.locations.at(-1).reason,'viewport');
+    }finally{h.close();clock.close()}
+});
+test('new touch, wheel, selection, resize, suspension and close stop coasting; disabled motion stays still',async()=>{
+    const h=harness(),clock=momentumClock();try{
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        const doc=h.flow.getContents()[0].doc;
+        for(const stop of [
+            ()=>touch(doc,'touchstart',100,10),
+            ()=>h.flow.wheel({deltaX:0,deltaY:0,deltaMode:0,preventDefault(){},stopImmediatePropagation(){}}),
+            ()=>h.flow.resize(),()=>h.flow.suspend(),
+        ]) {
+            h.flow.activate();h.flow.startMomentum(0,1);stop();
+            const top=h.flow.element.scrollTop;clock.step();assert.equal(h.flow.element.scrollTop,top);
+            assert.equal(clock.pending.size,0);
+        }
+        h.flow.activate();h.flow.startMomentum(0,1);
+        const range=doc.createRange();range.selectNodeContents(doc.querySelector('span'));
+        doc.getSelection().addRange(range);const top=h.flow.element.scrollTop;clock.step();
+        assert.equal(h.flow.element.scrollTop,top);assert.equal(clock.pending.size,0);
+        doc.getSelection().removeAllRanges();
+        h.flow.canAnimate=()=>false;h.flow.startMomentum(0,1);assert.equal(clock.pending.size,0);
+        h.flow.canAnimate=()=>true;h.flow.startMomentum(0,1);h.flow.canAnimate=()=>false;
+        clock.step();assert.equal(clock.pending.size,0);
+        h.flow.canAnimate=()=>true;h.flow.startMomentum(0,1);h.close();assert.equal(clock.pending.size,0);
+    }finally{h.close();clock.close()}
+});
+test('paused finger, touch cancellation and finger-count changes do not launch stale momentum',async()=>{
+    const h=harness(),clock=momentumClock();try{
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        const doc=h.flow.getContents()[0].doc;
+        for(const type of ['touchend','touchcancel']) {
+            touch(doc,'touchstart',200,0);touch(doc,'touchmove',150,16);
+            touch(doc,type,null,type==='touchend'?200:20);
+            assert.equal(clock.pending.size,0);
+        }
+        touch(doc,'touchstart',200,300,2);touch(doc,'touchmove',150,316,2);
+        touch(doc,'touchend',150,320,1);touch(doc,'touchend',null,325);
+        assert.equal(clock.pending.size,0);
+        h.flow.startMomentum(0,1);clock.step();const top=h.flow.element.scrollTop;
+        clock.step(500);assert.equal(h.flow.element.scrollTop,top);assert.equal(clock.pending.size,0);
+        let bounded=100;
+        Object.defineProperty(h.flow.element,'scrollTop',{configurable:true,get:()=>bounded,set:v=>{bounded=Math.max(0,Math.min(100,v))}});
+        h.flow.startMomentum(0,1);clock.step();assert.equal(clock.pending.size,0,'stops at the scroll boundary');
+    }finally{h.close();clock.close()}
 });
 test.after(()=>{children.forEach(child=>child.window.close());dom.window.close()});

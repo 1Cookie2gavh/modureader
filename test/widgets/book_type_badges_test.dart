@@ -98,5 +98,18 @@ void main() {
     Prefs().notifyExternalChange();
     await tester.pump();
     expect(find.text('Scanned'), findsOneWidget);
+    Prefs().showBookFormatBadge = false;
+    await tester.pump();
+    expect(find.text('EPUB'), findsNothing);
+    expect(find.text('Scanned'), findsOneWidget);
+    await tester.runAsync(
+        () => DocumentReadingModeStore(Prefs().prefs).setScanned(value, false));
+    Prefs().notifyExternalChange();
+    await tester.pump();
+    expect(find.text('EPUB'), findsNothing);
+    expect(find.text('Scanned'), findsNothing);
+    Prefs().showBookFormatBadge = true;
+    await tester.pump();
+    expect(find.text('EPUB'), findsOneWidget);
   });
 }

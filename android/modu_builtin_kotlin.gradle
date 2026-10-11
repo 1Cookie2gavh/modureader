@@ -1,0 +1,49 @@
+// Build-only overlays: keep pinned plugin sources and the shared Pub cache intact.
+def migrateKotlin = { String source ->
+    def migrated = source.replaceAll(/(?m)^apply plugin: ['"]kotlin-android['"]\s*$/, '')
+    migrated = migrated.replaceAll(/(?m)^\s*classpath\s*\(?["']org\.jetbrains\.kotlin:kotlin-gradle-plugin:[^\n]+\n/, '')
+    def targets = ["'1.8'": 'JVM_1_8', "'11'": 'JVM_11',
+                   'JavaVersion.VERSION_11': 'JVM_11', '17': 'JVM_17', "'17'": 'JVM_17']
+    def options = source =~ /kotlinOptions\s*\{\s*jvmTarget\s*=\s*([^\n]+)\s*\}/
+    if (options.find()) {
+        def target = targets[options.group(1).trim()]
+        if (!target) throw new GradleException('Unsupported plugin JVM target; review the Kotlin overlay.')
+        migrated = migrated.replace(options.group(0), '')
+        migrated += "\nkotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.${target} } }\n"
+    }
+    if (migrated.contains('kotlinOptions') || migrated.contains('kotlin-gradle-plugin:') || migrated.contains("apply plugin: 'kotlin-android'") ||
+        migrated.contains('apply plugin: "kotlin-android"') || !migrated.contains('compilerOptions')) {
+        throw new GradleException('Incomplete built-in Kotlin migration; review the plugin overlay.')
+    }
+    return migrated
+}
+
+// Self-check both old target spellings and already-modern compiler options.
+['\'1.8\'': 'JVM_1_8', '17': 'JVM_17', 'JavaVersion.VERSION_11': 'JVM_11'].each { old, target ->
+    def result = migrateKotlin("apply plugin: 'kotlin-android'\nandroid { kotlinOptions { jvmTarget = ${old}\n} }\n")
+    assert result.contains("JvmTarget.${target}") && !result.contains('kotlinOptions')
+}
+assert migrateKotlin('apply plugin: "kotlin-android"\nkotlin { compilerOptions { } }').contains('compilerOptions')
+assert !migrateKotlin('classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"\nkotlin { compilerOptions { } }').contains('kotlin-gradle-plugin:')
+try {
+    migrateKotlin('kotlinOptions { jvmTarget = "unexpected"\n}')
+    assert false: 'An unknown target must fail closed'
+} catch (GradleException expected) {
+    assert expected.message.contains('Unsupported plugin JVM target')
+}
+
+def pins = new groovy.json.JsonSlurper().parse(file('modu_builtin_kotlin.json'))
+pins.each { name, expectedHash ->
+    def plugin = project(":${name}")
+    def upstream = new File(plugin.projectDir, 'build.gradle')
+    def source = upstream.getText('UTF-8').replace('\r\n', '\n')
+    def hash = java.security.MessageDigest.getInstance('SHA-256').digest(source.getBytes('UTF-8')).encodeHex().toString()
+    if (hash != expectedHash) {
+        throw new GradleException("${name}: build.gradle changed; review the built-in Kotlin migration before updating its checksum.")
+    }
+    def output = file("../build/plugin-gradle/${name}.gradle")
+    def migrated = migrateKotlin(source)
+    output.parentFile.mkdirs()
+    if (!output.exists() || output.getText('UTF-8') != migrated) output.setText(migrated, 'UTF-8')
+    plugin.buildFileName = plugin.projectDir.toPath().relativize(output.toPath()).toString()
+}

@@ -208,35 +208,31 @@ class _BookFolderState extends ConsumerState<BookFolder> {
             .where((book) => widget.selectedBookIds.contains(book.id))
             .length;
         final allSelected = selectedCount == widget.books.length;
+        void toggleSelection() {
+          for (final book in widget.books) {
+            widget.onSelectionChanged?.call(book, !allSelected);
+          }
+        }
+
         return scaleTransition(
           Column(
             children: [
               Expanded(
                 child: InkWell(
-                  onLongPress: widget.onSelectionChanged == null
-                      ? () => _menuKey.currentState?.showButtonMenu()
-                      : () {
-                          for (final book in widget.books) {
-                            widget.onSelectionChanged!(book, !allSelected);
-                          }
-                        },
-                  onSecondaryTap: widget.selectionMode
-                      ? null
-                      : () => _menuKey.currentState?.showButtonMenu(),
+                  onLongPress: toggleSelection,
+                  onSecondaryTap: toggleSelection,
                   onTap: () {
                     if (!widget.selectionMode) {
                       openFolder(groupName);
                       return;
                     }
-                    for (final book in widget.books) {
-                      widget.onSelectionChanged?.call(book, !allSelected);
-                    }
+                    toggleSelection();
                   },
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
                       folderPreview,
-                      if (!widget.selectionMode)
+                      if (widget.selectionMode)
                         Positioned(
                           right: 6,
                           bottom: 6,

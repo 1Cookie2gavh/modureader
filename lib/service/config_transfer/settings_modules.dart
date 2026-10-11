@@ -2,7 +2,7 @@
 /// AI: skills, translation and vector models are independently transferable.
 const settingsModuleKeys = <String, String>{
   'appearance': '''locale themeMode themeColor trueDarkMode eInkMode
-useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle showBookTitleOnDefaultCover
+useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle showBookFormatBadge showBookTitleOnDefaultCover
 showAuthorOnDefaultCover openBookAnimation bottomNavigatorShowNote
 bottomNavigatorShowStatistics bottomNavigatorShowAI sortField sortOrder''',
   'reading':

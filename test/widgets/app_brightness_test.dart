@@ -29,10 +29,10 @@ void main() {
     expect(c.followSystem, isTrue);
     expect(c.dimOpacity, 0);
     c.setLevel(-1);
-    expect(c.level, 0.2);
-    expect(c.dimOpacity, closeTo(0.8, 0.001));
+    expect(c.level, 0);
+    expect(c.dimOpacity, closeTo(0.95, 0.001));
     c.setLevel(double.nan);
-    expect(c.level, 0.2);
+    expect(c.level, 0);
     c.setLevel(2);
     expect(c.level, 1);
     c.setLevel(0.5);
@@ -45,13 +45,13 @@ void main() {
   test('manual preference survives restart and malformed values are safe',
       () async {
     final c = await create();
-    c.setLevel(0.45);
+    c.setLevel(0.05);
     await c.save();
     final restored = AppBrightness(nativeWindow: false);
     addTearDown(restored.dispose);
     await restored.initialize(await SharedPreferences.getInstance());
     expect(restored.followSystem, isFalse);
-    expect(restored.level, 0.45);
+    expect(restored.level, 0.05);
     final invalid = await create(settings: {
       AppBrightness.levelKey: 'bad value',
       AppBrightness.followSystemKey: 'bad value',
@@ -74,11 +74,13 @@ void main() {
         () => messenger.setMockMethodCallHandler(AppBrightness.channel, null));
     final c = await create(nativeWindow: true);
     expect(calls.single.arguments['brightness'], isNull);
-    c.setLevel(0.4);
-    await Future<void>.delayed(Duration.zero);
-    expect(calls.last.method, 'setBrightness');
-    expect(calls.last.arguments['brightness'], 0.4);
-    expect(c.dimOpacity, 0);
+    for (final level in [0.0, 0.01, 0.1, 0.4, 1.0]) {
+      c.setLevel(level);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.last.method, 'setBrightness');
+      expect(calls.last.arguments['brightness'], level);
+      expect(c.dimOpacity, 0);
+    }
     c.setFollowSystem(true);
     await c.save();
     await Future<void>.delayed(Duration.zero);
@@ -110,6 +112,16 @@ void main() {
       ))),
     ));
     await tester.pumpAndSettle();
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    expect(slider.min, 0);
+    expect(slider.max, 100);
+    expect(slider.divisions, 100);
+    slider.onChanged!(1);
+    await tester.pump();
+    expect(c.level, 0.01);
+    expect(find.text('1%'), findsOneWidget);
+    c.setLevel(0.6);
+    await tester.pump();
     await tester.drag(find.byType(Slider), const Offset(-50, 0));
     await tester.pumpAndSettle();
     expect(c.followSystem, isFalse);

@@ -40,7 +40,8 @@ final class BrightnessDimView: NSView {
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
   func setBrightness(_ value: Double?) {
-    let opacity = value.map { 1 - min(1, max(0.2, $0)) } ?? 0
+    // Keep the controls visible even at 0%; this is a dimmer, not a backlight.
+    let opacity = value.map { min(0.95, 1 - min(1, max(0, $0))) } ?? 0
     layer?.backgroundColor = NSColor.black.withAlphaComponent(opacity).cgColor
     isHidden = opacity == 0
   }

@@ -1,12 +1,26 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.5+10102**, 2026-10-10.
+Single-edition guide in English. Prepared for stable **1.2.6+10104**, 2026-10-11.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
 ## Build toolchain
 
-Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.5. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
+Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.6. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
+
+Current Android builds use Gradle 9.2.1 (checksum-pinned), AGP 9.0.1 and Kotlin 2.3.20 with `android.builtInKotlin=true`. Gradle 9.2.x's embedded Kotlin 2.2.20 matches the pinned Flutter 3.47.2 build plugin; see the [Gradle compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html). Keep `android.newDsl=false` while Flutter still uses legacy Android extension APIs ([AGP opt-out](https://developer.android.com/build/releases/agp-9-0-0-release-notes)). The minimum Android version remains API 26.
+
+Library modules with an older compile SDK are raised to API 36 at DSL finalization, without changing their minimum or target SDK. AGP 9 validates library-to-library AAR requirements too; for example, `audio_service`'s old API 33 setting cannot consume its API 34+ dependencies.
+
+`android/modu_builtin_kotlin.gradle` migrates the 14 pinned legacy plugin build scripts into build-only overlays under `build/plugin-gradle/`, following the [Flutter plugin migration](https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors). It removes explicit KGP application/classpath and uses `kotlin.compilerOptions`, preserving each plugin's Java/Kotlin target, runtime sources, dependencies and resources. Neither Pub cache nor other platforms' builds are edited. The normalized source SHA-256 pins in `android/modu_builtin_kotlin.json` fail closed on upstream build-script changes: review the migration when upgrading a plugin, then update/remove its pin. Java/Kotlin target validation is enabled, not suppressed.
+
+Validation (2026-10-11): the ARM64 release build passes with no legacy-KGP or embedded-Kotlin version warning; release signing, native JNI retention, 16 KB ELF/ZIP alignment and exclusion of integration-test DEX were checked. This is not a claim of a warning-free clean build: SDK XML processing, three `sqflite_android` deprecated Java API warnings and Gradle 10 deprecation notices remain. No warning suppression was added; device behavior and other-platform builds were not revalidated in this toolchain pass.
+
+Native library extraction remains enabled through `packagingOptions.jniLibs.useLegacyPackaging=true`. Do not restore the old explicit `android:extractNativeLibs` manifest attribute: AGP 9 rejects that configuration at packaging time. Native JNI and 16 KB alignment verification still apply.
+
+Use `node scripts/build_android.mjs` for local and CI APK builds. It defaults to release ARM64 and accepts Flutter options such as `--build-name=1.2.6-preview.1 --build-number=10103`. It uses existing `android/key.properties`, signing environment variables, or the local ignored `.release-secrets` identity, without printing credentials. It never generates a new signing key.
+
+Do not use `--no-pub` for this build entry. Flutter tests can leave dev plugins in `GeneratedPluginRegistrant.java`; a release build must regenerate the registry with release dependencies. The wrapper rejects `--no-pub` rather than removing `integration_test` from development dependencies, editing generated Java, or suppressing compiler errors. Direct Gradle instrumentation tasks must follow a successful Flutter release build as in CI.
 
 The tokenizer retains its original Rust implementation in third_party/hf_tokenizers. Mobile targets cross-compile with the corresponding Rust target and Flutter NDK / Apple SDK; do not substitute a fake tokenizer.
 

@@ -14,8 +14,8 @@ export class PdfScrollReader {
     generation = 0
     detailGeneration = 0
     blocked = new Set()
-    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState }) {
-        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState })
+    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate = () => true }) {
+        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate })
         Object.assign(this.element.style, { width: '100%', height: '100%', overflow: 'auto',
             position: 'relative', boxSizing: 'border-box', overflowAnchor: 'none',
             overscrollBehavior: 'contain', touchAction: 'pan-x pan-y', scrollbarGutter: 'stable' })
@@ -26,6 +26,7 @@ export class PdfScrollReader {
             this.changed(true)
         })
         this.element.addEventListener('wheel', event => this.wheel(event), { passive: false })
+        this.element.addEventListener('touchstart', () => this.stopMomentum(), { passive: true })
     }
     get current() {
         const middle = this.element.scrollTop + this.viewport.height / 2
@@ -89,6 +90,7 @@ export class PdfScrollReader {
         this.changed(false)
     }
     suspend() {
+        this.stopMomentum()
         this.active = false
         clearTimeout(this.timer)
         this.detailGeneration++
@@ -152,6 +154,7 @@ export class PdfScrollReader {
         this.programmaticTop = this.element.scrollTop
     }
     resize(view = this.view) {
+        this.stopMomentum()
         // ResizeObserver runs after the container changed size. Capture the
         // source anchor on scroll, not from the already-resized viewport here.
         const location = this.savedLocation ?? this.location
@@ -169,21 +172,53 @@ export class PdfScrollReader {
         return true
     }
     wheel(event) {
+        this.stopMomentum()
         if (event.ctrlKey || event.metaKey || !this.active) return
         const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.bounds().height : 1
         this.pan(event.deltaX * unit, event.deltaY * unit)
         event.preventDefault(); event.stopImmediatePropagation()
     }
+    stopMomentum() {
+        if (this.momentumFrame != null)
+            this.element.ownerDocument.defaultView.cancelAnimationFrame(this.momentumFrame)
+        this.momentumFrame = null
+    }
+    startMomentum(vx, vy) {
+        this.stopMomentum()
+        if (!this.canAnimate() || Math.hypot(vx, vy) < 0.1) return
+        const host = this.element.ownerDocument.defaultView
+        let previous
+        const tick = now => {
+            this.momentumFrame = null
+            if (!this.active || this.destroyed || !this.canAnimate() ||
+                this.element.ownerDocument.visibilityState === 'hidden' ||
+                this.entries.some(e => e.iframe.contentDocument.getSelection()?.type === 'Range')) return
+            const elapsed = previous == null ? 16 : now - previous
+            if (elapsed > 100) return // Never jump after the WebView resumes.
+            previous = now
+            const decay = Math.exp(-elapsed / 240)
+            const left = this.element.scrollLeft, top = this.element.scrollTop
+            this.pan(vx * 240 * (1 - decay), vy * 240 * (1 - decay))
+            vx = this.element.scrollLeft === left ? 0 : vx * decay
+            vy = this.element.scrollTop === top ? 0 : vy * decay
+            if (Math.hypot(vx, vy) >= 0.03) this.momentumFrame = host.requestAnimationFrame(tick)
+        }
+        this.momentumFrame = host.requestAnimationFrame(tick)
+    }
     attachInput(doc) {
         doc.addEventListener('wheel', e => this.wheel(e), { capture: true, passive: false })
-        let start, last, dragging = false, suppressClick = 0
+        let start, last, dragging = false, suppressClick = 0, vx = 0, vy = 0, movedAt = 0
         const point = event => {
             const touches = [...event.touches]
             return touches.length ? { x: touches.reduce((s, t) => s + t.screenX, 0) / touches.length,
-                y: touches.reduce((s, t) => s + t.screenY, 0) / touches.length } : null
+                y: touches.reduce((s, t) => s + t.screenY, 0) / touches.length,
+                count: touches.length, at: event.timeStamp } : null
         }
         doc.addEventListener('touchstart', event => {
             if (!this.active) return
+            if (this.momentumFrame != null) suppressClick = Date.now() + 400
+            this.stopMomentum()
+            vx = vy = 0
             last = point(event); start = { ...last, at: Date.now() }
             dragging ||= event.touches.length > 1
             if (dragging) { event.preventDefault(); event.stopImmediatePropagation() }
@@ -194,16 +229,27 @@ export class PdfScrollReader {
             if (!dragging && doc.getSelection()?.type !== 'Range' && Date.now() - start.at < 350 &&
                 Math.hypot(p.x - start.x, p.y - start.y) > 8) dragging = true
             if (dragging) {
-                this.pan(last.x - p.x, last.y - p.y)
+                if (p.count === last.count) {
+                    const dx = last.x - p.x, dy = last.y - p.y
+                    const elapsed = Math.max(1, p.at - last.at)
+                    vx = Math.max(-4, Math.min(4, dx / elapsed))
+                    vy = Math.max(-4, Math.min(4, dy / elapsed))
+                    movedAt = p.at
+                    this.pan(dx, dy)
+                } else { vx = vy = 0 }
                 event.preventDefault(); event.stopImmediatePropagation()
             }
             last = p
         }, { capture: true, passive: false })
         for (const type of ['touchend', 'touchcancel']) doc.addEventListener(type, event => {
+            const released = point(event)
             if (dragging) {
                 event.preventDefault(); event.stopImmediatePropagation(); suppressClick = Date.now() + 400
+                if (type === 'touchend' && !released && event.timeStamp - movedAt < 80)
+                    this.startMomentum(vx, vy)
             }
-            last = point(event)
+            vx = vy = 0
+            last = released
             if (!last || type === 'touchcancel') { dragging = false; start = null }
         }, { capture: true, passive: false })
         doc.addEventListener('click', event => {

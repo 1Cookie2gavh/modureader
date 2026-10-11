@@ -288,7 +288,7 @@ jobs:
         run: node scripts/release/android-signing.mjs --from-env
       # x64 is built only for the emulator regression, never packaged/uploaded.
       - name: Build arm64 APK and internal x64 emulator fixture
-        run: flutter build apk --release --target-platform android-arm64,android-x64 --split-per-abi
+        run: node scripts/build_android.mjs --target-platform android-arm64,android-x64
       - name: Verify signatures and package
         run: |
           python3 scripts/release/package.py android arm64

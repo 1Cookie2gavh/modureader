@@ -71,7 +71,27 @@ export class FixedLayout extends HTMLElement {
     #destroyed = false
     #autoTimer
     #autoAt = 0
+    #overlayers = new Map()
+    #pdfNightMode = false
     readerActive = true
+    setPdfNightMode(enabled) {
+        this.#pdfNightMode = enabled === true
+        if (!this.book?.sections.some(section => section.loadFrame)) return
+        this.style.backgroundColor = this.#pdfNightMode ? '#000' : ''
+        for (const { doc, index } of this.getContents()) this.#applyPdfNightMode(doc, index)
+    }
+    #applyPdfNightMode(doc, index) {
+        if (!this.book?.sections[index]?.loadFrame) return
+        let sheet = doc.getElementById('modu-pdf-night-mode')
+        if (!this.#pdfNightMode) { sheet?.remove(); return }
+        if (sheet) return
+        // Filter only the bitmaps: OCR selections, links and marks keep their colours and coordinates.
+        sheet = doc.createElement('style')
+        sheet.id = 'modu-pdf-night-mode'
+        sheet.textContent = `html, body { background: #000 !important; }
+            img[data-document-base], img[data-document-detail] { filter: invert(1); }`
+        doc.head.append(sheet)
+    }
     get pdfReading() { return this.#pdfEnabled }
     get isNavigating() { return this.#pdfBusy }
     get pdfView() { return { ...this.#pdfView } }
@@ -419,6 +439,7 @@ export class FixedLayout extends HTMLElement {
         this.#pdfRetry = () => this.#showPdfScroll(page, panel, reason, anchor, center)
         this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'loading' } }))
         const flow = new PdfScrollReader({ book: this.book, layout: this.#pdfLayout, view: this.#pdfView,
+            canAnimate: () => this.readerActive && this.hasAttribute('animated'),
             bounds: () => this.getBoundingClientRect(),
             createFrame: (index, src, parent, before) => this.#createFrame('center', { index, src }, true, parent, before),
             onLoad: (doc, index) => this.dispatchEvent(new CustomEvent('load', { detail: { doc, index } })),
@@ -455,6 +476,21 @@ export class FixedLayout extends HTMLElement {
     retryNavigation() { return this.#pdfRetry ? this.#pdfRetry() : this.#pdfScroll?.retry() }
     constructor() {
         super()
+
+        this.addEventListener('load', ({ detail: { doc, index } }) => {
+            this.#applyPdfNightMode(doc, index)
+            // PDF text/OCR stays in source-page coordinates; keep marks inside
+            // that iframe so crop, zoom and rotation transform them together.
+            if (!this.book.sections[index]?.loadFrame || this.#overlayers.has(doc)) return
+            this.getContents() // Dispose layers belonging to recycled frames.
+            this.dispatchEvent(new CustomEvent('create-overlayer', { detail: {
+                doc, index, attach: overlayer => {
+                    this.#overlayers.set(doc, overlayer)
+                    overlayer.element.style.zIndex = '4'
+                    doc.body.append(overlayer.element)
+                },
+            } }))
+        })
 
         const sheet = new CSSStyleSheet()
         this.#root.adoptedStyleSheets = [sheet]
@@ -495,6 +531,7 @@ export class FixedLayout extends HTMLElement {
                 clearTimeout(timeout)
                 iframe.removeEventListener('load', onload)
                 const doc = iframe.contentDocument
+                this.#applyPdfNightMode(doc, index)
                 doc.position = position
                 if (!deferred) this.dispatchEvent(new CustomEvent('load', { detail: { doc, index } }))
                 const { width, height } = getViewport(doc, this.defaultViewport)
@@ -798,12 +835,20 @@ export class FixedLayout extends HTMLElement {
     prevSection() { return this.#adjacentSection(-1) }
     nextSection() { return this.#adjacentSection(1) }
     getContents() {
-        if (this.#pdfScroll) return this.#pdfScroll.getContents()
-        return [this.#left, this.#center, this.#right].filter(frame => frame && !frame.blank)
+        const contents = this.#pdfScroll ? this.#pdfScroll.getContents()
+            : [this.#left, this.#center, this.#right].filter(frame => frame && !frame.blank)
             .map(frame => ({ doc: frame.iframe.contentDocument, index: frame.index }))
+        const documents = new Set(contents.map(x => x.doc))
+        for (const [doc, overlayer] of this.#overlayers) if (!documents.has(doc)) {
+            overlayer.destroy()
+            this.#overlayers.delete(doc)
+        }
+        return contents.map(item => ({ ...item, overlayer: this.#overlayers.get(item.doc) }))
     }
     destroy() {
         this.#destroyed = true
+        for (const overlayer of this.#overlayers.values()) overlayer.destroy()
+        this.#overlayers.clear()
         clearInterval(this.#autoTimer)
         this.#pdfGeneration++
         this.#cancelPdfDetail()

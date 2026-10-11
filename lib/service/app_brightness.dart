@@ -17,7 +17,7 @@ class AppBrightness extends ChangeNotifier {
   static const levelKey = 'appBrightnessLevel';
   static const followSystemKey = 'appBrightnessFollowSystem';
   static const channel = MethodChannel('com.modu.reader/brightness');
-  static const minimum = 0.2;
+  static const minimum = 0.0;
 
   final bool _nativeWindow;
   final bool _nativeDimming;
@@ -33,8 +33,11 @@ class AppBrightness extends ChangeNotifier {
   // Never fall back to Flutter painting on macOS: that blocks native input.
   bool get paintsFlutterDimming => !_nativeDimming;
   bool get nativeDimmingUnavailable => _nativeDimming && _nativeFailed;
+  // Unlike the hardware minimum, an opaque dimmer would hide the reset control.
   double get dimOpacity =>
-      _followSystem || usesWindowBrightness || _nativeDimming ? 0 : 1 - _level;
+      _followSystem || usesWindowBrightness || _nativeDimming
+          ? 0
+          : (1 - _level).clamp(0.0, 0.95);
 
   Future<void> initialize(SharedPreferences prefs) async {
     _prefs = prefs;

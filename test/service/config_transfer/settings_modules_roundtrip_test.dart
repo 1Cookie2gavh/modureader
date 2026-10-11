@@ -14,6 +14,7 @@ void main() {
   final source = <String, Object>{
     'themeColor': 12,
     'trueDarkMode': true,
+    'showBookFormatBadge': false,
     'pageTurnStyle': 'scroll',
     'scrollPagePercent': 93,
     'readerShortcuts': '{"next":[{"key":"n","modifiers":1}]}',

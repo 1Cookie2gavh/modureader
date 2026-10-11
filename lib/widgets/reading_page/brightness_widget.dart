@@ -76,12 +76,13 @@ class BrightnessWidget extends StatelessWidget {
                 ),
                 Expanded(
                   child: Slider(
-                    min: AppBrightness.minimum,
-                    max: 1,
-                    value: controller.level,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    value: controller.level * 100,
                     label: '${(controller.level * 100).round()}%',
-                    semanticFormatterCallback: (v) => '${(v * 100).round()}%',
-                    onChanged: controller.setLevel,
+                    semanticFormatterCallback: (v) => '${v.round()}%',
+                    onChanged: (value) => controller.setLevel(value / 100),
                     onChangeEnd: (_) => unawaited(controller.save()),
                   ),
                 ),

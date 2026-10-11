@@ -37,6 +37,7 @@ void main() {
       final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
           fontName: 'serif', fontPath: ''));
       final style = jsonDecode(uri.queryParameters['style']!);
+      expect(style['readingNightMode'], night);
       expect(
           style['backgroundColor'],
           night

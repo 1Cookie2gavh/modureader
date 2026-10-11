@@ -567,6 +567,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       changeStyle({
         backgroundColor: '#$bc',
         fontColor: '#$tc',
+        readingNightMode: ${Prefs().readingNightMode},
         verticalPageChrome: ${jsonEncode(_webVerticalChrome)},
       })
       ''');
@@ -583,6 +584,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       webViewController.evaluateJavascript(source: '''
       changeStyle({
         fontSize: ${style.fontSize},
+        readingNightMode: ${Prefs().readingNightMode},
         mobileImageFit: ${AnxPlatform.isMobile},
         mobileTouchPaging: ${AnxPlatform.isMobile},
         desktopPageInput: ${AnxPlatform.isDesktop},
@@ -632,6 +634,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       changeStyle({
         backgroundImage: ${jsonEncode(bgimgUrl)},
         bgimgBlur: ${bgimg.blur},
+        readingNightMode: ${Prefs().readingNightMode},
         bgimgOpacity: ${bgimg.opacity},
         bgimgFit: '${Prefs().bgimgFit.code}',
       })

@@ -42,7 +42,7 @@ struct WindowBrightnessTest {
     let originalHit = hit()
     precondition(originalHit === content)
     let brightness = WindowBrightness(window: window)
-    for level: Double? in [nil, 0.2, 0.6, 1.0, nil, 0.35] {
+    for level: Double? in [nil, 0.0, 0.01, 0.1, 0.2, 0.6, 1.0, nil, 0.35] {
       brightness.setBrightness(level)
       checkTitle()
       precondition(title.convert(title.bounds, to: nil) == initialTitleFrame)
@@ -53,14 +53,14 @@ struct WindowBrightnessTest {
       precondition(!dimmer.acceptsFirstResponder)
       precondition(dimmer.isHidden == (level == nil || level == 1))
       let alpha = dimmer.layer!.backgroundColor!.alpha
-      precondition(abs(alpha - (1 - (level ?? 1))) < 0.001)
+      precondition(abs(alpha - min(0.95, 1 - (level ?? 1))) < 0.001)
       let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
           timestamp: 0, windowNumber: window.windowNumber, context: nil,
           characters: "\u{F703}", charactersIgnoringModifiers: "\u{F703}",
           isARepeat: false, keyCode: 124)!
       window.firstResponder?.keyDown(with: key)
     }
-    precondition(content.keys == 6)
+    precondition(content.keys == 9)
     window.setContentSize(NSSize(width: 800, height: 600))
     NotificationCenter.default.post(name: NSWindow.didResizeNotification, object: window)
     let dimmer = host.subviews.compactMap { $0 as? BrightnessDimView }.first!

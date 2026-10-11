@@ -68,7 +68,7 @@ Import multiple files or choose a folder and select its supported books, includi
 
 Cover-opening and return transitions are shared across platforms and follow the disabled-motion preferences; iOS retains edge-swipe return. Dragging iOS text-selection handles updates the selection menu. MOBI note popups require a reliably matching legacy layout; AZW3 note types and explicit image-note text are recognized. Matched notes are hidden from the body and remain available in popups; ambiguous MOBI content stays visible.
 
-The floating home navigation bar is translucent, with space at the end of scrollable content so the last item remains accessible. **Appearance → E-Ink** disables app transitions, animated page turning and decorative motion, uses monochrome labels, and restores normal motion when switched off.
+The floating home navigation bar is translucent, with space at the end of scrollable content so the last item remains accessible. **Appearance → E-Ink** disables app transitions, animated page turning and decorative motion, uses monochrome labels, and restores normal motion when switched off. Appearance also includes a default-enabled book-format badge switch; scanned and indexed labels are independent. Long-press a cover (or right-click on desktop) to enter selection mode and reveal its lower-right overflow menu, on the shelf and inside folders.
 
 Tap the text to open the bottom panel. Drag the progress slider to preview a chapter title, or use previous chapter, previous page, next page and next chapter. **Chapter progress** means chapter number / chapter count; **progress within the chapter** means current page / pages in that chapter.
 
@@ -78,7 +78,7 @@ Tap the text to open the bottom panel. Drag the progress slider to preview a cha
 - Scroll-page movement can be set to 80%–100% of the viewport. Free scrolling is independent of this setting.
 - Long press can match a word or expand to a paragraph. Selection handles remain available to adjust the range after the initial match.
 - Mobile tap-only paging does not disable selection or continuous scrolling. Desktop arrow keys and eligible drags turn pages; selecting or typing is not treated as paging.
-- Reading brightness follows the system by default, with manual 20%–100% adjustment. Android uses window brightness; other platforms dim the app. This preference is local to the device.
+- Reading brightness follows the system by default, with manual 0–100 adjustment. Android uses window brightness; other platforms dim the app without fully hiding the controls. This preference is local to the device.
 
 ## PDF and scanned-image books
 
@@ -87,6 +87,8 @@ PDF uses dedicated original-page controls. EPUB, MOBI, AZW3 and FB2 are classifi
 **Ordinary text books keep their existing menus and styling; PDF-specific settings do not affect them.** Scanned books disable ordinary illustration tap-to-enlarge / long-press actions.
 
 The dedicated panel offers fit-page / fit-width, zoom, rotation, panning, continuous scrolling, crop and panels, and reading order. Original and cropped images adapt to the window and settings; layout is saved per book.
+
+The brightness panel's moon button inverts PDF page colours and turns the surrounding background black; page illustrations are inverted too. OCR text selections and annotation colours are preserved. Turn it off to restore the original colours. Original-page PDF text/OCR selections support highlights, underlines and annotations, aligned with crop, zoom and rotation. Continuous-scroll momentum follows disabled-animation and E-Ink settings.
 
 - Automatic cropping detects content bounds per page while retaining useful text, page numbers and footnotes. Use manual crop/panels for difficult layouts.
 - Image enhancement offers ink color, contrast, darkening, whitening, sharpening and scanned watermark fading. Adjust intensity, compare the original or reset. Conservative watermark fading cannot remove every watermark.

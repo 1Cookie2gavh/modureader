@@ -1571,6 +1571,15 @@ class Prefs extends ChangeNotifier {
     );
   }
 
+  set showBookFormatBadge(bool status) {
+    prefs.setBool('showBookFormatBadge', status);
+    notifyListeners();
+  }
+
+  bool get showBookFormatBadge {
+    return prefs.getBool('showBookFormatBadge') ?? true;
+  }
+
   set showBookTitleOnDefaultCover(bool status) {
     prefs.setBool('showBookTitleOnDefaultCover', status);
     notifyListeners();

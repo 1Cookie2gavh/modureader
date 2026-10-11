@@ -8,6 +8,10 @@ export const annotationPointMapper = (doc, svg) => {
     const inverse = matrix.inverse()
     if (![inverse.a, inverse.b, inverse.c, inverse.d, inverse.e, inverse.f].every(Number.isFinite))
         return ({ x, y }) => ({ x, y }) // Hidden/collapsed cached frame; redraw on activation.
+    if (svg.ownerDocument === doc) return ({ x, y }) => ({
+        x: inverse.a * x + inverse.c * y + inverse.e,
+        y: inverse.b * x + inverse.d * y + inverse.f,
+    })
     const bounds = frame.getBoundingClientRect()
     const scaleX = frame.offsetWidth ? bounds.width / frame.offsetWidth : 1
     const scaleY = frame.offsetHeight ? bounds.height / frame.offsetHeight : 1

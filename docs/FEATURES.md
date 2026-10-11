@@ -44,7 +44,7 @@ Style controls font, size, thickness, simulated bold, line/paragraph spacing and
 | Scroll page amount | 80%; adjustable 80%–100% | Affects a page-turn action, not continuous manual scrolling |
 | Tap-only page turns | Off | Mobile swipes no longer turn pages; selection and scrolling remain |
 | Long-press paragraph selection | Off | Word matching by default; handles remain adjustable |
-| Reading brightness | Follow system; manual 20%–100% | Android window brightness; app dimming elsewhere, saved locally |
+| Reading brightness | Follow system; manual 0–100 | Android window brightness; app dimming elsewhere, saved locally |
 | E-Ink mode | Off | Removes app motion and uses solid display styles |
 
 Desktop and Android hardware keyboards have configurable paging, menu, play/pause (one key, P by default) and previous/next paragraph shortcuts, multiple bindings, conflict checks and Restore defaults. Shortcut settings are included in reading settings backup. Desktop navigation keys respect reader focus, text fields and overlays. All platforms share cover-opening and return transitions, skipped when motion is disabled or E-Ink is enabled; iOS retains edge-swipe return and refreshes selection menus after handle drags. App theme and page background are separate.

@@ -133,7 +133,7 @@ class MainActivity : AudioServiceActivity() {
                 } else {
                     try {
                         val attributes = window.attributes
-                        attributes.screenBrightness = brightness?.coerceIn(0.2f, 1f) ?: -1f
+                        attributes.screenBrightness = brightness?.coerceIn(0f, 1f) ?: -1f
                         window.attributes = attributes
                         result.success(null)
                     } catch (e: Exception) {

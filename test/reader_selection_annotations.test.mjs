@@ -4,6 +4,21 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 
 const read = name => readFile(new URL(`../assets/foliate-js/src/${name}.js`, import.meta.url), 'utf8')
+test('PDF text selections keep annotation tools; actual footnote selections do not', async () => {
+  const source = await read('book')
+  const handler = source.slice(source.indexOf('const onSelectionEnd ='), source.indexOf('window.showContextMenu ='))
+  for (const isPdf of [false, true]) for (const footnote of [false, true]) {
+    const events = []
+    const send = runInNewContext(handler + '\nonSelectionEnd', {
+      isPdf, window: { isFootNoteOpen: () => footnote },
+      callFlutter: (name, value) => events.push({ name, value }),
+    })
+    send({ text: 'PDF OCR text', cfi: 'saved-anchor', annotationIds: [12] })
+    assert.equal(events[0].value.footnote, footnote)
+    assert.equal(events[0].value.cfi, 'saved-anchor')
+    assert.deepEqual(events[0].value.annotationIds, [12])
+  }
+})
 const cfiModule = `data:text/javascript;base64,${Buffer.from(await read('epubcfi')).toString('base64')}`
 const source = (await read('selection-annotations')).replace("'./epubcfi.js'", JSON.stringify(cfiModule))
 const { selectionAnnotationIds } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)

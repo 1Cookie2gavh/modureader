@@ -1921,6 +1921,7 @@ const setStyle = (oldStyle) => {
   reader.view.renderer.setAttribute('gap', `${style.sideMargin}%`)
   applyVerticalPageChrome(reader.view.renderer, style)
   reader.view.renderer.setAttribute('background-color', style.backgroundColor)
+  reader.view.renderer.setPdfNightMode?.(style.readingNightMode === true)
   reader.view.renderer.setAttribute('max-column-count', style.maxColumnCount)
   reader.view.renderer.setAttribute('column-threshold', `${style.columnThreshold}px`)
   reader.view.renderer.setAttribute('bgimg-url', style.backgroundImage)
@@ -2250,7 +2251,7 @@ window.setNoAnimation = () => {
 }
 
 const onSelectionEnd = (selection) => {
-  if (window.isFootNoteOpen() || isPdf) {
+  if (window.isFootNoteOpen()) {
     callFlutter('onSelectionEnd', { ...selection, footnote: true })
   } else {
     callFlutter('onSelectionEnd', { ...selection, footnote: false })

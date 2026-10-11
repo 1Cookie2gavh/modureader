@@ -200,6 +200,20 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                 ),
               )),
               SettingsTile.switchTile(
+                title: Text(ModuStrings.text(
+                    context, '显示书籍格式标签', 'Show book format labels')),
+                description: Text(ModuStrings.text(context,
+                    '在书籍封面显示 TXT、EPUB、PDF 等格式。',
+                    'Show formats such as TXT, EPUB and PDF on book covers.')),
+                leading: const Icon(Icons.label_outline),
+                initialValue: Prefs().showBookFormatBadge,
+                onToggle: (bool value) {
+                  setState(() {
+                    Prefs().showBookFormatBadge = value;
+                  });
+                },
+              ),
+              SettingsTile.switchTile(
                 title: Text(
                     L10n.of(context).settingsBookshelfDefaultCoverShowTitle),
                 leading: const Icon(Icons.title),

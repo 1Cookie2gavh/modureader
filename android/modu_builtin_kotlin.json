@@ -1,0 +1,16 @@
+{
+  "audioplayers_android": "73689624eb600482e43aca13d3dbdddcff099838899ed8de14d0252bc79a2124",
+  "battery_plus": "d6751cba31a6fdfdee4d6859083d9970075316d1839ee687ca0c65326e9fa415",
+  "desktop_drop": "23cee366fef2eff109612f79babceb7c68296d6769f56ad3d5d2d4b592f3dab5",
+  "device_info_plus": "918016d5abdf6ce59098442b90247dc207cf18a057bbc2b24dbb77a7c2f5d58a",
+  "flutter_file_dialog": "f21164fd46ef050b4e87747e792d07f217e5ab08dd7df53e338cdf88689d7387",
+  "flutter_onnxruntime": "ad4cc17f04a2d2119d89462d2823eff829363b53205150340ba7c3b9fbc39102",
+  "flutter_tts": "e8282fed47a650a28c490df7cae3c800db574b8335a7d4d2b8db806378482088",
+  "fluttertoast": "f01ae2c442fc6c511437967f84d8076806a055568594fd953b79af527ef3a89a",
+  "package_info_plus": "10beba354a1777db5e436060e98fa1b7732f41eae1a436cad7c1faae5115b482",
+  "saver_gallery": "5a7b36d0597b10ed9851b01f2b8cde787c7691753085b72ed90dfd41ef7b3ab0",
+  "share_handler_android": "485948e612e1e895979df93d86822fd4dea9afdfb6f7fd4d13fec4f7e326739d",
+  "share_plus": "b3571246114239c8e63a8332ff05b1de594ab320736bfb6434462a34411859d9",
+  "shared_preferences_android": "5ac42e7553f194e34c9b431bfd0d736bebb7a5b9548995461fcc0efb516af6a6",
+  "wakelock_plus": "643cb0f3b469474448b3d8ec3b26a08c280a22df946ba0067eb2f6b0716d58e5"
+}

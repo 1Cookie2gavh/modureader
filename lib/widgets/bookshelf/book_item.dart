@@ -61,14 +61,6 @@ class _BookItemState extends ConsumerState<BookItem> {
       onSelectionChanged?.call(book, !selected);
     }
 
-    Future<void> handleLongPress(BuildContext context) async {
-      if (onSelectionChanged != null) {
-        toggleSelection();
-        return;
-      }
-      menuKey.currentState?.showButtonMenu();
-    }
-
     final bookSyncStatus =
         ref.watch(syncStatusProvider).whenOrNull(data: (data) {
               if (data.downloading.contains(book.id)) {
@@ -96,10 +88,8 @@ class _BookItemState extends ConsumerState<BookItem> {
           onTap: selectionMode
               ? toggleSelection
               : () => pushToReadingPage(ref, context, book),
-          onLongPress: () => handleLongPress(context),
-          onSecondaryTap: selectionMode
-              ? toggleSelection
-              : () => menuKey.currentState?.showButtonMenu(),
+          onLongPress: toggleSelection,
+          onSecondaryTap: toggleSelection,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -154,8 +144,8 @@ class _BookItemState extends ConsumerState<BookItem> {
                                     child: _SelectionIndicator(
                                       selected: selected,
                                     ),
-                                  )
-                                else
+                                  ),
+                                if (selectionMode)
                                   Positioned(
                                     right: 6,
                                     bottom: 6,

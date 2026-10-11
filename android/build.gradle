@@ -24,6 +24,12 @@ apply from: 'modu_audio_notification.gradle'
 apply from: 'modu_reader_selection.gradle'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+    plugins.withId('com.android.library') {
+        // AGP 9 checks library dependencies too; old plugins still declare API 33.
+        extensions.getByName('androidComponents').finalizeDsl { library ->
+            library.compileSdk = Math.max(36, library.compileSdk ?: 0)
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(':app')

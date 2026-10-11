@@ -7,6 +7,11 @@ const read=name=>readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.m
 const geometry=await read('annotation-geometry');
 const {annotationPointMapper,annotationRect}=await import(`data:text/javascript;base64,${Buffer.from(geometry).toString('base64')}`);
 const {JSDOM}=createRequire(`${process.env.MODU_JSDOM_ROOT}/package.json`)('jsdom');
+test('PDF overlays inside the page use local coordinates, not the cropped/rotated outer iframe',()=>{
+  const doc={defaultView:{frameElement:{getBoundingClientRect:()=>{throw Error('must not apply outer transform twice')}}}};
+  const svg={ownerDocument:doc,getScreenCTM:()=>({inverse:()=>({a:1,b:0,c:0,d:1,e:0,f:72})})};
+  assert.deepEqual(annotationPointMapper(doc,svg)({x:10,y:20}),{x:10,y:92});
+});
 
 test('chapter padding and parent scrolling are mapped to the real SVG origin',()=>{
   for(const parentScroll of [0,500,2000,5000,-300]) {

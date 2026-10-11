@@ -14,6 +14,14 @@ dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({left:0,top:0,ri
 // Each iframe has its own prototype; decode is installed by the simulated source.
 const uri = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const source = name => readFile(new URL(`../assets/foliate-js/src/${name}.js`, import.meta.url), 'utf8');
+const CFI = await import(uri(await source('epubcfi')));
+const {annotationPointMapper, annotationRect} = await import(uri(await source('annotation-geometry')));
+const Overlayer = runInNewContext((await source('overlayer')).replace(/^import .*$/gm, '')
+    .replace('export class Overlayer', 'class Overlayer') + '\nOverlayer', {
+    document, Range: dom.window.Range, navigator: {userAgent:'Chrome'}, window: dom.window,
+    annotationPointMapper, annotationRect,
+    SearchHighlighter: class {clear() {} remove() {} redraw() {}},
+});
 const geometry = uri(await source('document-regions'));
 const layout = uri((await source('pdf-reading-layout')).replace("'./document-regions.js'", JSON.stringify(geometry)));
 const viewport = uri((await source('pdf-reading-viewport')).replace("'./document-regions.js'", JSON.stringify(geometry))
@@ -55,6 +63,7 @@ dom.window.Document.prototype.createElement = function(name, ...rest) {
     if(name==='iframe') Object.defineProperty(el,'src',{set(value) {
         const child=new JSDOM(decodeURIComponent(value.split(',').slice(1).join(',')),{url:value});
         frames.push(child);
+        child.window.Range.prototype.getClientRects = () => [{left:10,top:20,right:110,bottom:40,width:100,height:20}];
         child.window.HTMLImageElement.prototype.decode=async function() {};
         Object.defineProperty(el,'contentDocument',{value:child.window.document,configurable:true});
         Object.defineProperty(el,'contentWindow',{value:child.window,configurable:true});
@@ -62,6 +71,49 @@ dom.window.Document.prototype.createElement = function(name, ...rest) {
     }});
     return el;
 };
+
+test('PDF marks survive page recycling, crop, rotation and switching between page and scroll modes', async () => {
+    const h=harness(), layers=[], saved=new Map();
+    for(const section of h.renderer.book.sections) section.loadFrame=section.load;
+    h.renderer.addEventListener('create-overlayer', ({detail:{doc,index,attach}})=>{
+        const layer=new Overlayer(doc);attach(layer);layers.push(layer);
+        for(const [key, note] of saved) if(note.index===index)
+            layer.add(key,CFI.toRange(doc,CFI.parse(note.cfi)),Overlayer[note.type],{color:note.color});
+    });
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);
+        await h.renderer.goTo({index:0});
+        let {doc,overlayer}=h.renderer.getContents()[0];
+        assert.equal(overlayer.element.ownerDocument,doc);
+        const range=doc.createRange();
+        range.setStart(doc.querySelector('.textLayer span').firstChild,0);
+        range.setEnd(range.startContainer,range.startContainer.length);
+        const cfi=CFI.fromRange(range);
+        saved.set('note',{index:0,cfi,type:'highlight',color:'#f90'});
+        overlayer.add('note',range,Overlayer.highlight,{color:'#f90'});
+        assert.ok(overlayer.element.querySelector('rect'));
+        assert.equal(overlayer.hitTest({x:50,y:30})[0],'note');
+        await h.renderer.next();
+        assert.equal(overlayer.element.children.length,0,'recycled layers are disposed');
+        await h.renderer.prev();
+        for(const mode of ['single','scroll','single']) {
+            await h.renderer.setPdfLayout(config,true);
+            await h.renderer.setPdfView({mode,rotation:90});
+            ({doc,overlayer}=h.renderer.getContents().find(x=>x.index===0));
+            assert.equal(CFI.toRange(doc,CFI.parse(cfi)).toString(),'Original text',mode+' '+cfi);
+            assert.ok(overlayer.element.querySelector('rect'),'saved mark restored in '+mode);
+            assert.equal(overlayer.element.ownerDocument,doc);
+        }
+        saved.get('note').type='underline';
+        overlayer.remove('note');
+        overlayer.add('note',CFI.toRange(doc,CFI.parse(cfi)),Overlayer.underline,{color:'#08f'});
+        assert.ok(overlayer.element.children.length);
+        saved.delete('note');overlayer.remove('note');
+        await h.renderer.goTo({index:1});await h.renderer.goTo({index:0});
+        assert.equal(h.renderer.getContents()[0].overlayer.element.children.length,0,'deleted marks stay deleted');
+    } finally {h.close()}
+    for(const layer of layers) assert.equal(layer.element.children.length,0);
+});
 
 test('formal renderer commits panel locations, returns to source page and retains text DOM', async () => {
     const h=harness();
@@ -77,6 +129,63 @@ test('formal renderer commits panel locations, returns to source page and retain
         await h.renderer.setPdfLayout(config,false);
         assert.equal(h.renderer.pdfReading,false);assert.equal(h.renderer.index,0);
         assert.equal(h.events.at(-1).pdfRegion,null);
+    } finally {h.close()}
+});
+
+test('PDF night mode inverts only page bitmaps, including new detail tiles, without rerasterizing', async () => {
+    const h=harness();let renders=0;
+    for(const section of h.renderer.book.sections) section.loadFrame=section.load;
+    h.source.render=async()=>{renders++;return {blob:new Blob(['png'])}};
+    try {
+        h.renderer.setPdfNightMode(true);
+        await h.renderer.goTo({index:0});
+        for(const mode of ['original','single','scroll']) {
+            if(mode!=='original') {
+                await h.renderer.setPdfLayout(config,true);
+                await h.renderer.setPdfView({mode,rotation:90});
+            }
+            const {doc}=h.renderer.getContents()[0], win=doc.defaultView;
+            const image=doc.querySelector('[data-document-base]');
+            const text=doc.querySelector('.textLayer span');
+            const range=doc.createRange();range.selectNodeContents(text.firstChild);
+            const cfi=CFI.fromRange(range), originalSource=image.src;
+            const mark=doc.createElementNS('http://www.w3.org/2000/svg','svg');
+            mark.style.color='rgb(0, 128, 255)';doc.body.append(mark);
+            const before=renders;
+            for(const night of [true,false,true]) {
+                h.renderer.setPdfNightMode(night);
+                assert.equal(win.getComputedStyle(image).filter,night?'invert(1)':'');
+                assert.equal(h.renderer.style.backgroundColor,night?'rgb(0, 0, 0)':'');
+                if(night) assert.equal(win.getComputedStyle(doc.body).backgroundColor,'rgb(0, 0, 0)');
+                assert.equal(doc.querySelectorAll('#modu-pdf-night-mode').length,night?1:0);
+                assert.equal(win.getComputedStyle(text).filter,'');
+                assert.equal(win.getComputedStyle(mark).filter,'');
+                assert.equal(mark.style.color,'rgb(0, 128, 255)');
+                assert.equal(CFI.toRange(doc,CFI.parse(cfi)).toString(),'Original text');
+                assert.equal(image.src,originalSource);
+            }
+            const detail=doc.createElement('img');detail.setAttribute('data-document-detail','');doc.body.append(detail);
+            assert.equal(win.getComputedStyle(detail).filter,'invert(1)');
+            assert.equal(renders,before,'toggling is display-only');
+            await h.renderer.next();
+            for(const {doc:next} of h.renderer.getContents())
+                assert.ok(next.getElementById('modu-pdf-night-mode'),'new/recycled pages inherit night mode');
+            h.renderer.setPdfNightMode(false);
+            for(const {doc:next} of h.renderer.getContents())
+                assert.equal(next.getElementById('modu-pdf-night-mode'),null);
+        }
+    } finally {h.close()}
+});
+
+test('PDF night filter is not applied to ordinary fixed-layout books', async () => {
+    const h=harness();
+    try {
+        h.renderer.setPdfNightMode(true);
+        await h.renderer.goTo({index:0});
+        const {doc}=h.renderer.getContents()[0];
+        assert.equal(doc.getElementById('modu-pdf-night-mode'),null);
+        assert.equal(h.renderer.style.backgroundColor,'');
+        assert.equal(doc.defaultView.getComputedStyle(doc.querySelector('img')).filter,'');
     } finally {h.close()}
 });
 
