@@ -263,7 +263,12 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(children: [
-                for (final s in [null, ...QuerySection.values])
+                for (final s in [
+                  null,
+                  ...prefs.order,
+                  ...QuerySection.values
+                      .where((s) => !QuerySection.comprehensive.contains(s))
+                ])
                   Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
@@ -297,7 +302,7 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
                         prefs.smartOrder
                             ? t('本机智能排序 · 各来源独立显示',
                                 'Local ordering · separate sources')
-                            : t('按栏目顺序显示', 'Category order'),
+                            : t('按自定义顺序显示', 'Custom order'),
                         style: Theme.of(context).textTheme.bodySmall))),
           Expanded(child: LayoutBuilder(builder: (context, viewport) {
             if (visible.isEmpty) {

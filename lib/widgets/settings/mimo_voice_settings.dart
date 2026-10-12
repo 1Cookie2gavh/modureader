@@ -68,7 +68,7 @@ class _MimoVoiceSettingsState extends State<MimoVoiceSettings> {
       children: [
         DropdownButtonFormField<String>(
           key: const ValueKey('mimo-model'),
-          value: model,
+          initialValue: model,
           isExpanded: true,
           decoration: InputDecoration(
               labelText: ModuStrings.text(context, '语音模式', 'Speech mode')),
@@ -95,7 +95,7 @@ class _MimoVoiceSettingsState extends State<MimoVoiceSettings> {
         if (!design)
           DropdownButtonFormField<String>(
             key: const ValueKey('mimo-voice'),
-            value: voice,
+            initialValue: voice,
             isExpanded: true,
             decoration: InputDecoration(
                 labelText: ModuStrings.text(context, '预置音色', 'Preset voice')),
@@ -124,7 +124,7 @@ class _MimoVoiceSettingsState extends State<MimoVoiceSettings> {
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
           key: ValueKey('mimo-template-$design-$selected'),
-          value: selected ?? '',
+          initialValue: selected ?? '',
           isExpanded: true,
           decoration: InputDecoration(
             labelText:

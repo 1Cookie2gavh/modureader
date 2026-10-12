@@ -203,10 +203,11 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
           if (confirmed != true || !mounted) return;
           final success =
               await ref.read(storageInfoProvider.notifier).clearCache();
-          if (!success && context.mounted)
+          if (!success && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                 content: Text(ModuStrings.text(context, '清理失败，已保留尚未迁移的数据。',
                     'Cache clearing failed. Data awaiting migration was kept.'))));
+          }
           ref.invalidate(storageInfoProvider);
         },
         child: Text('${L10n.of(context).storageClearCache} $size'),

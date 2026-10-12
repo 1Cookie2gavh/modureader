@@ -5,69 +5,56 @@ import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/other_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/reading_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dart';
-import 'package:contentsize_tabbarview/contentsize_tabbarview.dart';
+import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/custom_css_editor.dart';
 import 'package:flutter/material.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
+import '../reader_settings_scroll_view.dart';
 
 enum ReadingSettings { theme, style }
 
 void showMoreSettings(ReadingSettings settings) {
-  BuildContext context = navigatorKey.currentContext!;
-  // Navigator.of(context).pop();
+  final context = navigatorKey.currentContext!;
   readingPageKey.currentState!.showOrHideAppBarAndBottomBar(false);
+  showReaderPopup(context,
+      enableDrag: false,
+      builder: (_) => ReaderMoreSettings(settings: settings));
+}
 
-  List<Tab> tabs = [
-    Tab(text: L10n.of(context).readingPageReading),
-    Tab(text: L10n.of(context).readingPageStyle),
-    Tab(text: L10n.of(context).readingPageOther),
-  ];
+class ReaderMoreSettings extends StatelessWidget {
+  const ReaderMoreSettings({super.key, required this.settings});
+  final ReadingSettings settings;
 
-  List<Widget> children = [
-    const ReadingMoreSettings(),
-    const StyleSettings(),
-    const OtherSettings(),
-  ];
-
-  TabController? tabController = TabController(
-    length: tabs.length,
-    vsync: Navigator.of(context),
-    initialIndex: settings == ReadingSettings.theme ? 0 : 1,
-  );
-
-  showDialog(
-    animationStyle: AppMotion.style,
-    context: context,
-    builder: (context) {
-      return Dialog(
-        child: PointerInterceptor(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TabBar(
-                  controller: tabController,
-                  tabs: tabs,
-                ),
-                const Divider(height: 0),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.5,
-                    maxWidth: MediaQuery.of(context).size.width * 0.8,
-                  ),
-                  child: SingleChildScrollView(
-                    child: ContentSizeTabBarView(
-                      animationDuration: const Duration(milliseconds: 600),
-                      controller: tabController,
-                      children: children,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-  );
+  @override
+  Widget build(BuildContext context) {
+    final bookKey = epubPlayerKey.currentState?.cssBookKey;
+    return DefaultTabController(
+      length: 4,
+      initialIndex: settings == ReadingSettings.theme ? 0 : 1,
+      animationDuration: AppMotion.duration(const Duration(milliseconds: 300)),
+      child: Column(children: [
+        Row(children: [
+          Expanded(
+              child: TabBar(tabs: [
+            Tab(text: L10n.of(context).readingPageReading),
+            Tab(text: L10n.of(context).readingPageStyle),
+            const Tab(text: 'CSS'),
+            Tab(text: L10n.of(context).readingPageOther),
+          ])),
+          const CloseButton(),
+        ]),
+        const Divider(height: 0),
+        Expanded(
+            child: TabBarView(children: [
+          const ReaderSettingsScrollView(child: ReadingMoreSettings()),
+          const ReaderSettingsScrollView(child: StyleSettings()),
+          ReaderSettingsScrollView(
+              child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: CustomCSSEditor(key: ValueKey(bookKey), bookKey: bookKey),
+          )),
+          const ReaderSettingsScrollView(child: OtherSettings()),
+        ])),
+      ]),
+    );
+  }
 }

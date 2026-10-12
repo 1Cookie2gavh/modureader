@@ -1,4 +1,5 @@
 import 'package:anx_reader/l10n/modu_strings.dart';
+import 'package:anx_reader/l10n/app_language.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:anx_reader/utils/app_motion.dart';
@@ -142,6 +143,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final localeKey = appLocaleKey(Localizations.localeOf(context));
     List<Map<String, dynamic>> navBarItems = [
       {
         'icon': EvaIcons.book_open,
@@ -150,13 +152,21 @@ class _HomePageState extends ConsumerState<HomePage> {
       },
       {
         'icon': Icons.cloud_download_outlined,
-        'label': ModuStrings.text(context, '远程书库', 'Remote library'),
+        'label': switch (localeKey) {
+          'zh-CN' => '远程',
+          'zh-TW' || 'zh-LZH' => '遠程',
+          _ => ModuStrings.text(context, '远程书库', 'Remote library'),
+        },
         'identifier': 'remoteLibrary'
       },
       if (Prefs().bottomNavigatorShowStatistics)
         {
           'icon': Icons.history,
-          'label': L10n.of(context).navBarStatistics,
+          'label': switch (localeKey) {
+            'zh-CN' => '历史',
+            'zh-TW' || 'zh-LZH' => '歷史',
+            _ => L10n.of(context).navBarStatistics,
+          },
           'identifier': 'statistics'
         },
       if (Prefs().bottomNavigatorShowAI && EnvVar.enableAIFeature)
@@ -206,7 +216,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     void onBottomTap(int index, bool fromRail) {
       if (navBarItems[index]['identifier'] == 'ai' && !fromRail) {
         showCupertinoSheet(
-            context: context, builder: (context) => const AiPage());
+            context: context,
+            scrollableBuilder:
+                (BuildContext context, ScrollController controller) {
+              Widget widgetBuilder(BuildContext context) => const AiPage();
+              return widgetBuilder(context);
+            });
         return;
       }
       setState(() {

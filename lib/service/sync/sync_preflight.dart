@@ -11,14 +11,18 @@ class SyncNetworkUnavailable implements Exception {}
 bool isTemporarySyncError(Object error) {
   if (error is SyncNetworkUnavailable ||
       error is SocketException ||
-      error is TimeoutException) return true;
+      error is TimeoutException) {
+    return true;
+  }
   if (error is! DioException) return false;
   if ([
     DioExceptionType.connectionError,
     DioExceptionType.connectionTimeout,
     DioExceptionType.sendTimeout,
     DioExceptionType.receiveTimeout
-  ].contains(error.type)) return true;
+  ].contains(error.type)) {
+    return true;
+  }
   return [408, 429, 500, 502, 503, 504].contains(error.response?.statusCode);
 }
 

@@ -85,7 +85,7 @@ void main() {
   }
 
   test('AI error does not start another request', () async {
-    final result = await dictionaryLookup(
+    final result = dictionaryLookup(
       messages: messages,
       generate: (_) => Stream.error(StateError('transport failure')),
       isCancelled: () => false,

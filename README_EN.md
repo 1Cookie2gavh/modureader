@@ -61,7 +61,7 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.2.6** — fixes PDF annotations and continuous-scroll momentum, adds PDF night inversion and a book-format badge toggle, and improves manual brightness and bookshelf editing menus.
+**Latest release: 1.2.7** — improves paging and scrolling, adds continuous PDF extraction, a cover-free bookshelf list and history layout reset, and refines settings and dialogs.
 
 Android cover opening and AI keyboard/stream layouts have been refined. System speech errors and startup waits now recover with clearer diagnostics. HarmonyOS remains an unsigned HAP requiring local signing; see the [release notes](docs/RELEASE_NOTES.md) for limitations and installation requirements.
 

@@ -92,8 +92,9 @@ class _OpenAiVoiceSettingsState extends State<OpenAiVoiceSettings> {
         ],
         onChanged: (value) {
           final prompt = OpenAiVoicePresets.templates[value];
-          if (prompt != null)
+          if (prompt != null) {
             _change('instructions', ModuStrings.text(context, prompt, prompt));
+          }
         },
       ),
       const SizedBox(height: 16),

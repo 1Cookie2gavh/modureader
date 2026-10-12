@@ -81,13 +81,16 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                 ),
               ),
             ),
-            for (final service in TranslateService.readAnyValues)
-              RadioListTile<TranslateService>(
-                value: service,
+            RadioGroup<TranslateService>(
                 groupValue: Prefs().fullTextTranslateService,
-                title: Text(service.getLabel(context)),
                 onChanged: (value) => Navigator.pop(context, value),
-              ),
+                child: Column(children: [
+                  for (final service in TranslateService.readAnyValues)
+                    RadioListTile<TranslateService>(
+                      value: service,
+                      title: Text(service.getLabel(context)),
+                    ),
+                ])),
             const SizedBox(height: 8),
           ],
         ),
@@ -124,18 +127,19 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  itemCount: languages.length,
-                  itemBuilder: (context, index) {
-                    final language = languages[index];
-                    return RadioListTile<LangListEnum>(
-                      value: language,
-                      groupValue: Prefs().fullTextTranslateTo,
-                      title: Text(language.nativeName),
-                      onChanged: (value) => Navigator.pop(context, value),
-                    );
-                  },
-                ),
+                child: RadioGroup<LangListEnum>(
+                    groupValue: Prefs().fullTextTranslateTo,
+                    onChanged: (value) => Navigator.pop(context, value),
+                    child: ListView.builder(
+                      itemCount: languages.length,
+                      itemBuilder: (context, index) {
+                        final language = languages[index];
+                        return RadioListTile<LangListEnum>(
+                          value: language,
+                          title: Text(language.nativeName),
+                        );
+                      },
+                    )),
               ),
             ],
           ),

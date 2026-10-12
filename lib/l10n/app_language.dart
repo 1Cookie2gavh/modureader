@@ -20,8 +20,9 @@ const appLocales = <Locale>[
 ];
 
 Locale? parseAppLocale(String? value) {
-  if (value == null || value.isEmpty || value.toLowerCase() == 'system')
+  if (value == null || value.isEmpty || value.toLowerCase() == 'system') {
     return null;
+  }
   final parts = value.replaceAll('_', '-').split('-');
   final language = parts.first.toLowerCase();
   String? script, country;

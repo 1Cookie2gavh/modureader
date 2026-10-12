@@ -247,7 +247,9 @@ class UpdateTransport {
       try {
         return await probe(asset.url, mirror: false);
       } on Exception catch (error) {
-        if (!allowFallback || asset.mirrorUrl == null || !_isUnavailable(error)) {
+        if (!allowFallback ||
+            asset.mirrorUrl == null ||
+            !_isUnavailable(error)) {
           rethrow;
         }
       }

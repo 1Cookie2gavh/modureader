@@ -45,7 +45,8 @@ class _GlobalSettingsPageState extends ConsumerState<GlobalSettingsPage> {
         'vector' =>
           ModuStrings.text(context, '向量模型设置', 'Vector model settings'),
         'tts' => ModuStrings.text(context, '朗读配置', 'Speech settings'),
-        'webdav' => ModuStrings.text(context, '云端同步（WebDAV / S3）', 'Cloud sync (WebDAV / S3)'),
+        'webdav' => ModuStrings.text(
+            context, '云端同步（WebDAV / S3）', 'Cloud sync (WebDAV / S3)'),
         'remote-library-webdav' =>
           ModuStrings.text(context, '远程书库 WebDAV', 'Library WebDAV'),
         'translation' =>

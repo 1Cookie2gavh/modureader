@@ -1,0 +1,223 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+const { JSDOM } = createRequire(`${process.env.MODU_JSDOM_ROOT}/package.json`)('jsdom');
+const source = await readFile(new URL('../assets/foliate-js/src/text-page-layout.js', import.meta.url), 'utf8');
+const { pageLineOffsets, preparePageRuns, alignPaginatedText, resetPageAlignment, safeScrollOffset, settledScrollOffset, lineAlignedOffset, prepareScrollLines, invalidateScrollLines } =
+  await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const cfiSource = await readFile(new URL('../assets/foliate-js/src/epubcfi.js', import.meta.url), 'utf8');
+const CFI = await import(`data:text/javascript;base64,${Buffer.from(cfiSource).toString('base64')}`);
+
+test('full pages align both edges; final page keeps natural gaps', () => {
+  for (const count of [10, 15, 25]) {
+    const rows = Array.from({length:count}, (_,i)=>({top:25+i*40,bottom:49+i*40}));
+    const bottom=rows.at(-1).bottom+12, offsets=pageLineOffsets(rows,20,bottom,false);
+    assert.equal(rows[0].top+offsets[0],20);
+    assert.equal(rows.at(-1).bottom+offsets.at(-1),bottom);
+    assert.ok(offsets.every((x,i)=>!i || x-offsets[i-1]<2));
+    assert.deepEqual(pageLineOffsets(rows,20,bottom,true),rows.map(()=>-5));
+  }
+  assert.equal(pageLineOffsets([{top:20,bottom:40}],20,400,false),null);
+  assert.equal(pageLineOffsets(Array.from({length:4},(_,i)=>({top:20+i*30,bottom:40+i*30})),20,800,false),null);
+});
+
+function fixture({enabled='1', unsafe=false, long=false}={}) {
+  const dom=new JSDOM(`<body>${[10,10,2].map((n,i)=>`<p data-page="${i}">${'字'.repeat(n)}</p>`).join('')}${unsafe?'<img>':''}</body>`);
+  const doc=dom.window.document;
+  doc.documentElement.style.setProperty('--modu-align-pages',enabled);
+  if(long)doc.body.textContent='字'.repeat(50001);
+  dom.window.Element.prototype.getClientRects=function(){
+    if(this.localName==='img')return [{left:10,top:100,bottom:120,width:20,height:20}];
+    if(!this.__moduPageRun)return [];
+    const i=[...this.parentElement.children].indexOf(this),page=Number(this.parentElement.dataset.page);
+    const top=25+i*40+(parseFloat(this.style.top)||0);
+    return [{left:page*320+10,top,bottom:top+24,width:20,height:24}];
+  };
+  return {dom,doc};
+}
+const layout={height:450,topMargin:20,bottomMargin:20,columnWidth:300,gap:20};
+test('stable runs preserve text and live ranges across relayout and re-enable', () => {
+  const {doc}=fixture(),text=doc.body.textContent;
+  alignPaginatedText(doc,layout,false);
+  const {runs}=preparePageRuns(doc), first=runs[0], last=runs[9];
+  assert.equal(first.getClientRects()[0].top,20);
+  assert.equal(last.getClientRects()[0].bottom,430);
+  assert.equal(runs.at(-1).getClientRects()[0].bottom,84);
+  const range=doc.createRange();range.setStart(first.firstChild,0);range.setEnd(last.firstChild,1);
+  const nodes=[range.startContainer,range.endContainer];
+  resetPageAlignment(doc);
+  assert.equal(first.getClientRects()[0].top,25);
+  alignPaginatedText(doc,{...layout,height:455},false);
+  assert.equal(last.getClientRects()[0].bottom,435);
+  assert.equal(doc.body.textContent,text);
+  assert.deepEqual([range.startContainer,range.endContainer],nodes);
+  assert.equal(range.toString(),'字'.repeat(10));
+  assert.equal(preparePageRuns(doc).runs,runs);
+});
+test('publisher/custom CSS, vertical/RTL, oversized, invalid and illustrated pages stay native', () => {
+  for(const [options,vertical,dimensions] of [
+    [{enabled:'0'},false,layout],[{},true,layout],[{long:true},false,layout],[{},false,{...layout,height:0}],
+  ]) {
+    const {doc}=fixture(options);
+    alignPaginatedText(doc,dimensions,vertical);
+    assert.equal(doc.querySelector('modu-page-run'),null);
+  }
+  const {doc}=fixture({unsafe:true});alignPaginatedText(doc,layout,false);
+  assert.equal(preparePageRuns(doc).runs[0].style.top,'0px');
+  assert.equal(preparePageRuns(doc).runs[10].getClientRects()[0].top,20);
+});
+test('old/new CFIs retain text across nested markup, adjacent nodes and graphemes', () => {
+  const dom=new JSDOM('<p id="one">甲乙<em>南宋😀行暮</em>丙丁<a href="#note">链接</a>尾声</p><p>第二段 é office العربية</p><aside id="note">注释</aside>');
+  const doc=dom.window.document,original=doc.cloneNode(true),walker=doc.createTreeWalker(doc.body,4),checks=[];
+  for(let n=walker.nextNode();n;n=walker.nextNode())for(let i=0;i<n.length;i++) {
+    const r=doc.createRange();r.setStart(n,i);r.setEnd(n,n.length);
+    checks.push({cfi:CFI.fromRange(r),text:r.toString()});
+  }
+  const cross=doc.createRange();cross.setStart(doc.querySelector('p').firstChild,1);cross.setEnd(doc.querySelectorAll('p')[1].firstChild,5);
+  checks.push({cfi:CFI.fromRange(cross),text:cross.toString()});
+  preparePageRuns(doc);
+  for(const {cfi,text} of checks) {
+    const restored=CFI.toRange(doc,CFI.parse(cfi));
+    assert.equal(restored.toString(),text);
+    assert.equal(CFI.toRange(original,CFI.parse(CFI.fromRange(restored))).toString(),text);
+  }
+  const first=doc.querySelector('modu-page-run'),r=doc.createRange();r.selectNodeContents(first);
+  assert.equal(CFI.toRange(original,CFI.parse(CFI.fromRange(r))).toString(),first.textContent);
+  assert.equal(doc.body.textContent,original.body.textContent);
+  assert.ok([...doc.querySelectorAll('modu-page-run')].some(el=>el.textContent==='office'));
+  assert.ok([...doc.querySelectorAll('modu-page-run')].some(el=>el.textContent==='العربية'));
+});
+test('TTS and word selection cross inline runs without reading note markers',async()=>{
+  const load=async name=>import(`data:text/javascript;base64,${Buffer.from(await readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url))).toString('base64')}`);
+  const {TTS}=await load('tts');
+  const dom=new JSDOM('<p>南宋的故事。<em>第二句话。</em><sup role="doc-noteref">12</sup></p><p>另一段。</p>');
+  const doc=dom.window.document;
+  globalThis.NodeFilter=dom.window.NodeFilter;globalThis.Range=dom.window.Range;
+  const collect=()=>{
+    const tts=new TTS(doc,null,()=>{},r=>r.toString()),out=[];
+    for(let text=tts.start();text!=null;text=tts.next())out.push(text);
+    return out;
+  };
+  const before=collect();preparePageRuns(doc);
+  assert.deepEqual(collect(),before);
+  assert.equal(before.join(''),'南宋的故事。第二句话。另一段。');
+  const {smartSelectionRange}=await load('smart-selection');
+  const first=doc.querySelector('modu-page-run');
+  assert.equal(smartSelectionRange(doc,{node:first.firstChild,offset:0},{locale:'zh-CN'}).toString(),'南宋');
+});
+test('annotation rects contain only text once, not duplicate inline boxes',async()=>{
+  const geometry=await readFile(new URL('../assets/foliate-js/src/annotation-geometry.js',import.meta.url),'utf8');
+  const {annotationRangeRects}=await import(`data:text/javascript;base64,${Buffer.from(geometry).toString('base64')}`);
+  const {doc,dom}=fixture();preparePageRuns(doc);
+  dom.window.Range.prototype.getClientRects=function(){
+    const left=[...this.startContainer.parentElement.parentElement.children].indexOf(this.startContainer.parentElement)*10;
+    return [{left,right:left+10,top:25,bottom:45,width:10,height:20}];
+  };
+  const range=doc.createRange();range.selectNodeContents(doc.querySelector('p'));
+  assert.deepEqual(annotationRangeRects(range),[{left:0,right:100,top:25,bottom:45,width:100,height:20}]);
+});
+const rows=Array.from({length:100},(_,i)=>({top:10+i*40,bottom:34+i*40}));
+const cuts=(y,edges=rows)=>edges.some(r=>y>r.top&&y<r.bottom);
+test('80/100 percent steps use gaps without losing overlap',()=>{
+  for(const viewport of [400,413])for(const percent of [.8,1])for(const direction of [-1,1]){
+    const current=1000,target=current+direction*viewport*percent,result=safeScrollOffset(rows,target,current,viewport);
+    assert.ok(direction*(result-current)>0);
+    assert.ok(Math.abs(result-current)<=Math.abs(target-current));
+    assert.ok(!cuts(direction>0?result+viewport:result));
+    if(viewport===400)assert.ok(!cuts(result)&&!cuts(result+viewport));
+  }
+});
+test('mixed sizes prefer both edges when possible',()=>{
+  const edges=[{top:90,bottom:120},{top:490,bottom:520},{top:530,bottom:565}];
+  const result=safeScrollOffset(edges,100,0,400);
+  assert.ok(!cuts(result,edges)&&!cuts(result+400,edges));
+  assert.equal(safeScrollOffset([],100,0,400),100);
+  assert.equal(safeScrollOffset(rows,0,0,400),0);
+});
+test('settling follows reading direction, never masks/reflows and becomes stable at its target',()=>{
+  // At viewport 20, these 24px glyphs / 40px rows cannot fit both edges in gaps.
+  for(const direction of [-1,1])for(const target of [995,1008,1025,1040]) {
+    const result=settledScrollOffset(rows,target,target-direction,20);
+    assert.ok(Math.abs(result-target)<=1.6);
+    // Use a realistic viewport for a full-glyph correction window.
+    const settled=settledScrollOffset(rows,target,target-direction,420);
+    assert.ok(!cuts(direction>0?settled+420:settled));
+    assert.equal(settledScrollOffset(rows,settled,settled-direction,420),settled);
+  }
+});
+test('document offsets include adjacent continuous chapters',()=>{
+  const {doc,dom}=fixture();
+  dom.window.Range.prototype.getClientRects=()=>[{top:10,bottom:34,width:100,height:24}];
+  const result=lineAlignedOffset([{doc,offset:30},{doc,offset:480}],500,0,400);
+  assert.ok(result>0&&result<=500);
+});
+test('scroll geometry is prepared once, reused on turns, and invalidated by layout/content changes',async()=>{
+  const dom=new JSDOM('<p>正文</p><p>另一段</p>'),doc=dom.window.document;
+  let calls=0, shift=0;
+  dom.window.Range.prototype.getClientRects=function(){calls++;return [{top:100+shift,bottom:124+shift,width:20,height:24}];};
+  assert.deepEqual(prepareScrollLines(doc),[{top:100,bottom:124}]);
+  assert.equal(calls,2);
+  for(let i=0;i<20;i++)lineAlignedOffset([{doc,offset:i}],90,0,400);
+  assert.equal(calls,2,'page turns must not measure text again');
+  shift=10;invalidateScrollLines(doc);
+  assert.deepEqual(prepareScrollLines(doc),[{top:110,bottom:134}]);
+  assert.equal(calls,4);
+  shift=20;doc.querySelector('p').firstChild.data='更新正文';
+  assert.deepEqual(prepareScrollLines(doc),[{top:120,bottom:144}]);
+  await Promise.resolve();
+  prepareScrollLines(doc);
+  assert.equal(calls,6,'synchronous mutation invalidates only once');
+  shift=30;doc.body.style.fontSize='20px';await Promise.resolve();
+  assert.deepEqual(prepareScrollLines(doc),[{top:130,bottom:154}]);
+  assert.equal(calls,8);
+  dom.window.close();
+});
+test('cached scroll stops match raw rectangles in both directions, after chapter offsets change',()=>{
+  const dom=new JSDOM('<p>正文</p>'),doc=dom.window.document;
+  dom.window.Range.prototype.getClientRects=()=>rows.flatMap(row=>[
+    {...row,width:20,height:row.bottom-row.top},{...row,width:20,height:row.bottom-row.top}]);
+  for(const offset of [0,250,-400])for(const viewport of [400,420])for(const direction of [-1,1])
+    for(const target of [500,999,1200])for(const settled of [false,true]){
+      const current=target-direction*(settled?1:viewport*.8);
+      const expected=(settled?settledScrollOffset:safeScrollOffset)(rows.map(r=>({top:r.top+offset,bottom:r.bottom+offset})),target,current,viewport);
+      assert.equal(lineAlignedOffset([{doc,offset}],target,current,viewport,settled),expected);
+    }
+  dom.window.close();
+});
+test('visible range searches only page boundaries, preserving the exhaustive traversal result',async()=>{
+  const paginator=await readFile(new URL('../assets/foliate-js/src/paginator.js',import.meta.url),'utf8');
+  const code=paginator.slice(paginator.indexOf('const makeRange ='),paginator.indexOf('const getDirection ='));
+  const old=code.replace(/  const from = walker.nextNode\(\) \?\? doc.body[\s\S]*?for \(let node = walker.lastChild\(\); node; node = walker.lastChild\(\)\) to = node/,
+    `  const nodes=[];for(let n=walker.nextNode();n;n=walker.nextNode())nodes.push(n)
+       const from=nodes[0]??doc.body,to=nodes.at(-1)??from`);
+  assert.notEqual(old,code);
+  const dom=new JSDOM(`<body>${Array.from({length:30},(_,p)=>`<p>${Array.from({length:80},(_,i)=>`<span data-x="${Math.floor((p*80+i)/400)*300+(i%20)*10}">字</span>`).join('')}</p>`).join('')}<script>ignored</script></body>`);
+  const doc=dom.window.document;let reads=0;
+  const bounds=el=>{
+    const spans=el.matches('span')?[el]:[...el.querySelectorAll('span')];
+    return {left:Math.min(...spans.map(s=>+s.dataset.x)),right:Math.max(...spans.map(s=>+s.dataset.x+10))};
+  };
+  dom.window.Element.prototype.getBoundingClientRect=function(){reads++;return bounds(this)};
+  dom.window.Range.prototype.getBoundingClientRect=function(){reads++;return bounds(this.startContainer.parentElement)};
+  const fast=runInNewContext(`${code};getVisibleRange`,{NodeFilter:dom.window.NodeFilter});
+  const exhaustive=runInNewContext(`${old};getVisibleRange`,{NodeFilter:dom.window.NodeFilter});
+  for(const [start,end] of [[0,300],[300,600],[750,900],[1800,2100]]){
+    reads=0;const expected=exhaustive(doc,start,end,r=>r),slow=reads;
+    reads=0;const actual=fast(doc,start,end,r=>r);
+    assert.equal(actual.startContainer,expected.startContainer);
+    assert.equal(actual.endContainer,expected.endContainer);
+    assert.equal(actual.startOffset,expected.startOffset);
+    assert.equal(actual.endOffset,expected.endOffset);
+    if(start<1800)assert.ok(reads<slow/4,`${reads} boundary reads versus ${slow} exhaustive reads`);
+  }
+  dom.window.close();
+});
+test('prepare before display, never reflow after a page turn; settle changes only scroll offset',async()=>{
+  const paginator=await readFile(new URL('../assets/foliate-js/src/paginator.js',import.meta.url),'utf8');
+  assert.equal(paginator.match(/alignPaginatedText\(doc,/g)?.length,1);
+  assert.ok(paginator.indexOf('this.render(layout)')<paginator.indexOf("this.#iframe.style.visibility = ''"));
+  assert.match(paginator,/reason === 'page' && !this.#vertical/);
+  assert.doesNotMatch(source,/requestAnimationFrame|setTimeout|innerHTML/);
+});

@@ -15,14 +15,41 @@ Future<bool> showDictionarySources(
       .map((d) => d.id)
       .toSet();
   final online = prefs.online.toSet();
-  var saving = false, failed = false;
-  return await showDialog<bool>(
-          context: context,
-          animationStyle: AppMotion.style,
-          builder: (context) => StatefulBuilder(builder: (context, setState) {
-                String t(String zh, String en) =>
-                    dictionaryLabel(context, zh, en);
-                return AlertDialog(
+  var saving = false, failed = false, changed = false;
+  await showDialog<void>(
+      context: context,
+      animationStyle: AppMotion.style,
+      builder: (context) => StatefulBuilder(builder: (context, setState) {
+            String t(String zh, String en) => dictionaryLabel(context, zh, en);
+            Future<void> update(VoidCallback edit) async {
+              final previousLocal = selected.toSet();
+              final previousOnline = online.toSet();
+              setState(() {
+                edit();
+                saving = true;
+                failed = false;
+              });
+              try {
+                await DictionaryPreferences(
+                        localIds: selected.toSet(), online: online.toSet())
+                    .save();
+                changed = true;
+              } catch (_) {
+                selected
+                  ..clear()
+                  ..addAll(previousLocal);
+                online
+                  ..clear()
+                  ..addAll(previousOnline);
+                failed = true;
+              } finally {
+                if (context.mounted) setState(() => saving = false);
+              }
+            }
+
+            return PopScope(
+                canPop: !saving,
+                child: AlertDialog(
                   title: Text(t('查询字典', 'Query dictionaries')),
                   content: SizedBox(
                       width: 480,
@@ -39,13 +66,13 @@ Future<bool> showDictionarySources(
                               TextButton(
                                   onPressed: saving
                                       ? null
-                                      : () => setState(() => selected
+                                      : () => update(() => selected
                                           .addAll(enabled.map((d) => d.id))),
                                   child: Text(t('全选本地', 'Select all local'))),
                               TextButton(
                                   onPressed: saving
                                       ? null
-                                      : () => setState(selected.clear),
+                                      : () => update(selected.clear),
                                   child:
                                       Text(t('清空本地', 'Clear local selection'))),
                             ]),
@@ -60,7 +87,7 @@ Future<bool> showDictionarySources(
                                   value: selected.contains(d.id),
                                   onChanged: saving
                                       ? null
-                                      : (v) => setState(() {
+                                      : (v) => update(() {
                                             if (v == true) {
                                               selected.add(d.id);
                                             } else {
@@ -79,7 +106,7 @@ Future<bool> showDictionarySources(
                                   value: online.contains(s),
                                   onChanged: saving
                                       ? null
-                                      : (v) => setState(() {
+                                      : (v) => update(() {
                                             if (v == true) {
                                               online.add(s);
                                             } else {
@@ -94,36 +121,10 @@ Future<bool> showDictionarySources(
                           ]))),
                   actions: [
                     TextButton(
-                        onPressed:
-                            saving ? null : () => Navigator.pop(context, false),
-                        child: Text(t('取消', 'Cancel'))),
-                    FilledButton(
-                        onPressed: saving
-                            ? null
-                            : () async {
-                                setState(() {
-                                  saving = true;
-                                  failed = false;
-                                });
-                                try {
-                                  await DictionaryPreferences(
-                                          localIds: selected, online: online)
-                                      .save();
-                                  if (context.mounted) {
-                                    Navigator.pop(context, true);
-                                  }
-                                } catch (_) {
-                                  if (context.mounted) {
-                                    setState(() {
-                                      saving = false;
-                                      failed = true;
-                                    });
-                                  }
-                                }
-                              },
-                        child: Text(t('查询', 'Apply'))),
+                        onPressed: saving ? null : () => Navigator.pop(context),
+                        child: Text(t('关闭', 'Close'))),
                   ],
-                );
-              })) ??
-      false;
+                ));
+          }));
+  return changed;
 }

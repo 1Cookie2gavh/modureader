@@ -47,6 +47,7 @@ class FolderPinMenu extends ConsumerWidget {
         try {
           await ref.read(bookshelfPinsProvider.notifier).setPinned(key, value);
         } catch (_) {
+          if (!context.mounted) return;
           AnxToast.show(ModuStrings.text(
               context, '置顶设置保存失败，请重试', 'Could not save pin. Please retry.'));
         }

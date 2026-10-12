@@ -4,6 +4,8 @@ import 'package:anx_reader/models/custom_css_profile.dart';
 import 'package:anx_reader/service/book_player/document_reading_mode_store.dart';
 import 'package:anx_reader/service/book_player/document_type_store.dart';
 import 'package:anx_reader/widgets/bookshelf/book_type_badges.dart';
+import 'package:anx_reader/widgets/bookshelf/book_item.dart';
+import 'package:anx_reader/service/knowledge/book_knowledge_index_queue.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +17,87 @@ void main() {
   });
   Book book(String extension) =>
       Book.mock()..filePath = 'file/example.$extension';
+  testWidgets(
+      'format and indexed labels toggle independently and remember choice',
+      (tester) async {
+    expect(Prefs().showBookIndexBadge, isTrue);
+    expect(Prefs().showBookFormatBadge, isTrue);
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: Column(children: [
+      BookTypeBadges(book: book('epub')),
+      const KnowledgeStatusBadge(indexed: true, item: null),
+    ]))));
+    await tester.pump();
+    expect(find.text('EPUB'), findsOneWidget);
+    expect(find.text('Indexed'), findsOneWidget);
+    Prefs().showBookIndexBadge = false;
+    await tester.pump();
+    expect(find.text('Indexed'), findsNothing);
+    expect(find.text('EPUB'), findsOneWidget);
+    Prefs().showBookFormatBadge = false;
+    Prefs().showBookIndexBadge = true;
+    await tester.pump();
+    expect(find.text('Indexed'), findsOneWidget);
+    expect(find.text('EPUB'), findsNothing);
+    Prefs().showBookIndexBadge = false;
+    await tester.pump();
+    await Prefs().initPrefs();
+    expect(Prefs().showBookIndexBadge, isFalse);
+    expect(Prefs().showBookFormatBadge, isFalse);
+  });
+
+  testWidgets('indexed and format labels share font, padding and height',
+      (tester) async {
+    for (final eink in [false, true]) {
+      Prefs().eInkMode = eink;
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: Column(children: [
+        BookTypeBadges(book: book('epub')),
+        const KnowledgeStatusBadge(indexed: true, item: null),
+      ]))));
+      await tester.pump();
+      final format = tester.widget<Text>(find.text('EPUB')).style!;
+      final indexed = tester.widget<Text>(find.text('Indexed')).style!;
+      expect(indexed.fontSize, format.fontSize);
+      expect(indexed.height, format.height);
+      expect(indexed.fontWeight, format.fontWeight);
+      final formatBox = find
+          .ancestor(of: find.text('EPUB'), matching: find.byType(DecoratedBox))
+          .first;
+      final indexBox = find
+          .ancestor(
+              of: find.text('Indexed'), matching: find.byType(DecoratedBox))
+          .first;
+      expect(tester.getSize(indexBox).height, tester.getSize(formatBox).height);
+      for (final label in ['EPUB', 'Indexed']) {
+        final padding = tester.widget<Padding>(find
+            .ancestor(of: find.text(label), matching: find.byType(Padding))
+            .first);
+        expect(padding.padding,
+            const EdgeInsets.symmetric(horizontal: 6, vertical: 3));
+      }
+    }
+  });
+
+  testWidgets('hiding indexed labels retains progress and failure notices',
+      (tester) async {
+    Prefs().showBookIndexBadge = false;
+    for (final status in BookKnowledgeQueueStatus.values) {
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: KnowledgeStatusBadge(
+        indexed: true,
+        item: BookKnowledgeQueueItem(
+            book: book('epub'), status: status, requestedAt: DateTime(2026)),
+      ))));
+      final hidden = status == BookKnowledgeQueueStatus.completed ||
+          status == BookKnowledgeQueueStatus.cancelled;
+      expect(find.byType(Text), hidden ? findsNothing : findsOneWidget,
+          reason: status.name);
+    }
+  });
   test('format uses case-insensitive container extension, not title', () {
     for (final extension in [
       'PDF',

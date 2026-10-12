@@ -8,7 +8,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const position = {'page': 2, 'panel': 3, 'signature': '[[0,0,0.5,0.5]]'};
   setUp(() => SharedPreferences.setMockInitialValues({}));
-  test('first interaction preserves automatic document mode without an opening write', () async {
+  test(
+      'first interaction preserves automatic document mode without an opening write',
+      () async {
     final store = PdfReadingStateStore(await SharedPreferences.getInstance());
     expect(store.hasSavedMode('fresh'), isFalse);
     await store.saveView('fresh', const PdfReadingView(zoom: 2), enabled: true);

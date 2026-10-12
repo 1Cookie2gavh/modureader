@@ -53,7 +53,7 @@ class WindowsWebViewEnvironment extends PlatformWebViewEnvironment
 
   _debugLog(String method, dynamic args) {
     debugLog(
-      className: this.runtimeType.toString(),
+      className: runtimeType.toString(),
       id: id,
       debugLoggingSettings: PlatformWebViewEnvironment.debugLoggingSettings,
       method: method,

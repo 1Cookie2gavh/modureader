@@ -102,7 +102,9 @@ class BookContentSearchRepository {
       for (final result in indexed) {
         final chunk = result.chunk;
         if (!chapters.containsKey(chunk.chapterId) &&
-            chapters.length >= input.resolvedMaxResults()) continue;
+            chapters.length >= input.resolvedMaxResults()) {
+          continue;
+        }
         final snippets = chapters.putIfAbsent(chunk.chapterId, () => []);
         if (snippets.length >= input.resolvedMaxSnippets()) continue;
         final limit = input.resolvedMaxCharacters() ?? 800;

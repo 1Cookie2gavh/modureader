@@ -45,6 +45,32 @@ void main() {
   });
   tearDown(() => container.dispose());
 
+  testWidgets('model parameters auto-save without committing connection drafts',
+      (tester) async {
+    notifier.addProvider(custom);
+    final providerId = container.read(aiProvidersProvider).last.id;
+    await tester.pumpWidget(
+        app(container, AiProviderDetailPage(providerId: providerId)));
+    await tester.pumpAndSettle();
+    final name = find.byType(TextField).first;
+    await tester.enterText(name, 'unfinished name');
+    await tester.ensureVisible(find.text('模型参数'));
+    await tester.pumpAndSettle();
+    final sliders = tester.widgetList<Slider>(find.byType(Slider)).toList();
+    sliders[0].onChanged!(0.3);
+    sliders[1].onChanged!(4096);
+    sliders[2].onChanged!(8);
+    await tester.pumpAndSettle();
+    final saved = notifier.getProviderById(providerId)!;
+    expect(saved.temperature, 0.3);
+    expect(saved.maxTokens, 4096);
+    expect(saved.contextTurns, 8);
+    expect(saved.title, custom.title);
+    expect(saved.url, custom.url);
+    expect(saved.apiKeys, custom.apiKeys);
+    expect(tester.takeException(), isNull);
+  });
+
   test(
       'restore shipped template for every builtin, clearing keys and resetting enabled state',
       () {

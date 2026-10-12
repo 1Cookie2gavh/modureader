@@ -55,7 +55,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('关闭推理').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('保存'));
+      if (isNew) {
+        await tester.tap(find.text('保存'));
+      } else {
+        expect(find.text('保存'), findsNothing);
+        expect(container.read(aiProvidersProvider).first.reasoningEffort,
+            AiReasoningEffort.none);
+        Navigator.of(tester.element(find.byType(AiProviderDetailPage))).pop();
+      }
       await tester.pumpAndSettle();
       final saved = container.read(aiProvidersProvider).firstWhere(
           (p) => isNew ? p.title == 'Reasoning test' : p.id == initial.id);

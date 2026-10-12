@@ -126,7 +126,7 @@ void main() {
           final once = await freshStore.snapshot();
           await freshStore.merge(mergeSyncRecords(combined, []));
           expect(sameSyncRecords(once, await freshStore.snapshot()), isTrue);
-          print('Complete cloud checkpoint + journal replay: passed');
+          stdout.writeln('Complete cloud checkpoint + journal replay: passed');
         } catch (error, stack) {
           fail(
               'Complete cloud-copy replay failed: ${error.runtimeType}; private details omitted\n$stack');
@@ -134,7 +134,7 @@ void main() {
           await fresh.close();
         }
       }
-      print('Cloud-copy archives verified: $tested; remote writes: 0');
+      stdout.writeln('Cloud-copy archives verified: $tested; remote writes: 0');
     } finally {
       await target.close();
       await temp.delete(recursive: true);

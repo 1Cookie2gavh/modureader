@@ -111,10 +111,10 @@ test('slow fonts remain hidden beyond 250ms and reveal only after readiness', as
   assert.equal(reader.renders, 1);
   assert.equal(timers.size, 0);
   doc.fonts.dispatchEvent(new Event('loadingdone'));
-  assert.equal(reader.expansions, 1);
+  assert.equal(reader.renders, 2, 'font metrics trigger a complete layout before repaint');
   reader.close();
   doc.fonts.dispatchEvent(new Event('loadingdone'));
-  assert.equal(reader.expansions, 1, 'closed views must not resize');
+  assert.equal(reader.renders, 2, 'closed views must not resize');
 });
 
 test('a real font rejection displays generic text and completes chapter loading', async () => {
@@ -130,7 +130,7 @@ test('a real font rejection displays generic text and completes chapter loading'
     assert.equal(reader.renders, 1);
     assert.equal(timers.size, 0);
     doc.fonts.dispatchEvent(new Event('loadingdone'));
-    assert.equal(reader.expansions, 1, 'the recovered view stays interactive');
+    assert.equal(reader.renders, 2, 'the recovered view stays interactive');
     reader.close();
 });
 

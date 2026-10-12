@@ -15,11 +15,11 @@ dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({left:0,top:0,ri
 const uri = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const source = name => readFile(new URL(`../assets/foliate-js/src/${name}.js`, import.meta.url), 'utf8');
 const CFI = await import(uri(await source('epubcfi')));
-const {annotationPointMapper, annotationRect} = await import(uri(await source('annotation-geometry')));
+const {annotationPointMapper, annotationRect, annotationRangeRects} = await import(uri(await source('annotation-geometry')));
 const Overlayer = runInNewContext((await source('overlayer')).replace(/^import .*$/gm, '')
     .replace('export class Overlayer', 'class Overlayer') + '\nOverlayer', {
     document, Range: dom.window.Range, navigator: {userAgent:'Chrome'}, window: dom.window,
-    annotationPointMapper, annotationRect,
+    annotationPointMapper, annotationRect, annotationRangeRects,
     SearchHighlighter: class {clear() {} remove() {} redraw() {}},
 });
 const geometry = uri(await source('document-regions'));
@@ -31,6 +31,7 @@ const scrollLayout = uri((await source('pdf-scroll-layout'))
     .replace("'./pdf-reading-viewport.js'", JSON.stringify(viewport))
     .replace("'./document-regions.js'", JSON.stringify(geometry)));
 const scrollReader = uri((await source('pdf-scroll-reader'))
+    .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'", JSON.stringify(layout))
     .replace("'./pdf-scroll-layout.js'", JSON.stringify(scrollLayout)));
 await import(uri((await source('fixed-layout'))

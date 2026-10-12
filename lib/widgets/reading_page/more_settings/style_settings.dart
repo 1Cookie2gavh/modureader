@@ -5,7 +5,6 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_style.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
-import 'package:anx_reader/widgets/reading_page/more_settings/custom_css_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 
@@ -321,10 +320,6 @@ class _StyleSettingsState extends State<StyleSettings> {
           const SizedBox(height: 16),
           const Divider(),
           textAlignment(),
-          CustomCSSEditor(
-            key: ValueKey(epubPlayerKey.currentState?.cssBookKey),
-            bookKey: epubPlayerKey.currentState?.cssBookKey,
-          ),
         ],
       ),
     );

@@ -19,14 +19,21 @@ void main() {
   });
   tearDown(() => Server().stop());
 
-  test('body classification is only requested by explicit import metadata work', () {
-    Map<String, String> params({bool importing = false, bool inspect = false}) =>
+  test('body classification is only requested by explicit import metadata work',
+      () {
+    Map<String, String> params(
+            {bool importing = false, bool inspect = false}) =>
         Uri.parse(generateUrl('https://example.test/book.epub', '',
-            fontName: 'serif', fontPath: '',
-            importing: importing, inspectDocumentOnImport: inspect)).queryParameters;
-    expect(params(inspect: true).containsKey('inspectDocumentOnImport'), isFalse);
+                fontName: 'serif',
+                fontPath: '',
+                importing: importing,
+                inspectDocumentOnImport: inspect))
+            .queryParameters;
+    expect(
+        params(inspect: true).containsKey('inspectDocumentOnImport'), isFalse);
     expect(params(importing: true)['inspectDocumentOnImport'], 'false');
-    expect(params(importing: true, inspect: true)['inspectDocumentOnImport'], 'true');
+    expect(params(importing: true, inspect: true)['inspectDocumentOnImport'],
+        'true');
   });
 
   test('night palette is present on first load and saved palette is restored',
@@ -120,12 +127,16 @@ void main() {
     final savedStyle = Prefs().pageTurnStyle;
     for (final eInk in [true, false]) {
       Prefs().eInkMode = eInk;
-      final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
-          fontName: 'serif', fontPath: ''));
-      final style = jsonDecode(uri.queryParameters['style']!);
-      expect(style['eInkMode'], eInk);
-      expect(style['pageTurnStyle'], savedStyle.name);
-      expect(Prefs().pageTurnStyle, savedStyle);
+      for (final disable in [true, false]) {
+        Prefs().eInkDisableAnimations = disable;
+        final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
+            fontName: 'serif', fontPath: ''));
+        final style = jsonDecode(uri.queryParameters['style']!);
+        expect(style['eInkMode'], eInk);
+        expect(style['eInkDisableAnimations'], disable);
+        expect(style['pageTurnStyle'], savedStyle.name);
+        expect(Prefs().pageTurnStyle, savedStyle);
+      }
     }
   });
 

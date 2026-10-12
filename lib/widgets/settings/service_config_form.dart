@@ -236,7 +236,7 @@ class _ServiceConfigFormState extends State<ServiceConfigForm> {
             helperText: item.description,
             border: const OutlineInputBorder(),
           ),
-          value: currentValue,
+          initialValue: currentValue,
           items: item.options!.map((option) {
             return DropdownMenuItem<String>(
               value: option['value'].toString(),
@@ -257,31 +257,32 @@ class _ServiceConfigFormState extends State<ServiceConfigForm> {
 
         final currentValue = _currentConfig[item.key] ?? item.defaultValue;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                item.label,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            if (item.description != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(item.description!),
-              ),
-            ...item.options!.map((option) {
-              return RadioListTile<dynamic>(
-                title: Text(option['label'].toString()),
-                value: option['value'],
-                groupValue: currentValue,
-                onChanged: (value) => _updateConfig(item.key, value),
-              );
-            }),
-          ],
-        );
+        return RadioGroup<dynamic>(
+            groupValue: currentValue,
+            onChanged: (value) => _updateConfig(item.key, value),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    item.label,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (item.description != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(item.description!),
+                  ),
+                ...item.options!.map((option) {
+                  return RadioListTile<dynamic>(
+                    title: Text(option['label'].toString()),
+                    value: option['value'],
+                  );
+                }),
+              ],
+            ));
 
       case ConfigItemType.checkbox:
         return CheckboxListTile(

@@ -1,4 +1,6 @@
 import 'dart:collection';
+import 'dart:async';
+import 'package:anx_reader/utils/webView/web_scrollbar.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -104,9 +106,10 @@ class _WebTranslationViewState extends State<WebTranslationView> {
         await controller.evaluateJavascript(
             source: popupPageLayoutScript(_zoomPercent));
       } catch (_) {
-        if (mounted)
+        if (mounted) {
           setState(() => _error = ModuStrings.text(context, '网页缩放失败，请重试。',
               'Could not apply page zoom. Please retry.'));
+        }
       }
     });
     return _zoomQueue;
@@ -166,6 +169,7 @@ class _WebTranslationViewState extends State<WebTranslationView> {
               preferredContentMode: UserPreferredContentMode.MOBILE,
               isInspectable: kDebugMode,
               horizontalScrollBarEnabled: false,
+              verticalScrollBarEnabled: false,
               disableHorizontalScroll: true,
               disableVerticalScroll: false,
               useWideViewPort: false,
@@ -191,6 +195,9 @@ class _WebTranslationViewState extends State<WebTranslationView> {
                 resources: request.resources,
                 action: PermissionResponseAction.DENY),
             onLoadStop: (controller, _) async {
+              if (!mounted) return;
+              unawaited(installWebScrollbar(controller,
+                  reducedMotion: MediaQuery.disableAnimationsOf(context)));
               await _applyZoom();
               if (!mounted || controller != _controller) return;
               final script = widget.prefill;

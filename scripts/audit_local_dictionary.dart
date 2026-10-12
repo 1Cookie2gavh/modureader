@@ -23,7 +23,7 @@ Future<void> main(List<String> args) async {
     for (var i = 1; i < keys.length; i++) {
       if (keys[i - 1][0] == keys[i][0]) sharedOffsets++;
     }
-    print(jsonEncode({
+    stdout.writeln(jsonEncode({
       'title': reader.header['Title'],
       'version': reader.header['GeneratedByEngineVersion'],
       'encoding': reader.header['Encoding'],
@@ -40,7 +40,7 @@ Future<void> main(List<String> args) async {
   if ((await store.list()).isEmpty) {
     await store.importFiles([args[0]], 'User-supplied bilingual dictionary');
   }
-  print(jsonEncode({
+  stdout.writeln(jsonEncode({
     'importMs': watch.elapsedMilliseconds,
     'entryCount': (await store.list()).single.count
   }));
@@ -50,7 +50,7 @@ Future<void> main(List<String> args) async {
       .where((file) => file.path.endsWith('.sqlite'));
   final db = sqlite3.open(files.single.path, mode: OpenMode.readOnly);
   try {
-    print(jsonEncode({
+    stdout.writeln(jsonEncode({
       'emptyBodies': db
           .select("SELECT count(*) AS n FROM entries WHERE body='' ")
           .single['n'],
@@ -78,7 +78,7 @@ Future<void> main(List<String> args) async {
       ..reset()
       ..start();
     final found = await store.lookup(word);
-    print(jsonEncode({
+    stdout.writeln(jsonEncode({
       'query': word,
       'matches': found.length,
       'lookupMs': watch.elapsedMilliseconds,

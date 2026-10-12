@@ -65,13 +65,11 @@ import 'package:anx_reader/widgets/context_menu/context_menu.dart';
 import 'package:anx_reader/dao/book_note.dart';
 import 'package:anx_reader/widgets/reading_page/toc_widget.dart';
 import 'package:anx_reader/widgets/common/axis_flex.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // import 'package:flutter/foundation.dart'
 // show debugPrint, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -766,14 +764,15 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     });
   }
 
-  Future<void> styleHandler(StateSetter modalSetState) async {
+  Future<void> styleHandler() async {
     List<ReadTheme> themes = await themeDao.selectThemes();
+    if (!mounted || bottomBarOffstage) return;
     setState(() {
       _currentPage = StyleWidget(
         themes: themes,
         epubPlayerKey: epubPlayerKey,
         setCurrentPage: (Widget page) {
-          modalSetState(() {
+          setState(() {
             _currentPage = page;
           });
         },
@@ -1278,181 +1277,174 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             ),
             Column(
               children: [
-                AppBar(
-                  title: Text(_book.title, overflow: TextOverflow.ellipsis),
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      // close reading page
-                      Navigator.pop(context);
-                    },
-                  ),
-                  actions: [
-                    if (AnxPlatform.isMobile)
-                      QuickMarkToggle(
-                          enabled: _quickMarkEnabled,
-                          onPressed:
-                              _changingQuickMark ? null : _toggleQuickMark),
-                    if (EnvVar.enableAIFeature) aiButton,
-                    TranslationToolbarAction(
-                      mode: epubPlayerKey.currentState?.translationMode,
-                      onOpenSettings: translationHandler,
-                      onStop: () async {
-                        try {
-                          await epubPlayerKey.currentState
-                              ?.setTranslationMode(TranslationModeEnum.off);
-                        } catch (_) {
-                          // Cancellation occurs before the WebView update.
-                        }
+                if (identical(_currentPage, empty))
+                  AppBar(
+                    title: Text(_book.title, overflow: TextOverflow.ellipsis),
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () {
+                        // close reading page
+                        Navigator.pop(context);
                       },
                     ),
-                    IconButton(
-                      key: const ValueKey('reader-search-button'),
-                      tooltip: L10n.of(context).contextMenuSearch,
-                      icon: const Icon(Icons.search),
-                      onPressed: searchHandler,
-                    ),
-                    IconButton(
-                        key: const ValueKey('reader-bookmark-button'),
-                        tooltip: L10n.of(context).readingPageBookmark,
-                        onPressed: () {
-                          if (bookmarkExists) {
-                            epubPlayerKey.currentState!.removeAnnotation(
-                              epubPlayerKey.currentState!.bookmarkCfi,
-                            );
-                          } else {
-                            epubPlayerKey.currentState!.addBookmarkHere();
+                    actions: [
+                      if (AnxPlatform.isMobile)
+                        QuickMarkToggle(
+                            enabled: _quickMarkEnabled,
+                            onPressed:
+                                _changingQuickMark ? null : _toggleQuickMark),
+                      if (EnvVar.enableAIFeature) aiButton,
+                      TranslationToolbarAction(
+                        mode: epubPlayerKey.currentState?.translationMode,
+                        onOpenSettings: translationHandler,
+                        onStop: () async {
+                          try {
+                            await epubPlayerKey.currentState
+                                ?.setTranslationMode(TranslationModeEnum.off);
+                          } catch (_) {
+                            // Cancellation occurs before the WebView update.
                           }
                         },
-                        icon: bookmarkExists
-                            ? const Icon(Icons.bookmark)
-                            : const Icon(Icons.bookmark_border)),
-                    if (!compactToolbar)
-                      IconButton(
-                        icon: const Icon(Icons.copy),
-                        tooltip: L10n.of(context).readingPageCopyChapterContent,
-                        onPressed: _copyChapterContent,
                       ),
-                    if (compactToolbar)
-                      PopupMenuButton<String>(
-                        popUpAnimationStyle: AppMotion.style,
-                        icon: const Icon(EvaIcons.more_vertical),
-                        onSelected: (action) {
-                          if (action == 'copy') {
-                            _copyChapterContent();
-                          } else {
-                            _openBookDetails();
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                              value: 'copy',
-                              child: Text(L10n.of(context)
-                                  .readingPageCopyChapterContent)),
-                          PopupMenuItem(
-                              value: 'details',
-                              child: Text(
-                                  L10n.of(context).readingPageBookDetails)),
-                        ],
-                      )
-                    else
                       IconButton(
-                        tooltip: L10n.of(context).readingPageBookDetails,
-                        icon: const Icon(EvaIcons.more_vertical),
-                        onPressed: _openBookDetails,
+                        key: const ValueKey('reader-search-button'),
+                        tooltip: L10n.of(context).contextMenuSearch,
+                        icon: const Icon(Icons.search),
+                        onPressed: searchHandler,
                       ),
-                  ],
-                ),
+                      IconButton(
+                          key: const ValueKey('reader-bookmark-button'),
+                          tooltip: L10n.of(context).readingPageBookmark,
+                          onPressed: () {
+                            if (bookmarkExists) {
+                              epubPlayerKey.currentState!.removeAnnotation(
+                                epubPlayerKey.currentState!.bookmarkCfi,
+                              );
+                            } else {
+                              epubPlayerKey.currentState!.addBookmarkHere();
+                            }
+                          },
+                          icon: bookmarkExists
+                              ? const Icon(Icons.bookmark)
+                              : const Icon(Icons.bookmark_border)),
+                      if (!compactToolbar)
+                        IconButton(
+                          icon: const Icon(Icons.copy),
+                          tooltip:
+                              L10n.of(context).readingPageCopyChapterContent,
+                          onPressed: _copyChapterContent,
+                        ),
+                      if (compactToolbar)
+                        PopupMenuButton<String>(
+                          popUpAnimationStyle: AppMotion.style,
+                          icon: const Icon(EvaIcons.more_vertical),
+                          onSelected: (action) {
+                            if (action == 'copy') {
+                              _copyChapterContent();
+                            } else {
+                              _openBookDetails();
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                                value: 'copy',
+                                child: Text(L10n.of(context)
+                                    .readingPageCopyChapterContent)),
+                            PopupMenuItem(
+                                value: 'details',
+                                child: Text(
+                                    L10n.of(context).readingPageBookDetails)),
+                          ],
+                        )
+                      else
+                        IconButton(
+                          tooltip: L10n.of(context).readingPageBookDetails,
+                          icon: const Icon(EvaIcons.more_vertical),
+                          onPressed: _openBookDetails,
+                        ),
+                    ],
+                  ),
                 const Spacer(),
                 BottomSheet(
                   onClosing: () {},
                   enableDrag: false,
+                  constraints: _currentPage is StyleWidget
+                      ? ReaderPopup.constraints(context)
+                      : null,
                   builder: (context) => SafeArea(
                     top: false,
                     child: Container(
-                      constraints: BoxConstraints(
-                          maxWidth: _currentPage is StyleWidget &&
-                                  epubPlayerKey.currentState
-                                          ?.supportsDocumentImages ==
-                                      true
-                              ? 1100
-                              : 600),
+                      constraints: _currentPage is StyleWidget
+                          ? ReaderPopup.constraints(context)
+                          : const BoxConstraints(maxWidth: 600),
                       padding: EdgeInsets.only(
                         bottom: AnxPlatform.isMobile ? 16 : 0,
                       ),
-                      child: StatefulBuilder(
-                        builder: (BuildContext context, StateSetter setState) {
+                      child: Builder(
+                        builder: (BuildContext context) {
                           final content = identical(_currentPage, empty)
                               ? ProgressWidget(epubPlayerKey: epubPlayerKey)
                               : _currentPage;
-                          final documentStyle = content is StyleWidget &&
-                              epubPlayerKey
-                                      .currentState?.supportsDocumentImages ==
-                                  true;
-                          final panel = Column(
-                            mainAxisSize: MainAxisSize.min,
+                          final toolbar = Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              Expanded(child: content),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.toc),
-                                    onPressed: tocHandler,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(EvaIcons.edit),
-                                    onPressed: noteHandler,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.color_lens),
-                                    onPressed: () {
-                                      styleHandler(setState);
-                                    },
-                                  ),
-                                  IconButton(
-                                    tooltip: L10n.of(context).readingBrightness,
-                                    icon:
-                                        const Icon(Icons.brightness_6_outlined),
-                                    onPressed: () {
-                                      setState(() {
-                                        _currentPage = BrightnessWidget(
-                                          controller: AppBrightness.instance,
-                                          onNightModeChanged: () =>
-                                              epubPlayerKey.currentState
-                                                  ?.refreshReadingTheme(),
-                                        );
-                                      });
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(EvaIcons.headphones),
-                                    onPressed: ttsHandler,
-                                  ),
-                                  if (epubPlayerKey.currentState
-                                          ?.supportsDocumentImages ==
-                                      true)
-                                    IconButton(
-                                      tooltip: ModuStrings.text(
-                                          context, '提取', 'Extract'),
-                                      icon: const Icon(
-                                          Icons.document_scanner_outlined),
-                                      onPressed: () => openDocumentExtraction(),
-                                    ),
-                                ],
+                              IconButton(
+                                icon: const Icon(Icons.toc),
+                                onPressed: tocHandler,
                               ),
+                              IconButton(
+                                icon: const Icon(EvaIcons.edit),
+                                onPressed: noteHandler,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.color_lens),
+                                onPressed: () {
+                                  styleHandler();
+                                },
+                              ),
+                              IconButton(
+                                tooltip: L10n.of(context).readingBrightness,
+                                icon: const Icon(Icons.brightness_6_outlined),
+                                onPressed: () {
+                                  setState(() {
+                                    _currentPage = BrightnessWidget(
+                                      controller: AppBrightness.instance,
+                                      onNightModeChanged: () => epubPlayerKey
+                                          .currentState
+                                          ?.refreshReadingTheme(),
+                                    );
+                                  });
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(EvaIcons.headphones),
+                                onPressed: ttsHandler,
+                              ),
+                              if (epubPlayerKey
+                                      .currentState?.supportsDocumentImages ==
+                                  true)
+                                IconButton(
+                                  tooltip: ModuStrings.text(
+                                      context, '提取', 'Extract'),
+                                  icon: const Icon(
+                                      Icons.document_scanner_outlined),
+                                  onPressed: () => openDocumentExtraction(),
+                                ),
                             ],
                           );
-                          // Document rows use responsive LayoutBuilders. Bound
-                          // this panel explicitly rather than requesting their
-                          // intrinsic height, and leave the page visible above.
-                          return documentStyle
-                              ? SizedBox(
-                                  height:
-                                      MediaQuery.sizeOf(context).height * .62,
-                                  child: panel)
-                              : IntrinsicHeight(child: panel);
+                          // Short settings fit their content; long ones scroll.
+                          return content is StyleWidget
+                              ? ReaderQuickStylePanel(
+                                  content: content, toolbar: toolbar)
+                              : IntrinsicHeight(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Expanded(child: content),
+                                      toolbar
+                                    ],
+                                  ),
+                                );
                         },
                       ),
                     ),

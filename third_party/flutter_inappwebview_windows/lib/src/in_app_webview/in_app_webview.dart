@@ -1,3 +1,6 @@
+// Legacy callback forwarding is required by the pinned platform interface.
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_platform_interface.dart';
@@ -273,9 +276,13 @@ class WindowsInAppWebViewWidgetCreationParams
       );
 
   @override
+  // Narrow platform parameter types without changing the interface contract.
+  // ignore: overridden_fields
   final WindowsFindInteractionController? findInteractionController;
 
   @override
+  // Narrow platform parameter types without changing the interface contract.
+  // ignore: overridden_fields
   final WindowsWebViewEnvironment? webViewEnvironment;
 }
 
@@ -392,9 +399,7 @@ class WindowsInAppWebViewWidget extends PlatformInAppWebViewWidget {
     if ((params.shouldInterceptAjaxRequest != null ||
         params.onAjaxProgress != null ||
         params.onAjaxReadyStateChange != null)) {
-      if (settings.useShouldInterceptAjaxRequest == null) {
-        settings.useShouldInterceptAjaxRequest = true;
-      }
+      settings.useShouldInterceptAjaxRequest ??= true;
       if (params.onAjaxReadyStateChange != null &&
           settings.useOnAjaxReadyStateChange == null) {
         settings.useOnAjaxReadyStateChange = true;

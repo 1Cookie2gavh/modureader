@@ -53,9 +53,10 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
     try {
       await Prefs().saveSelectionToolbar(config);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = ModuStrings.text(
             context, '保存失败，请检查配置后重试。', 'Could not save toolbar settings.'));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -150,8 +151,9 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
                       child: Text(ModuStrings.text(
                           context, '恢复默认', 'Restore defaults')))
                 ]));
-    if (confirmed == true && mounted)
+    if (confirmed == true && mounted) {
       await _save(Prefs().selectionToolbar.restoreDefaults());
+    }
   }
 
   Widget _list(List<SelectionToolbarItem> items, bool annotations,
@@ -403,6 +405,34 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
   late SelectionAiScope _scope = widget.item?.scope ?? SelectionAiScope.context;
   late bool _webSearch = widget.item?.webSearch ?? false;
   String? _error;
+  bool _textEdited = false;
+  Future<void> _optionWrites = Future.value();
+
+  void _saveOptions() {
+    if (widget.item == null) return;
+    final id = widget.item!.id;
+    final icon = _icon, skillId = _skillId;
+    final scope = _scope;
+    final webSearch = _webSearch;
+    _optionWrites = _optionWrites.then((_) async {
+      final config = Prefs().selectionToolbar;
+      SelectionToolbarItem update(SelectionToolbarItem item) => item.id == id
+          ? item.copyWith(
+              icon: icon, skillId: skillId, scope: scope, webSearch: webSearch)
+          : item;
+      await Prefs().saveSelectionToolbar(config.copyWith(
+        items: config.items.map(update).toList(),
+        annotations: config.annotations.map(update).toList(),
+      ));
+      if (mounted) setState(() => _error = null);
+    }).catchError((Object error) {
+      if (mounted) {
+        setState(() =>
+            _error = t('自动保存失败，请重试。', 'Could not auto-save. Please retry.'));
+      }
+    });
+  }
+
   bool get ai => widget.item == null || widget.item!.isAi;
   String t(String zh, String en) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
@@ -431,6 +461,8 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
   }
 
   Future<void> _save() async {
+    await _optionWrites;
+    if (!mounted) return;
     final item = (widget.item ??
             SelectionToolbarItem(
                 'custom-${DateTime.now().microsecondsSinceEpoch}', 'aiCommand'))
@@ -456,11 +488,12 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
       try {
         Prefs().selectionToolbar.copyWith(colors: colors).validate();
       } catch (_) {
-        if (mounted)
+        if (mounted) {
           setState(() => _error = ModuStrings.text(
               context,
               '填写 1–20 个不重复的六位颜色值，例如 66CCFF。',
               'Enter 1–20 unique six-digit RGB colours, e.g. 66CCFF.'));
+        }
         return;
       }
     }
@@ -482,6 +515,7 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                     TextField(
                         key: const ValueKey('toolbar-name'),
                         controller: _name,
+                        onChanged: (_) => setState(() => _textEdited = true),
                         maxLength: 30,
                         decoration: InputDecoration(
                             labelText: ModuStrings.text(context, '名称', 'Name'),
@@ -501,7 +535,10 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                             isSelected: _icon == entry.key,
                             tooltip: entry.key,
                             icon: Icon(entry.value),
-                            onPressed: () => setState(() => _icon = entry.key))
+                            onPressed: () {
+                              setState(() => _icon = entry.key);
+                              _saveOptions();
+                            })
                     ]),
                     if (ai) ...[
                       const SizedBox(height: 12),
@@ -534,8 +571,10 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                               if (_skillId == id)
                                 DropdownMenuItem(value: id, child: Text(id))
                           ],
-                          onChanged: (value) =>
-                              setState(() => _skillId = value!)),
+                          onChanged: (value) {
+                            setState(() => _skillId = value!);
+                            _saveOptions();
+                          }),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<SelectionAiScope>(
                         key: const ValueKey('toolbar-ai-scope'),
@@ -557,12 +596,16 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                                         ? '仅选中文字'
                                         : '结合上下文'))),
                         ],
-                        onChanged: (value) => setState(() => _scope = value!),
+                        onChanged: (value) {
+                          setState(() => _scope = value!);
+                          _saveOptions();
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextField(
                           key: const ValueKey('toolbar-prompt'),
                           controller: _prompt,
+                          onChanged: (_) => setState(() => _textEdited = true),
                           minLines: 5,
                           maxLines: 12,
                           maxLength: 8000,
@@ -586,8 +629,10 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                             Localizations.localeOf(context),
                             'selection_ai_web_search_help',
                             '勾选后检索公开词典／百科并交给当前模型整理，附来源；无需额外 API Key。')),
-                        onChanged: (value) =>
-                            setState(() => _webSearch = value!),
+                        onChanged: (value) {
+                          setState(() => _webSearch = value!);
+                          _saveOptions();
+                        },
                       ),
                       if (widget.item?.action == 'ai')
                         Text(ModuStrings.text(
@@ -599,6 +644,7 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
                       TextField(
                           key: const ValueKey('toolbar-colors'),
                           controller: _colors,
+                          onChanged: (_) => setState(() => _textEdited = true),
                           minLines: 2,
                           maxLines: 4,
                           decoration: InputDecoration(
@@ -620,10 +666,16 @@ class _ToolbarItemEditorState extends State<_ToolbarItemEditor> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(ModuStrings.text(context, '取消', 'Cancel'))),
-            FilledButton(
-                key: const ValueKey('toolbar-editor-save'),
-                onPressed: _save,
-                child: Text(ModuStrings.text(context, '保存', 'Save')))
+                child: Text(widget.item == null || _textEdited
+                    ? ModuStrings.text(context, '取消', 'Cancel')
+                    : ModuStrings.text(context, '关闭', 'Close'))),
+            if (_error != null && widget.item != null)
+              TextButton(
+                  onPressed: _saveOptions, child: Text(t('重试', 'Retry'))),
+            if (widget.item == null || _textEdited)
+              FilledButton(
+                  key: const ValueKey('toolbar-editor-save'),
+                  onPressed: _save,
+                  child: Text(ModuStrings.text(context, '保存', 'Save')))
           ]);
 }

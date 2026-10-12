@@ -40,8 +40,9 @@ class BookKnowledgeRetriever {
       AnxLog.warning('AI index unavailable; using normal book context');
       return const [];
     }
-    if (snapshot == null || snapshot.bookId != book.id.toString())
+    if (snapshot == null || snapshot.bookId != book.id.toString()) {
       return const [];
+    }
 
     EmbeddingProvider? embedding;
     List<double>? queryVector;

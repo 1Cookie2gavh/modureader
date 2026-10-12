@@ -34,6 +34,30 @@ const deferred = () => {
   const promise = new Promise(r => resolve = r);
   return { promise, resolve };
 };
+
+test('line alignment runs after loading adjacent content and keeps document endpoints reachable', async () => {
+  const f = fixture(1000), calls = [];
+  f.window.alignScroll = (target, current) => {
+    calls.push({ target, current, loaded: [...f.loaded] });
+    return target - 12;
+  };
+  try {
+    await f.go(0);
+    await f.window.scrollBy(600);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].loaded.includes(1), 'next chapter is ready before measuring lines');
+    assert.equal(f.container.scrollTop, 588);
+    await f.window.scrollBy(-1000);
+    assert.equal(f.container.scrollTop, 0);
+    assert.equal(calls.length, 1, 'the first screen is not pulled away from the start');
+    await f.go(39);
+    await f.window.scrollBy(10000);
+    const last = f.window.ordered.at(-1);
+    assert.equal(f.container.scrollTop,
+      f.window.top(last) + last.view.element.getBoundingClientRect().height - f.container.clientHeight);
+    assert.equal(calls.length, 1, 'the final screen remains reachable without repeated backoff');
+  } finally { f.window.destroy(); }
+});
 async function promptly(promise) {
   let timer;
   try {

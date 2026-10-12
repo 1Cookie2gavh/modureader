@@ -58,8 +58,9 @@ class _Library extends WebdavLibrary {
   Future<List<LibraryEntry>> list(Uri directory,
       {CancelToken? cancelToken}) async {
     listings++;
-    if (failFolder && directory != root)
+    if (failFolder && directory != root) {
       throw const LibraryListingException('tooLarge');
+    }
     return [
       LibraryEntry(root.resolve('folder/'), 'folder', true, null),
       LibraryEntry(root.resolve('B.pdf'), 'B.pdf', false, 10,

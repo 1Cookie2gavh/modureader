@@ -1,6 +1,8 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:collection';
+import 'dart:async';
+import 'package:anx_reader/utils/webView/web_scrollbar.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/selection_search.dart';
@@ -365,6 +367,7 @@ class _SelectionSearchBrowserState extends State<SelectionSearchBrowser> {
                                   preferredContentMode:
                                       UserPreferredContentMode.MOBILE,
                                   horizontalScrollBarEnabled: false,
+                                  verticalScrollBarEnabled: false,
                                   disableHorizontalScroll: true,
                                   disableVerticalScroll: false,
                                   useWideViewPort: false,
@@ -406,10 +409,16 @@ class _SelectionSearchBrowserState extends State<SelectionSearchBrowser> {
                                   }
                                 },
                                 onProgressChanged: (_, progress) {
-                                  if (mounted)
+                                  if (mounted) {
                                     setState(() => _progress = progress);
+                                  }
                                 },
                                 onLoadStop: (controller, url) async {
+                                  if (!mounted) return;
+                                  unawaited(installWebScrollbar(controller,
+                                      reducedMotion:
+                                          MediaQuery.disableAnimationsOf(
+                                              context)));
                                   if (mounted) setState(() => _progress = 100);
                                   await _applyZoom();
                                   await _history(controller, url);

@@ -15,11 +15,7 @@ void main() {
   });
 
   test('only confirmed PDF/image EPUB can expose the document menu', () {
-    for (final path in [
-      'book.txt',
-      'book.md',
-      'book.cbz'
-    ]) {
+    for (final path in ['book.txt', 'book.md', 'book.cbz']) {
       for (final mode in ['pdf', 'image-epub', 'standard', null]) {
         expect(DocumentReadingMode.fromDetection(path, mode).hasDocumentMenu,
             isFalse);
@@ -28,9 +24,12 @@ void main() {
     expect(DocumentReadingMode.fromDetection('book.EPUB', 'image-epub'),
         DocumentReadingMode.imageEpub);
     for (final path in ['book.MOBI', 'book.azw3', 'book.fb2']) {
-      expect(DocumentReadingMode.fromDetection(path, 'image-epub'), DocumentReadingMode.imageEpub);
-      expect(DocumentReadingMode.fromDetection(path, 'standard'), DocumentReadingMode.standard);
-      expect(DocumentReadingMode.fromDetection(path, null), DocumentReadingMode.standard);
+      expect(DocumentReadingMode.fromDetection(path, 'image-epub'),
+          DocumentReadingMode.imageEpub);
+      expect(DocumentReadingMode.fromDetection(path, 'standard'),
+          DocumentReadingMode.standard);
+      expect(DocumentReadingMode.fromDetection(path, null),
+          DocumentReadingMode.standard);
     }
     expect(DocumentReadingMode.fromDetection('book.PDF', 'pdf'),
         DocumentReadingMode.pdf);

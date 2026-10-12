@@ -238,8 +238,9 @@ class AiChat extends _$AiChat {
           : [ChatMessage.system(knowledgeContext), ...messages];
     }
 
-    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
+    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId) {
       return;
+    }
     final reading = widgetRef.read(currentReadingProvider);
     final readingRequest = _scope != AiChatScope.library
         ? (isRegenerate
@@ -285,15 +286,17 @@ class AiChat extends _$AiChat {
     );
 
     await historyNotifier.upsert(draftEntry);
-    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
+    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId) {
       return;
+    }
     _lastReadingRequest = readingRequest;
     _historyKey = key;
     state = AsyncData(updatedMessages);
 
     yield updatedMessages;
-    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
+    if (requestRunner?.isCancelled == true || _currentSessionId != sessionId) {
       return;
+    }
 
     String assistantResponse = "";
     var latestMessages = updatedMessages;
@@ -359,7 +362,9 @@ class AiChat extends _$AiChat {
         // A fresh selection may start while an old provider is still closing.
         // Its late output must not replace the new conversation or its history.
         if (requestRunner?.isCancelled == true ||
-            _currentSessionId != sessionId) return;
+            _currentSessionId != sessionId) {
+          return;
+        }
         assistantResponse = responseFilter?.call(chunk) ?? chunk;
 
         final updatedMessagesWithResponse =
@@ -371,8 +376,10 @@ class AiChat extends _$AiChat {
         state = AsyncData(updatedMessagesWithResponse);
         yield updatedMessagesWithResponse;
       }
-      if (requestRunner?.isCancelled == true || _currentSessionId != sessionId)
+      if (requestRunner?.isCancelled == true ||
+          _currentSessionId != sessionId) {
         return;
+      }
       final completedEntry = draftEntry.copyWith(
         messages: List<ChatMessage>.from(latestMessages),
         updatedAt: DateTime.now().millisecondsSinceEpoch,

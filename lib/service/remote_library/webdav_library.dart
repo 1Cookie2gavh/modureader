@@ -31,8 +31,9 @@ class LibraryConnection {
     }
     final result =
         uri.path.endsWith('/') ? uri : uri.replace(path: '${uri.path}/');
-    if (!_safeSegments(result))
+    if (!_safeSegments(result)) {
       throw const FormatException('Invalid root path');
+    }
     return result;
   }
 }
@@ -51,8 +52,9 @@ class LibraryConnectionStore {
   }
 
   static LibraryConnection? decode(String raw) {
-    if (raw.isEmpty)
+    if (raw.isEmpty) {
       return null; // Explicit clear marker, distinct from a new device.
+    }
     final map = jsonDecode(raw) as Map;
     if (map['allowHttp'] != null && map['allowHttp'] is! bool) {
       throw const FormatException('Invalid library connection');
@@ -163,8 +165,9 @@ class WebdavLibrary {
       uri.path.startsWith(root.path);
 
   void _check(Uri uri) {
-    if (!contains(uri))
+    if (!contains(uri)) {
       throw const FormatException('Outside configured library');
+    }
   }
 
   Future<List<LibraryEntry>> list(Uri directory,
@@ -230,12 +233,15 @@ class WebdavLibrary {
       final directoryType = props
           .expand((p) => children(p, 'resourcetype'))
           .any((t) => children(t, 'collection').isNotEmpty);
-      if (directoryType && !uri.path.endsWith('/'))
+      if (directoryType && !uri.path.endsWith('/')) {
         uri = uri.replace(path: '${uri.path}/');
+      }
       final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
       final parent = directory.pathSegments.where((s) => s.isNotEmpty).toList();
       if (segments.length != parent.length + 1 ||
-          !uri.path.startsWith(directory.path)) continue;
+          !uri.path.startsWith(directory.path)) {
+        continue;
+      }
       final size = int.tryParse(props
               .expand((p) => children(p, 'getcontentlength'))
               .firstOrNull
@@ -314,8 +320,9 @@ class WebdavLibrary {
       await for (final chunk in response.data!.stream) {
         if (cancel.isCancelled) throw StateError('Cancelled');
         received += chunk.length;
-        if (received > maxBookBytes)
+        if (received > maxBookBytes) {
           throw const FormatException('File too large');
+        }
         await output.writeFrom(chunk);
         onProgress(received, total);
       }
@@ -369,16 +376,19 @@ String libraryError(Object error, bool zh, {bool listing = false}) {
   }
   if (error is DioException) {
     final status = error.response?.statusCode;
-    if (status == 401 || status == 403)
+    if (status == 401 || status == 403) {
       return zh
           ? '认证失败或没有读取权限，请检查账号和密码。'
           : 'Authentication failed or access denied.';
-    if (status == 404)
+    }
+    if (status == 404) {
       return zh ? '目录或文件不存在，请检查 WebDAV 地址。' : 'Directory or file not found.';
-    if (status != null && status >= 300 && status < 400)
+    }
+    if (status != null && status >= 300 && status < 400) {
       return zh
           ? '服务器要求跳转，请直接填写最终 WebDAV 地址。'
           : 'Redirect refused. Use the final WebDAV URL.';
+    }
     return zh
         ? '连接失败，请检查网络、服务器地址和 HTTPS 证书。'
         : 'Connection failed. Check network, URL and HTTPS certificate.';

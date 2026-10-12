@@ -12,8 +12,10 @@ class CommunityLinks extends StatelessWidget {
 
   Future<void> _open(BuildContext context, String url) async {
     try {
-      if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication))
+      if (await launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication)) {
         return;
+      }
     } catch (_) {}
     if (!context.mounted) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(

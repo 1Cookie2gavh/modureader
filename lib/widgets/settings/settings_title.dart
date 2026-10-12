@@ -1,7 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 Widget settingsTitle({

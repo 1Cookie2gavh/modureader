@@ -34,6 +34,38 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
   });
+  testWidgets('mounted narration controls restore animation after E-Ink toggle',
+      (tester) async {
+    Prefs().eInkMode = true;
+    final handler = _Handler(TtsStateEnum.playing);
+    await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: TtsFab(handler: handler))));
+    final expansion = find
+        .descendant(
+            of: find.byType(TtsFab),
+            matching: find.byWidgetPredicate(
+                (widget) => widget is Align && widget.widthFactor != null))
+        .first;
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pump();
+    expect(tester.widget<Align>(expansion).widthFactor, 1);
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Align>(expansion).widthFactor, 0);
+    Prefs().eInkDisableAnimations = false;
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.widget<Align>(expansion).widthFactor, greaterThan(0));
+    expect(tester.widget<Align>(expansion).widthFactor, lessThan(1));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Align>(expansion).widthFactor, 1);
+    Prefs().eInkDisableAnimations = true;
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pump();
+    expect(tester.widget<Align>(expansion).widthFactor, 0);
+    expect(tester.takeException(), isNull);
+  });
   for (final state in [TtsStateEnum.playing, TtsStateEnum.paused]) {
     testWidgets(
         'expanded controls stay available for repeated navigation: $state',

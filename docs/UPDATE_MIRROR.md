@@ -1,8 +1,8 @@
 # Application update mirror
 
-## Release procedure: Modu 1.2.6+10108
+## Release procedure: Modu 1.2.7+10116
 
-This guide describes the Modu publishing repository's `v1.2.6` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
+This guide describes the Modu publishing repository's `v1.2.7` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
 
 A single Update Source option controls both checking and downloading. Each fresh app launch starts with GitHub preferred. A GitHub check that fails because of connection, timeout, TLS/certificate or HTTP request errors falls back to the fixed HTTPS Gitee manifest and switches the source for the whole workflow:
 

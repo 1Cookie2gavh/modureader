@@ -23,6 +23,7 @@ enum QuerySection {
 class UnifiedQueryPreferences {
   static const key = 'unifiedQueryPreferences';
   Set<QuerySection> included = QuerySection.comprehensive.toSet();
+  List<QuerySection> order = [...QuerySection.comprehensive];
   bool smartOrder = true, useContext = true, manualAi = false;
   bool wikipedia = true, baiduLink = true;
   String knowledgePrompt = '', classicalPrompt = '';
@@ -36,6 +37,13 @@ class UnifiedQueryPreferences {
         result.included = QuerySection.comprehensive
             .where((s) => (raw['included'] as List).contains(s.name))
             .toSet();
+      }
+      if (raw['order'] is List) {
+        result.order = <QuerySection>{
+          for (final name in raw['order'])
+            ...QuerySection.comprehensive.where((s) => s.name == name),
+          ...QuerySection.comprehensive
+        }.toList();
       }
       result.smartOrder = raw['smartOrder'] != false;
       result.useContext = raw['useContext'] != false;
@@ -58,6 +66,7 @@ class UnifiedQueryPreferences {
         key,
         jsonEncode({
           'included': included.map((s) => s.name).toList(),
+          'order': order.map((s) => s.name).toList(),
           'smartOrder': smartOrder,
           'useContext': useContext,
           'manualAi': manualAi,
@@ -77,7 +86,7 @@ List<QuerySection> queryOrder(String text, UnifiedQueryPreferences prefs) {
   final sentence = query.length > 24 || RegExp(r'[。！？!?；;]').hasMatch(query);
   final shortChinese = RegExp(r'^[\u3400-\u9fff]{2,4}$').hasMatch(query);
   final order = !prefs.smartOrder
-      ? QuerySection.comprehensive
+      ? prefs.order
       : sentence
           ? [
               QuerySection.translation,

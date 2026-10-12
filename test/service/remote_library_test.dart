@@ -117,8 +117,9 @@ void main() {
         throwsA(isA<DioException>()));
     expect(client.requested, ['/dav/']);
     client.onList = (_) {
-      if (client.requested.last == '/dav/sub/')
+      if (client.requested.last == '/dav/sub/') {
         throw const LibraryListingException('invalid');
+      }
     };
     await expectLater(
         client.discoverBooks(client.root, cancelToken: CancelToken()),

@@ -84,8 +84,8 @@ class AnxHeadlessWebView {
         onWebViewCreated: onWebViewCreated,
         onLoadStop: onLoadStop,
         onConsoleMessage: onConsoleMessage,
-        onLoadError: onLoadError,
-        onLoadHttpError: onLoadHttpError,
+        onReceivedError: _onReceivedError,
+        onReceivedHttpError: _onReceivedHttpError,
       );
       try {
         await _headlessWebView?.run();
@@ -99,6 +99,21 @@ class AnxHeadlessWebView {
         _runOverlay();
       }
     }
+  }
+
+  void _onReceivedError(InAppWebViewController controller,
+      WebResourceRequest request, WebResourceError error) {
+    // Match the old page-load callbacks; failed images must not abort import.
+    if (request.isForMainFrame == false) return;
+    onLoadError?.call(controller, request.url, error.type.toNativeValue() ?? -1,
+        error.description);
+  }
+
+  void _onReceivedHttpError(InAppWebViewController controller,
+      WebResourceRequest request, WebResourceResponse response) {
+    if (request.isForMainFrame == false) return;
+    onLoadHttpError?.call(controller, request.url, response.statusCode ?? 0,
+        response.reasonPhrase ?? '');
   }
 
   void _runOverlay() {
@@ -119,8 +134,8 @@ class AnxHeadlessWebView {
             initialSettings: initialSettings,
             onLoadStop: onLoadStop,
             onConsoleMessage: onConsoleMessage,
-            onLoadError: onLoadError,
-            onLoadHttpError: onLoadHttpError,
+            onReceivedError: _onReceivedError,
+            onReceivedHttpError: _onReceivedHttpError,
             onWebViewCreated: (controller) {
               onWebViewCreated?.call(controller);
             },

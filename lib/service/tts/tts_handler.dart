@@ -66,7 +66,9 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (previous?.id == item.id &&
         previous?.displayTitle == item.displayTitle &&
         previous?.displaySubtitle == item.displaySubtitle &&
-        previous?.artUri == item.artUri) return;
+        previous?.artUri == item.artUri) {
+      return;
+    }
     queue.add([item]);
     mediaItem.add(item);
   }
@@ -90,7 +92,9 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Ignore a late callback from a stopped or different book.
   void updateChapter({required int bookId, required String chapter}) {
     if (mediaItem.value?.id != bookId.toString() ||
-        tts.ttsStateNotifier.value == TtsStateEnum.stopped) return;
+        tts.ttsStateNotifier.value == TtsStateEnum.stopped) {
+      return;
+    }
     _refreshMetadata(chapter: chapter);
   }
 

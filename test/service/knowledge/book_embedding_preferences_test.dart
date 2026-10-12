@@ -106,7 +106,8 @@ void main() {
   test('single queue builder and shared AI retrieval resolve per-book models',
       () {
     for (final entry in {
-      'lib/service/knowledge/book_knowledge_index_service.dart': 'requireForBook',
+      'lib/service/knowledge/book_knowledge_index_service.dart':
+          'requireForBook',
       'lib/service/knowledge/book_knowledge_retriever.dart': 'fromBook',
     }.entries) {
       final source = File(entry.key).readAsStringSync();

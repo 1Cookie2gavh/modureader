@@ -49,12 +49,8 @@ Map<String, String> signS3Request(
     result['authorization'] = 'AWS ${config.accessKey}:$sig';
     return result;
   }
-  final timestamp = now
-          .toUtc()
-          .toIso8601String()
-          .replaceAll(RegExp('[:-]'), '')
-          .substring(0, 15) +
-      'Z';
+  final timestamp =
+      '${now.toUtc().toIso8601String().replaceAll(RegExp('[:-]'), '').substring(0, 15)}Z';
   final day = timestamp.substring(0, 8);
   result['host'] = uri.authority;
   result['x-amz-date'] = timestamp;

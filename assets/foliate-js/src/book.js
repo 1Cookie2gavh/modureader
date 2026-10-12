@@ -715,7 +715,8 @@ const getCSS = ({ fontSize,
   useBookStyles,
   headingFontSize,
   codeHighlightTheme,
-  eInkMode
+  eInkMode,
+  eInkDisableAnimations
 }) => {
 
   const { faces: fontFaces, family: fontFamily } = readerFontCSS({
@@ -737,6 +738,7 @@ const getCSS = ({ fontSize,
     ${readerSelectionCSS({ pdf: isPdf })}
 
     html {
+        --modu-align-pages: ${useBookStyles || customCSSEnabled || isPdf ? 0 : 1};
         ${writingModeCSS}
         color: ${fontColor} !important;
         ${backgroundImageCSS}
@@ -822,7 +824,7 @@ const getCSS = ({ fontSize,
         -webkit-hyphenate-limit-after: 2;
         -webkit-hyphenate-limit-lines: 2;
         hanging-punctuation: allow-end last;
-        widows: 2;
+        ${useBookStyles ? '' : 'widows: 1; orphans: 1;'}
         ${useBookStyles ? '' : `margin-block-start: ${paragraphSpacing / 2}em !important;`}
         ${useBookStyles ? '' : `margin-block-end: ${paragraphSpacing / 2}em !important;`}
     }
@@ -928,7 +930,7 @@ const getCSS = ({ fontSize,
     }
     
     ${customCSSEnabled && customCSS ? customCSS : ''}
-    ${eInkMode === true ? reducedReaderMotionCSS : ''}
+    ${eInkMode === true && eInkDisableAnimations !== false ? reducedReaderMotionCSS : ''}
 `}
 
 const fixHeadingColor = (themeColor) => {
@@ -1066,6 +1068,7 @@ const replaceFootnote = (view, sourceFontSize) => {
   const footNoteStyle = {
     fontSize: footnoteFontSize(style.fontSize),
     eInkMode: style.eInkMode,
+    eInkDisableAnimations: style.eInkDisableAnimations,
     fontName: style.fontName,
     fontPath: style.fontPath,
     englishFontName: style.englishFontName,
@@ -1880,7 +1883,7 @@ const callFlutter = (name, data) => {
 }
 
 const setStyle = (oldStyle) => {
-  applyReaderMotion(document, style.eInkMode === true)
+  applyReaderMotion(document, style.eInkMode === true && style.eInkDisableAnimations !== false)
   document.documentElement.style.backgroundColor = style.backgroundColor
   const turn = {
     scroll: false,
@@ -1904,7 +1907,7 @@ const setStyle = (oldStyle) => {
 
   // E-ink keeps the chosen paginated/scrolled layout, but does not animate
   // intermediate frames. Do not overwrite the user's saved page-turn style.
-  if (style.eInkMode === true) turn.animated = false
+  if (style.eInkMode === true && style.eInkDisableAnimations !== false) turn.animated = false
 
   reader.view.renderer.setAttribute('mobile-image-fit', style.mobileImageFit === true ? 'true' : 'false')
   reader.view.renderer.setAttribute('mobile-touch-paging', style.mobileTouchPaging === true ? 'true' : 'false')
@@ -1934,6 +1937,7 @@ const setStyle = (oldStyle) => {
 
   const newStyle = {
     eInkMode: style.eInkMode,
+    eInkDisableAnimations: style.eInkDisableAnimations,
     fontSize: style.fontSize,
     fontName: style.fontName,
     fontPath: style.fontPath,
@@ -2202,7 +2206,7 @@ window.retryReaderChapter = () => reader.view.renderer.retryNavigation?.()
 window.goToCfi = cfi => reader.view.goTo(cfi)
 window.goToDocumentOriginalPage = async page => {
   if (!Number.isInteger(page) || page < 0 || page >= reader.view.book.sections.length) return false
-  const result = await reader.view.goTo({index:page}, {recordHistory:false})
+  const result = await reader.view.goTo(page, {recordHistory:false})
   return result !== false && result != null
 }
 // Search has its own origin/previous/next controls, not a history entry per hit.

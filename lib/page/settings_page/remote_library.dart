@@ -63,12 +63,13 @@ class _RemoteLibrarySettingsState extends State<RemoteLibrarySettings> {
           _testing = null;
         }
       }
-      if (mounted)
+      if (mounted) {
         setState(() => _message = save
             ? ModuStrings.text(context, '连接和密码已保存在本机，请到首页“远程书库”连接。',
                 'Connection and password saved on this device. Open Remote library to connect.')
             : ModuStrings.text(context, '连接成功，目录可读取（未写入任何远程文件）。',
                 'Connected. Directory is readable; no remote files were written.'));
+      }
     } catch (error) {
       if (mounted) setState(() => _message = libraryError(error, zh));
     } finally {
@@ -87,9 +88,10 @@ class _RemoteLibrarySettingsState extends State<RemoteLibrarySettings> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Center(
           child: EinkStaticIndicator(child: CircularProgressIndicator()));
+    }
     return ListView(padding: const EdgeInsets.all(24), children: [
       Text(ModuStrings.text(context, '远程书库设置', 'Remote library settings'),
           style: Theme.of(context).textTheme.headlineSmall),

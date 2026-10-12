@@ -472,6 +472,7 @@ class _AiReadingSkillsSettingsState
     final nameController = TextEditingController(text: skill?.name ?? '');
     final promptController = TextEditingController(text: skill?.content ?? '');
     var enabled = skill?.enabled ?? true;
+    var textEdited = false;
     await _showEditorDialog(
       controllers: [nameController, promptController],
       builder: (dialogContext) => StatefulBuilder(
@@ -488,6 +489,7 @@ class _AiReadingSkillsSettingsState
                   TextField(
                     key: const ValueKey('custom-skill-name-editor'),
                     controller: nameController,
+                    onChanged: (_) => setDialogState(() => textEdited = true),
                     maxLength: 50,
                     decoration: InputDecoration(
                       labelText: ModuStrings.text(context, '技能名称', '技能名称'),
@@ -498,6 +500,7 @@ class _AiReadingSkillsSettingsState
                   TextField(
                     key: const ValueKey('custom-skill-prompt-editor'),
                     controller: promptController,
+                    onChanged: (_) => setDialogState(() => textEdited = true),
                     minLines: 8,
                     maxLines: 16,
                     maxLength: 4000,
@@ -512,7 +515,20 @@ class _AiReadingSkillsSettingsState
                     title: Text(ModuStrings.text(
                         context, '在阅读 AI 面板中启用', '在阅读 AI 面板中启用')),
                     value: enabled,
-                    onChanged: (value) => setDialogState(() => enabled = value),
+                    onChanged: (value) {
+                      setDialogState(() => enabled = value);
+                      if (skill != null) {
+                        final current = ref
+                            .read(userPromptsProvider)
+                            .where((p) => p.id == skill.id)
+                            .firstOrNull;
+                        if (current != null) {
+                          ref
+                              .read(userPromptsProvider.notifier)
+                              .updatePrompt(current.copyWith(enabled: value));
+                        }
+                      }
+                    },
                   ),
                 ],
               ),
@@ -521,36 +537,39 @@ class _AiReadingSkillsSettingsState
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text(ModuStrings.text(context, '取消', '取消')),
+              child: Text(skill != null && !textEdited
+                  ? ModuStrings.text(context, '关闭', 'Close')
+                  : ModuStrings.text(context, '取消', 'Cancel')),
             ),
-            FilledButton(
-              onPressed: () {
-                final name = nameController.text.trim();
-                final prompt = promptController.text.trim();
-                if (name.isEmpty || prompt.isEmpty) {
-                  _showRequiredFieldsMessage();
-                  return;
-                }
-                final notifier = ref.read(userPromptsProvider.notifier);
-                if (skill == null) {
-                  notifier.addPrompt(name: name, content: prompt);
-                  if (!enabled) {
-                    final added = ref.read(userPromptsProvider).last;
-                    notifier.toggleEnabled(added.id);
+            if (skill == null || textEdited)
+              FilledButton(
+                onPressed: () {
+                  final name = nameController.text.trim();
+                  final prompt = promptController.text.trim();
+                  if (name.isEmpty || prompt.isEmpty) {
+                    _showRequiredFieldsMessage();
+                    return;
                   }
-                } else {
-                  notifier.updatePrompt(
-                    skill.copyWith(
-                      name: name,
-                      content: prompt,
-                      enabled: enabled,
-                    ),
-                  );
-                }
-                Navigator.pop(dialogContext);
-              },
-              child: Text(ModuStrings.text(context, '保存', '保存')),
-            ),
+                  final notifier = ref.read(userPromptsProvider.notifier);
+                  if (skill == null) {
+                    notifier.addPrompt(name: name, content: prompt);
+                    if (!enabled) {
+                      final added = ref.read(userPromptsProvider).last;
+                      notifier.toggleEnabled(added.id);
+                    }
+                  } else {
+                    notifier.updatePrompt(
+                      skill.copyWith(
+                        name: name,
+                        content: prompt,
+                        enabled: enabled,
+                      ),
+                    );
+                  }
+                  Navigator.pop(dialogContext);
+                },
+                child: Text(ModuStrings.text(context, '保存', '保存')),
+              ),
           ],
         ),
       ),

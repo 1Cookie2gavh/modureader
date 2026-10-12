@@ -21,6 +21,7 @@ import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
+import 'reader_settings_scroll_view.dart';
 import 'package:anx_reader/dao/theme.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
@@ -86,7 +87,7 @@ class StyleWidgetState extends State<StyleWidget> {
   Widget _textBookStyle(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: SingleChildScrollView(
+      child: ReaderSettingsScrollView(
           child: Column(
         children: [
           widgetTitle(L10n.of(context).readingPageStyle, ReadingSettings.theme),

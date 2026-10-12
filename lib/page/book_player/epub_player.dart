@@ -275,6 +275,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   bool get supportsDocumentImages => documentReadingMode.value.hasDocumentMenu;
   final einkRefresh = EinkRefresh();
   bool _einkReaderActive = false;
+  bool _lastEinkMotionDisabled = Prefs().eInkMotionDisabled;
   late final _einkPageRefresh = EinkPageRefreshScheduler(() async {
     await WidgetsBinding.instance.endOfFrame;
     return einkRefresh.refresh(
@@ -286,7 +287,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             supportsDocumentImages);
   });
 
-  void _configureEinkRefresh() {
+  void _configureEinkPreferences() {
+    final disableMotion = Prefs().eInkMotionDisabled;
+    if (mounted && _readerReady && _lastEinkMotionDisabled != disableMotion) {
+      _lastEinkMotionDisabled = disableMotion;
+      changePageTurnStyle(Prefs().pageTurnStyle);
+    }
     _einkPageRefresh.configure(
         active: mounted &&
             _einkReaderActive &&
@@ -310,7 +316,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     final raw = region is Map ? region['page'] : null;
     final chapter = location['currentChapter'];
     final page = raw is int ? raw : (chapter is int ? chapter - 1 : -1);
-    _configureEinkRefresh();
+    _configureEinkPreferences();
     _einkPageRefresh.observe(page,
         readingAction: location['readingAction'] == true);
   }
@@ -318,7 +324,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   void setDocumentReaderActive(bool active) {
     active = active && readingPageKey.currentState?.isReflowReading != true;
     _einkReaderActive = active;
-    _configureEinkRefresh();
+    _configureEinkPreferences();
     if (!_readerReady || !mounted) return;
     unawaited(webViewController
         .evaluateJavascript(
@@ -372,8 +378,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Future<void> setPdfPanelReading(bool enabled) async {
     if (!_readerReady || !mounted) throw StateError('Reader is not ready');
-    if (!supportsDocumentImages)
+    if (!supportsDocumentImages) {
       throw StateError('Original-page mode is unavailable');
+    }
     final previous = pdfPanelReading;
     final config = DocumentLayoutStore(Prefs().prefs).read(cssBookKey);
     await _applyPdfLayout(config, enabled);
@@ -584,6 +591,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       webViewController.evaluateJavascript(source: '''
       changeStyle({
         fontSize: ${style.fontSize},
+        eInkMode: ${Prefs().eInkMode},
+        eInkDisableAnimations: ${Prefs().eInkDisableAnimations},
         readingNightMode: ${Prefs().readingNightMode},
         mobileImageFit: ${AnxPlatform.isMobile},
         mobileTouchPaging: ${AnxPlatform.isMobile},
@@ -673,6 +682,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       changeStyle({
         pageTurnStyle: '${pageTurnStyle.name}',
         eInkMode: ${Prefs().eInkMode},
+        eInkDisableAnimations: ${Prefs().eInkDisableAnimations},
       })
     ''');
   }
@@ -686,9 +696,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   void goToHref(String href) {
     unawaited(() async {
       await readingPageKey.currentState?.closeDocumentReflow();
-      if (mounted)
+      if (mounted) {
         await webViewController.evaluateJavascript(
             source: 'goToHref(${jsonEncode(href)})');
+      }
     }());
   }
 
@@ -732,9 +743,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       if (readingPageKey.currentState?.isReflowReading == true) {
         await readingPageKey.currentState?.closeDocumentReflow();
       }
-      if (mounted)
+      if (mounted) {
         await webViewController.evaluateJavascript(
             source: 'goToCfi(${jsonEncode(cfi)});');
+      }
     }());
   }
 
@@ -745,8 +757,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     final result = await webViewController.callAsyncJavaScript(
         functionBody: 'return await window.goToDocumentOriginalPage(page);',
         arguments: {'page': page});
-    if (result?.error != null || result?.value != true)
+    if (result?.error != null || result?.value != true) {
       throw StateError('Original page navigation failed');
+    }
   }
 
   String get selectionChapterTitle =>
@@ -824,9 +837,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         notifier.selectMatch(target);
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         AnxToast.show(ModuStrings.text(
             context, '无法跳转到搜索结果，请重试', 'Could not open this search result'));
+      }
     } finally {
       _searchNavigation = null;
       if (mounted) {
@@ -869,9 +883,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         await _goToSearchCfi(origin!);
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         AnxToast.show(ModuStrings.text(
             context, '无法返回原阅读位置', 'Could not return to the original position'));
+      }
     }
   }
 
@@ -1432,6 +1447,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             _readerReady = true;
             _readerLoadFailed = false;
           });
+          _configureEinkPreferences();
           readingPageKey.currentState?.refreshDocumentReaderActivity();
           // Android can hide system bars while the chapter is still loading.
           // The Flutter frame already uses the new safe area; replay the DOM
@@ -1541,7 +1557,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           if (!mounted ||
               !TtsHandler().isPlaying ||
               args.isEmpty ||
-              args.first is! Map) return;
+              args.first is! Map) {
+            return;
+          }
           final value = args.first as Map;
           final position = value['cfi'];
           final progress = value['percentage'];
@@ -1549,7 +1567,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               progress is! num ||
               !progress.isFinite ||
               progress < 0 ||
-              progress > 1) return;
+              progress > 1) {
+            return;
+          }
           unawaited(_recordReadingAction(position, progress.toDouble()));
         });
     controller.addJavaScriptHandler(
@@ -1590,7 +1610,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               !AnxPlatform.isMobile ||
               !quickMarkEnabled ||
               args.isEmpty ||
-              args.first is! Map) return null;
+              args.first is! Map) {
+            return null;
+          }
           final data = args.first as Map;
           if (data['cfi'] is! String || data['text'] is! String) return null;
           try {
@@ -1640,7 +1662,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           Map<String, dynamic> location = args[0];
           if (AnxPlatform.isMobile &&
               quickMarkEnabled &&
-              location['footnote'] != true) return;
+              location['footnote'] != true) {
+            return;
+          }
           removeOverlay();
           String cfi = location['cfi'];
           String text = location['text'];
@@ -1692,7 +1716,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           if (annotation['quickMark'] == true &&
               (!AnxPlatform.isMobile ||
                   !quickMarkEnabled ||
-                  !Prefs().quickMarkShowMenu)) return;
+                  !Prefs().quickMarkShowMenu)) {
+            return;
+          }
           removeOverlay();
 
           if (annotation['annotation'] == null) {
@@ -1738,8 +1764,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       callback: (args) {
         Map<String, dynamic> search = args[0];
         final state = ref.read(tocSearchProvider);
-        if (!state.isActive || search['requestId'] != state.requestId)
+        if (!state.isActive || search['requestId'] != state.requestId) {
           return null;
+        }
         final tocSearch = ref.read(tocSearchProvider.notifier);
         if (search['error'] == true) {
           tocSearch.updateProgress(1);
@@ -1882,7 +1909,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Future<void> onWebViewCreated(InAppWebViewController controller) async {
     if (AnxPlatform.isAndroid) {
-      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+      await InAppWebViewController.setWebContentsDebuggingEnabled(
+        kDebugMode,
+      );
     }
     webViewController = controller;
     setHandler(controller);
@@ -1942,15 +1971,16 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   @override
   void initState() {
-    if (widget.cfi?.startsWith(DocumentReflowAnchor.prefix) == true)
+    if (widget.cfi?.startsWith(DocumentReflowAnchor.prefix) == true) {
       _pendingLinkedCfi = widget.cfi;
+    }
     _progress = ReaderProgressSession(bookDao, widget.book.id);
     book = widget.book;
     // Read import-time evidence immediately; menu selection must not depend on
     // the asynchronous WebView bridge or re-inspect the book on opening.
     documentReadingMode.value =
         DocumentReadingModeStore(Prefs().prefs).read(widget.book);
-    Prefs().addListener(_configureEinkRefresh);
+    Prefs().addListener(_configureEinkPreferences);
     getThemeColor();
 
     contextMenu = ContextMenu(
@@ -2000,7 +2030,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   @override
   void dispose() {
-    Prefs().removeListener(_configureEinkRefresh);
+    Prefs().removeListener(_configureEinkPreferences);
     _einkPageRefresh.dispose();
     _translationSession.stop();
     documentReadingMode.dispose();
@@ -2334,10 +2364,11 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             readingInfoWidget(),
             Consumer(builder: (context, ref, _) {
               final state = ref.watch(tocSearchProvider);
-              if (!state.isActive)
+              if (!state.isActive) {
                 return showHistory
                     ? _buildHistoryCapsule()
                     : const SizedBox.shrink();
+              }
               return Align(
                   alignment: Alignment.bottomCenter,
                   child: SafeArea(

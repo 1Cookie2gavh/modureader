@@ -10,8 +10,9 @@ String? skillMessageLabel(String content, {String? skillId, Locale? locale}) {
   final language = locale ?? Prefs().effectiveLocale;
   final prompt = content.trim();
   if (prompt.isEmpty) return null;
-  if (skillId == 'selection_toolbar')
+  if (skillId == 'selection_toolbar') {
     return ModuStrings.label(language, '划词 AI', 'Selection AI');
+  }
   for (final skill in readingSkillPromptDefinitions) {
     if (skill.id == skillId ||
         skill.isDefaultPrompt(prompt) ||

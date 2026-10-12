@@ -126,9 +126,11 @@ test('e-ink disables animation for every layout without changing scroll mode', a
   const end = book.indexOf("  reader.view.renderer.setAttribute('mobile-image-fit'", start);
   for (const pageTurnStyle of ['slide', 'scroll', 'noAnimation']) {
     for (const eInkMode of [true, false]) {
-      const turn = runInNewContext(`${book.slice(start, end)}; turn`, {style: {pageTurnStyle, eInkMode}});
-      assert.equal(turn.scroll, pageTurnStyle === 'scroll');
-      assert.equal(turn.animated, !eInkMode && pageTurnStyle !== 'noAnimation');
+      for (const eInkDisableAnimations of [undefined, true, false]) {
+        const turn = runInNewContext(`${book.slice(start, end)}; turn`, {style: {pageTurnStyle, eInkMode, eInkDisableAnimations}});
+        assert.equal(turn.scroll, pageTurnStyle === 'scroll');
+        assert.equal(turn.animated, !(eInkMode && eInkDisableAnimations !== false) && pageTurnStyle !== 'noAnimation');
+      }
     }
   }
 });

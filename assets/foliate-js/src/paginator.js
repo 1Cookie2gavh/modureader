@@ -8,6 +8,8 @@ import { ReadingActionGate } from './reading-action-gate.js'
 import { bookFrameSandbox } from './frame-script-policy.js'
 import { ContinuousSectionWindow } from './continuous-section-window.js'
 import { VerticalColumnRules } from './vertical-column-rules.js'
+import './transient-scrollbar.js'
+import { alignPaginatedText, resetPageAlignment, lineAlignedOffset, invalidateScrollLines, prepareScrollLines } from './text-page-layout.js'
 
 const lerp = (min, max, x) => x * (max - min) + min
 const easeOutSine = x => Math.sin((x * Math.PI) / 2)
@@ -61,7 +63,7 @@ const { SHOW_ELEMENT, SHOW_TEXT, SHOW_CDATA_SECTION,
 const filter = SHOW_ELEMENT | SHOW_TEXT | SHOW_CDATA_SECTION
 
 const getVisibleRange = (doc, start, end, mapRect) => {
-  // first get all visible nodes
+  // Locate the boundary nodes without measuring every glyph on the page.
   const acceptNode = node => {
     const name = node.localName?.toLowerCase()
     // ignore all scripts, styles, and their children
@@ -90,13 +92,10 @@ const getVisibleRange = (doc, start, end, mapRect) => {
   }
   if (!doc) return
   const walker = doc.createTreeWalker(doc.body, filter, { acceptNode })
-  const nodes = []
-  for (let node = walker.nextNode(); node; node = walker.nextNode())
-    nodes.push(node)
-
-  // we're only interested in the first and last visible nodes
-  const from = nodes[0] ?? doc.body
-  const to = nodes[nodes.length - 1] ?? from
+  const from = walker.nextNode() ?? doc.body
+  walker.currentNode = doc.body
+  let to = walker.lastChild() ?? from
+  for (let node = walker.lastChild(); node; node = walker.lastChild()) to = node
 
   // find the offset at which visibility changes
   const startOffset = from.nodeType === 1 ? 0
@@ -307,7 +306,7 @@ class View {
           // until the bug is fixed we can at least account for font load
           // Do not expand again for the ready promise we just awaited. Only
           // account for genuinely later fonts, e.g. after a style change.
-          const fontsChanged = () => { if (!this.#destroyed) this.expand() }
+          const fontsChanged = () => { if (!this.#destroyed) this.render(this.#layout) }
           doc.fonts?.addEventListener?.('loadingdone', fontsChanged)
           this.#cleanup.push(() => doc.fonts?.removeEventListener?.('loadingdone', fontsChanged))
 
@@ -332,6 +331,8 @@ class View {
   }
   render(layout) {
     if (!layout) return
+    for (const animation of this.#element.getAnimations?.() ?? []) animation.cancel()
+    resetPageAlignment(this.document)
     this.#column = layout.flow !== 'scrolled'
     this.#layout = layout
     if (this.#column) this.columnize(layout)
@@ -390,6 +391,7 @@ class View {
       'margin': '0',
     })
     this.setImageSize()
+    alignPaginatedText(doc, { width, height, gap, columnWidth, topMargin, bottomMargin }, vertical || this.#rtl)
     this.expand()
   }
   setImageSize() {
@@ -471,6 +473,10 @@ class View {
         this.#overlayer.redraw()
       }
     }
+    if (!this.#column && !this.#vertical) {
+      invalidateScrollLines(this.document)
+      prepareScrollLines(this.document)
+    }
     if (notify) this.onExpand()
   }
   set overlayer(overlayer) {
@@ -488,6 +494,7 @@ class View {
   }
   destroy() {
     this.#destroyed = true
+    for (const animation of this.#element.getAnimations?.() ?? []) animation.cancel()
     this.#overlayer?.destroy()
     this.#cancelLoad?.()
     this.#cancelLoad = null
@@ -509,6 +516,7 @@ export class Paginator extends HTMLElement {
   #top
   #background
   #columnRules
+  #scrollbar
   #container
   // #header
   // #footer
@@ -537,6 +545,12 @@ export class Paginator extends HTMLElement {
   #mediaQueryListener
   #ignoreNativeScroll = false
   #pendingScrollFrame = null
+  #lineSettleTimer = null
+  #scrollPointerDown = false
+  #lastScrollTop = 0
+  #scrollDirection = 1
+  #needsLineSettle = false
+  #settledAt = null
   #touchState
   #touchScrolled
   #suppressTouchClickUntil = 0
@@ -661,6 +675,10 @@ export class Paginator extends HTMLElement {
     this.#top = this.#root.getElementById('top')
     this.#background = this.#root.getElementById('background')
     this.#container = this.#root.getElementById('container')
+    this.#scrollbar = globalThis.moduAttachScrollbar(this.#container, this.#root, {
+      enabled: () => this.scrolled && !this.#vertical,
+      reducedMotion: () => !this.hasAttribute('animated'),
+    })
     this.#columnRules = new VerticalColumnRules(this, this.#top, this.#container)
     for (const event of ['wheel', 'touchstart', 'touchmove']) {
       this.#container.addEventListener(event, e => this.#readingActions.input(e),
@@ -671,11 +689,23 @@ export class Paginator extends HTMLElement {
 
     this.#observer.observe(this.#container)
     this.#container.addEventListener('scroll', () => {
+      const top = this.#container.scrollTop
+      if (this.#settledAt != null && Math.abs(top - this.#settledAt) < 1) {
+        this.#settledAt = null
+        this.#lastScrollTop = top
+        return
+      }
+      this.#settledAt = null
+      if (!this.#ignoreNativeScroll && Math.abs(top - this.#lastScrollTop) > .5)
+        this.#scrollDirection = Math.sign(top - this.#lastScrollTop)
+      this.#lastScrollTop = top
       if (this.#ignoreNativeScroll) return
       if (this.#justAnchored) {
         this.#justAnchored = false
         return
       }
+      this.#needsLineSettle = true
+      this.#scheduleLineSettle()
       if (this.#pendingScrollFrame)
         cancelAnimationFrame(this.#pendingScrollFrame)
       this.#pendingScrollFrame = requestAnimationFrame(() => {
@@ -687,11 +717,21 @@ export class Paginator extends HTMLElement {
 
     const opts = { passive: false }
     const rememberSelection = e => {
+      this.#scrollPointerDown = true
+      this.#settledAt = null
+      this.#needsLineSettle = false
+      clearTimeout(this.#lineSettleTimer)
       if (e.pointerType === 'touch')
         this.#selectionAtPointerDown = !!(window.getSelection()?.toString() ||
           e.target?.ownerDocument?.getSelection()?.toString())
     }
+    const releaseScrollPointer = () => {
+      this.#scrollPointerDown = false
+      this.#scheduleLineSettle()
+    }
     this.addEventListener('pointerdown', rememberSelection, true)
+    this.addEventListener('pointerup', releaseScrollPointer, true)
+    this.addEventListener('pointercancel', releaseScrollPointer, true)
     this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
     this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
     this.addEventListener('touchend', this.#onTouchEnd.bind(this), opts)
@@ -711,6 +751,8 @@ export class Paginator extends HTMLElement {
       }
       doc.defaultView.addEventListener('blur', () => this.#readingActions.reset())
       doc.addEventListener('pointerdown', rememberSelection, true)
+      doc.addEventListener('pointerup', releaseScrollPointer, true)
+      doc.addEventListener('pointercancel', releaseScrollPointer, true)
       doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
       doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
       doc.addEventListener('touchend', this.#onTouchEnd.bind(this), opts)
@@ -1310,6 +1352,7 @@ export class Paginator extends HTMLElement {
     return this.#scrollToPage(Math.floor(normalizedLeft / this.size) + (this.#rtl ? -1 : 1), reason)
   }
   async #scrollTo(offset, reason, smooth) {
+    clearTimeout(this.#lineSettleTimer)
     const element = this.#container
     const { scrollProp, size } = this
     if (!Number.isFinite(offset)) return
@@ -1317,6 +1360,9 @@ export class Paginator extends HTMLElement {
     // beyond the content. Use unsigned logical offsets before vertical-rl.
     if (this.scrolled) offset = Math.max(0, Math.min(
       Math.max(0, this.viewSize - size), offset))
+    if (this.scrolled && reason === 'page' && !this.#vertical &&
+        offset > 0 && offset < this.viewSize - size)
+      offset = this.#alignScrollTarget(offset, this.start)
     this.#ignoreNativeScroll = true
     
     const opts = typeof smooth === 'object' ? smooth ?? {} : {}
@@ -1345,17 +1391,29 @@ export class Paginator extends HTMLElement {
 
       this.#justAnchored = true
 
-      return animate(
+      // Horizontal pages are already laid out. Move their layer on the compositor
+      // and commit scrollLeft once, rather than repainting scroll offsets per frame.
+      let animation
+      const transition = !this.scrolled && !this.#vertical && scrollProp === 'scrollLeft' &&
+          this.#view?.element?.animate && easing === easeOutSine
+        ? (animation = this.#view.element.animate([
+          { transform: 'translate3d(0,0,0)' },
+          { transform: `translate3d(${element[scrollProp] - offset}px,0,0)` },
+        ], { duration, easing: 'cubic-bezier(.39,.575,.565,1)', fill: 'forwards' })).finished
+        : animate(
         element[scrollProp],
         offset,
         duration,
         easing,
         x => element[scrollProp] = x,
-      ).then(() => {
+      )
+      return transition.then(() => {
         // Ensure exact position
         element[scrollProp] = offset
+        animation?.cancel()
         finish()
       }).catch(() => {
+        animation?.cancel()
         this.#ignoreNativeScroll = false
       })
     } else {
@@ -1622,6 +1680,7 @@ export class Paginator extends HTMLElement {
     this.#sectionCache = new SectionWindowCache(this.sections)
     this.#continuous = new ContinuousSectionWindow({
       container: this.#container, sections: this.sections,
+      alignScroll: (target, current) => this.#alignScrollTarget(target, current),
       changed: () => this.#continuous?.track(),
       create: async (index, src) => {
         const window = this.#continuous
@@ -1775,6 +1834,31 @@ export class Paginator extends HTMLElement {
     if (page <= 0) return true
     return this.#scrollToPage(page, 'page', { animate: true }).then(() => page <= 0)
   }
+  #scheduleLineSettle() {
+    clearTimeout(this.#lineSettleTimer)
+    if (!this.#needsLineSettle || !this.scrolled || this.#vertical || this.#destroyed) return
+    this.#lineSettleTimer = setTimeout(() => {
+      this.#lineSettleTimer = null
+      if (this.#destroyed || !this.scrolled || this.#vertical || this.#scrollPointerDown ||
+          this.#touchState || this.#locked || this.#ignoreNativeScroll ||
+          this.getContents().some(({ doc }) => doc.getSelection()?.toString())) return
+      const current = this.start
+      this.#needsLineSettle = false
+      if (current <= 0 || current >= this.viewSize - this.size) return
+      const target = this.#alignScrollTarget(current, current - this.#scrollDirection, true)
+      if (Math.abs(target - current) > .25) {
+        this.#settledAt = Math.max(0, Math.min(this.viewSize - this.size, target))
+        this.#scrollTo(target, 'line-snap', false)
+      }
+    }, 220)
+  }
+  #alignScrollTarget(target, current, settled = false) {
+    const documents = this.#continuous
+      ? this.#continuous.ordered.map(entry => ({ doc: entry.view.document,
+        offset: this.#continuous.top(entry) + this.#margin }))
+      : [{ doc: this.#view?.document, offset: this.#margin }]
+    return lineAlignedOffset(documents, target, current, this.size, settled)
+  }
   #scrollNext(distance) {
     if (!this.#view) return true
     if (this.scrolled) {
@@ -1902,7 +1986,7 @@ export class Paginator extends HTMLElement {
     // both iframe and paginator axes together, retaining the current anchor.
     if (!this.#preparingView && view?.refreshDirection().changed) this.render()
     if (changed && !this.#preparingView && view?.document) waitForReaderFonts(view.document).then(ready => {
-      if (ready && this.#view === view && !this.#preparingView) view.expand()
+      if (ready && this.#view === view && !this.#preparingView) this.render()
     })
   }
   get writingMode() {
@@ -1911,9 +1995,11 @@ export class Paginator extends HTMLElement {
   get isNavigating() { return this.#locked }
   destroy() {
     this.#destroyed = true
+    clearTimeout(this.#lineSettleTimer)
     for (const view of this.#pendingViews) view.cancelLoad()
     this.#unlockNavigation()
     this.#columnRules?.destroy()
+    this.#scrollbar?.destroy()
     this.#continuous?.destroy()
     this.#continuous = null
     this.#observer.disconnect()

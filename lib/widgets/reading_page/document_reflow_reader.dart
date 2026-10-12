@@ -86,6 +86,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   DocumentReflowPage? _page;
   int _total = 0, _generation = 0;
   int? _requestedPage;
+  int? get _navigationPage => _requestedPage ?? _page?.page;
   Future<void>? _pendingLoad;
   bool _busy = false, _needsModel = false;
   String? _error, _shownSelection;
@@ -173,11 +174,15 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   Future<void> setMode(bool ocr) async {
     if (_busy) return;
     setState(() => _forceOcr = ocr);
-    await _load(_page?.page);
+    await _load(_navigationPage);
   }
 
   Future<void> turn(int direction) async {
-    if (_busy || _page == null) return;
+    if (_busy) return;
+    if (_page == null || _navigationPage != _page!.page) {
+      await turnOriginalPage(direction);
+      return;
+    }
     clearSelection();
     widget.clearMenu();
     if (_scroll.hasClients) {
@@ -198,8 +203,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         return;
       }
     }
-    final target = _page!.page + direction;
-    if (target >= 0 && target < _total) await _load(target);
+    await turnOriginalPage(direction);
   }
 
   void cancelLoading() {
@@ -208,8 +212,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> turnOriginalPage(int direction) async {
-    if (_busy || _page == null) return;
-    final target = _page!.page + direction;
+    final page = _navigationPage;
+    if (_busy || page == null) return;
+    final target = page + direction;
     if (target >= 0 && target < _total) await _load(target);
   }
 
@@ -246,6 +251,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     widget.clearMenu();
     setState(() {
       _busy = true;
+      // Navigation follows the attempted source page, not stale reflow text.
+      _requestedPage = target ?? _navigationPage;
       _error = null;
       _needsModel = false;
       _progress = null;
@@ -263,13 +270,14 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       check();
       final page = (info['page'] as num).toInt(),
           total = (info['total'] as num).toInt();
-      _requestedPage = page;
       if (page < 0 ||
           page >= total ||
           (target != null && page != target) ||
           info['imageOnly'] == false) {
         throw const FormatException('Invalid image page');
       }
+      _requestedPage = page;
+      _total = total;
       // Bounds are original-page coordinates resolved by the same crop logic
       // as the PDF/image reader. No region picker for either reflow command.
       final sourceRegion = info['region'] as Map? ??
@@ -351,7 +359,6 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       await widget.onPageChanged(page);
       check();
       _page = result;
-      _total = total;
       _notes = notes;
       _controller.text = result.text;
       _controller.setMarks(result, notes);
@@ -373,8 +380,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       });
     } catch (_) {
       if (active()) {
-        setState(() => _error = t('本页重排失败，已保留原阅读位置。请重试或返回原页。',
-            'Could not reflow this page. Your position is unchanged. Retry or return to the original.'));
+        setState(() => _error = t('本页重排失败，已保留原阅读位置。请重试、用左右箭头切换页面或返回原页。',
+            'Could not reflow this page. Your position is unchanged. Retry, use the arrows to switch pages, or return to the original.'));
       }
     } finally {
       if (widget.modelStore == null) model.close();
@@ -401,8 +408,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     final value = await showDialog<DocumentTextStyle>(
         animationStyle: AppMotion.style,
         context: context,
-        builder: (_) =>
-            DocumentTextStyleDialog(initial: _style, save: widget.saveStyle));
+        builder: (_) => DocumentTextStyleDialog(
+            initial: _style,
+            save: (style) async {
+              await widget.saveStyle(style);
+              if (mounted) setState(() => _style = style);
+            }));
     if (mounted && value != null) setState(() => _style = value);
   }
 
@@ -512,7 +523,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       if (!mounted ||
           epoch != _selectionEpoch ||
           generation != _generation ||
-          selection != _controller.selection) return;
+          selection != _controller.selection) {
+        return;
+      }
       // Never shrink a native word/drag range into a smaller token.
       if (bounds != null &&
           bounds[0] <= selection.start &&
@@ -534,7 +547,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           generation != _generation ||
-          settled != _controller.selection) return;
+          settled != _controller.selection) {
+        return;
+      }
       _publishSelection(state);
     });
     WidgetsBinding.instance.scheduleFrame();
@@ -636,8 +651,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                                 ? null
                                 : (value) {
                                     if (value != null && value != _forceOcr) {
-                                      setState(() => _forceOcr = value);
-                                      unawaited(_load(_page?.page));
+                                      unawaited(setMode(value));
                                     }
                                   }))),
                 IconButton(
@@ -702,19 +716,20 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                     IconButton(
                         key: const ValueKey('reflow-previous'),
                         tooltip: t('上一原页', 'Previous original page'),
-                        onPressed: !_busy && _page != null && _page!.page > 0
-                            ? () => _load(_page!.page - 1)
+                        onPressed: !_busy && (_navigationPage ?? 0) > 0
+                            ? () => turnOriginalPage(-1)
                             : null,
                         icon: const Icon(Icons.chevron_left)),
-                    Text('${(_page?.page ?? 0) + 1} / $_total',
+                    Text('${(_navigationPage ?? 0) + 1} / $_total',
                         style: TextStyle(color: foreground)),
                     IconButton(
                         key: const ValueKey('reflow-next'),
                         tooltip: t('下一原页', 'Next original page'),
-                        onPressed:
-                            !_busy && _page != null && _page!.page + 1 < _total
-                                ? () => _load(_page!.page + 1)
-                                : null,
+                        onPressed: !_busy &&
+                                _navigationPage != null &&
+                                _navigationPage! + 1 < _total
+                            ? () => turnOriginalPage(1)
+                            : null,
                         icon: const Icon(Icons.chevron_right)),
                     if (_busy)
                       TextButton(

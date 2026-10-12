@@ -22,7 +22,7 @@ void main() {
             await client.readProps(SyncPaths.database('database8.db'));
         if (metadata == null) fail('Configured database not present');
         final strong = WebdavClient.isStrongETag(metadata.eTag);
-        print(
+        stdout.writeln(
             'MODU_WEBDAV_READONLY round=$round authenticated=true strong_etag=$strong stable=${round == 1 || previous == metadata.eTag}');
         expect(strong, isTrue, reason: 'Strong validator was not returned');
         previous = metadata.eTag;

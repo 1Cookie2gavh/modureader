@@ -238,7 +238,9 @@ void main() {
       final theme = Theme.of(tester.element(button)).colorScheme;
       var style = tester.widget<TextButton>(button).style!;
       expect(style.side!.resolve({})!.color, theme.outlineVariant);
-      expect(tester.getSize(weight()).width, greaterThanOrEqualTo(100));
+      // Leave two touch-target widths after reserving the scrollbar lane.
+      expect(tester.getSize(weight()).width,
+          greaterThanOrEqualTo(2 * kMinInteractiveDimension));
       await tester.tap(simulated());
       await tester.pumpAndSettle();
       style = tester.widget<TextButton>(button).style!;

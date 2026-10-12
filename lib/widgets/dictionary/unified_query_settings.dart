@@ -21,7 +21,7 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
   late final prefs = UnifiedQueryPreferences.load(Prefs().prefs);
   late final knowledge = TextEditingController(text: prefs.knowledgePrompt);
   late final classical = TextEditingController(text: prefs.classicalPrompt);
-  bool saving = false;
+  Future<void> writes = Future.value();
   String? error;
   String t(String zh, String en) => ModuStrings.text(context, zh, en);
   @override
@@ -32,20 +32,19 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
   }
 
   Future<void> save() async {
-    setState(() => saving = true);
     prefs.knowledgePrompt = knowledge.text.trim();
     prefs.classicalPrompt = classical.text.trim();
-    try {
+    writes = writes.then((_) async {
       await prefs.save(Prefs().prefs);
-      if (mounted) Navigator.pop(context, true);
-    } catch (_) {
+      if (mounted) setState(() => error = null);
+    }).catchError((Object e) {
       if (mounted) {
         setState(() {
-          saving = false;
           error = t('保存失败，请重试', 'Save failed. Please retry.');
         });
       }
-    }
+    });
+    await writes;
   }
 
   Widget destination(String title, Widget body) => ListTile(
@@ -69,22 +68,58 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
         if (section == null) ...[
           Text(t('选择综合页汇总的内容。其他标签仍可单独打开；关闭汇总不会删除字典或服务设置。',
               'Choose results for the overview. Other tabs remain available; disabling a summary does not delete sources.')),
-          for (final s in QuerySection.comprehensive)
-            CheckboxListTile(
-                key: ValueKey('query-include-${s.name}'),
-                title: Text(t(s.zh, s.en)),
-                value: prefs.included.contains(s),
-                onChanged: (v) => setState(() {
-                      v == true
-                          ? prefs.included.add(s)
-                          : prefs.included.remove(s);
-                    })),
+          Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(t('拖动调整汇总顺序，调整后使用自定义排序。',
+                  'Drag to reorder overview results; reordering switches to custom order.'))),
+          ReorderableListView.builder(
+              key: const ValueKey('query-section-order'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: prefs.order.length,
+              onReorderItem: (oldIndex, newIndex) {
+                setState(() {
+                  prefs.order.insert(newIndex, prefs.order.removeAt(oldIndex));
+                  prefs.smartOrder = false;
+                });
+                save();
+              },
+              itemBuilder: (context, index) {
+                final s = prefs.order[index];
+                return Row(key: ValueKey('query-order-${s.name}'), children: [
+                  ReorderableDragStartListener(
+                      key: ValueKey('query-drag-${s.name}'),
+                      index: index,
+                      child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Icon(Icons.drag_indicator,
+                              semanticLabel: t('拖动排序', 'Drag to reorder')))),
+                  Expanded(
+                      child: CheckboxListTile(
+                          key: ValueKey('query-include-${s.name}'),
+                          title: Text(t(s.zh, s.en)),
+                          value: prefs.included.contains(s),
+                          onChanged: (v) {
+                            setState(() {
+                              v == true
+                                  ? prefs.included.add(s)
+                                  : prefs.included.remove(s);
+                            });
+                            save();
+                          })),
+                ]);
+              }),
           SwitchListTile(
+              key: const ValueKey('query-smart-order'),
               title: Text(t('按查询文本智能排序', 'Order by query text')),
-              subtitle: Text(t('在本机按词语、短语或长句排序，不调用 AI。',
-                  'Local word/phrase/sentence rules; no AI request.')),
+              subtitle: Text(t('开启后在本机按查询文本排序，不调用 AI；关闭后使用自定义顺序。',
+                  'On: local query-text rules, without AI. Off: your custom order.')),
               value: prefs.smartOrder,
-              onChanged: (v) => setState(() => prefs.smartOrder = v)),
+              onChanged: (v) {
+                setState(() => prefs.smartOrder = v);
+                save();
+              }),
           ListTile(
               title: Text(t('独立划词按钮开关', 'Standalone selection actions')),
               subtitle: Text(t('字典、翻译、AI 知识等入口仍可单独开启。',
@@ -100,7 +135,10 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
               subtitle: Text(t('仅 AI 和翻译使用；百科和联网搜索不发送上下文。',
                   'For AI and translation only; never sent to encyclopedia or web search.')),
               value: prefs.useContext,
-              onChanged: (v) => setState(() => prefs.useContext = v)),
+              onChanged: (v) {
+                setState(() => prefs.useContext = v);
+                save();
+              }),
         if (section == null ||
             section == QuerySection.knowledge ||
             section == QuerySection.classical) ...[
@@ -114,6 +152,7 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           if (section == null || section == QuerySection.knowledge)
             TextField(
                 controller: knowledge,
+                onChanged: (_) => save(),
                 maxLines: 3,
                 maxLength: 8000,
                 decoration: InputDecoration(
@@ -122,6 +161,7 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           if (section == null || section == QuerySection.classical)
             TextField(
                 controller: classical,
+                onChanged: (_) => save(),
                 maxLines: 3,
                 maxLength: 8000,
                 decoration: InputDecoration(
@@ -132,11 +172,17 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           SwitchListTile(
               title: Text(t('维基百科摘要', 'Wikipedia excerpts')),
               value: prefs.wikipedia,
-              onChanged: (v) => setState(() => prefs.wikipedia = v)),
+              onChanged: (v) {
+                setState(() => prefs.wikipedia = v);
+                save();
+              }),
           SwitchListTile(
               title: Text(t('百度百科原站入口', 'Baidu Baike website link')),
               value: prefs.baiduLink,
-              onChanged: (v) => setState(() => prefs.baiduLink = v)),
+              onChanged: (v) {
+                setState(() => prefs.baiduLink = v);
+                save();
+              }),
           Text(t('开启百科后，进入综合查询即自动查询，仅发送查询词。百度百科通过原站阅读，不抓取或绕过验证。',
               'Enabled encyclopedia sources are queried automatically when opening Look up; only the query is sent. Baidu opens the original website.')),
         ],
@@ -156,8 +202,8 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
           Text(error!,
               style: TextStyle(color: Theme.of(context).colorScheme.error)),
         const SizedBox(height: 16),
-        FilledButton(
-            onPressed: saving ? null : save, child: Text(t('保存', 'Save'))),
+        if (error != null)
+          TextButton(onPressed: save, child: Text(t('重试', 'Retry'))),
         const SizedBox(height: 32),
       ]),
     );

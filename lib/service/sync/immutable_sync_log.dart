@@ -100,7 +100,9 @@ class ImmutableSyncLog {
         // set again; a successful scan must not silently miss BOTH generations.
         final after = await _listBatches();
         if (files.length != after.length ||
-            !files.keys.every(after.containsKey)) continue;
+            !files.keys.every(after.containsKey)) {
+          continue;
+        }
         for (final batch in batches) {
           await onVerifiedBatch!(batch);
         }
@@ -172,7 +174,9 @@ class ImmutableSyncLog {
     final records = _readRecords;
     if (inputs == null ||
         records == null ||
-        inputs.length < compactAfterBatches) return 0;
+        inputs.length < compactAfterBatches) {
+      return 0;
+    }
     final digest = await publish(records);
     final keep = '${SyncPaths.recordLog}/${digest[0]}/$digest.db';
     return reclaimReadBatches(keep: keep);

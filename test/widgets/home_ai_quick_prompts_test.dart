@@ -344,8 +344,9 @@ void main() {
   testWidgets('all disabled skills show management hint, not home AI tasks',
       (tester) async {
     await mount(tester, const Size(360, 640), configuredSkills: true);
-    for (final skill in readAnySkills)
+    for (final skill in readAnySkills) {
       Prefs().setReadAnySkillEnabled(skill.id, false);
+    }
     await tester.pumpAndSettle();
     expect(find.text('尚未启用阅读技能，可在管理中开启。'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-quick-prompts')), findsNothing);

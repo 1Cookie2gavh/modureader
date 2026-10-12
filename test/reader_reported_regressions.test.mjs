@@ -85,6 +85,9 @@ test('actual scrolled next/previous retain 20 percent overlap; explicit distance
   const methods = paginator.slice(paginator.indexOf('  #scrollPrev(distance)'), paginator.indexOf('  get atStart()'));
   const Harness = runInNewContext(`class Harness {
     #view = {}; scrolled = true; start = 0; size = 801; viewSize = 10000;
+    #lineSettleTimer; #needsLineSettle=false; #scrollPointerDown=false; #destroyed=false;
+    #settledAt; #scrollDirection=1; #margin=0; #continuous; #vertical=false; #touchState;
+    #locked=false; #ignoreNativeScroll=false;
     getAttribute() { return null }
     get end() {return this.start + this.size}
     #scrollTo(offset) {this.start = offset; return Promise.resolve()}
@@ -112,6 +115,9 @@ test('scroll step is configurable in both renderers without changing explicit di
   const turn = paginator.slice(paginator.indexOf('  async #turnPage('), paginator.indexOf('  prevSection()'));
   const Harness = runInNewContext(`class Harness {
     #view = {}; #locked = false; #continuous = null;
+    #lineSettleTimer; #needsLineSettle=false; #scrollPointerDown=false; #destroyed=false;
+    #settledAt; #scrollDirection=1; #margin=0; #vertical=false; #touchState;
+    #ignoreNativeScroll=false;
     scrolled = true; start = 2000; size = 800; viewSize = 10000;
     percent = null; page = 3; pages = 12; lastPage = null;
     getAttribute() { return this.percent }

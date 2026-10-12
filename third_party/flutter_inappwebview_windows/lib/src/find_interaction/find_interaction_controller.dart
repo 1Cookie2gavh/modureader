@@ -53,7 +53,7 @@ class WindowsFindInteractionController extends PlatformFindInteractionController
 
   _debugLog(String method, dynamic args) {
     debugLog(
-      className: this.runtimeType.toString(),
+      className: runtimeType.toString(),
       debugLoggingSettings:
           PlatformFindInteractionController.debugLoggingSettings,
       method: method,

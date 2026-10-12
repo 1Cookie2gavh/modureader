@@ -35,7 +35,6 @@ import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/webView/gererate_url.dart';
 import 'package:anx_reader/utils/webView/webview_console_message.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -95,6 +94,7 @@ void _checkDuplicatesAndShowDialog(
     final filePaths = supportedFiles.map((f) => f.path).toList();
     final checkResults = await MD5Service.checkImportFiles(filePaths);
 
+    if (!context.mounted) return;
     Navigator.of(context).pop();
 
     List<File> duplicateFiles = [];

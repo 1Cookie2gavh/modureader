@@ -27,10 +27,10 @@ class GlobalSettingsTransfer {
   static final Map<String, String> _types = {
     for (final key
         in '''quickMarkShowMenu clearLogWhenStart useOriginalCoverRatio hideStatusBar readerFullscreen
-autoHideBottomBar trueDarkMode eInkMode autoTranslateSelection autoMarkSelection vectorModelEnabled
+autoHideBottomBar trueDarkMode eInkMode eInkDisableAnimations autoTranslateSelection autoMarkSelection vectorModelEnabled
 autoVectorizeOnImport autoSummaryPreviousContent autoAdjustReadingTheme readingNightMode volumeKeyTurnPage
-keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showBookFormatBadge showBookTitleOnDefaultCover
-showAuthorOnDefaultCover openBookAnimation onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
+keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showBookFormatBadge showBookIndexBadge showBookTitleOnDefaultCover
+showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
 bottomNavigatorShowStatistics bottomNavigatorShowAI syncCompletedToast autoSync readingTimedSync
 isSystemTts showTextUnderIconButton notesExportMergeChapters verticalRedFrame enableJsForEpub
 httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft'''
@@ -177,8 +177,9 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
   /// Filter actual keys, not the untrusted envelope's descriptive scope.
   static Map<String, dynamic> selectScope(
       Map<String, dynamic> values, String scope) {
-    if (!scopes.contains(scope))
+    if (!scopes.contains(scope)) {
       throw const FormatException('Unknown settings scope');
+    }
     validate(values);
     return {
       for (final e in values.entries)
@@ -425,7 +426,9 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
     final pending = <String, Object?>{};
     for (final entry in values.entries) {
       if (entry.key == prefsBackupVersionKey ||
-          entry.key == 'aiSkillTemplateDraft') continue;
+          entry.key == 'aiSkillTemplateDraft') {
+        continue;
+      }
       if (_isReset(entry.value)) {
         pending[entry.key] = null;
         continue;

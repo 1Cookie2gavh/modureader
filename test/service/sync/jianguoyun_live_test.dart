@@ -31,7 +31,8 @@ void main() {
       for (final path in [parent, '$parent/']) {
         expect(await client.readSyncDirectory(path), isEmpty);
       }
-      print('LIVE real_endpoint_directory_slash_probe=passed writes=0');
+      stdout
+          .writeln('LIVE real_endpoint_directory_slash_probe=passed writes=0');
     } catch (error) {
       fail(
           'Read-only directory probe failed: ${error.runtimeType}; private details omitted');
@@ -109,10 +110,12 @@ void main() {
         await request.addStream(incoming);
         final remote =
             await request.close().timeout(const Duration(seconds: 40));
-        print('LIVE HTTP ${incoming.method} ${remote.statusCode}');
+        stdout.writeln('LIVE HTTP ${incoming.method} ${remote.statusCode}');
         if (incoming.method == 'MKCOL' &&
             path.replaceFirst(RegExp(r'/$'), '') == prefix &&
-            remote.statusCode == 201) created = true;
+            remote.statusCode == 201) {
+          created = true;
+        }
         if ([429, 503].contains(remote.statusCode)) busy = true;
         response.statusCode = remote.statusCode;
         remote.headers.forEach((name, values) {
@@ -128,7 +131,7 @@ void main() {
         await response.addStream(remote);
         await response.close();
       } catch (error) {
-        print('LIVE relay_error=${error.runtimeType}');
+        stdout.writeln('LIVE relay_error=${error.runtimeType}');
         response.statusCode = 502;
         await response.close();
       }
@@ -149,11 +152,11 @@ void main() {
     final a = await fixture(install: false, path: '${temp.path}/a.db');
     final b = await fixture(install: false, path: '${temp.path}/b.db');
     try {
-      print('LIVE test_directory=$root');
+      stdout.writeln('LIVE test_directory=$root');
       expect(await setup.readProps(root), isNull);
       await setup.mkdirAll(root);
       created = true;
-      print('LIVE isolated_directory_created=true');
+      stdout.writeln('LIVE isolated_directory_created=true');
       await client.ping();
       await client.mkdirAll('modu/data/file');
       await client.mkdirAll('modu/data/cover');
@@ -176,7 +179,7 @@ void main() {
         expect(await File(copy).readAsString(), await source.readAsString());
       }
       expect((await client.readDir('modu/data/file')).length, 7);
-      print('LIVE seven_asset_extensions_roundtrip=passed');
+      stdout.writeln('LIVE seven_asset_extensions_roundtrip=passed');
 
       // Publish an actual legacy version-7 SQLite database in the test folder.
       final legacy =
@@ -200,7 +203,7 @@ void main() {
       expect((await a.query('tb_notes')).length, 1);
       await sync(sb, cacheB);
       expect((await b.query('tb_books')).length, 1);
-      print('LIVE legacy_migration_and_empty_device_discovery=passed');
+      stdout.writeln('LIVE legacy_migration_and_empty_device_discovery=passed');
 
       final aId = (await a.query('tb_books')).single['id'] as int;
       final bId = (await b.query('tb_books')).single['id'] as int;
@@ -213,16 +216,16 @@ void main() {
       expect((await a.query('tb_books')).length, 2);
       expect((await a.query('tb_notes')).length, 3);
       expect(sameSyncRecords(await sa.snapshot(), await sb.snapshot()), isTrue);
-      print('LIVE offline_edits_and_new_book_convergence=passed');
+      stdout.writeln('LIVE offline_edits_and_new_book_convergence=passed');
       final before = calls;
       expect(await sync(sa, cacheA), RowSyncOutcome.unchanged);
-      print('LIVE unchanged_sync_requests=${calls - before}');
+      stdout.writeln('LIVE unchanged_sync_requests=${calls - before}');
       await client.downloadFile(
           'modu/database7.db', '${temp.path}/legacy-after.db');
       expect(await File('${temp.path}/legacy-after.db').readAsBytes(),
           legacyBytes);
-      print('LIVE legacy_cloud_file_preserved=passed');
-      print('LIVE workload_requests=$calls methods=$methods');
+      stdout.writeln('LIVE legacy_cloud_file_preserved=passed');
+      stdout.writeln('LIVE workload_requests=$calls methods=$methods');
     } catch (error, stack) {
       fail(
           'Live isolated test failed: ${error.runtimeType} status=${error is DioException ? error.response?.statusCode : null}; private details omitted\n$stack');
@@ -254,17 +257,17 @@ void main() {
 
           await removeChildren(root);
           expect(await setup.readSyncDirectory('$root/'), isEmpty);
-          print('LIVE test_contents_removed=true');
+          stdout.writeln('LIVE test_contents_removed=true');
           await setup.remove(root);
           expect(await setup.readProps(root), isNull);
-          print('LIVE isolated_directory_removed=true');
+          stdout.writeln('LIVE isolated_directory_removed=true');
         } catch (_) {
-          print('LIVE cleanup_pending=$root');
+          stdout.writeln('LIVE cleanup_pending=$root');
         }
       } else if (created) {
-        print('LIVE cleanup_deferred_for_server_cooldown=$root');
+        stdout.writeln('LIVE cleanup_deferred_for_server_cooldown=$root');
       }
-      print('LIVE requests=$calls methods=$methods server_busy=$busy');
+      stdout.writeln('LIVE requests=$calls methods=$methods server_busy=$busy');
       await a.close();
       await b.close();
       await temp.delete(recursive: true);

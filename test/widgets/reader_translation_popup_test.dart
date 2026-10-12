@@ -97,6 +97,7 @@ void main() {
         const Text('END OF TRANSLATION'),
       ]),
     ))));
+    await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     final source = tester.widget<Text>(
@@ -155,6 +156,7 @@ void main() {
           },
         )));
     await tester.pumpWidget(panel('first'));
+    await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     await tester.pumpWidget(panel('second'));

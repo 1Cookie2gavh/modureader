@@ -26,7 +26,9 @@ test('E-Ink disables chapter transitions, animations and smooth scrolling withou
 
 test('reader and footnote styles carry E-Ink state and disable renderer turn animation', async () => {
   const book = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
-  assert.match(book, /applyReaderMotion\(document, style.eInkMode === true\)/);
-  assert.match(book, /if \(style.eInkMode === true\) turn.animated = false/);
+  assert.match(book, /applyReaderMotion\(document, style.eInkMode === true && style.eInkDisableAnimations !== false\)/);
+  assert.match(book, /if \(style.eInkMode === true && style.eInkDisableAnimations !== false\) turn.animated = false/);
+  assert.match(book, /eInkMode === true && eInkDisableAnimations !== false \? reducedReaderMotionCSS/);
   assert.match(book, /eInkMode\s*:\s*style.eInkMode/);
+  assert.equal((book.match(/eInkDisableAnimations: style.eInkDisableAnimations/g) ?? []).length, 2);
 });

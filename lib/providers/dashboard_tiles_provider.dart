@@ -146,6 +146,11 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
     );
   }
 
+  void restoreDefaults() {
+    _updateWorking(List.of(defaultStatisticsDashboardTiles));
+    saveLayout();
+  }
+
   void _updateWorking(List<StatisticsDashboardTileType> next) {
     final sanitized = _sanitize(next);
     final dirty = !listEquals(sanitized, state.savedTiles);

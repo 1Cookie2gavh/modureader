@@ -126,7 +126,8 @@ void main() {
     expect(sync, isNot(contains('KnowledgeIndexSync')));
     expect(sync, isNot(contains('knowledge_index_sync.dart')));
     expect(sync, isNot(contains('syncKnowledgeIndexes')));
-    final settings = File('lib/page/settings_page/sync.dart').readAsStringSync();
+    final settings =
+        File('lib/page/settings_page/sync.dart').readAsStringSync();
     expect(settings, isNot(contains('syncKnowledgeIndexes')));
     expect(settings, isNot(contains('Sync book vector indexes')));
   });

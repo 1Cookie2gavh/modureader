@@ -28,8 +28,9 @@ class DocumentReadingModeStore {
   DocumentReadingMode read(Book book) {
     // PDF is a known container type, including old library entries. No page
     // inspection is necessary. Old EPUBs without evidence keep Preview 3.
-    if (book.filePath.toLowerCase().endsWith('.pdf'))
+    if (book.filePath.toLowerCase().endsWith('.pdf')) {
       return DocumentReadingMode.pdf;
+    }
     final entry = _read()[customCssBookKey(book)];
     if (entry is! Map ||
         entry['version'] != 1 ||
@@ -39,7 +40,8 @@ class DocumentReadingModeStore {
     if (DocumentReadingMode.supportsImageBook(book.filePath) &&
         entry['scannedOverride'] is bool) {
       return entry['scannedOverride'] == true
-          ? DocumentReadingMode.imageEpub : DocumentReadingMode.standard;
+          ? DocumentReadingMode.imageEpub
+          : DocumentReadingMode.standard;
     }
     return DocumentReadingMode.fromDetection(book.filePath, entry['mode']);
   }
@@ -63,7 +65,8 @@ class DocumentReadingModeStore {
       final entries = _read();
       final old = entries[identity];
       entries[identity] = {
-        if (old is Map && old['version'] == 1 && old['source'] == source) ...old,
+        if (old is Map && old['version'] == 1 && old['source'] == source)
+          ...old,
         'version': 1,
         'source': source,
         if (mode != null) 'mode': mode,

@@ -2,12 +2,15 @@ import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/utils/save_file_to_download.dart';
 import 'package:anx_reader/utils/get_path/log_file.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+enum _LogAction { export, clear }
 
 class LogPage extends StatefulWidget {
   const LogPage({super.key});
@@ -18,6 +21,7 @@ class LogPage extends StatefulWidget {
 
 class _LogPageState extends State<LogPage> {
   List<String> logs = [];
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -27,6 +31,7 @@ class _LogPageState extends State<LogPage> {
 
   Future<void> initData() async {
     File logFile = await getLogFile();
+    if (!mounted) return;
     setState(() {
       logs = logFile.readAsLinesSync().reversed.toList();
     });
@@ -44,9 +49,37 @@ class _LogPageState extends State<LogPage> {
               initData();
             },
           ),
-          IconButton(
-              onPressed: () => showMoreAction(context),
-              icon: const Icon(Icons.more_vert)),
+          PopupMenuButton<_LogAction>(
+            popUpAnimationStyle: AppMotion.style,
+            onSelected: (action) {
+              switch (action) {
+                case _LogAction.export:
+                  exportLog();
+                case _LogAction.clear:
+                  clearLog();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _LogAction.export,
+                enabled: !_exporting,
+                child: Row(children: [
+                  const Icon(Icons.file_upload_outlined),
+                  const SizedBox(width: 12),
+                  Text(L10n.of(context).settingsAdvancedLogExportLog),
+                ]),
+              ),
+              PopupMenuItem(
+                value: _LogAction.clear,
+                enabled: !_exporting,
+                child: Row(children: [
+                  const Icon(Icons.delete),
+                  const SizedBox(width: 12),
+                  Text(L10n.of(context).settingsAdvancedLogClearLog),
+                ]),
+              ),
+            ],
+          ),
         ],
       ),
       body: ListView(
@@ -55,55 +88,37 @@ class _LogPageState extends State<LogPage> {
     );
   }
 
-  void showMoreAction(BuildContext context) {
-    showMenu(
-      popUpAnimationStyle: AppMotion.style,
-      context: context,
-      position: RelativeRect.fromLTRB(
-        MediaQuery.of(context).size.width,
-        MediaQuery.of(context).padding.top + kToolbarHeight,
-        0.0,
-        0.0,
-      ),
-      items: [
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.delete),
-            title: Text(L10n.of(context).settingsAdvancedLogClearLog),
-            onTap: () => clearLog(),
-          ),
-        ),
-        PopupMenuItem(
-            child: ListTile(
-          leading: const Icon(Icons.file_upload_outlined),
-          title: Text(L10n.of(context).settingsAdvancedLogExportLog),
-          onTap: () => exportLog(),
-        ))
-      ],
-    );
-  }
-
   Future<void> clearLog() async {
-    Navigator.pop(context);
     AnxLog.clear();
-    initData();
+    await initData();
   }
 
   Future<void> exportLog() async {
-    Navigator.pop(context);
-    File logFile = await getLogFile();
-    // SaveFileDialogParams params = SaveFileDialogParams(
-    //   sourceFilePath: logFile.path,
-    // );
-    // await FlutterFileDialog.saveFile(params: params);
-    String fileName =
-        'Modu-Log-${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}.txt';
-    String? filePath = await saveFileToDownload(
-        bytes: await logFile.readAsBytes(),
-        fileName: fileName,
-        mimeType: 'text/plain');
-
-    AnxToast.show("saved $filePath");
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final logFile = await getLogFile();
+      final date = DateTime.now();
+      final fileName = 'Modu-Log-${date.year}-${date.month}-${date.day}.txt';
+      final filePath = await saveFileToDownload(
+          sourceFilePath: logFile.path,
+          fileName: fileName,
+          mimeType: 'text/plain');
+      if (mounted && filePath != null && filePath.isNotEmpty) {
+        AnxToast.show('${L10n.of(context).commonSaveSuccess}: $fileName',
+            context: context);
+      }
+    } catch (error) {
+      AnxLog.warning('Log export failed: ${error.runtimeType}');
+      if (mounted) {
+        AnxToast.show(
+            ModuStrings.text(context, '日志导出失败，请重试。原日志已保留。',
+                'Could not export logs. Please retry; the original log is unchanged.'),
+            context: context);
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 }
 

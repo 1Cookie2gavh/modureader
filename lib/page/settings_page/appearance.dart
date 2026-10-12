@@ -80,6 +80,7 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               },
             ),
             SettingsTile.switchTile(
+              key: const ValueKey('eink-mode'),
               title: Text(L10n.of(context).eInkMode),
               leading: const Icon(Icons.contrast),
               initialValue: Prefs().eInkMode,
@@ -89,6 +90,23 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                   Prefs().eInkMode = value;
                 });
               },
+            ),
+            SettingsTile.switchTile(
+              key: const ValueKey('eink-disable-animations'),
+              title: Text(ModuStrings.text(
+                  context, '关闭所有动画', 'Disable all animations')),
+              description: Text(ModuStrings.text(
+                  context,
+                  '仅在 E-Ink 模式下生效。关闭后恢复原有动画设置，不改变黑白显示和屏幕刷新设置。',
+                  'Only applies in E-Ink mode. Turn off to restore your animation settings without changing monochrome display or screen refresh.')),
+              leading: const Icon(Icons.animation),
+              initialValue: Prefs().eInkDisableAnimations,
+              enabled: Prefs().eInkMode,
+              onToggle: Prefs().eInkMode
+                  ? (bool value) {
+                      setState(() => Prefs().eInkDisableAnimations = value);
+                    }
+                  : null,
             ),
           ],
         ),
@@ -202,7 +220,8 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               SettingsTile.switchTile(
                 title: Text(ModuStrings.text(
                     context, '显示书籍格式标签', 'Show book format labels')),
-                description: Text(ModuStrings.text(context,
+                description: Text(ModuStrings.text(
+                    context,
                     '在书籍封面显示 TXT、EPUB、PDF 等格式。',
                     'Show formats such as TXT, EPUB and PDF on book covers.')),
                 leading: const Icon(Icons.label_outline),
@@ -210,6 +229,21 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                 onToggle: (bool value) {
                   setState(() {
                     Prefs().showBookFormatBadge = value;
+                  });
+                },
+              ),
+              SettingsTile.switchTile(
+                title: Text(ModuStrings.text(
+                    context, '显示已索引标签', 'Show indexed labels')),
+                description: Text(ModuStrings.text(
+                    context,
+                    '显示书籍的已索引标记。关闭不影响索引、索引进度或失败提示。',
+                    'Show indexed labels on books. Hiding them keeps indexes, indexing progress and failure notices.')),
+                leading: const Icon(Icons.fact_check_outlined),
+                initialValue: Prefs().showBookIndexBadge,
+                onToggle: (bool value) {
+                  setState(() {
+                    Prefs().showBookIndexBadge = value;
                   });
                 },
               ),
@@ -350,7 +384,7 @@ Future<void> showColorPickerDialog(BuildContext context) async {
           TextButton(
             child: Text(L10n.of(context).commonOk),
             onPressed: () {
-              prefsProvider.saveThemeToPrefs(pickedColor.value);
+              prefsProvider.saveThemeToPrefs(pickedColor.toARGB32());
               Navigator.of(context).pop();
             },
           ),

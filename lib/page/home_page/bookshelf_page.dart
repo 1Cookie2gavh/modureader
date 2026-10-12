@@ -102,6 +102,7 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
     final selectedTags = ref.watch(tagSelectionProvider);
     final tagsAsync = ref.watch(tagListProvider);
     final booksAsync = ref.watch(bookListProvider);
+    final listMode = Prefs().bookshelfListMode;
     final visibleBooks = booksAsync.valueOrNull
             ?.expand((group) => group)
             .toList(growable: false) ??
@@ -393,16 +394,41 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
         return books.isEmpty
             ? const Center(child: BookshelfTips())
             : LayoutBuilder(builder: (context, constraints) {
+                final padding = EdgeInsets.fromLTRB(
+                    20,
+                    12,
+                    20,
+                    12 +
+                        MediaQuery.paddingOf(context).bottom +
+                        HomeNavigationClearance.of(context));
+                Widget buildEntry(int index) {
+                  final group = books[index];
+                  return BookFolder(
+                    key: ValueKey<String>(group.first.groupId == 0
+                        ? 'book:${group.first.id}'
+                        : 'folder:${group.first.groupId}'),
+                    books: group,
+                    listMode: listMode,
+                    selectionMode: _selectionMode,
+                    selectedBookIds: _selectedBookIds,
+                    onSelectionChanged: setBookSelected,
+                  );
+                }
+
+                if (listMode) {
+                  return ListView.separated(
+                    key: const ValueKey('bookshelf-list'),
+                    controller: _scrollController,
+                    padding: padding,
+                    itemCount: books.length,
+                    itemBuilder: (_, index) => buildEntry(index),
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                  );
+                }
                 return GridView(
                   key: _gridViewKey,
                   controller: _scrollController,
-                  padding: EdgeInsets.fromLTRB(
-                      20,
-                      12,
-                      20,
-                      12 +
-                          MediaQuery.paddingOf(context).bottom +
-                          HomeNavigationClearance.of(context)),
+                  padding: padding,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount:
                         max(1, constraints.maxWidth ~/ Prefs().bookCoverWidth),
@@ -411,16 +437,8 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
                     crossAxisSpacing: 20,
                   ),
                   children: [
-                    for (final book in books)
-                      BookFolder(
-                        key: ValueKey<String>(book.first.groupId == 0
-                            ? 'book:${book.first.id}'
-                            : 'folder:${book.first.groupId}'),
-                        books: book,
-                        selectionMode: _selectionMode,
-                        selectedBookIds: _selectedBookIds,
-                        onSelectionChanged: setBookSelected,
-                      ),
+                    for (var index = 0; index < books.length; index++)
+                      buildEntry(index),
                   ],
                 );
               });
@@ -572,6 +590,19 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
                   child: Text(ModuStrings.text(context, '选择', 'Select')),
                 ),
               const SyncButton(),
+              IconButton(
+                key: const ValueKey('bookshelf-view-toggle'),
+                tooltip: listMode
+                    ? ModuStrings.text(
+                        context, '切换为缩略图', 'Switch to thumbnails')
+                    : ModuStrings.text(context, '切换为列表', 'Switch to list'),
+                icon:
+                    Icon(listMode ? Icons.grid_view : Icons.view_list_outlined),
+                onPressed: () {
+                  if (_scrollController.hasClients) _scrollController.jumpTo(0);
+                  setState(() => Prefs().bookshelfListMode = !listMode);
+                },
+              ),
               PopupMenuButton<bool>(
                 popUpAnimationStyle: AppMotion.style,
                 icon: const Icon(Icons.add),

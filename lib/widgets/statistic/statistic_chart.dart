@@ -25,7 +25,7 @@ class _StatisticChartState extends ConsumerState<StatisticChart> {
   final Color topColor = Theme.of(navigatorKey.currentState!.context)
       .colorScheme
       .primary
-      .withOpacity(0.5);
+      .withValues(alpha: 0.5);
 
   @override
   Widget build(BuildContext context) {

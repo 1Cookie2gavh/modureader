@@ -12,8 +12,9 @@ class _SilentClient extends http.BaseClient {
   @override
   void close() {
     closed = true;
-    if (!response.isCompleted)
+    if (!response.isCompleted) {
       response.completeError(StateError('transport closed'));
+    }
   }
 }
 

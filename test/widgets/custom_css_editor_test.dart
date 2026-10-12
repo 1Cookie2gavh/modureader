@@ -44,9 +44,8 @@ void main() {
   }
 
   Future<void> save(WidgetTester tester) async {
-    await tap(tester, find.text('Save template'));
-    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
+    expect(find.text('Save template'), findsNothing);
   }
 
   setUp(() async {
@@ -121,7 +120,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await show(tester, textScale: 1.5, settingsRoute: true);
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Save template'));
+    await tester.ensureVisible(find.text('Clear current CSS'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

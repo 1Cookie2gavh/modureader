@@ -118,6 +118,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('existing skill option saves without committing text drafts',
+      (tester) async {
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('custom-reading-skill-a')));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(FilledButton, '保存'), findsNothing);
+    await tester.enterText(
+        find.byKey(const ValueKey('custom-skill-name-editor')), '未完成名称');
+    final toggle = find.descendant(
+        of: find.byType(AlertDialog), matching: find.byType(SwitchListTile));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(Prefs().userPrompts.first.enabled, false);
+    expect(Prefs().userPrompts.first.name, '自定义a');
+    expect(Prefs().userPrompts.last.enabled, true);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    await Prefs().initPrefs();
+    expect(Prefs().userPrompts.first.enabled, false);
+    expect(Prefs().userPrompts.first.content, '我的提示词a');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'compact window with large text retains usable switches and drag handles',
       (tester) async {

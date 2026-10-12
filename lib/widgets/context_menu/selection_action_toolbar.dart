@@ -130,7 +130,8 @@ class _SelectionActionToolbarState extends State<SelectionActionToolbar> {
             ),
           IconButton(
               key: const ValueKey('selection-toolbar-settings'),
-              tooltip: ModuStrings.text(context, '划词工具栏设置', 'Selection toolbar settings'),
+              tooltip: ModuStrings.text(
+                  context, '划词工具栏设置', 'Selection toolbar settings'),
               constraints: const BoxConstraints.tightFor(width: 32, height: 40),
               padding: const EdgeInsets.all(4),
               icon: const Icon(Icons.tune, size: 20),

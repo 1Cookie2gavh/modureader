@@ -94,10 +94,143 @@ void main() {
     expect(find.text('Visible OCR text'), findsOneWidget);
     await tester.tap(find.byTooltip('Next page'));
     await tester.pumpAndSettle();
-    expect(runs, 1, reason: 'Changing extraction page must not start OCR');
-    await tap(tester, 'Preview extracted text');
     expect(runs, 2);
+    expect(find.text('Visible OCR text'), findsOneWidget);
+    await tester.tap(find.byTooltip('Previous page'));
+    await tester.pumpAndSettle();
+    expect(runs, 2, reason: 'Returning to a preview reuses the page result');
     expect(draft, isNull);
+  });
+  testWidgets('original page navigation does not start extraction',
+      (tester) async {
+    var reads = 0;
+    await open(tester, extract: (_) async {
+      reads++;
+      return {'text': 'Text'};
+    });
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(reads, 0);
+    expect(find.text('2 / 3'), findsOneWidget);
+  });
+  testWidgets('batch processes blank OCR pages without losing later pages',
+      (tester) async {
+    final store = FakeStore()..ready = true;
+    var runs = 0;
+    String? draft;
+    await open(tester,
+        store: store,
+        forceOcr: true,
+        result: (v) => draft = v,
+        ocr: (_, cancel, progress) async => ++runs == 2 ? '' : 'Text $runs');
+    await tap(tester, 'Multiple pages');
+    await tester.enterText(
+        find.byKey(const ValueKey('extraction-page-range')), '1-3');
+    await tap(tester, 'Preview extracted text');
+    expect(runs, 3);
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('No text found on this page'), findsOneWidget);
+    await tap(tester, 'Extract to AI draft');
+    expect(draft, 'Page 1\nText 1\n\nPage 3\nText 3');
+  });
+  testWidgets('batch sorts ranges, previews cached pages and returns one draft',
+      (tester) async {
+    final reads = <int>[];
+    String? draft;
+    await open(tester,
+        result: (v) => draft = v,
+        extract: (r) async {
+          reads.add(r['page'] as int);
+          expect(r['region']['width'], 1);
+          return {'text': 'Text ${r['page']}'};
+        });
+    await tap(tester, 'Multiple pages');
+    await tester.enterText(
+        find.byKey(const ValueKey('extraction-page-range')), '3,1,3');
+    await tap(tester, 'Preview extracted text');
+    expect(reads, [0, 2]);
+    expect(draft, isNull);
+    expect(find.text('Text 0'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('Text 2'), findsOneWidget);
+    expect(reads, [0, 2]);
+    expect(
+        tester
+            .widget<IconButton>(find.byWidgetPredicate(
+                (w) => w is IconButton && w.tooltip == 'Next page'))
+            .onPressed,
+        isNull);
+    await tap(tester, 'Extract to AI draft');
+    expect(draft, 'Page 1\nText 0\n\nPage 3\nText 2');
+  });
+  testWidgets('invalid range does not read pages', (tester) async {
+    var reads = 0;
+    await open(tester, extract: (_) async {
+      reads++;
+      return {'text': 'Text'};
+    });
+    await tap(tester, 'Multiple pages');
+    await tester.enterText(
+        find.byKey(const ValueKey('extraction-page-range')), '1-9');
+    await tap(tester, 'Preview extracted text');
+    expect(reads, 0);
+    expect(find.textContaining('Enter valid pages'), findsOneWidget);
+  });
+  testWidgets(
+      'batch failure retains completed pages and retry fills missing pages only',
+      (tester) async {
+    final reads = <int>[];
+    var fail = true;
+    String? draft;
+    await open(tester,
+        result: (v) => draft = v,
+        extract: (r) async {
+          final page = r['page'] as int;
+          reads.add(page);
+          if (page == 1 && fail) throw StateError('failed');
+          return {'text': 'Text $page'};
+        });
+    await tap(tester, 'Multiple pages');
+    await tester.enterText(
+        find.byKey(const ValueKey('extraction-page-range')), '1-3');
+    await tap(tester, 'Extract to AI draft');
+    expect(reads, [0, 1]);
+    expect(draft, isNull);
+    fail = false;
+    await tap(tester, 'Extract to AI draft');
+    expect(reads, [0, 1, 1, 2]);
+    expect(draft, 'Page 1\nText 0\n\nPage 2\nText 1\n\nPage 3\nText 2');
+  });
+  testWidgets(
+      'batch stop rejects current result and does not queue later pages',
+      (tester) async {
+    final done = Completer<Map<String, dynamic>>();
+    final reads = <int>[];
+    String? draft;
+    await open(tester,
+        result: (v) => draft = v,
+        extract: (r) async {
+          final page = r['page'] as int;
+          reads.add(page);
+          return page == 1 ? done.future : {'text': 'Text $page'};
+        });
+    await tap(tester, 'Multiple pages');
+    await tester.enterText(
+        find.byKey(const ValueKey('extraction-page-range')), '1-3');
+    await tester.ensureVisible(find.text('Extract to AI draft'));
+    await tester.tap(find.text('Extract to AI draft'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.ensureVisible(find.text('Stop'));
+    await tester.tap(find.text('Stop'));
+    done.complete({'text': 'Discard me'});
+    await tester.pumpAndSettle();
+    expect(reads, [0, 1]);
+    expect(draft, isNull);
+    expect(find.text('1 / 3 pages completed'), findsOneWidget);
+    expect(find.text('Discard me'), findsNothing);
   });
   testWidgets('region handles adjust selection without changing book state',
       (tester) async {
@@ -175,7 +308,9 @@ void main() {
         tester.widget<Slider>(find.byKey(const ValueKey('ocr-style-size')));
     slider.onChanged!(28);
     await tester.pumpAndSettle();
-    await tap(tester, 'Apply');
+    slider.onChangeEnd!(28);
+    await tester.pumpAndSettle();
+    await tap(tester, 'Close');
     expect(
         tester
             .widget<SelectableText>(find.byType(SelectableText))

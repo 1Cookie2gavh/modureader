@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/utils/webView/web_scrollbar.dart';
 
 import 'package:anx_reader/page/home_page.dart' show webViewEnvironment;
 import 'package:anx_reader/service/dictionary/dictionary_document.dart';
@@ -132,9 +133,15 @@ class _DictionaryOriginalState extends State<DictionaryOriginal> {
           allowUniversalAccessFromFileURLs: false,
           mediaPlaybackRequiresUserGesture: true,
           transparentBackground: true,
+          verticalScrollBarEnabled: false,
         ),
         onWebViewCreated: (value) => controller = value,
-        onLoadStop: (_, __) => _measure(),
+        onLoadStop: (controller, _) async {
+          if (!mounted) return;
+          unawaited(installWebScrollbar(controller,
+              reducedMotion: MediaQuery.disableAnimationsOf(context)));
+          await _measure();
+        },
         onContentSizeChanged: (_, __, ___) => _measure(),
         shouldOverrideUrlLoading: (_, action) async =>
             document!.allows(action.request.url)

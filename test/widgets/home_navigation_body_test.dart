@@ -57,9 +57,9 @@ Widget shell({
                       BottomNavigationBarItem(
                           icon: Icon(Icons.book), label: '书架'),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.cloud), label: '远程书库'),
+                          icon: Icon(Icons.cloud), label: '远程'),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.bar_chart), label: '统计'),
+                          icon: Icon(Icons.history), label: '历史'),
                       BottomNavigationBarItem(
                           icon: Icon(Icons.star), label: 'AI'),
                       BottomNavigationBarItem(

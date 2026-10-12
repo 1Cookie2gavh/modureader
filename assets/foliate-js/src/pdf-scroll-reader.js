@@ -1,5 +1,6 @@
 import { adjacentPanel, readingRegions, layoutSignature, resolveReadingRegions } from './pdf-reading-layout.js'
 import { scrollPagePlan, scrollVisibleRegion, scrollSourcePoint } from './pdf-scroll-layout.js'
+import './transient-scrollbar.js'
 
 const GAP = 16, MAX_FRAMES = 7
 
@@ -18,7 +19,7 @@ export class PdfScrollReader {
         Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate })
         Object.assign(this.element.style, { width: '100%', height: '100%', overflow: 'auto',
             position: 'relative', boxSizing: 'border-box', overflowAnchor: 'none',
-            overscrollBehavior: 'contain', touchAction: 'pan-x pan-y', scrollbarGutter: 'stable' })
+            overscrollBehavior: 'contain', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' })
         this.element.setAttribute('data-pdf-scroll', '')
         this.element.addEventListener('scroll', () => {
             if (this.programmaticTop === this.element.scrollTop &&
@@ -82,6 +83,13 @@ export class PdfScrollReader {
     }
     activate(reason = 'navigation') {
         this.active = true
+        if (!this.scrollbars && this.element.parentNode) {
+            this.scrollbars = [globalThis.moduAttachScrollbar(
+                this.element, this.element.parentNode, {
+                    enabled: () => this.active,
+                    reducedMotion: () => !this.canAnimate(),
+                })]
+        }
         for (const e of this.entries) if (!e.announced) {
             this.onLoad(e.iframe.contentDocument, e.index); e.announced = true
         }
@@ -92,6 +100,7 @@ export class PdfScrollReader {
     suspend() {
         this.stopMomentum()
         this.active = false
+        this.scrollbars?.forEach(bar => bar.update())
         clearTimeout(this.timer)
         this.detailGeneration++
     }
@@ -381,6 +390,7 @@ export class PdfScrollReader {
     dispose(e) { if (e.url) URL.revokeObjectURL(e.url); e.element.remove() }
     destroy() {
         this.suspend(); this.destroyed = true; this.generation++
+        this.scrollbars?.forEach(bar => bar.destroy())
         for (const e of this.entries) this.dispose(e)
         this.entries = []; this.element.remove()
     }

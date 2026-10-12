@@ -3,12 +3,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 const source = await readFile(new URL('../assets/foliate-js/src/paginator.js', import.meta.url), 'utf8');
+const lineSource = await readFile(new URL('../assets/foliate-js/src/text-page-layout.js', import.meta.url), 'utf8');
+const {lineAlignedOffset} = await import(`data:text/javascript;base64,${Buffer.from(lineSource).toString('base64')}`);
 const between = (a, b) => source.slice(source.indexOf(a), source.indexOf(b));
 // Execute the production navigation methods with deterministic layout metrics.
 const Renderer = runInNewContext(`class Renderer {
   #view = {}; #locked = false; #index = 0; #rtl = false; #vertical = false;
   #lastNavigation; #navigationWaiters = new Set();
   #continuous; #continuousDisabled = false; #ensureContinuous() {}
+  #lineSettleTimer; #needsLineSettle=false; #scrollPointerDown=false; #destroyed=false;
+  #settledAt; #scrollDirection=1; #margin=0;
   #ignoreNativeScroll = false; #justAnchored = false; #isSnapping = false; #touchState;
   #container = { scrollLeft: 600, scrollTop: 0, style: {} };
   #sectionCache = { load: async index => index, setCurrent() {} };
@@ -25,7 +29,9 @@ const Renderer = runInNewContext(`class Renderer {
   get page() {return Math.floor((this.start + this.end) / 2 / this.size)}
   get locked() {return this.#locked}
   get signedOffset() {return this.#container[this.scrollProp]}
-  hasAttribute() {return false}
+  animated = false;
+  hasAttribute() {return this.animated}
+  set animationElement(value) {this.#view.element = value}
   percent = null;
   getAttribute() {return this.percent}
   #afterScroll() {this.relocations++}
@@ -45,7 +51,8 @@ const Renderer = runInNewContext(`class Renderer {
   ${between('  #unlockNavigation()', '  retryNavigation()')}
   ${between('  #scrollPrev(distance)', '  prevSection()')}
 }; Renderer`, {wait: async () => {}, easeOutSine: x => x, CustomEvent: class {},
-  console, Promise, Math, Number});
+  animate: async (a,b,duration,ease,render) => render(b),
+  console, Promise, Math, Number, setTimeout, clearTimeout, lineAlignedOffset});
 
 test('single-section books stop on the last real page, including repeated clicks/keys', async () => {
   for (const rtl of [false, true]) {
@@ -57,6 +64,32 @@ test('single-section books stop on the last real page, including repeated clicks
     assert.equal(r.visits.length, 0); assert.equal(r.locked, false);
     await r.prev(); assert.equal(r.page, 2);
     await r.prev(); await r.prev(); assert.equal(r.page, 1);
+  }
+});
+
+test('compositor turns commit once after completion, preserve RTL and cancel without moving',async()=>{
+  for(const rtl of [false,true])for(const cancelled of [false,true]){
+    const r=new Renderer();r.rtl=rtl;r.animated=true;r.start=600;
+    let resolve,reject,frames,cancelCount=0;
+    r.animationElement={animate(keyframes,options){
+      frames=keyframes;assert.equal(options.fill,'forwards');
+      return {finished:new Promise((a,b)=>{resolve=a;reject=b}),cancel(){cancelCount++}};
+    }};
+    const pending=r.next();
+    assert.equal(r.start,600,'no scroll writes while the layer is animating');
+    assert.equal(frames[1].transform,`translate3d(${rtl?600:-600}px,0,0)`);
+    if(cancelled)reject(Object.assign(new Error('cancelled'),{name:'AbortError'}));else resolve();
+    await pending;
+    assert.equal(r.start,cancelled?600:1200);
+    assert.equal(r.relocations,cancelled?0:1);
+    assert.equal(cancelCount,1);
+    assert.equal(r.locked,false);
+  }
+});
+test('disabled motion and unsupported compositor retain direct/fallback page turns',async()=>{
+  for(const animated of [false,true]){
+    const r=new Renderer();r.animated=animated;
+    await r.next();assert.equal(r.start,1200);assert.equal(r.relocations,1);
   }
 });
 

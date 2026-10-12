@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/lang_list.dart';
@@ -262,48 +263,52 @@ class _TranslationMenuState extends State<TranslationMenu> {
           const Divider(height: 1),
           Flexible(
             fit: widget.embedded ? FlexFit.loose : FlexFit.tight,
-            child: Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: !widget.embedded,
-              child: SingleChildScrollView(
-                key: const ValueKey('selection-translation-scroll'),
+            child: AppScrollbar(
                 controller: _scrollController,
-                physics: widget.embedded
-                    ? const NeverScrollableScrollPhysics()
-                    : null,
-                padding: const EdgeInsets.all(16),
-                child: TranslationResult(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.content,
-                            key: const ValueKey('selection-translation-source'),
-                            maxLines: _showFullSource ? null : 3,
-                            overflow: _showFullSource
-                                ? TextOverflow.visible
-                                : TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 16, height: 1.5)),
-                        TextButton(
-                          onPressed: () => setState(
-                              () => _showFullSource = !_showFullSource),
-                          child: Text(_showFullSource
-                              ? (ModuStrings.text(
-                                  context, '收起原文', 'Collapse original'))
-                              : (ModuStrings.text(
-                                  context, '展开原文', 'Expand original'))),
-                        ),
-                        const Divider(),
-                        if (_translationWidget != null)
-                          KeyedSubtree(
-                            key: ValueKey(_translationRevision),
-                            child: _translationWidget!,
-                          )
-                        else
-                          const Text('...'),
-                      ]),
-                ),
-              ),
-            ),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context)
+                      .copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    key: const ValueKey('selection-translation-scroll'),
+                    controller: _scrollController,
+                    physics: widget.embedded
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 30, 16),
+                    child: TranslationResult(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(widget.content,
+                                key: const ValueKey(
+                                    'selection-translation-source'),
+                                maxLines: _showFullSource ? null : 3,
+                                overflow: _showFullSource
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
+                                style:
+                                    const TextStyle(fontSize: 16, height: 1.5)),
+                            TextButton(
+                              onPressed: () => setState(
+                                  () => _showFullSource = !_showFullSource),
+                              child: Text(_showFullSource
+                                  ? (ModuStrings.text(
+                                      context, '收起原文', 'Collapse original'))
+                                  : (ModuStrings.text(
+                                      context, '展开原文', 'Expand original'))),
+                            ),
+                            const Divider(),
+                            if (_translationWidget != null)
+                              KeyedSubtree(
+                                key: ValueKey(_translationRevision),
+                                child: _translationWidget!,
+                              )
+                            else
+                              const Text('...'),
+                          ]),
+                    ),
+                  ),
+                )),
           ),
         ],
       ),

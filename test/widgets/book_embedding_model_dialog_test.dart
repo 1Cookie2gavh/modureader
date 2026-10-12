@@ -38,31 +38,29 @@ void main() {
     await open(tester);
     expect(
         tester
-            .widget<RadioListTile<String>>(
-                find.byType(RadioListTile<String>).first)
+            .widget<RadioGroup<String>>(find.byType(RadioGroup<String>).first)
             .groupValue,
         '');
     await tester.tap(find.text('all-MiniLM-L6-v2'));
-    await tester.pump();
-    await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(BookEmbeddingPreferences.choiceFor(book), 'local:all-MiniLM-L6-v2');
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('使用默认模型'));
-    await tester.pump();
-    await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(BookEmbeddingPreferences.choiceFor(book), isNull);
   });
-  testWidgets('cancel leaves both per-book and global settings unchanged',
+  testWidgets(
+      'closing preserves the book choice without changing global settings',
       (tester) async {
     await open(tester);
     await tester.tap(find.text('all-MiniLM-L6-v2'));
-    await tester.pump();
-    await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
-    expect(BookEmbeddingPreferences.choiceFor(book), isNull);
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(BookEmbeddingPreferences.choiceFor(book), 'local:all-MiniLM-L6-v2');
     expect(Prefs().vectorLocalModelId, 'bge-small-zh-v1.5');
   });
   testWidgets(
@@ -76,14 +74,10 @@ void main() {
     await open(tester, queue: queue);
     queue.enqueue(book);
     await tester.pump();
-    expect(
-        tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, '保存'))
-            .onPressed,
-        isNull);
+    expect(find.text('保存'), findsNothing);
     for (final radio in tester.widgetList<RadioListTile<String>>(
         find.byType(RadioListTile<String>))) {
-      expect(radio.onChanged, isNull);
+      expect(radio.enabled, isFalse);
     }
     gate.complete();
     await tester.pumpAndSettle();

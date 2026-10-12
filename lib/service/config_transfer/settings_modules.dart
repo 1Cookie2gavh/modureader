@@ -1,8 +1,9 @@
 /// Each portable setting has one owner. Do not use broad prefix matching for
 /// AI: skills, translation and vector models are independently transferable.
 const settingsModuleKeys = <String, String>{
-  'appearance': '''locale themeMode themeColor trueDarkMode eInkMode
-useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle showBookFormatBadge showBookTitleOnDefaultCover
+  'appearance':
+      '''locale themeMode themeColor trueDarkMode eInkMode eInkDisableAnimations
+useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle bookshelfListMode showBookFormatBadge showBookIndexBadge showBookTitleOnDefaultCover
 showAuthorOnDefaultCover openBookAnimation bottomNavigatorShowNote
 bottomNavigatorShowStatistics bottomNavigatorShowAI sortField sortOrder''',
   'reading':

@@ -16,7 +16,7 @@ Future<void> main() async {
             result.first.licenseUri == null) {
           throw StateError('Missing definition or attribution');
         }
-        print(jsonEncode({
+        stdout.writeln(jsonEncode({
           'source': source.name,
           'entries': result.length,
           'characters': result.first.definition.length,
@@ -24,7 +24,7 @@ Future<void> main() async {
           'ok': true
         }));
       } catch (e) {
-        print(jsonEncode({
+        stdout.writeln(jsonEncode({
           'source': source.name,
           'error': e.runtimeType.toString(),
           'ok': false

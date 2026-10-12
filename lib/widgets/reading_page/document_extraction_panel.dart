@@ -8,6 +8,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/ocr/local_ocr_service.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/service/ocr/ocr_models.dart';
+import 'package:anx_reader/service/ocr/document_page_range.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'document_panel_widgets.dart';
@@ -51,6 +52,11 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   late final OcrModelStore _store = widget.modelStore ??
       OcrModelStore(model: OcrModels.byId(Prefs().ocrModelId));
   final _textScroll = ScrollController();
+  final _pageRange = TextEditingController();
+  final _results = <int, String>{};
+  List<int> _batchPages = [];
+  bool _multiple = false;
+  int? _activePage;
   Uint8List? _preview;
   MemoryImage? _image;
   int _page = 0, _total = 0, _generation = 0;
@@ -62,7 +68,11 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         animationStyle: AppMotion.style,
         context: context,
         builder: (_) => DocumentTextStyleDialog(
-            initial: _textStyle, save: widget.saveTextStyle));
+            initial: _textStyle,
+            save: (style) async {
+              await widget.saveTextStyle?.call(style);
+              if (mounted) setState(() => _textStyle = style);
+            }));
     if (mounted && value != null) setState(() => _textStyle = value);
   }
 
@@ -92,6 +102,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
     widget.cancelRender();
     _image?.evict();
     _textScroll.dispose();
+    _pageRange.dispose();
     super.dispose();
   }
 
@@ -106,19 +117,21 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
     return base64Decode(value.substring(prefix.length));
   }
 
-  Future<void> _load(int? requested) async {
+  Future<bool> _load(int? requested, {bool keepResults = false}) async {
     _stopped = false;
     final generation = ++_generation;
     setState(() {
       _busy = true;
       _error = null;
       _result = null;
-      _reflow = false;
+      _reflow = keepResults;
       _progress = null;
+      _preview = null;
+      _activePage = null;
     });
     try {
       final info = await widget.info(requested);
-      if (!mounted || generation != _generation || _stopped) return;
+      if (!mounted || generation != _generation || _stopped) return false;
       final page = (info['page'] as num).toInt();
       final total = (info['total'] as num).toInt();
       final aspect = (info['width'] as num) / (info['height'] as num);
@@ -131,7 +144,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
       }
       final png = _png(await widget.render(
           {'page': page, 'width': 1000, 'height': 1000, 'rotation': 0}));
-      if (!mounted || generation != _generation || _stopped) return;
+      if (!mounted || generation != _generation || _stopped) return false;
       _image?.evict();
       setState(() {
         _page = page;
@@ -139,7 +152,10 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         _aspect = aspect;
         _preview = png;
         _image = MemoryImage(png);
+        _result = _results[page];
+        if (_pageRange.text.isEmpty) _pageRange.text = '${page + 1}';
       });
+      return true;
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(() => _error =
@@ -148,6 +164,66 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
     } finally {
       if (mounted && generation == _generation) setState(() => _busy = false);
     }
+    return false;
+  }
+
+  void _clearResults() {
+    _results.clear();
+    _batchPages = [];
+    _result = null;
+    _error = null;
+    _reflow = false;
+    _activePage = null;
+  }
+
+  int? _adjacentPage(int direction) {
+    if (_multiple && _batchPages.isNotEmpty) {
+      final index = _batchPages.indexOf(_page) + direction;
+      return index >= 0 && index < _batchPages.length
+          ? _batchPages[index]
+          : null;
+    }
+    final page = _page + direction;
+    return page >= 0 && page < _total ? page : null;
+  }
+
+  Future<void> _navigate(int direction) async {
+    final page = _adjacentPage(direction);
+    if (_busy || page == null) return;
+    final previewText = _reflow;
+    if (await _load(page, keepResults: previewText)) {
+      if (previewText && _result == null) {
+        await _extract(toAi: false, pages: [page]);
+      }
+      if (_textScroll.hasClients) _textScroll.jumpTo(0);
+    }
+  }
+
+  String get _draft => _multiple
+      ? _batchPages
+          .where((page) => _results[page]!.trim().isNotEmpty)
+          .map((page) =>
+              '${t('第 ${page + 1} 页', 'Page ${page + 1}')}\n${_results[page]!}')
+          .join('\n\n')
+      : _result!;
+
+  bool get _complete => _multiple
+      ? _batchPages.isNotEmpty && _batchPages.every(_results.containsKey)
+      : _result != null;
+
+  Future<void> _startExtraction({required bool toAi}) async {
+    if (_busy) return;
+    if (_multiple) {
+      try {
+        _batchPages = parseDocumentPageRange(_pageRange.text, _total);
+      } on FormatException {
+        setState(() => _error = t('请输入有效页码，如 1-5,8,10-12（共 $_total 页）',
+            'Enter valid pages, e.g. 1-5,8,10-12 ($_total pages).'));
+        return;
+      }
+      if (_page != _batchPages.first && !await _load(_batchPages.first)) return;
+    }
+    await _extract(toAi: toAi, pages: _multiple ? _batchPages : [_page]);
   }
 
   void _stop() {
@@ -192,8 +268,8 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
     }
   }
 
-  Future<void> _extract({required bool toAi}) async {
-    if (_busy || _preview == null) return;
+  Future<void> _extract({required bool toAi, required List<int> pages}) async {
+    if (!mounted || _busy || _preview == null) return;
     final cancel = OcrCancellation();
     _ocr = cancel;
     setState(() {
@@ -201,49 +277,70 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
       _error = null;
       _progress = null;
     });
-    final r = _wholePage ? const Rect.fromLTWH(0, 0, 1, 1) : _region;
-    final request = <String, dynamic>{
-      'page': _page,
-      'region': {'x': r.left, 'y': r.top, 'width': r.width, 'height': r.height}
-    };
+    final r =
+        _wholePage || _multiple ? const Rect.fromLTWH(0, 0, 1, 1) : _region;
     try {
-      var text = '';
-      if (!_forceOcr) {
-        final reply = await widget.extractText(request);
-        text = (reply['text'] as String? ?? '').trim();
-      }
-      cancel.check();
-      if (text.isEmpty) {
-        if (!await _store.available()) {
-          if (mounted && !cancel.cancelled) setState(() => _needsModel = true);
+      // One page at a time: the OCR worker and image memory are never multiplied.
+      for (var index = 0; index < pages.length; index++) {
+        final page = pages[index];
+        cancel.check();
+        if (_results.containsKey(page)) continue;
+        setState(() {
+          _activePage = page;
+          _progress = index / pages.length;
+        });
+        final request = <String, dynamic>{
+          'page': page,
+          'region': {
+            'x': r.left,
+            'y': r.top,
+            'width': r.width,
+            'height': r.height
+          }
+        };
+        var text = '';
+        if (!_forceOcr) {
+          final reply = await widget.extractText(request);
+          text = (reply['text'] as String? ?? '').trim();
+        }
+        cancel.check();
+        if (text.isEmpty) {
+          if (!await _store.available()) {
+            if (mounted && !cancel.cancelled) {
+              setState(() => _needsModel = true);
+            }
+            return;
+          }
+          cancel.check();
+          final png = _png(await widget.render(
+              {...request, 'width': 2048, 'height': 2048, 'rotation': 0}));
+          cancel.check();
+          void progress(int n, int total) {
+            if (mounted && !cancel.cancelled) {
+              setState(() => _progress = (index + n / total) / pages.length);
+            }
+          }
+
+          text = await (widget.recognize?.call(png, cancel, progress) ??
+              LocalOcrService()
+                  .recognize(png, _store, cancel, progress: progress));
+        }
+        cancel.check();
+        if (!mounted) return;
+        if (text.trim().isEmpty && !_multiple) {
+          setState(() => _error = t('未找到可识别文字。请框选单栏、放正页面后重试。',
+              'No text found. Select a single upright column and retry.'));
           return;
         }
-        cancel.check();
-        final png = _png(await widget.render(
-            {...request, 'width': 2048, 'height': 2048, 'rotation': 0}));
-        cancel.check();
-        void progress(int n, int total) {
-          if (mounted && !cancel.cancelled) {
-            setState(() => _progress = n / total);
-          }
-        }
-
-        text = await (widget.recognize?.call(png, cancel, progress) ??
-            LocalOcrService()
-                .recognize(png, _store, cancel, progress: progress));
-      }
-      cancel.check();
-      if (!mounted) return;
-      if (text.trim().isEmpty) {
-        setState(() => _error = t('未找到可识别文字。请框选单栏、放正页面后重试。',
-            'No text found. Select a single upright column and retry.'));
-      } else if (toAi) {
-        Navigator.of(context).pop(text);
-      } else {
         setState(() {
-          _result = text;
-          _reflow = true;
+          _results[page] = text;
+          _result = _results[_page];
         });
+      }
+      if (toAi && _complete && _draft.trim().isNotEmpty) {
+        Navigator.of(context).pop(_draft);
+      } else {
+        setState(() => _reflow = true);
         if (_textScroll.hasClients) _textScroll.jumpTo(0);
       }
     } catch (_) {
@@ -257,6 +354,10 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         setState(() {
           _busy = false;
           _progress = null;
+          if (cancel.cancelled) {
+            _error = t('已停止，已完成的页面保留，可重试继续。',
+                'Stopped. Completed pages are retained; retry to continue.');
+          }
         });
       }
     }
@@ -292,7 +393,10 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                         controller: _textScroll,
                         padding: EdgeInsets.symmetric(
                             vertical: 20, horizontal: _textStyle.margin),
-                        child: SelectableText(_result!,
+                        child: SelectableText(
+                            _result!.trim().isEmpty
+                                ? t('此页未识别到文字', 'No text found on this page')
+                                : _result!,
                             textAlign: _textStyle.alignment,
                             style: _textStyle.textStyle))
                     : _preview == null
@@ -313,11 +417,12 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                                     child: DocumentRegionSelector(
                                         image: _image!,
                                         region: _region,
-                                        enabled: !_busy && !_wholePage,
-                                        showRegion: !_wholePage,
+                                        enabled:
+                                            !_busy && !_wholePage && !_multiple,
+                                        showRegion: !_wholePage && !_multiple,
                                         onChanged: (r) => setState(() {
                                               _region = r;
-                                              _result = null;
+                                              _clearResults();
                                             }))));
                           })),
             if (_busy)
@@ -336,15 +441,15 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                           children: [
                             IconButton(
                                 tooltip: t('上一页', 'Previous page'),
-                                onPressed: !_busy && _page > 0
-                                    ? () => _load(_page - 1)
+                                onPressed: !_busy && _adjacentPage(-1) != null
+                                    ? () => _navigate(-1)
                                     : null,
                                 icon: const Icon(Icons.chevron_left)),
                             Text('${_page + 1} / $_total'),
                             IconButton(
                                 tooltip: t('下一页', 'Next page'),
-                                onPressed: !_busy && _page + 1 < _total
-                                    ? () => _load(_page + 1)
+                                onPressed: !_busy && _adjacentPage(1) != null
+                                    ? () => _navigate(1)
                                     : null,
                                 icon: const Icon(Icons.chevron_right)),
                             if (_result != null)
@@ -357,9 +462,16 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                                       ? t('原版', 'Original')
                                       : t('提取结果', 'Extracted text'))),
                           ]),
+                      if (_multiple && _batchPages.isNotEmpty)
+                        Text(t(
+                            '已完成 ${_results.length} / ${_batchPages.length} 页',
+                            '${_results.length} / ${_batchPages.length} pages completed')),
+                      if (_busy && _activePage != null)
+                        Text(t('正在提取第 ${_activePage! + 1} 页',
+                            'Extracting page ${_activePage! + 1}')),
                       if (_reflow) ...[
                         TextButton.icon(
-                            onPressed: _editTextStyle,
+                            onPressed: _busy ? null : _editTextStyle,
                             icon: const Icon(Icons.settings),
                             label: Text(t('OCR 文字样式', 'OCR text style'))),
                         Text(t('核对提取结果后填入 AI 输入框，不会自动发送。',
@@ -368,24 +480,50 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                         Wrap(spacing: 8, children: [
                           ChoiceChip(
                               label: Text(t('区域识别', 'Selected area')),
-                              selected: !_wholePage,
+                              selected: !_wholePage && !_multiple,
                               onSelected: _busy
                                   ? null
                                   : (_) => setState(() {
                                         _wholePage = false;
-                                        _result = null;
+                                        _multiple = false;
+                                        _clearResults();
                                       })),
                           ChoiceChip(
                               label: Text(t('整页识别', 'Whole page')),
-                              selected: _wholePage,
+                              selected: _wholePage && !_multiple,
                               onSelected: _busy
                                   ? null
                                   : (_) => setState(() {
                                         _wholePage = true;
-                                        _result = null;
+                                        _multiple = false;
+                                        _clearResults();
+                                      })),
+                          ChoiceChip(
+                              label: Text(t('连续识别', 'Multiple pages')),
+                              selected: _multiple,
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(() {
+                                        _multiple = true;
+                                        _clearResults();
                                       })),
                         ]),
-                        if (!_wholePage)
+                        if (_multiple)
+                          TextField(
+                            key: const ValueKey('extraction-page-range'),
+                            controller: _pageRange,
+                            enabled: !_busy,
+                            maxLength: 512,
+                            decoration: InputDecoration(
+                              labelText: t('页码范围', 'Page range'),
+                              hintText: '1-5,8,10-12',
+                              helperText: t('使用文档页码（共 $_total 页），逗号分隔',
+                                  'Document page numbers ($_total total), separated by commas'),
+                              counterText: '',
+                            ),
+                            onChanged: (_) => setState(_clearResults),
+                          ),
+                        if (!_wholePage && !_multiple)
                           Text(t('拖动框内移动区域，拖动四角调整大小',
                               'Drag inside to move; drag a corner to resize.')),
                         SwitchListTile(
@@ -398,7 +536,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                                 ? null
                                 : (v) => setState(() {
                                       _forceOcr = v;
-                                      _result = null;
+                                      _clearResults();
                                     })),
                       ],
                       if (_needsModel)
@@ -408,7 +546,10 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                                 '此区域需要 OCR。请先下载已选模型，再点击提取。可在设置 → OCR 模型中选择模型及下载源；识别在本机进行，不上传书页。',
                                 'OCR is needed. Download the selected model, then extract again. Choose a model and source in Settings → OCR model. Recognition stays on this device; book pages are not uploaded.'))),
                       if (_error != null)
-                        Text(_error!,
+                        Text(
+                            _activePage == null
+                                ? _error!
+                                : '${t('第 ${_activePage! + 1} 页', 'Page ${_activePage! + 1}')} · $_error',
                             style: TextStyle(
                                 color: Theme.of(context).colorScheme.error)),
                       Wrap(
@@ -426,21 +567,22 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                                     onPressed: _downloadModel,
                                     child: Text(t('下载 / 修复 OCR 模型',
                                         'Download / repair OCR model'))),
-                              if (!_reflow)
+                              if (!_reflow || !_complete)
                                 OutlinedButton(
                                     onPressed: _preview == null
                                         ? null
-                                        : () => _extract(toAi: false),
+                                        : () => _startExtraction(toAi: false),
                                     child: Text(
                                         t('预览提取结果', 'Preview extracted text'))),
                               FilledButton.icon(
-                                  onPressed: _preview == null
+                                  onPressed: _preview == null ||
+                                          (_complete && _draft.trim().isEmpty)
                                       ? null
                                       : () {
-                                          if (_result != null) {
-                                            Navigator.pop(context, _result);
+                                          if (_complete) {
+                                            Navigator.pop(context, _draft);
                                           } else {
-                                            _extract(toAi: true);
+                                            _startExtraction(toAi: true);
                                           }
                                         },
                                   icon: const Icon(Icons.edit_note),

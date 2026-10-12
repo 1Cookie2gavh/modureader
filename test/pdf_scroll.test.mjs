@@ -15,6 +15,7 @@ const scrollLayout=uri((await source('pdf-scroll-layout')).replace("'./pdf-readi
     .replace("'./document-regions.js'",JSON.stringify(geometry)));
 const {scrollPagePlan,scrollVisibleRegion,scrollSourcePoint}=await import(scrollLayout);
 const {PdfScrollReader}=await import(uri((await source('pdf-scroll-reader'))
+    .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'",JSON.stringify(layout)).replace("'./pdf-scroll-layout.js'",JSON.stringify(scrollLayout))));
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 const rect=(left,top,width,height)=>({left,top,right:left+width,bottom:top+height,width,height});

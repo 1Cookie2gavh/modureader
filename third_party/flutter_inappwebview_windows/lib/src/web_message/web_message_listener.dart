@@ -22,13 +22,15 @@ class WindowsWebMessageListenerCreationParams
     PlatformWebMessageListenerCreationParams params,
   ) {
     return WindowsWebMessageListenerCreationParams(
-      allowedOriginRules: params.allowedOriginRules ?? Set.from(["*"]),
+      allowedOriginRules: params.allowedOriginRules ?? {"*"},
       jsObjectName: params.jsObjectName,
       onPostMessage: params.onPostMessage,
     );
   }
 
   @override
+  // Narrow platform parameter types without changing the interface contract.
+  // ignore: overridden_fields
   final Set<String> allowedOriginRules;
 
   @override
@@ -50,7 +52,7 @@ class WindowsWebMessageListener extends PlatformWebMessageListener
               ),
       ) {
     assert(
-      !this._windowsParams.allowedOriginRules.contains(""),
+      !_windowsParams.allowedOriginRules.contains(""),
       "allowedOriginRules cannot contain empty strings",
     );
     channel = MethodChannel(
@@ -64,7 +66,7 @@ class WindowsWebMessageListener extends PlatformWebMessageListener
       WindowsWebMessageListener(
         WindowsWebMessageListenerCreationParams(
           jsObjectName: '',
-          allowedOriginRules: Set.from(["*"]),
+          allowedOriginRules: {"*"},
         ),
       );
 
@@ -84,13 +86,9 @@ class WindowsWebMessageListener extends PlatformWebMessageListener
   Future<dynamic> _handleMethod(MethodCall call) async {
     switch (call.method) {
       case "onPostMessage":
-        if (_replyProxy == null) {
-          _replyProxy = WindowsJavaScriptReplyProxy(
-            PlatformJavaScriptReplyProxyCreationParams(
-              webMessageListener: this,
-            ),
-          );
-        }
+        _replyProxy ??= WindowsJavaScriptReplyProxy(
+          PlatformJavaScriptReplyProxyCreationParams(webMessageListener: this),
+        );
         if (onPostMessage != null) {
           WebMessage? message = call.arguments["message"] != null
               ? WebMessage.fromMap(
@@ -126,12 +124,12 @@ class WindowsWebMessageListener extends PlatformWebMessageListener
 
   @override
   Map<String, dynamic> toJson() {
-    return this.toMap();
+    return toMap();
   }
 
   @override
   String toString() {
-    return 'WindowsWebMessageListener{id: ${_id}, jsObjectName: ${params.jsObjectName}, allowedOriginRules: ${params.allowedOriginRules}, replyProxy: $_replyProxy}';
+    return 'WindowsWebMessageListener{id: $_id, jsObjectName: ${params.jsObjectName}, allowedOriginRules: ${params.allowedOriginRules}, replyProxy: $_replyProxy}';
   }
 }
 

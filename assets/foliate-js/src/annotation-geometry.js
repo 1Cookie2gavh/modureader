@@ -30,3 +30,34 @@ export const annotationRect = (rect, map, zoom = 1) => {
     const right = Math.max(a.x, b.x), bottom = Math.max(a.y, b.y)
     return { left, top, right, bottom, width: right - left, height: bottom - top }
 }
+
+// Inline page runs and their text return duplicate native rects. Paint text
+// fragments only, merging neighbours so highlights/underlines stay continuous.
+export const annotationRangeRects = range => {
+    const doc = range.startContainer?.ownerDocument
+    if (!doc?.querySelector('modu-page-run')?.__moduPageRun)
+        return Array.from(range.getClientRects())
+    const root = range.commonAncestorContainer
+    const walker = doc.createTreeWalker(root, 4 | 8)
+    const rects = []
+    for (let node = root.nodeType === 3 || root.nodeType === 4 ? root : walker.nextNode();
+        node; node = walker.nextNode()) {
+        if (!range.intersectsNode(node)) continue
+        const part = doc.createRange()
+        part.selectNodeContents(node)
+        if (part.compareBoundaryPoints(0, range) < 0) part.setStart(range.startContainer, range.startOffset)
+        if (part.compareBoundaryPoints(2, range) > 0) part.setEnd(range.endContainer, range.endOffset)
+        if (!part.collapsed) for (const r of part.getClientRects())
+            if (r.width > 0 && r.height > 0) rects.push(annotationRect(r, p => p))
+    }
+    const merged = []
+    for (const r of rects.sort((a, b) => a.top - b.top || a.left - b.left)) {
+        const last = merged.at(-1)
+        if (last && Math.abs(last.top - r.top) < .5 && Math.abs(last.bottom - r.bottom) < .5
+            && r.left >= last.left && r.left <= last.right + .5) {
+            last.right = Math.max(last.right, r.right)
+            last.width = last.right - last.left
+        } else merged.push(r)
+    }
+    return merged
+}

@@ -1,5 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:convert';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:math' as math;
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/document_page_layout.dart';
@@ -289,208 +290,228 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
     if (refresh && _layout.autoCrop) _autoCrop();
   }
 
-  Widget _controls() => Scrollbar(
+  Widget _controls() => AppScrollbar(
       controller: _controlsScroll,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-          controller: _controlsScroll,
-          padding: const EdgeInsets.all(12),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Wrap(spacing: 8, children: [
-              ChoiceChip(
-                  label: Text(tr('常规', 'General')),
-                  selected: !_paired,
-                  onSelected: _saving
-                      ? null
-                      : (_) {
-                          setState(() => _paired = false);
-                          _switchScope(DocumentLayoutScope.current);
-                        }),
-              ChoiceChip(
-                  label: Text(tr('奇偶页', 'Odd / even')),
-                  selected: _paired,
-                  onSelected: _saving
-                      ? null
-                      : (_) {
-                          setState(() => _paired = true);
-                          _switchScope(widget.page.isEven
-                              ? DocumentLayoutScope.odd
-                              : DocumentLayoutScope.even);
-                        }),
-            ]),
-            DropdownButton<DocumentLayoutScope>(
-                key: const ValueKey('layout-scope'),
-                isExpanded: true,
-                value: _scope,
-                items: (_paired
-                        ? [DocumentLayoutScope.odd, DocumentLayoutScope.even]
-                        : [
-                            DocumentLayoutScope.current,
-                            DocumentLayoutScope.all
-                          ])
-                    .map((scope) => DropdownMenuItem(
-                        value: scope,
-                        enabled: scope != DocumentLayoutScope.even ||
-                            widget.total > 1,
-                        child: Text(switch (scope) {
-                          DocumentLayoutScope.current =>
-                            tr('仅当前原页', 'Current original page'),
-                          DocumentLayoutScope.all => tr('全书', 'Whole document'),
-                          DocumentLayoutScope.odd => tr('奇数页', 'Odd pages'),
-                          DocumentLayoutScope.even => tr('偶数页', 'Even pages'),
-                        })))
-                    .toList(),
-                onChanged: _saving
-                    ? null
-                    : (scope) {
-                        if (scope != null) _switchScope(scope);
-                      }),
-            SwitchListTile.adaptive(
-                key: const ValueKey('auto-crop-enabled'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(tr('逐页自动裁边', 'Per-page auto crop')),
-                subtitle: Text(tr('开启时默认应用全书；每页独立识别。拖动裁边框切换为手动裁边。',
-                    'Enabling defaults to the whole document; detects each page independently. Drag the box to switch to manual cropping.')),
-                value: _layout.autoCrop,
-                onChanged: _saving || _busy || _failed || _detecting
-                    ? null
-                    : (value) {
-                        if (value) {
-                          _autoCrop();
-                        } else {
-                          _change(_layout.copyWith(autoCrop: false));
-                          setState(() => _cropNotice = null);
-                        }
-                      }),
-            OutlinedButton.icon(
-                key: const ValueKey('auto-crop'),
-                onPressed: _saving || _busy || _failed || _detecting
-                    ? null
-                    : _autoCrop,
-                icon: const Icon(Icons.auto_fix_high),
-                label: Text(_detecting
-                    ? tr('识别边界中…', 'Detecting borders…')
-                    : tr('自动裁边', 'Auto crop'))),
-            Text(
-                '${tr('裁边留白（原页宽高百分比）', 'Crop margin (% of page dimensions)')} ${_autoMargin.round()}%'),
-            Row(children: [
-              IconButton(
-                  tooltip: tr('减少留白', 'Less margin'),
-                  onPressed: _saving || _detecting || _busy || _failed
-                      ? null
-                      : () => _setMargin(_autoMargin - 1, refresh: true),
-                  icon: const Icon(Icons.remove)),
-              Expanded(
-                  child: Slider(
-                      key: const ValueKey('crop-margin'),
-                      value: _autoMargin,
-                      min: 0,
-                      max: 20,
-                      divisions: 20,
-                      onChanged: _saving || _detecting || _busy || _failed
-                          ? null
-                          : (value) => _setMargin(value),
-                      onChangeEnd: _saving || _detecting || _busy || _failed
-                          ? null
-                          : (value) => _setMargin(value, refresh: true))),
-              IconButton(
-                  tooltip: tr('增加留白', 'More margin'),
-                  onPressed: _saving || _detecting || _busy || _failed
-                      ? null
-                      : () => _setMargin(_autoMargin + 1, refresh: true),
-                  icon: const Icon(Icons.add)),
-            ]),
-            Text(
-                tr('留白用于保护页码、脚注和文字边缘。自动模式随翻页识别；手动拖框后只使用固定裁边。',
-                    'Margin protects page numbers, footnotes and text edges. Automatic mode detects each page; dragging the box uses a fixed manual crop.'),
-                style: Theme.of(context).textTheme.bodySmall),
-            if (_cropNotice != null) Text(_cropNotice!),
-            Wrap(spacing: 8, children: [
-              ActionChip(
-                  label: Text(tr('漫画：右至左双页', 'Manga: right-to-left spread')),
-                  onPressed: _saving || _detecting
-                      ? null
-                      : () => _change(_layout.copyWith(
-                          preset: 'horizontal2', order: 'row-rtl'))),
-              ActionChip(
-                  label: Text(tr('漫画：单页', 'Comic: single page')),
-                  onPressed: _saving || _detecting
-                      ? null
-                      : () => _change(_layout.copyWith(
-                          preset: 'single', order: 'row-ltr'))),
-              ActionChip(
-                  label: Text(tr('论文：双栏', 'Paper: two columns')),
-                  onPressed: _saving || _detecting
-                      ? null
-                      : () => _change(_layout.copyWith(
-                          preset: 'horizontal2', order: 'column-ltr'))),
-            ]),
-            Text(tr('分格数量', 'Grid layout')),
-            DropdownButton<String>(
-                key: const ValueKey('layout-grid'),
-                isExpanded: true,
-                value: _layout.preset,
-                items: DocumentPageLayout.grids.keys
-                    .map((preset) => DropdownMenuItem(
-                        value: preset,
-                        child: Text(switch (preset) {
-                          'horizontal2' => tr('水平双格', 'Two columns'),
-                          'vertical2' => tr('垂直双格', 'Two rows'),
-                          'four' => tr('四格', 'Four panels'),
-                          'horizontal6' => tr('水平六格', 'Six panels · 3 columns'),
-                          'vertical6' => tr('垂直六格', 'Six panels · 2 columns'),
-                          'nine' => tr('九格', 'Nine panels'),
-                          _ => tr('单页', 'Single page'),
-                        })))
-                    .toList(),
-                onChanged: _saving || _detecting
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          _change(_layout.copyWith(preset: value));
-                        }
-                      }),
-            Text(tr('阅读顺序（图中数字）', 'Reading order (numbers on page)')),
-            DropdownButton<String>(
-                key: const ValueKey('layout-order'),
-                isExpanded: true,
-                value: _layout.order,
-                items: DocumentPageLayout.orders
-                    .map((order) => DropdownMenuItem(
-                        value: order,
-                        child: Text(switch (order) {
-                          'row-rtl' => tr('逐行：右至左', 'Rows: right to left'),
-                          'column-ltr' =>
-                            tr('逐列：左至右', 'Columns: left to right'),
-                          'column-rtl' =>
-                            tr('逐列：右至左', 'Columns: right to left'),
-                          _ => tr('逐行：左至右', 'Rows: left to right'),
-                        })))
-                    .toList(),
-                onChanged: _saving || _detecting
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          _change(_layout.copyWith(order: value));
-                        }
-                      }),
-            Text(tr('拖动四角调整裁边，拖动框内移动。按原页比例保存，不使用毫米单位。',
-                'Drag corners to crop; drag inside to move. Saved as page proportions, not millimetres.')),
-            const SizedBox(height: 8),
-            Text(
-                _paired
-                    ? tr('奇偶页分别调整；只保存本次调整的范围，替换范围内的单页设置。',
-                        'Edit odd/even pages separately. Only edited scopes are saved, replacing their per-page overrides.')
-                    : tr('全书设置会替换所有单页及奇偶页设置。取消不会保存。',
-                        'Whole document replaces all page and parity overrides. Cancel saves nothing.'),
-                style: Theme.of(context).textTheme.bodySmall),
-          ])));
+      child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: SingleChildScrollView(
+              controller: _controlsScroll,
+              padding: const EdgeInsets.fromLTRB(12, 12, 26, 12),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(spacing: 8, children: [
+                      ChoiceChip(
+                          label: Text(tr('常规', 'General')),
+                          selected: !_paired,
+                          onSelected: _saving
+                              ? null
+                              : (_) {
+                                  setState(() => _paired = false);
+                                  _switchScope(DocumentLayoutScope.current);
+                                }),
+                      ChoiceChip(
+                          label: Text(tr('奇偶页', 'Odd / even')),
+                          selected: _paired,
+                          onSelected: _saving
+                              ? null
+                              : (_) {
+                                  setState(() => _paired = true);
+                                  _switchScope(widget.page.isEven
+                                      ? DocumentLayoutScope.odd
+                                      : DocumentLayoutScope.even);
+                                }),
+                    ]),
+                    DropdownButton<DocumentLayoutScope>(
+                        key: const ValueKey('layout-scope'),
+                        isExpanded: true,
+                        value: _scope,
+                        items: (_paired
+                                ? [
+                                    DocumentLayoutScope.odd,
+                                    DocumentLayoutScope.even
+                                  ]
+                                : [
+                                    DocumentLayoutScope.current,
+                                    DocumentLayoutScope.all
+                                  ])
+                            .map((scope) => DropdownMenuItem(
+                                value: scope,
+                                enabled: scope != DocumentLayoutScope.even ||
+                                    widget.total > 1,
+                                child: Text(switch (scope) {
+                                  DocumentLayoutScope.current =>
+                                    tr('仅当前原页', 'Current original page'),
+                                  DocumentLayoutScope.all =>
+                                    tr('全书', 'Whole document'),
+                                  DocumentLayoutScope.odd =>
+                                    tr('奇数页', 'Odd pages'),
+                                  DocumentLayoutScope.even =>
+                                    tr('偶数页', 'Even pages'),
+                                })))
+                            .toList(),
+                        onChanged: _saving
+                            ? null
+                            : (scope) {
+                                if (scope != null) _switchScope(scope);
+                              }),
+                    SwitchListTile.adaptive(
+                        key: const ValueKey('auto-crop-enabled'),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('逐页自动裁边', 'Per-page auto crop')),
+                        subtitle: Text(tr('开启时默认应用全书；每页独立识别。拖动裁边框切换为手动裁边。',
+                            'Enabling defaults to the whole document; detects each page independently. Drag the box to switch to manual cropping.')),
+                        value: _layout.autoCrop,
+                        onChanged: _saving || _busy || _failed || _detecting
+                            ? null
+                            : (value) {
+                                if (value) {
+                                  _autoCrop();
+                                } else {
+                                  _change(_layout.copyWith(autoCrop: false));
+                                  setState(() => _cropNotice = null);
+                                }
+                              }),
+                    OutlinedButton.icon(
+                        key: const ValueKey('auto-crop'),
+                        onPressed: _saving || _busy || _failed || _detecting
+                            ? null
+                            : _autoCrop,
+                        icon: const Icon(Icons.auto_fix_high),
+                        label: Text(_detecting
+                            ? tr('识别边界中…', 'Detecting borders…')
+                            : tr('自动裁边', 'Auto crop'))),
+                    Text(
+                        '${tr('裁边留白（原页宽高百分比）', 'Crop margin (% of page dimensions)')} ${_autoMargin.round()}%'),
+                    Row(children: [
+                      IconButton(
+                          tooltip: tr('减少留白', 'Less margin'),
+                          onPressed: _saving || _detecting || _busy || _failed
+                              ? null
+                              : () =>
+                                  _setMargin(_autoMargin - 1, refresh: true),
+                          icon: const Icon(Icons.remove)),
+                      Expanded(
+                          child: Slider(
+                              key: const ValueKey('crop-margin'),
+                              value: _autoMargin,
+                              min: 0,
+                              max: 20,
+                              divisions: 20,
+                              onChanged: _saving ||
+                                      _detecting ||
+                                      _busy ||
+                                      _failed
+                                  ? null
+                                  : (value) => _setMargin(value),
+                              onChangeEnd:
+                                  _saving || _detecting || _busy || _failed
+                                      ? null
+                                      : (value) =>
+                                          _setMargin(value, refresh: true))),
+                      IconButton(
+                          tooltip: tr('增加留白', 'More margin'),
+                          onPressed: _saving || _detecting || _busy || _failed
+                              ? null
+                              : () =>
+                                  _setMargin(_autoMargin + 1, refresh: true),
+                          icon: const Icon(Icons.add)),
+                    ]),
+                    Text(
+                        tr('留白用于保护页码、脚注和文字边缘。自动模式随翻页识别；手动拖框后只使用固定裁边。',
+                            'Margin protects page numbers, footnotes and text edges. Automatic mode detects each page; dragging the box uses a fixed manual crop.'),
+                        style: Theme.of(context).textTheme.bodySmall),
+                    if (_cropNotice != null) Text(_cropNotice!),
+                    Wrap(spacing: 8, children: [
+                      ActionChip(
+                          label: Text(
+                              tr('漫画：右至左双页', 'Manga: right-to-left spread')),
+                          onPressed: _saving || _detecting
+                              ? null
+                              : () => _change(_layout.copyWith(
+                                  preset: 'horizontal2', order: 'row-rtl'))),
+                      ActionChip(
+                          label: Text(tr('漫画：单页', 'Comic: single page')),
+                          onPressed: _saving || _detecting
+                              ? null
+                              : () => _change(_layout.copyWith(
+                                  preset: 'single', order: 'row-ltr'))),
+                      ActionChip(
+                          label: Text(tr('论文：双栏', 'Paper: two columns')),
+                          onPressed: _saving || _detecting
+                              ? null
+                              : () => _change(_layout.copyWith(
+                                  preset: 'horizontal2', order: 'column-ltr'))),
+                    ]),
+                    Text(tr('分格数量', 'Grid layout')),
+                    DropdownButton<String>(
+                        key: const ValueKey('layout-grid'),
+                        isExpanded: true,
+                        value: _layout.preset,
+                        items: DocumentPageLayout.grids.keys
+                            .map((preset) => DropdownMenuItem(
+                                value: preset,
+                                child: Text(switch (preset) {
+                                  'horizontal2' => tr('水平双格', 'Two columns'),
+                                  'vertical2' => tr('垂直双格', 'Two rows'),
+                                  'four' => tr('四格', 'Four panels'),
+                                  'horizontal6' =>
+                                    tr('水平六格', 'Six panels · 3 columns'),
+                                  'vertical6' =>
+                                    tr('垂直六格', 'Six panels · 2 columns'),
+                                  'nine' => tr('九格', 'Nine panels'),
+                                  _ => tr('单页', 'Single page'),
+                                })))
+                            .toList(),
+                        onChanged: _saving || _detecting
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  _change(_layout.copyWith(preset: value));
+                                }
+                              }),
+                    Text(tr('阅读顺序（图中数字）', 'Reading order (numbers on page)')),
+                    DropdownButton<String>(
+                        key: const ValueKey('layout-order'),
+                        isExpanded: true,
+                        value: _layout.order,
+                        items: DocumentPageLayout.orders
+                            .map((order) => DropdownMenuItem(
+                                value: order,
+                                child: Text(switch (order) {
+                                  'row-rtl' =>
+                                    tr('逐行：右至左', 'Rows: right to left'),
+                                  'column-ltr' =>
+                                    tr('逐列：左至右', 'Columns: left to right'),
+                                  'column-rtl' =>
+                                    tr('逐列：右至左', 'Columns: right to left'),
+                                  _ => tr('逐行：左至右', 'Rows: left to right'),
+                                })))
+                            .toList(),
+                        onChanged: _saving || _detecting
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  _change(_layout.copyWith(order: value));
+                                }
+                              }),
+                    Text(tr('拖动四角调整裁边，拖动框内移动。按原页比例保存，不使用毫米单位。',
+                        'Drag corners to crop; drag inside to move. Saved as page proportions, not millimetres.')),
+                    const SizedBox(height: 8),
+                    Text(
+                        _paired
+                            ? tr('奇偶页分别调整；只保存本次调整的范围，替换范围内的单页设置。',
+                                'Edit odd/even pages separately. Only edited scopes are saved, replacing their per-page overrides.')
+                            : tr('全书设置会替换所有单页及奇偶页设置。取消不会保存。',
+                                'Whole document replaces all page and parity overrides. Cancel saves nothing.'),
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ]))));
 
   Widget _canvas() => LayoutBuilder(builder: (context, constraints) {
-        if (_busy)
+        if (_busy) {
           return const Center(
               child: EinkStaticIndicator(child: CircularProgressIndicator()));
+        }
         if (_failed || _image == null) {
           return Center(
               child: TextButton(

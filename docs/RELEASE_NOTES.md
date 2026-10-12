@@ -1,69 +1,68 @@
-# Modu 1.2.6 · Stable
+# Modu 1.2.7 · Stable
 
 ## English
 
-**Modu 1.2.6 (build 10108)** — changes since stable **1.2.5**.
+**Modu 1.2.7 (build 10116)** — changes since stable **1.2.6**.
 
-- Fix(reader): Handle unavailable chapter documents and reload failed resources on retry while preserving the outgoing page and reading position. Keep slow loads cancellable and add privacy-safe chapter failure diagnostics.
-- Fix(ai): Remember edit-before-send independently for each AI screen and selection action on this device; exclude these preferences from sync and settings transfer.
-- Fix(ai): Keep AI Knowledge on model/web knowledge for follow-ups, history restore and retries; never use local book tools. Keep Book AI follow-ups grounded in their original book or skill source.
-- Feat(ai): Add independent settings, new-chat, history and display menus to AI Knowledge, AI translation, Classical Chinese translation and other AI panels. Separate history by built-in/custom skill and home task; clearing one history does not remove another. Retain legacy conversations.
-- Fix(reader): Unify Android reader touch-selection handles in blue and remove the native drag magnifier, retaining range adjustment, copy and annotation actions.
-- Ci(lint): Update custom_lint to 0.7.6 to fix its startup failure on the current Dart SDK; keep custom checks enabled.
+- Feat(history): Add an edit-only Reset button to restore the default reading-history cards and their order, saving immediately without deleting reading records ([#32](https://github.com/sobranie2406/modureader/issues/32)). Thanks [@ndd200](https://github.com/ndd200) for the suggestion.
+- Fix(pdf): Fix next/previous source-page navigation in text/OCR reflow: pass the page number through the reader navigation API so successful extraction is not incorrectly reported as a reflow failure.
+- Feat(pdf): Add multi-page text extraction with printer-style page ranges, sequential local OCR, completed-page reuse and cancellable retry. Navigate directly between extracted-page previews without returning to the image view; keep extraction into AI as a draft.
+- Fix(reader): Align ordinary horizontal text pages to the configured top and bottom margins before display, with bounded spacing adjustments and natural chapter endings. Scroll steps and settled gestures prefer complete lines: prioritize the bottom edge going down and the top edge going up when both cannot fit. Do not hide edge text or reflow after page turns. Verified on an Android test device; other native platforms remain unverified.
+- Perf(reader): Prepare and cache scroll-line geometry during layout instead of scanning chapter text on every scroll step. Invalidate it after layout/content changes and reuse document-local positions across adjacent chapters. Find only the visible boundary nodes when updating reading position, avoiding per-glyph measurements across the whole page.
+- Perf(reader): Animate horizontal pages using a compositor transform, committing the scroll position once at completion. Retain immediate E-Ink/disabled-motion behaviour and the existing fallback for unsupported engines and vertical/continuous reading.
+- Fix(harmony): Repair the log export menu and use the native document-save picker for file exports. Report success only after writing completes, handle cancellation and errors, and preserve original files. HarmonyOS physical-device verification remains pending.
+- Fix(harmony): Use the current MODU artwork for the launcher and start window. Stage sync archives in the database directory required by the OHOS SQLite adapter, with unique names and disposable copies; retain integrity checks and merge protections. Add sanitized database failure diagnostics. Physical-device sync verification is pending.
+- Fix(reader): Fit quick style panels to their content with an 80% height limit, keeping long settings scrollable and the bottom toolbar reachable. Hide the top toolbar while an expanded bottom tool panel is open.
+- Feat(ui): Shorten the Chinese home navigation labels for Remote Library and Reading History to two characters, preserving typography, full page titles and other language labels.
+- Feat(settings): Save lookup switches/order, dictionary selections, existing selection-tool options, AI model parameters and skill toggles, per-book indexing models, CSS edits and PDF/OCR text styles without a separate Save step. Keep validation, retry feedback and explicit confirmation for connection drafts, new templates and destructive actions.
+- Feat(ui): Add translucent, draggable scrollbars across lists, settings, Lookup and scrollable dialogs; show during scrolling and hide after 1.2 seconds idle. Isolate nested and side-by-side scroll positions, reserve a drag lane beside controls, and leave horizontal scrolling without a scrollbar. Web panels and continuous reading also gain transient scrollbars; pagination stays unchanged and E-Ink skips fading.
+- Feat(reader): Match reading-style and PDF settings panel sizes to Lookup; move CSS to its own tab between Style and Other, and remove duplicate selection-toolbar, automatic-summary and keyboard-shortcut entries from the reader panel.
+- Chore(dev): Clean up static analysis and migrate legacy custom_lint to an isolated Riverpod native plugin compatible with the current Flutter/Dart toolchain, preserving Riverpod 2 runtime behavior and context-safety checks.
+- Fix(pdf): Keep original-page navigation available after text/OCR reflow fails. Left/right arrows start reflow for the adjacent source page instead of repeatedly requesting the same failed page; retry and mode switching target the attempted page while reading progress changes only on success.
+- Feat(appearance): Control book-format and indexed labels independently in Appearance; both default to on. Match indexed-label typography and padding to format labels without hiding indexing progress or failure notices.
+- Feat(bookshelf): Switch between thumbnails and a cover-free list from the bookshelf toolbar; remember the layout and retain book metadata, folder counts, long-press selection and batch actions.
+- Feat(lookup): Customize the overview order of Dictionary, Encyclopedia, Translation and AI Knowledge by dragging in Lookup settings. Remember the order locally, retain positions for disabled sources, and keep optional query-text ordering.
+- Feat(appearance): Add an E-Ink-only "Disable all animations" switch, disabled outside E-Ink mode. Keep animation suppression enabled by default; turning it off restores saved animation preferences without changing the monochrome palette or hardware refresh settings.
 
-- Fix(pdf): Restore highlight, underline and annotation actions for PDF/OCR selections; align marks with cropped, zoomed and rotated pages.
-- Fix(appearance): Use the full 0–100 manual brightness range instead of a 20% floor; preserve follow-system mode and keep software dimming controls accessible.
-- Feat(appearance): Add a default-enabled book-format badge switch in Appearance; keep scanned-book and indexed indicators independent.
-- Fix(bookshelf): Hide cover overflow buttons until selection mode is entered by long press or desktop right-click, in both the shelf and folders; keep batch actions and lower-right menu placement.
-- Fix(android): Refresh release plugin registration through the shared APK build entry, preventing stale integration-test plugin references after tests.
-- Ci(android): Update Gradle, Android Gradle Plugin and Kotlin to 9.2.1, 9.0.1 and 2.3.20; migrate the app and 14 plugins to built-in Kotlin, enable JVM target validation, align library compile SDKs and migrate native-library packaging. Keep the Android 8.0 minimum.
-- Ci(android): Pin the SDK command-line parser used by builds and emulator tests, migrate deprecated Gradle property assignments and disable unused Jetifier. Update the Android database plugin to 2.4.2+2 for Android 16 API guards, with sqflite_common pinned to 2.5.6 to preserve transaction semantics.
-- Fix(pdf): Restore touch-scroll momentum in PDF continuous-scroll mode, respecting disabled-animation and E-Ink settings ([#31](https://github.com/sobranie2406/modureader/issues/31)). Thanks [@RuizeSun](https://github.com/RuizeSun)
-- Feat(pdf): Use the existing brightness-panel moon button to invert PDF pages and darken the surrounding background in night mode. Keep OCR text selection and annotation colours unchanged; turn it off to restore original page colours. Images within PDF pages are also inverted.
 
-**Packages:** Nine installers and nine SHA-256 files: Android ARM64, iOS ARM64, macOS/Windows/Linux ARM64 and x64, and HarmonyOS ARM64. No Android x64 release.
+**Packages:** Nine installers with nine SHA-256 files: Android ARM64, iOS ARM64, macOS/Windows/Linux ARM64 and x64, and HarmonyOS ARM64. Android x64 is not distributed.
 
-**Installation:** Back up before upgrading; do not uninstall or clear the library. Android retains the project signing key and Android 8.0 minimum. iOS still requires iOS 16+ and your own signing for the app and Share Extension; this release does not add iOS 15 support. macOS uses ad-hoc signing without notarization. Windows requires WebView2; Linux targets Debian 13. HarmonyOS HAP is unsigned and needs a valid certificate/profile; HarmonyOS device validation remains outstanding. Models are downloaded on demand.
+**Installation:** Back up before upgrading; do not uninstall or clear the library. Android retains the project signing key and Android 8.0 minimum. iOS requires iOS 16+ and your own signing for the app and Share Extension. macOS uses ad-hoc signing without notarization; Windows requires WebView2; Linux targets Debian 13. HarmonyOS HAP is unsigned and requires a valid certificate/profile. Models are downloaded on demand.
 
-**Validation and limits:** Automated checks cover PDF selection/annotation alignment, scroll momentum, night inversion, brightness, badges, selection menus and packaging. Package generation is not full device acceptance. Flutter still requires the deprecated `android.newDsl=false` compatibility flag; its warning is not suppressed. Dictionary images require the corresponding MDD/local resources; this release does not reconstruct missing resources.
+**Validation and limits:** Android paging/scrolling and OCR reflow navigation were tested on a physical device. History reset has automated regression coverage. Package generation does not replace device acceptance; HarmonyOS file export/sync and other native platforms still need device validation. Flutter retains the required deprecated `android.newDsl=false` compatibility flag; the reader bundle retains three legacy-target top-level-await warnings. Continuous extraction keeps results in its local window; extraction into AI retains the existing draft behavior.
 
-The custom lint startup failure is fixed, but separately running the legacy Riverpod rules still exposes a newer-Dart syntax incompatibility. Standard analysis and automated tests are distinct from complete custom-rule validation; the runtime framework was not upgraded to address this development-tool limitation.
-
-Chapter recovery passed controlled null-document and cache-reload regressions as part of 585 JavaScript tests; the reported intermittent Xiaomi-device scenario still needs device revalidation. The reader script build retains three legacy-target top-level-await compatibility warnings.
-
-[Source](https://github.com/sobranie2406/modureader/tree/v1.2.6) · [Changes since 1.2.5](https://github.com/sobranie2406/modureader/compare/v1.2.5...v1.2.6) · [Installation guide](https://github.com/sobranie2406/modureader/blob/v1.2.6/docs/RELEASING.md)
+[Source](https://github.com/sobranie2406/modureader/tree/v1.2.7) · [Changes since 1.2.6](https://github.com/sobranie2406/modureader/compare/v1.2.6...v1.2.7) · [Installation guide](https://github.com/sobranie2406/modureader/blob/v1.2.7/docs/RELEASING.md)
 
 ---
 
 ## 简体中文
 
-**Modu 1.2.6（构建 10108）**，以下为 **1.2.5 正式版以来**的变化。
+**Modu 1.2.7（构建 10116）**，以下为 **1.2.6 正式版以来**的变化。
 
-- Fix(reader): 处理切章空文档，重试时重新加载失败资源，保留原页与阅读位置；慢加载仍可取消，并补充不含正文和资源地址的失败诊断。
-- Fix(ai): 各 AI 界面与划词 AI 入口独立记忆「编辑后发送」开关，仅保存在本机，不参与同步和设置导入导出。
-- Fix(ai): AI 知识的追问、历史恢复和重试始终使用大模型／联网知识，不调用本地或本书检索工具；本书 AI 继续围绕原书籍或原技能的原文范围回答。
-- Feat(ai): 为 AI 知识、AI 翻译、文言文翻译等 AI 界面补齐独立的设置、新建对话、历史和显示菜单；内置技能、自定义技能与首页任务分别保存历史，清空互不影响，保留旧记录。
-- Fix(reader): 安卓阅读选区统一蓝色触控手柄，去除原生拖动放大浮框，保留选区调整、复制与批注操作。
-- Ci(lint): 将 custom_lint 更新至 0.7.6，修复当前 Dart SDK 下检查插件无法启动的问题，保留自定义检查。
+- Feat(history): 阅读历史卡片编辑状态新增“恢复默认”按钮，还原默认卡片组合与排列顺序并立即保存，不删除阅读记录（[#32](https://github.com/sobranie2406/modureader/issues/32)）。感谢 [@ndd200](https://github.com/ndd200) 提出建议。
+- Fix(pdf): 修复文字／OCR 重排结果切换上一页、下一页失败；按阅读器导航接口传递原版页码，避免提取成功后因原页定位失败而误报重排失败。
+- Feat(pdf): 提取文字新增「连续识别」，支持打印机式页码范围、逐页本地 OCR、已完成结果复用和停止后重试；文字预览可直接切换上一页／下一页，无需返回原图。提取至 AI 仍沿用填入草稿的行为。
+- Fix(reader): 普通横排正文在显示前小幅调整间距，对齐设置的上下边距，章节末页保留自然留白；滚动翻屏及手势停稳时优先停在完整行，两端无法兼顾时向下以下端为主、向上以上端为主。不隐藏边缘文字，也不在翻页后重排正文。已在安卓测试机验证，其他原生平台仍待实测。
+- Perf(reader): 排版时提前计算并缓存滚动行位置，避免每次翻屏扫描整章；排版或正文变化时使缓存失效，相邻章节移动时复用章内坐标。更新阅读位置只查找可见首尾节点，避免逐字测量整页。
+- Perf(reader): 左右翻页使用合成层平移动画，结束时一次性提交滚动位置；保留 E-Ink／禁用动画时立即翻页，以及旧引擎、竖排和连续滚动的原有处理。
+- Fix(harmony): 修正日志导出菜单，文件导出改用鸿蒙原生保存窗口；写入完成后才提示成功，处理取消和失败并保留原文件。仍待鸿蒙实机验证。
+- Fix(harmony): 鸿蒙桌面与启动窗口使用现有 MODU 图标；同步数据库改在鸿蒙 SQLite 插件要求的数据库目录内通过独立副本读写，使用唯一文件名，保留完整性校验与合并保护，并补充脱敏数据库错误诊断。同步仍待鸿蒙实机复测。
+- Fix(reader): 阅读快捷样式面板按内容收缩，最高占屏幕 80%，长内容可滚动且底部工具栏保持可操作；展开下方工具面板时隐藏上方工具栏。
+- Feat(ui): 首页中文导航将“远程书库”和“阅读历史”缩短为“远程”和“历史”，保留原字体字号、页面完整标题及其他语言名称。
+- Feat(settings): 综合查询开关与排序、词典选择、已有划词工具选项、AI 模型参数与技能开关、单书索引模型、CSS 编辑及 PDF/OCR 文字样式无需另点保存；保留校验、失败重试以及连接草稿、新建模板和破坏性操作的确认。
+- Feat(ui): 列表、设置、综合查询和可滚动弹窗统一增加半透明、可拖动滚动条，滚动时显示，停止操作 1.2 秒后隐藏；嵌套及并排列表独立控制，控件旁预留拖动区域，横向滑动不显示滚动条。内嵌网页与正文连续滚动模式同样支持，分页保持不变，E-Ink 下不播放淡入淡出动画。
+- Feat(reader): 阅读样式与 PDF 设置面板尺寸对齐综合查询；CSS 独立为“样式”和“其他”之间的标签，移除阅读面板中的划词工具栏、自动总结前文及键盘快捷翻页入口。
+- Chore(dev): 清理静态分析提示，将旧 custom_lint 迁移为兼容当前 Flutter/Dart 的隔离式 Riverpod 原生分析插件，保留 Riverpod 2 运行逻辑及上下文安全检查。
+- Fix(pdf): 修复文字／OCR 重排失败后无法继续翻页的问题；左右箭头按原版页码启动相邻页重排，不再反复卡在同一失败页。重试和切换重排模式针对待处理页，仅成功后更新阅读进度。
+- Feat(appearance): 外观设置支持独立开关书籍格式与已索引标签，均默认开启；已索引标签的字号和内边距与格式标签一致，不隐藏索引进度或失败提示。
+- Feat(bookshelf): 书架首页新增缩略图／无封面列表切换，记忆布局选择，保留书籍信息、文件夹数量、长按多选和批量操作。
+- Feat(lookup): 综合查询设置支持拖动调整字典、百科、翻译、AI 知识的汇总顺序，本机记忆设置；关闭来源仍保留位置，保留可选的查询文本智能排序。
+- Feat(appearance): 在 E-Ink 模式下增加「关闭所有动画」总开关，未开启 E-Ink 时置灰。默认仍关闭动画；关闭此开关后恢复原有动画设置，不改变黑白显示与硬件刷新设置。
 
-- Fix(pdf): 恢复 PDF／OCR 选词的高亮、下划线与批注操作，使标记随裁边、缩放和旋转正确对齐。
-- Fix(appearance): 手动亮度使用完整的 0–100 范围，取消原有 20% 下限；保留跟随系统模式，软件调暗时保持控件可见。
-- Feat(appearance): 在界面外观中增加默认开启的书籍格式标签开关，不影响扫描版和已索引标记。
-- Fix(bookshelf): 书架与文件夹内默认隐藏封面三个点，长按或桌面右键进入多选后再显示；保留批量操作及右下角菜单位置。
-- Fix(android): 通过统一 APK 打包入口刷新生产插件注册表，避免测试后残留的 integration_test 引用导致编译失败。
-- Ci(android): 将 Gradle、Android Gradle Plugin 和 Kotlin 分别升级到 9.2.1、9.0.1 和 2.3.20；将应用和 14 个插件迁移至内置 Kotlin，启用 JVM 目标版本校验，对齐插件编译 SDK 并迁移原生库打包配置。最低仍支持 Android 8.0。
-- Ci(android): 固定构建与模拟器测试使用的 SDK 命令行解析器，迁移 Gradle 弃用属性赋值并关闭不再需要的 Jetifier。Android 数据库插件升级至 2.4.2+2，使用 Android 16 API 兼容分支；锁定 sqflite_common 2.5.6，保留原有事务语义。
-- Fix(pdf): 修复 PDF「连续卷轴」触控滑动缺少惯性的问题，遵循关闭动画和 E-Ink 设置 ([#31](https://github.com/sobranie2406/modureader/issues/31)) 感谢 [@RuizeSun](https://github.com/RuizeSun)
-- Feat(pdf): 复用亮度面板的月亮按钮，夜间模式下 PDF 页面反色、四周背景变黑，保留 OCR 选词与批注颜色；关闭后恢复原色。PDF 页面内的插图也会一同反色。
+**安装包：**9 个程序包及 9 个 SHA-256 校验文件：Android ARM64、iOS ARM64、macOS／Windows／Linux ARM64 与 x64，以及 HarmonyOS ARM64。不发布 Android x64。
 
-**安装包：**9 个程序包及 9 个 SHA-256 校验文件：Android ARM64、iOS ARM64、macOS／Windows／Linux 的 ARM64 与 x64，以及 HarmonyOS ARM64。不发布 Android x64。
+**安装：**建议备份后覆盖升级，不要先卸载或清空书库。Android 沿用项目签名，最低支持 Android 8.0；iOS 要求 iOS 16+，需自行签名应用及分享扩展；macOS 为临时签名，未公证；Windows 需要 WebView2；Linux 面向 Debian 13。HarmonyOS HAP 未签名，需有效证书／Profile。模型按需下载。
 
-**安装：**建议先备份再覆盖升级，不要先卸载或清空书库。Android 沿用项目签名，最低仍为 Android 8.0。iOS 仍要求 iOS 16+，需自行签名应用和分享扩展；本版不增加 iOS 15 支持。macOS 为临时签名，未公证；Windows 需要 WebView2，Linux 面向 Debian 13。HarmonyOS HAP 未签名，需有效证书／Profile 后签名安装，尚未完成鸿蒙实机验证。模型仍按需下载。
+**验证与限制：**分页、滚动及 OCR 重排翻页已在安卓实机验证；历史恢复默认有自动回归覆盖。包构建不替代设备验收，鸿蒙日志导出／同步及其他原生平台仍待实测。Flutter 保留必需的 `android.newDsl=false` 弃用兼容开关；阅读器打包仍有三条旧目标 top-level-await 提示。连续提取结果保留在当前本地窗口，提取至 AI 沿用填入草稿的行为。
 
-**验证与限制：**自动回归覆盖 PDF 选词及批注对齐、滑动惯性、夜间反色、亮度、标签、选择菜单和打包检查；包构建成功不代表所有设备均已验收。Flutter 仍需要已弃用的 `android.newDsl=false` 兼容开关，保留其警告。词典图片需要配套 MDD／本地资源，本版不补造缺失图片。
-
-自定义 lint 的启动异常已修复，但单独运行旧 Riverpod 规则仍有新版 Dart 语法兼容问题。标准分析与自动测试不等同于全部自定义规则验证；本版不因此升级应用运行框架。
-
-章节恢复已通过空文档、缓存重载等受控回归，共 585 项 JavaScript 测试通过；用户报告的小米设备偶发场景仍待实机复验。阅读器脚本构建保留三条旧目标环境的 top-level-await 兼容性警告。
-
-[对应源码](https://github.com/sobranie2406/modureader/tree/v1.2.6) · [1.2.5 至 1.2.6 源码差异](https://github.com/sobranie2406/modureader/compare/v1.2.5...v1.2.6) · [安装说明](https://github.com/sobranie2406/modureader/blob/v1.2.6/docs/RELEASING.md)
+[源码](https://github.com/sobranie2406/modureader/tree/v1.2.7) · [1.2.6 以来的变化](https://github.com/sobranie2406/modureader/compare/v1.2.6...v1.2.7) · [安装说明](https://github.com/sobranie2406/modureader/blob/v1.2.7/docs/RELEASING.md)

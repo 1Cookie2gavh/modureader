@@ -202,7 +202,7 @@ void main() {
         item.localizedPrompt(const Locale('ja')));
     final context = tester.element(find.byType(AlertDialog));
     await tester.tap(find.widgetWithText(
-        FilledButton, ModuStrings.text(context, '保存', 'Save')));
+        TextButton, ModuStrings.text(context, '关闭', 'Close')));
     await tester.pumpAndSettle();
     final stored = Prefs()
         .selectionToolbar

@@ -45,11 +45,13 @@ Future<void> main(List<String> args) async {
     }
     sample('saved');
     if (legacy) {
-      if (await store.load('fixture') == null)
+      if (await store.load('fixture') == null) {
         throw StateError('Restore failed');
+      }
     } else {
-      if (await store.summary('fixture') == null)
+      if (await store.summary('fixture') == null) {
         throw StateError('Summary failed');
+      }
     }
     sample('badge-refreshed');
     stdout.writeln(

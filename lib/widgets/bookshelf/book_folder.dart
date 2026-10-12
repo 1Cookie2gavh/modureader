@@ -3,6 +3,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/bookshelf_folder_style.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/tb_group.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/providers/book_list.dart';
 import 'package:anx_reader/providers/tb_groups.dart';
 import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
@@ -19,12 +20,14 @@ class BookFolder extends ConsumerStatefulWidget {
   const BookFolder({
     super.key,
     required this.books,
+    this.listMode = false,
     this.selectionMode = false,
     this.selectedBookIds = const <int>{},
     this.onSelectionChanged,
   });
 
   final List<Book> books;
+  final bool listMode;
   final bool selectionMode;
   final Set<int> selectedBookIds;
   final BookSelectionChanged? onSelectionChanged;
@@ -125,6 +128,7 @@ class _BookFolderState extends ConsumerState<BookFolder> {
         return scaleTransition(
           BookItem(
             book: widget.books[0],
+            listMode: widget.listMode,
             selectionMode: widget.selectionMode,
             selected: widget.selectedBookIds.contains(widget.books[0].id),
             onSelectionChanged: widget.onSelectionChanged,
@@ -212,6 +216,59 @@ class _BookFolderState extends ConsumerState<BookFolder> {
           for (final book in widget.books) {
             widget.onSelectionChanged?.call(book, !allSelected);
           }
+        }
+
+        if (widget.listMode) {
+          return InkWell(
+            onLongPress: toggleSelection,
+            onSecondaryTap: toggleSelection,
+            onTap: () => widget.selectionMode
+                ? toggleSelection()
+                : openFolder(groupName),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Row(children: [
+                if (widget.selectionMode)
+                  Checkbox(
+                    tristate: true,
+                    value: allSelected
+                        ? true
+                        : selectedCount > 0
+                            ? null
+                            : false,
+                    onChanged: (_) => toggleSelection(),
+                  )
+                else ...[
+                  const Icon(Icons.folder_outlined),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(groupName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                          ModuStrings.format(
+                              context, '{count} 本书', '{count} books',
+                              values: {'count': widget.books.length}),
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                if (widget.selectionMode)
+                  FolderPinMenu(
+                    groupId: widget.books.first.groupId,
+                    menuKey: _menuKey,
+                  )
+                else
+                  const Icon(Icons.chevron_right),
+              ]),
+            ),
+          );
         }
 
         return scaleTransition(

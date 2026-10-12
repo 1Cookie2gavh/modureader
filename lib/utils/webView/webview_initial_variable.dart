@@ -49,6 +49,7 @@ Future<void> webviewInitialVariable(
           longPressSelectParagraph: ${Prefs().longPressSelectParagraph},
           selectionLocale: ${jsonEncode(Prefs().effectiveLocale.toLanguageTag())},
           eInkMode: ${Prefs().eInkMode},
+          eInkDisableAnimations: ${Prefs().eInkDisableAnimations},
           fontSize: ${bookStyle.fontSize},
           fontName: '${replaceSingleQuote(fontName)}',
           fontPath: '${replaceSingleQuote(fontPath)}',

@@ -84,6 +84,7 @@ String generateUrl(
     'selectionLocale': Prefs().effectiveLocale.toLanguageTag(),
     'scrollPagePercent': Prefs().scrollPagePercent,
     'eInkMode': Prefs().eInkMode,
+    'eInkDisableAnimations': Prefs().eInkDisableAnimations,
     'readingNightMode': Prefs().readingNightMode,
     'fontSize': bookStyle.fontSize,
     'fontName': fontName,

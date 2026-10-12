@@ -170,7 +170,7 @@ void main() {
       await tester.tap(find.byTooltip('OCR text style'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('ocr-style-size')), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(SwitchListTile).first);
       await tester.pumpAndSettle();

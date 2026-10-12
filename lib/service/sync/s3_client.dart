@@ -59,8 +59,9 @@ class S3SyncClient extends SyncClientBase {
   }) async {
     final settings =
         _settings; // Freeze config for the duration of this request.
-    if (!settings.configured)
+    if (!settings.configured) {
       throw const FormatException('S3 credentials are required');
+    }
     final safeRequest = RequestOptions(path: '', method: method);
     if (_coolUntil != null && _now().isBefore(_coolUntil!)) {
       throw DioException(
@@ -77,8 +78,9 @@ class S3SyncClient extends SyncClientBase {
     }
     final uri = s3Uri(settings, key, query);
     final length = source == null ? 0 : await source.length();
-    if (length > maxObjectBytes)
+    if (length > maxObjectBytes) {
       throw const FormatException('S3 single upload exceeds 5 GiB');
+    }
     final payloadHash = source == null
         ? sha256.convert(const []).toString()
         : (await sha256.bind(source.openRead()).first).toString();
@@ -167,7 +169,8 @@ class S3SyncClient extends SyncClientBase {
   @override
   Future<List<RemoteFile>> safeReadDir(String path) => readDir(path);
   @override
-  Future<List<RemoteFile>> readDir(String path) async => (await _list(path)).files;
+  Future<List<RemoteFile>> readDir(String path) async =>
+      (await _list(path)).files;
 
   Future<({List<RemoteFile> files, bool exists})> _list(String path,
       {bool probe = false}) async {
@@ -220,16 +223,20 @@ class S3SyncClient extends SyncClientBase {
           hasMarker = true;
           continue;
         }
-        if (!key.startsWith(prefix))
+        if (!key.startsWith(prefix)) {
           throw const FormatException('S3 object outside requested prefix');
+        }
         var name = key.substring(prefix.length);
-        if (directory && name.endsWith('/'))
+        if (directory && name.endsWith('/')) {
           name = name.substring(0, name.length - 1);
-        if (name.isEmpty || name.contains('/'))
+        }
+        if (name.isEmpty || name.contains('/')) {
           throw const FormatException('Invalid S3 directory entry');
+        }
         final size = directory ? 0 : int.tryParse(value(item, 'Size') ?? '');
-        if (size == null || size < 0)
+        if (size == null || size < 0) {
           throw const FormatException('Invalid S3 object size');
+        }
         final logical = _settings.logicalPath(key);
         final file = RemoteFile(
             path: logical,
@@ -238,8 +245,9 @@ class S3SyncClient extends SyncClientBase {
             size: size,
             eTag: value(item, 'ETag'),
             mTime: DateTime.tryParse(value(item, 'LastModified') ?? ''));
-        if (result.containsKey(logical))
+        if (result.containsKey(logical)) {
           throw const FormatException('Repeated S3 listing entry');
+        }
         result[logical] = file;
       }
       final exists = hasMarker || result.isNotEmpty;
@@ -334,16 +342,18 @@ class S3SyncClient extends SyncClientBase {
       // addStream propagates both file-system and network errors.
       await sink.addStream(response.data!.stream.map((bytes) {
         received += bytes.length;
-        if (received > maxObjectBytes)
+        if (received > maxObjectBytes) {
           throw const FormatException('S3 object too large');
+        }
         onProgress?.call(received, total);
         return bytes;
       }));
       await sink.flush();
       await sink.close();
       sink = null;
-      if (total >= 0 && received != total)
+      if (total >= 0 && received != total) {
         throw const FormatException('Incomplete S3 download');
+      }
       await temp.rename(target.path);
     } finally {
       await sink?.close();
@@ -369,8 +379,9 @@ class S3SyncClient extends SyncClientBase {
       }
       await remove(remote);
       attempted = false;
-      if (await isExist(remote))
+      if (await isExist(remote)) {
         throw const FormatException('S3 probe deletion failed');
+      }
     } finally {
       if (attempted) {
         try {

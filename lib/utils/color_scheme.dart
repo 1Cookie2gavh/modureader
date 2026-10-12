@@ -19,6 +19,7 @@ ThemeData colorSchema(
   Color seedColor = prefsNotifier.themeColor;
   final isDark = brightness == Brightness.dark;
   final isEinkMode = prefsNotifier.eInkMode;
+  final disableMotion = prefsNotifier.eInkMotionDisabled;
 
   final lightGropedBackground = const Color(0xFFF2F2F7);
   final darkGropedBackground =
@@ -78,21 +79,24 @@ ThemeData colorSchema(
 
   return themeData
       .copyWith(
-          pageTransitionsTheme: isEinkMode
+          pageTransitionsTheme: disableMotion
               ? PageTransitionsTheme(builders: {
                   for (final platform in TargetPlatform.values)
                     platform: const NoMotionPageTransitionsBuilder(),
                 })
               : themeData.pageTransitionsTheme,
           splashFactory:
-              isEinkMode ? NoSplash.splashFactory : themeData.splashFactory,
+              disableMotion ? NoSplash.splashFactory : themeData.splashFactory,
           highlightColor:
-              isEinkMode ? Colors.transparent : themeData.highlightColor,
-          hoverColor: isEinkMode ? Colors.transparent : themeData.hoverColor,
+              disableMotion ? Colors.transparent : themeData.highlightColor,
+          hoverColor: disableMotion ? Colors.transparent : themeData.hoverColor,
           expansionTileTheme: themeData.expansionTileTheme
               .copyWith(expansionAnimationStyle: AppMotion.style),
+          // Flutter still requires this deprecated opt-in for the 2024 shapes.
+          // ignore: deprecated_member_use
           sliderTheme: const SliderThemeData(year2023: false),
           progressIndicatorTheme:
+              // ignore: deprecated_member_use
               const ProgressIndicatorThemeData(year2023: false),
           scaffoldBackgroundColor: gropedBackgroundColor,
           snackBarTheme: SnackBarThemeData(

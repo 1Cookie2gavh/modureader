@@ -46,10 +46,14 @@ class SettingsExportDialog extends StatelessWidget {
             SelectableText(destination.copyValue),
             if (document) ...[
               const SizedBox(height: 12),
-              Text(ModuStrings.text(context, '已保存到你在系统保存窗口选择的位置，可用系统文件管理器查找。若修改了文件名，请以保存窗口中的名称为准。', 'Saved to the location you selected in the system save dialog. Find it in your file manager using the name you chose there.')),
+              Text(ModuStrings.text(
+                  context,
+                  '已保存到你在系统保存窗口选择的位置，可用系统文件管理器查找。若修改了文件名，请以保存窗口中的名称为准。',
+                  'Saved to the location you selected in the system save dialog. Find it in your file manager using the name you chose there.')),
             ],
             const SizedBox(height: 16),
-            Text(ModuStrings.text(context, '请妥善保管，不要公开分享。', 'Keep this file private.')),
+            Text(ModuStrings.text(
+                context, '请妥善保管，不要公开分享。', 'Keep this file private.')),
           ],
         ),
       ),

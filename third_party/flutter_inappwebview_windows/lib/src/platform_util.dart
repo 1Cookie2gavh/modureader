@@ -29,8 +29,8 @@ class PlatformUtil {
       try {
         return await _handleMethod(call);
       } on Error catch (e) {
-        print(e);
-        print(e.stackTrace);
+        debugPrint(e.toString());
+        debugPrint(e.stackTrace.toString());
       }
     });
     _instance = PlatformUtil._();

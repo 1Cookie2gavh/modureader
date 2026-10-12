@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:anx_reader/models/document_reading_mode.dart';
 import 'package:anx_reader/service/book_player/document_reading_mode_store.dart';
 
@@ -25,6 +28,7 @@ import 'package:anx_reader/service/knowledge/knowledge_engine.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/widgets/bookshelf/book_bottom_sheet.dart';
 import 'package:anx_reader/widgets/bookshelf/book_item.dart';
+import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
 import 'package:anx_reader/widgets/page_router/reader_cover_hero.dart';
 import 'package:anx_reader/widgets/page_router/reading_route.dart';
 import 'package:anx_reader/widgets/bookshelf/book_embedding_model_dialog.dart';
@@ -65,8 +69,7 @@ class _ShelfBooks extends BookList {
   String? createdName;
   int? destination;
   @override
-  Future<List<List<Book>>> build() async =>
-      books.map((book) => [book]).toList();
+  Future<List<List<Book>>> build() async => groupBooks(books);
   @override
   Future<void> moveBooksToFolder(Iterable<int> ids,
       {int? groupId, String? newFolderName}) async {
@@ -130,6 +133,8 @@ void main() {
       bool singleInFolder = false,
       bool shelf = false,
       bool selection = false,
+      List<Book>? shelfBooks,
+      GlobalKey? captureKey,
       void Function(Book, bool)? select}) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(ProviderScope(
@@ -138,7 +143,8 @@ void main() {
           syncStatusProvider.overrideWith(_SyncStatus.new),
           groupDaoProvider.overrideWith(_Groups.new),
           tagListProvider.overrideWith(_ShelfTags.new),
-          bookListProvider.overrideWith(() => _ShelfBooks([
+          bookListProvider.overrideWith(() => _ShelfBooks(shelfBooks ??
+              [
                 book,
                 book.copyWith(id: 790, coverPath: 'cover/second.png'),
               ])),
@@ -147,6 +153,15 @@ void main() {
             value: Prefs(),
             child: StatefulBuilder(
                 builder: (context, setState) => MaterialApp(
+                      theme: captureKey == null
+                          ? null
+                          : ThemeData(
+                              useMaterial3: true,
+                              fontFamily: 'ShelfPreview',
+                              colorScheme: ColorScheme.fromSeed(
+                                  seedColor: const Color(0xFF38638A)),
+                              scaffoldBackgroundColor: const Color(0xFFF2F2F7),
+                            ),
                       locale: const Locale('zh'),
                       supportedLocales: L10n.supportedLocales,
                       localizationsDelegates: const [
@@ -156,7 +171,12 @@ void main() {
                         GlobalCupertinoLocalizations.delegate
                       ],
                       home: shelf
-                          ? const BookshelfPage()
+                          ? RepaintBoundary(
+                              key: captureKey,
+                              child: const ColoredBox(
+                                color: Color(0xFFF2F2F7),
+                                child: BookshelfPage(),
+                              ))
                           : Scaffold(
                               body: Center(
                                   child: bottom
@@ -220,6 +240,139 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('书籍操作').first);
     await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+      'list toggle hides covers, remembers choice and retains batch actions',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    expect(Prefs().bookshelfListMode, false);
+    await mount(tester, shelf: true);
+    expect(find.byType(BookCover), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('bookshelf-view-toggle')));
+    await tester.pumpAndSettle();
+    expect(Prefs().bookshelfListMode, true);
+    expect(find.byKey(const ValueKey('bookshelf-list')), findsOneWidget);
+    expect(find.byType(BookCover), findsNothing);
+    expect(find.byTooltip('书籍操作'), findsNothing);
+    await openBookMenu(tester);
+    expect(actions(tester), BookAction.values);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<BookAction>), findsNothing);
+    expect(find.text('新建文件夹'), findsOneWidget);
+    expect(find.text('移入文件夹'), findsOneWidget);
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(BookItem), findsNWidgets(2));
+    await tester.tap(find.byTooltip('退出选择'));
+    await tester.pumpAndSettle();
+    await Prefs().initPrefs();
+    expect(Prefs().bookshelfListMode, true);
+    await tester.tap(find.byKey(const ValueKey('bookshelf-view-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BookCover), findsWidgets);
+    expect(Prefs().bookshelfListMode, false);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('list folders show names and counts without thumbnail previews',
+      (tester) async {
+    Prefs().bookshelfListMode = true;
+    await mount(tester, shelf: true, shelfBooks: [
+      book.copyWith(groupId: 42),
+      book.copyWith(id: 790, groupId: 42),
+    ]);
+    expect(find.text('测试文件夹'), findsOneWidget);
+    expect(find.text('2 本书'), findsOneWidget);
+    expect(find.byType(BookCover), findsNothing);
+    await tester.longPress(find.text('测试文件夹'));
+    await tester.pumpAndSettle();
+    expect(find.text('已选 2 本'), findsOneWidget);
+    expect(find.byTooltip('文件夹操作'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  if (Platform.environment['MODU_SHELF_PREVIEW'] case final String output) {
+    testWidgets('capture list and long-press preview with fictional books',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(420, 720));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      Prefs().bookshelfListMode = true;
+      await tester.runAsync(() async {
+        final font = FontLoader('ShelfPreview')
+          ..addFont(File(Platform.environment['MODU_PREVIEW_FONT']!)
+              .readAsBytes()
+              .then(ByteData.sublistView));
+        await font.load();
+        final icons = FontLoader('MaterialIcons')
+          ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+        await icons.load();
+        final eva = FontLoader('packages/icons_plus/EvaIcons')
+          ..addFont(
+              rootBundle.load('packages/icons_plus/assets/fonts/EvaIcons.ttf'));
+        await eva.load();
+        const chunk = KnowledgeChunk(
+            id: 'preview', bookId: '789', chapterId: '1', text: '山河笔记');
+        await (await BookKnowledgeIndexService().storeFor(book))
+            .save(KnowledgeIndexSnapshot(
+          bookId: '789',
+          contentHash: 'preview',
+          chunks: [chunk],
+          vectors: [
+            VectorEntry(chunk: chunk, vector: [1, 0])
+          ],
+          embeddingMode: 'local',
+          embeddingModelId: 'preview',
+          embeddingDimensions: 2,
+        ));
+      });
+      final key = GlobalKey();
+      await mount(tester, shelf: true, captureKey: key, shelfBooks: [
+        book.copyWith(title: '山河笔记', author: '林远', readingPercentage: .36),
+        book.copyWith(
+            id: 790,
+            title: '城市漫游',
+            author: '许青',
+            readingPercentage: .72,
+            filePath: 'file/city.pdf'),
+        book.copyWith(
+            id: 791,
+            title: '时间里的微光',
+            author: '陈夏',
+            readingPercentage: .12,
+            filePath: 'file/time.txt'),
+        book.copyWith(
+            id: 792,
+            title: '沿途的风景',
+            author: '江舟',
+            readingPercentage: 0,
+            filePath: 'file/wind.md'),
+        book.copyWith(id: 793, groupId: 42),
+        book.copyWith(id: 794, groupId: 42),
+      ]);
+      Future<void> capture(String suffix) async {
+        await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 2);
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          await File('$output-$suffix.png')
+              .writeAsBytes(data!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
+
+      await capture('list');
+      await tester.longPress(find.text('山河笔记'));
+      await capture('selection');
+      expect(find.text('已选 1 本'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   for (final createNew in [true, false]) {
@@ -452,8 +605,9 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('book-action-vectorModel')));
         await tester.pumpAndSettle();
         expect(find.byType(BookEmbeddingModelDialog), findsOneWidget);
-        await tester.tap(find.text('取消'));
+        await tester.tap(find.text('关闭'));
         await tester.pumpAndSettle();
+        expect(find.byType(BookEmbeddingModelDialog), findsNothing);
         expect(tester.takeException(), isNull);
       } finally {
         debugDefaultTargetPlatformOverride = null;

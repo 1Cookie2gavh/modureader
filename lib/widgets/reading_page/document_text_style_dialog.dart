@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'document_panel_widgets.dart';
+import 'reader_popup.dart';
+import 'reader_settings_scroll_view.dart';
 
 class DocumentTextStyleDialog extends StatefulWidget {
   const DocumentTextStyleDialog({super.key, required this.initial, this.save});
@@ -23,7 +25,7 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
     });
     try {
       await widget.save?.call(_style);
-      if (mounted) Navigator.pop(context, _style);
+      if (mounted) setState(() => _saving = false);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -47,17 +49,18 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
               label: value.toStringAsFixed(decimals),
               onChanged: _saving
                   ? null
-                  : (v) => setState(() => _style = _style.withValue(key, v))));
+                  : (v) => setState(() => _style = _style.withValue(key, v)),
+              onChangeEnd: _saving ? null : (_) => _apply()));
   @override
   Widget build(BuildContext context) => PopScope(
       canPop: !_saving,
       child: Dialog(
         insetPadding: const EdgeInsets.all(12),
         clipBehavior: Clip.antiAlias,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-              maxWidth: 640,
-              maxHeight: MediaQuery.sizeOf(context).height * .85),
+        constraints: ReaderPopup.constraints(context),
+        child: SizedBox(
+          width: double.infinity,
+          height: ReaderPopup.height(context),
           child: DocumentPanelTheme(
               child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -65,7 +68,7 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                     Text(t('OCR 文字样式', 'OCR text style'),
                         style: Theme.of(context).textTheme.titleLarge),
                     Flexible(
-                        child: SingleChildScrollView(
+                        child: ReaderSettingsScrollView(
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -96,8 +99,11 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                               ],
                               onChanged: _saving
                                   ? null
-                                  : (v) => setState(() => _style =
-                                      _style.withValue('serif', v ?? false))),
+                                  : (v) {
+                                      setState(() => _style = _style.withValue(
+                                          'serif', v ?? false));
+                                      _apply();
+                                    }),
                           _slider('size', t('字体大小', 'Font size'), _style.size,
                               14, 40, 26,
                               decimals: 0),
@@ -120,8 +126,11 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                               value: _style.justify,
                               onChanged: _saving
                                   ? null
-                                  : (v) => setState(() =>
-                                      _style = _style.withValue('justify', v))),
+                                  : (v) {
+                                      setState(() => _style =
+                                          _style.withValue('justify', v));
+                                      _apply();
+                                    }),
                           if (_failed)
                             Text(t('保存失败，请重试', 'Could not save. Please retry.'),
                                 style: TextStyle(
@@ -132,16 +141,20 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                       TextButton(
                           onPressed: _saving
                               ? null
-                              : () => setState(
-                                  () => _style = const DocumentTextStyle()),
+                              : () {
+                                  setState(
+                                      () => _style = const DocumentTextStyle());
+                                  _apply();
+                                },
                           child: Text(t('恢复默认', 'Reset'))),
                       TextButton(
                           onPressed:
                               _saving ? null : () => Navigator.pop(context),
-                          child: Text(t('取消', 'Cancel'))),
-                      FilledButton(
-                          onPressed: _saving ? null : _apply,
-                          child: Text(t('应用', 'Apply'))),
+                          child: Text(t('关闭', 'Close'))),
+                      if (_failed)
+                        TextButton(
+                            onPressed: _saving ? null : _apply,
+                            child: Text(t('重试', 'Retry'))),
                     ]),
                   ]))),
         ),

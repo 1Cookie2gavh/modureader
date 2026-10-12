@@ -39,7 +39,8 @@ void main() {
     const Size(844, 390),
     const Size(1440, 900)
   ]) {
-    testWidgets('style preview/save/cancel/reset at $size', (tester) async {
+    testWidgets('style auto-saves on release and reset at $size',
+        (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -70,16 +71,23 @@ void main() {
             .widget<Slider>(find.byKey(ValueKey('ocr-style-${change.key}')))
             .onChanged!(change.value);
         await tester.pumpAndSettle();
+        tester
+            .widget<Slider>(find.byKey(ValueKey('ocr-style-${change.key}')))
+            .onChangeEnd!(change.value);
+        await tester.pumpAndSettle();
       }
       final preview =
           tester.widget<Text>(find.byKey(const ValueKey('ocr-style-preview')));
       expect(preview.style!.fontSize, 28);
       expect(preview.style!.height, 2);
       expect(preview.style!.fontWeight, FontWeight.w700);
-      expect(saved, isEmpty);
-      await tester.tap(find.text('Cancel'));
+      expect(saved.length, 5);
+      expect(saved.last.size, 28);
+      expect(saved.last.margin, 30);
+      expect(find.text('Apply'), findsNothing);
+      await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      expect(saved, isEmpty);
+      expect(saved.length, 5);
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       tester
@@ -88,9 +96,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Restore defaults'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Apply'));
-      await tester.pumpAndSettle();
-      expect(saved.single.toJson(), const DocumentTextStyle().toJson());
+      expect(saved.last.toJson(), const DocumentTextStyle().toJson());
       expect(tester.takeException(), isNull);
     });
   }
@@ -103,10 +109,16 @@ void main() {
               attempts++;
               throw StateError('failed');
             })));
-    await tester.tap(find.text('Apply'));
+    tester
+        .widget<Slider>(find.byKey(const ValueKey('ocr-style-size')))
+        .onChanged!(28);
+    await tester.pump();
+    tester
+        .widget<Slider>(find.byKey(const ValueKey('ocr-style-size')))
+        .onChangeEnd!(28);
     await tester.pumpAndSettle();
     expect(find.text('Could not save. Please retry.'), findsOneWidget);
-    await tester.tap(find.text('Apply'));
+    await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(attempts, 2);
   });

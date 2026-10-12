@@ -14,14 +14,19 @@ String aiHistoryKey(String scope,
     {String? skillId, String? homePromptId, String? screen}) {
   if (skillId == aiDictionarySkillId ||
       skillId == aiDictionaryWebSkillId ||
-      scope == 'knowledge') return 'skill.$aiDictionarySkillId';
-  if (skillId != null && skillId != selectionToolbarSkillId)
+      scope == 'knowledge') {
+    return 'skill.$aiDictionarySkillId';
+  }
+  if (skillId != null && skillId != selectionToolbarSkillId) {
     return 'skill.$skillId';
+  }
   if (homePromptId != null) return 'home.$homePromptId';
   if (screen != null &&
       screen != 'reader' &&
       screen != 'library' &&
-      screen != 'lookup.book') return 'screen.$screen';
+      screen != 'lookup.book') {
+    return 'screen.$screen';
+  }
   return scope;
 }
 

@@ -298,7 +298,7 @@ class Prefs extends ChangeNotifier {
   }
 
   Color get themeColor {
-    int colorValue = prefs.getInt('themeColor') ?? Colors.blue.value;
+    int colorValue = prefs.getInt('themeColor') ?? Colors.blue.toARGB32();
     return Color(colorValue);
   }
 
@@ -766,6 +766,16 @@ class Prefs extends ChangeNotifier {
   bool get eInkMode {
     return prefs.getBool('eInkMode') ?? false;
   }
+
+  bool get eInkDisableAnimations =>
+      prefs.getBool('eInkDisableAnimations') ?? true;
+
+  set eInkDisableAnimations(bool value) {
+    prefs.setBool('eInkDisableAnimations', value);
+    notifyListeners();
+  }
+
+  bool get eInkMotionDisabled => eInkMode && eInkDisableAnimations;
 
   set translateService(TranslateService service) {
     prefs.setString('translateService', service.name);
@@ -1613,6 +1623,13 @@ class Prefs extends ChangeNotifier {
     return prefs.getDouble('bookCoverWidth') ?? 120;
   }
 
+  bool get bookshelfListMode => prefs.getBool('bookshelfListMode') ?? false;
+
+  set bookshelfListMode(bool value) {
+    prefs.setBool('bookshelfListMode', value);
+    notifyListeners();
+  }
+
   set bookshelfFolderStyle(BookshelfFolderStyle style) {
     prefs.setString('bookshelfFolderStyle', style.code);
     notifyListeners();
@@ -1632,6 +1649,13 @@ class Prefs extends ChangeNotifier {
 
   bool get showBookFormatBadge {
     return prefs.getBool('showBookFormatBadge') ?? true;
+  }
+
+  bool get showBookIndexBadge => prefs.getBool('showBookIndexBadge') ?? true;
+
+  set showBookIndexBadge(bool value) {
+    prefs.setBool('showBookIndexBadge', value);
+    notifyListeners();
   }
 
   set showBookTitleOnDefaultCover(bool status) {

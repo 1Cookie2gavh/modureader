@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 
 import 'package:dio/dio.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:anx_reader/service/sync/ai_settings_sync.dart';
 import 'package:anx_reader/service/sync/sync_preflight.dart';
 import 'package:anx_reader/service/sync/webdav_request_policy.dart';
@@ -32,6 +33,46 @@ class SyncFeedbackFailure implements Exception {
 String syncSuccessMessage({required bool chinese}) =>
     chinese ? '同步成功' : 'Sync successful';
 
+/// Classify failures without logging SQL arguments, paths or server responses.
+String syncFailureDiagnostic(Object error) {
+  if (error is! DatabaseException) {
+    final status = error is DioException ? error.response?.statusCode : null;
+    return '${error.runtimeType}, HTTP $status';
+  }
+  final reason = error.isOpenFailedError()
+      ? 'open_failed'
+      : error.isNoSuchTableError()
+          ? 'missing_table'
+          : error.isReadOnlyError()
+              ? 'read_only'
+              : error.isDatabaseClosedError()
+                  ? 'closed'
+                  : error.isSyntaxError()
+                      ? 'syntax'
+                      : error.isUniqueConstraintError() ||
+                              error.isNotNullConstraintError()
+                          ? 'constraint'
+                          : 'unknown';
+  int? code;
+  try {
+    code = error.getResultCode();
+  } catch (_) {
+    // Some plugins omit the native error message/code entirely.
+  }
+  final result = error.result;
+  final sql = result is Map ? result['sql'] : null;
+  final operation = sql is String
+      ? RegExp(
+              r'^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA|BEGIN|COMMIT|ROLLBACK|VACUUM)\b',
+              caseSensitive: false)
+          .firstMatch(sql)
+          ?.group(1)
+          ?.toUpperCase()
+      : null;
+  return 'DatabaseException, reason=$reason, code=${code ?? 'unknown'}, '
+      'operation=${operation ?? 'unknown'}';
+}
+
 /// Never put raw exceptions, URLs, filenames or server response bodies in a toast.
 String syncFailureMessage(Object error, {required bool chinese}) {
   String text(String zh, String en) => chinese ? zh : en;
@@ -50,7 +91,10 @@ String syncFailureMessage(Object error, {required bool chinese}) {
     return text('同步已暂缓：服务器限流或暂时不可用，请约 $minutes 分钟后再试。本机改动已保留。',
         'Sync deferred: the server is rate-limited or unavailable. Retry in about $minutes minute(s). Local changes are retained.');
   }
-  if (error is SyncFeedbackFailure) {
+  if (error is DatabaseException) {
+    reason = text('同步数据库读写失败，请更新客户端后重试；请勿清除本机书库或删除云端数据。',
+        'Sync database access failed. Update the app and retry; do not clear the local library or delete cloud data.');
+  } else if (error is SyncFeedbackFailure) {
     reason = switch (error.code) {
       SyncFailureCode.disabled => text('云端同步未开启。', 'Cloud sync is turned off.'),
       SyncFailureCode.notConfigured => text('尚未配置同步服务，请检查同步设置。',

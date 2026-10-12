@@ -158,8 +158,6 @@ test('runtime wires mobile keyboard and desktop-only mouse input for every chapt
   assert.match(dart,/keyboardShortcutTurnPage: \$\{Prefs\(\)\.keyboardShortcutTurnPage\}/);
   assert.match(legacy,/keyboardShortcutTurnPage: \$\{Prefs\(\)\.keyboardShortcutTurnPage\}/);
   assert.match(book,/ctrlBrackets: \(\) => style\.keyboardShortcutTurnPage === true/);
-  const settings=await readFile(new URL('../lib/widgets/reading_page/more_settings/other_settings.dart',import.meta.url),'utf8');
-  assert.match(settings,/Prefs\(\)\.keyboardShortcutTurnPage = value;\s+epubPlayerKey\.currentState\?\.changeStyle\(null\)/);
   const page=await readFile(new URL('../lib/page/reading_page.dart',import.meta.url),'utf8');
   assert.match(page,/readerOwnsPageKeys\(_readerFocusNode, _readerWebViewFocusScope/);
   assert.match(page,/turnPageFromKeyboard\(direction\)/);

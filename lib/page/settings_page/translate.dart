@@ -71,23 +71,25 @@ class _TranslateSettingState extends State<TranslateSetting> {
                   ),
                 ),
                 Expanded(
-                    child: ListView(shrinkWrap: true, children: [
-                  for (final service in fullTextOnly
-                      ? TranslateService.readAnyValues
-                      : TranslateService.selectionValues)
-                    RadioListTile<TranslateService>(
-                      key: ValueKey('translation-engine-${service.name}'),
-                      value: service,
-                      groupValue: fullTextOnly
-                          ? Prefs().fullTextTranslateService
-                          : Prefs().translateService,
-                      title: Text(service.getLabel(context)),
-                      subtitle: service.isWebView
-                          ? null
-                          : Text(_serviceDescription(service)),
-                      onChanged: (value) => Navigator.pop(context, value),
-                    ),
-                ])),
+                    child: RadioGroup<TranslateService>(
+                        groupValue: fullTextOnly
+                            ? Prefs().fullTextTranslateService
+                            : Prefs().translateService,
+                        onChanged: (value) => Navigator.pop(context, value),
+                        child: ListView(shrinkWrap: true, children: [
+                          for (final service in fullTextOnly
+                              ? TranslateService.readAnyValues
+                              : TranslateService.selectionValues)
+                            RadioListTile<TranslateService>(
+                              key: ValueKey(
+                                  'translation-engine-${service.name}'),
+                              value: service,
+                              title: Text(service.getLabel(context)),
+                              subtitle: service.isWebView
+                                  ? null
+                                  : Text(_serviceDescription(service)),
+                            ),
+                        ]))),
                 const SizedBox(height: 8),
               ],
             )),
@@ -164,19 +166,20 @@ class _TranslateSettingState extends State<TranslateSetting> {
               ),
             ),
             Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final provider in providers)
-                    RadioListTile<String>(
-                      value: provider.id,
-                      groupValue: Prefs().translationAiService,
-                      title: Text(provider.model),
-                      subtitle: Text(provider.title),
-                      onChanged: (value) => Navigator.pop(context, value),
-                    ),
-                ],
-              ),
+              child: RadioGroup<String>(
+                  groupValue: Prefs().translationAiService,
+                  onChanged: (value) => Navigator.pop(context, value),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final provider in providers)
+                        RadioListTile<String>(
+                          value: provider.id,
+                          title: Text(provider.model),
+                          subtitle: Text(provider.title),
+                        ),
+                    ],
+                  )),
             ),
             const SizedBox(height: 8),
           ],
@@ -215,18 +218,19 @@ class _TranslateSettingState extends State<TranslateSetting> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  itemCount: languages.length,
-                  itemBuilder: (context, index) {
-                    final language = languages[index];
-                    return RadioListTile<LangListEnum>(
-                      value: language,
-                      groupValue: Prefs().fullTextTranslateTo,
-                      title: Text(language.nativeName),
-                      onChanged: (value) => Navigator.pop(context, value),
-                    );
-                  },
-                ),
+                child: RadioGroup<LangListEnum>(
+                    groupValue: Prefs().fullTextTranslateTo,
+                    onChanged: (value) => Navigator.pop(context, value),
+                    child: ListView.builder(
+                      itemCount: languages.length,
+                      itemBuilder: (context, index) {
+                        final language = languages[index];
+                        return RadioListTile<LangListEnum>(
+                          value: language,
+                          title: Text(language.nativeName),
+                        );
+                      },
+                    )),
               ),
             ],
           ),

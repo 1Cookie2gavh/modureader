@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -7,6 +8,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/unified_query.dart';
 import 'package:anx_reader/widgets/dictionary/unified_query.dart';
+import 'package:anx_reader/widgets/dictionary/unified_query_settings.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
 import 'package:anx_reader/widgets/ai/skill_template_draft_tile.dart';
 import 'package:anx_reader/service/ai/ai_history.dart';
@@ -77,6 +79,7 @@ void main() {
     });
     await tester.pumpWidget(ProviderScope(
         child: MaterialApp(
+            scrollBehavior: const AppScrollBehavior(),
             locale: const Locale('zh'),
             supportedLocales: L10n.supportedLocales,
             localizationsDelegates: const [
@@ -185,6 +188,176 @@ void main() {
             .containsKey(UnifiedQueryPreferences.key),
         false);
   });
+  test(
+      'custom overview order persists and disabled sources keep their positions',
+      () async {
+    final custom = [
+      QuerySection.knowledge,
+      QuerySection.translation,
+      QuerySection.encyclopedia,
+      QuerySection.dictionary
+    ];
+    final prefs = UnifiedQueryPreferences()
+      ..order = custom
+      ..smartOrder = false
+      ..included.remove(QuerySection.translation);
+    await prefs.save(Prefs().prefs);
+    final restored = UnifiedQueryPreferences.load(Prefs().prefs);
+    expect(restored.order, custom);
+    for (final query in [
+      'district',
+      '沈泽民',
+      'This is a sentence to translate.'
+    ]) {
+      expect(queryOrder(query, restored),
+          custom.where((s) => s != QuerySection.translation).toList());
+    }
+    restored.included.add(QuerySection.translation);
+    expect(queryOrder('沈泽民', restored), custom);
+    restored.smartOrder = true;
+    expect(queryOrder('沈泽民', restored).first, QuerySection.dictionary);
+    restored.smartOrder = false;
+    expect(queryOrder('沈泽民', restored), custom);
+  });
+  test('old and invalid orders restore all four sources without duplicates',
+      () async {
+    for (final rawOrder in [
+      null,
+      [],
+      'dictionary',
+      ['knowledge', 'book', 'knowledge', 1, null, 'unknown', 'dictionary'],
+    ]) {
+      await Prefs().prefs.setString(
+          UnifiedQueryPreferences.key,
+          jsonEncode({
+            if (rawOrder != null) 'order': rawOrder,
+            'smartOrder': false,
+            'included': ['dictionary', 'knowledge']
+          }));
+      final prefs = UnifiedQueryPreferences.load(Prefs().prefs);
+      final validCustom = rawOrder is List && rawOrder.isNotEmpty;
+      expect(
+          prefs.order,
+          validCustom
+              ? [
+                  QuerySection.knowledge,
+                  QuerySection.dictionary,
+                  QuerySection.encyclopedia,
+                  QuerySection.translation
+                ]
+              : QuerySection.comprehensive);
+      expect(prefs.included, {QuerySection.dictionary, QuerySection.knowledge});
+      expect(
+          queryOrder('词语', prefs),
+          validCustom
+              ? [QuerySection.knowledge, QuerySection.dictionary]
+              : [QuerySection.dictionary, QuerySection.knowledge]);
+    }
+  });
+  for (final locale in [const Locale('zh'), const Locale('en')]) {
+    testWidgets('dragging overview order saves and updates cards at $locale',
+        (tester) async {
+      await tester.runAsync(() => L10n.delegate.load(locale));
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+          scrollBehavior: const AppScrollBehavior(),
+          locale: locale,
+          supportedLocales: L10n.supportedLocales,
+          localizationsDelegates: const [
+            L10n.delegate,
+            ...GlobalMaterialLocalizations.delegates
+          ],
+          home: Scaffold(
+              body: UnifiedQuery(
+                  text: 'district',
+                  panelBuilder: (s, _) =>
+                      TextField(key: ValueKey('draft-${s.name}'))))));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('draft-knowledge')));
+      await tester.enterText(
+          find.byKey(const ValueKey('draft-knowledge')), 'keep');
+      await tester.tap(find.byKey(const ValueKey('query-settings')));
+      await tester.pumpAndSettle();
+      final handle = find.byKey(const ValueKey('query-drag-knowledge'));
+      final first = find.byKey(const ValueKey('query-drag-dictionary'));
+      final target = tester.getCenter(first) + const Offset(0, 8);
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      await gesture.moveTo(target);
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(
+          tester
+              .widget<SwitchListTile>(
+                  find.byKey(const ValueKey('query-smart-order')))
+              .value,
+          false);
+      expect(
+          tester
+              .getTopLeft(find.byKey(const ValueKey('query-order-knowledge')))
+              .dy,
+          lessThan(tester
+              .getTopLeft(find.byKey(const ValueKey('query-order-dictionary')))
+              .dy));
+      // Reordering persists immediately; disabled rows remain sortable.
+      expect(UnifiedQueryPreferences.load(Prefs().prefs).smartOrder, false);
+      await tester
+          .tap(find.byKey(const ValueKey('query-include-encyclopedia')));
+      final orderList = tester.widget<ReorderableListView>(
+          find.byKey(const ValueKey('query-section-order')));
+      orderList.onReorderItem!(0, 3);
+      await tester.pumpAndSettle();
+      tester
+          .widget<ReorderableListView>(
+              find.byKey(const ValueKey('query-section-order')))
+          .onReorderItem!(3, 0);
+      await tester.pumpAndSettle();
+      expect(
+          find.widgetWithText(
+              FilledButton, locale.languageCode == 'zh' ? '保存' : 'Save'),
+          findsNothing);
+      Navigator.of(tester.element(find.byType(UnifiedQuerySettings))).pop();
+      await tester.pumpAndSettle();
+      final prefs = UnifiedQueryPreferences.load(Prefs().prefs);
+      expect(prefs.order, [
+        QuerySection.knowledge,
+        QuerySection.dictionary,
+        QuerySection.encyclopedia,
+        QuerySection.translation
+      ]);
+      expect(prefs.included, isNot(contains(QuerySection.encyclopedia)));
+      expect(find.byType(UnifiedQuerySettings), findsNothing);
+      expect(
+          tester
+              .getTopLeft(find.byKey(const ValueKey('query-tab-knowledge')))
+              .dx,
+          lessThan(tester
+              .getTopLeft(find.byKey(const ValueKey('query-tab-dictionary')))
+              .dx));
+      final cards = [
+        QuerySection.knowledge,
+        QuerySection.dictionary,
+        QuerySection.translation
+      ];
+      for (var i = 1; i < cards.length; i++) {
+        expect(
+            tester
+                .getTopLeft(
+                    find.byKey(ValueKey('query-panel-${cards[i - 1].name}-0')))
+                .dy,
+            lessThan(tester
+                .getTopLeft(
+                    find.byKey(ValueKey('query-panel-${cards[i].name}-0')))
+                .dy));
+      }
+      expect(find.text('keep'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
       'encyclopedia queries automatically once and survives tab changes',
       (tester) async {
@@ -298,12 +471,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('query-settings')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('query-include-translation')));
-      await tester.drag(find.byType(ListView).last, const Offset(0, -1300));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.widgetWithText(
-          FilledButton, locale.languageCode == 'zh' ? '保存' : 'Save'));
-      await tester.tap(find.widgetWithText(
-          FilledButton, locale.languageCode == 'zh' ? '保存' : 'Save'));
+      Navigator.of(tester.element(find.byType(UnifiedQuerySettings))).pop();
       await tester.pumpAndSettle();
       expect(UnifiedQueryPreferences.load(Prefs().prefs).included,
           isNot(contains(QuerySection.translation)));

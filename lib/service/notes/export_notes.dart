@@ -27,6 +27,7 @@ Future<void> exportNotes(
   }
 
   final chinese = Localizations.localeOf(context).languageCode == 'zh';
+  final strings = L10n.of(context);
 
   switch (exportType) {
     case ExportType.copy:
@@ -37,7 +38,7 @@ Future<void> exportNotes(
           chinese: chinese);
 
       await Clipboard.setData(ClipboardData(text: notes));
-      AnxToast.show(L10n.of(context).notesPageCopied);
+      AnxToast.show(strings.notesPageCopied);
       break;
 
     case ExportType.md:
@@ -46,7 +47,7 @@ Future<void> exportNotes(
           title: book.title,
           author: book.author,
           mergeChapterHeadings: mergeChapterHeadings,
-          chinese: Localizations.localeOf(context).languageCode == 'zh');
+          chinese: chinese);
 
       String? filePath = await saveFileToDownload(
           bytes: convertStringToUint8List(notes),
@@ -54,7 +55,7 @@ Future<void> exportNotes(
           mimeType: 'text/markdown');
 
       if (filePath != null) {
-        AnxToast.show('${L10n.of(context).notesPageExportedTo} $filePath');
+        AnxToast.show('${strings.notesPageExportedTo} $filePath');
       }
       break;
 
@@ -62,13 +63,13 @@ Future<void> exportNotes(
       final notes = formatNotesText(notesList,
           book: book,
           mergeChapterHeadings: mergeChapterHeadings,
-          chinese: Localizations.localeOf(context).languageCode == 'zh');
+          chinese: chinese);
       String? filePath = await saveFileToDownload(
           bytes: convertStringToUint8List(notes),
           fileName: '${book.title}.txt',
           mimeType: 'text/plain');
       if (filePath != null) {
-        AnxToast.show('${L10n.of(context).notesPageExportedTo} $filePath');
+        AnxToast.show('${strings.notesPageExportedTo} $filePath');
       }
       break;
 
@@ -81,7 +82,7 @@ Future<void> exportNotes(
           fileName: '${book.title}.csv',
           mimeType: 'text/csv');
       if (filePath != null) {
-        AnxToast.show('${L10n.of(context).notesPageExportedTo} $filePath');
+        AnxToast.show('${strings.notesPageExportedTo} $filePath');
       }
       break;
   }

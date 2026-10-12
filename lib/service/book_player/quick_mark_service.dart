@@ -77,7 +77,9 @@ class QuickMarkService {
                 source['cfi'] is! String ||
                 source['text'] is! String ||
                 spine(source['cfi'] as String) != spine(cfi) ||
-                !mergedText.contains(source['text'] as String)) break;
+                !mergedText.contains(source['text'] as String)) {
+              break;
+            }
             sources.add((
               id: source['id'] as int,
               cfi: source['cfi'] as String,
@@ -91,9 +93,10 @@ class QuickMarkService {
                 text: mergedText,
                 color: safeColor,
                 sources: sources);
-            if (merged != null)
+            if (merged != null) {
               return QuickMarkResult(
                   merged, sources.map((s) => s.cfi).toList());
+            }
           }
         }
       }

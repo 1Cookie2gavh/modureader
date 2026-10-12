@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {runInNewContext} from 'node:vm';
 const read=name=>readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url),'utf8');
 const geometry=await read('annotation-geometry');
-const {annotationPointMapper,annotationRect}=await import(`data:text/javascript;base64,${Buffer.from(geometry).toString('base64')}`);
+const {annotationPointMapper,annotationRect,annotationRangeRects}=await import(`data:text/javascript;base64,${Buffer.from(geometry).toString('base64')}`);
 const {JSDOM}=createRequire(`${process.env.MODU_JSDOM_ROOT}/package.json`)('jsdom');
 test('PDF overlays inside the page use local coordinates, not the cropped/rotated outer iframe',()=>{
   const doc={defaultView:{frameElement:{getBoundingClientRect:()=>{throw Error('must not apply outer transform twice')}}}};
@@ -48,7 +48,7 @@ test('new marks, redraw and hit testing use the same coordinates after iframe sc
   const source=await read('overlayer');
   const Overlayer=runInNewContext(source.replace(/^import .*$/gm,'').replace('export class Overlayer','class Overlayer')+'\nOverlayer',
     {document:host,Range:dom.window.Range,navigator:{userAgent:'Chrome'},window:dom.window,
-      annotationPointMapper,annotationRect,SearchHighlighter:class {clear(){} remove(){} redraw(){}}});
+      annotationPointMapper,annotationRect,annotationRangeRects,SearchHighlighter:class {clear(){} remove(){} redraw(){}}});
   const layer=new Overlayer(doc);host.body.append(layer.element);
   layer.element.getScreenCTM=()=>({inverse:()=>({a:1,b:0,c:0,d:1,e:0,f:-(68-outer)})});
   const range=doc.createRange();range.setStart(doc.querySelector('p').firstChild,0);range.setEnd(range.startContainer,4);

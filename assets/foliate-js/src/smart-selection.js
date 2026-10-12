@@ -31,7 +31,9 @@ function contextAt(doc, node, offset) {
   const stack = [root];
   while (stack.length) {
     const current = stack.pop();
-    if (++count > 20000 || length > maxText) return null;
+    // Reader-owned layout runs must not consume the publisher-DOM safety budget.
+    if (!current.__moduPageRun && !current.parentElement?.__moduPageRun) count++;
+    if (count > 20000 || length > maxText) return null;
     if (current.nodeType === 3) {
       if (current === node) anchor = length + Math.min(Math.max(offset, 0), current.length);
       positions.push({ node: current, start: length, end: length + current.length });

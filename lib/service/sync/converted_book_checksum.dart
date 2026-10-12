@@ -119,8 +119,9 @@ class ConvertedBookChecksum {
 // No extraction, network or changes to the book bytes.
 Future<String?> _localConvertedHash(String path) async {
   // UMD was introduced with correct content hashes; never migrate its checksum.
-  if (!['TXT', 'MD'].contains(await convertedBookSourceFormat(path)))
+  if (!['TXT', 'MD'].contains(await convertedBookSourceFormat(path))) {
     return null;
+  }
   try {
     return (await md5.bind(File(path).openRead()).first).toString();
   } catch (_) {

@@ -61,6 +61,7 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
     try {
       await LibraryViewOptionsStore.save(options);
     } catch (_) {
+      if (!mounted) return;
       _message(ModuStrings.text(context, '排序已生效，但无法保存到本机。',
           'Sorting applied, but preferences could not be saved.'));
     }
@@ -86,11 +87,12 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
           widget.clientFactory?.call(connection) ?? WebdavLibrary(connection);
       await _browse(_client!.root);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = libraryError(error, zh, listing: true);
         });
+      }
     }
   }
 
@@ -115,8 +117,9 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
       AnxLog.warning('Remote library listing failed: ${error.runtimeType}'
           '${error is LibraryListingException ? ' (${error.reason})' : ''}'
           '${error is DioException ? ', HTTP ${error.response?.statusCode}' : ''}');
-      if (mounted && !token.isCancelled)
+      if (mounted && !token.isCancelled) {
         setState(() => _error = libraryError(error, zh, listing: true));
+      }
     } finally {
       if (mounted && !token.isCancelled) setState(() => _loading = false);
     }
@@ -163,12 +166,13 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
                   'Download completed, but import failed. Check the format, encryption or file integrity.')
               : libraryError(error, zh));
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _activeName = null;
           _importing = false;
           _download = null;
         });
+      }
     }
   }
 
@@ -212,8 +216,9 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
       if (mounted) setState(() => _imported.add(entry.uri.toString()));
       return !alreadyPresent;
     } finally {
-      if (temporary != null && await temporary.exists())
+      if (temporary != null && await temporary.exists()) {
         await temporary.delete(recursive: true);
+      }
     }
   }
 
@@ -273,22 +278,25 @@ class _RemoteLibraryPageState extends ConsumerState<RemoteLibraryPage> {
               : libraryError(error, zh);
         }
       }
-      if (mounted)
+      if (mounted) {
         _message(t(
             '${token.isCancelled ? '已取消。' : ''}导入 $added 本，重复跳过 $skipped 本，失败 $failed 本。${lastFailure ?? ''}',
             '${token.isCancelled ? 'Cancelled. ' : ''}Imported $added, skipped $skipped duplicates, failed $failed. ${lastFailure ?? ''}'));
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         _message(token.isCancelled
             ? t('已取消文件夹扫描。', 'Folder scan cancelled.')
             : libraryError(error, zh, listing: true));
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _activeName = null;
           _importing = false;
           _download = null;
         });
+      }
     }
   }
 

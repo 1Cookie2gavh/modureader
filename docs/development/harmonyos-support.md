@@ -25,6 +25,50 @@ not an Android compatibility layer. Inclusion in a stable release does not imply
 
 ## Run the audit
 
+### Sync archive paths (2026-10-11)
+
+The pinned `flutter_sqflite` revision
+`5ef0761001378455e872e46d1c0620d39dcc1002` constructs an RDB `customDir`
+relative to the database directory and keys native handles by basename.
+Passing an application-cache path does not open the downloaded file at that
+path. `RowSyncArchive` therefore stages OHOS reads and writes in unique
+subdirectories of `getDatabasesPath()`, with unique database basenames.
+Reads (including legacy migration) use disposable copies; writes are copied
+back only after the database is closed. The live library and downloaded
+input remain untouched; integrity, format, size and record checks still apply.
+Other platforms retain their existing paths. Tests use a directory-restricted
+factory plus real SQLite and synthetic records; they do not certify native
+RDB/device behavior. Re-test on a signed HAP before marking device sync fixed.
+
+The app, launcher ability and start-window icon now share the existing 512px
+MODU artwork in AppScope. No installation or release is performed by this change.
+
+### Log/file export (2026-10-11)
+
+`saveFileToDownload` now routes OHOS exports through `modu/file_export`,
+registered by `EntryAbility` independently of the generated plugin registrant.
+Android/iOS retain `flutter_file_dialog`; desktop behavior is unchanged.
+The pinned file_picker revision `86ad5c767d94e01ad174eebae09931d651e64068`
+ignores save bytes, interprets `initialDirectory` as a source file, and does
+not guard an empty picker result. It is not used for this export path.
+
+The Dart side stages a unique private snapshot under `getTemporaryDirectory`
+(the pinned path_provider maps this to `context.cacheDir`). The native handler
+uses [DocumentViewPicker.save and URI file descriptors](https://github.com/openharmony/docs/blob/master/en/application-dev/file-management/save-user-file.md)
+to copy it to the user's chosen destination; it does not treat document URIs
+as Dart file paths. It returns only after copying and closing both handles.
+Cancellation returns null; errors are sanitized and leave the source intact.
+The snapshot is removed after completion. Log export uses the same shared
+path as notes/settings exports and no longer displays `saved null`.
+
+Local tests cover Dart staging and the actual ArkTS handler with mocked OHOS
+APIs, plus phone-sized log-menu interaction. They are **not** an ArkTS build
+or device acceptance test. Before shipping, build the signed HAP and verify
+successful UTF-8 export through Files, cancel/back, retry after failure, and
+original log preservation on the affected Harmony device.
+
+### Running the local audit
+
 From `modu_app`, after dependencies have already been resolved:
 
 ```sh
@@ -155,8 +199,8 @@ behavior to cover Flutter OH's additional TargetPlatform enum value. Package
 archive identities, edited-file hashes, paths and versions are checked before
 patching. No native API is replaced with a no-op and no cache source is edited.
 
-The pinned Flutter OH lacks the newer onReorderItem callback used by two Modu
-settings lists. `patch_app.py` adapts those two exact sites only in the runner
+The pinned Flutter OH lacks the newer onReorderItem callback used by three Modu
+settings lists. `patch_app.py` adapts those three exact sites only in the runner
 checkout, using onReorder and normalizing downward destination indices. The
 normal clients retain their existing callback API and drag behavior.
 

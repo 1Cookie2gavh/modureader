@@ -123,8 +123,9 @@ void main() {
 
   test('all skills can be disabled without fallback to other skill collections',
       () {
-    for (final skill in readAnySkills)
+    for (final skill in readAnySkills) {
       Prefs().setReadAnySkillEnabled(skill.id, false);
+    }
     Prefs().userPrompts = [customSkill('off', enabled: false)];
     expect(configuredReadingSkillChips(const Locale('zh')), isEmpty);
   });

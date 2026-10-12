@@ -38,8 +38,9 @@ class ReadingRequestSnapshot {
       };
 
   factory ReadingRequestSnapshot.fromJson(Map<String, dynamic> json) {
-    if (json['version'] != 1)
+    if (json['version'] != 1) {
       throw const FormatException('Unknown reading snapshot');
+    }
     final messages = (json['messages'] as List)
         .map((m) => ChatMessage.fromMap(Map<String, dynamic>.from(m as Map)))
         .toList(growable: false);

@@ -132,20 +132,25 @@ class _ChapterSplitRulesPageState extends State<ChapterSplitRulesPage> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          ...rules.map((entry) => _buildRuleTile(
-                entry: entry,
-                allowActions: allowActions,
-              )),
-        ],
-      ),
+      child: RadioGroup<String>(
+          groupValue: _selectedRuleId,
+          onChanged: (value) {
+            if (value != null) _onSelectRule(value);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              ...rules.map((entry) => _buildRuleTile(
+                    entry: entry,
+                    allowActions: allowActions,
+                  )),
+            ],
+          )),
     );
   }
 
@@ -169,8 +174,6 @@ class _ChapterSplitRulesPageState extends State<ChapterSplitRulesPage> {
               children: [
                 Radio<String>(
                   value: rule.id,
-                  groupValue: _selectedRuleId,
-                  onChanged: (_) => _onSelectRule(rule.id),
                 ),
                 Expanded(
                   child: Column(

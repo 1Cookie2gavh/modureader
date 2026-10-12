@@ -9,6 +9,11 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# Loaded in an isolated plugin context; does not upgrade the app's Riverpod 2.
+plugins:
+  riverpod_lint:
+    path: third_party/riverpod_lint
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
@@ -25,11 +30,16 @@ linter:
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 
 analyzer:
-  plugins:
-    - custom_lint
   exclude:
     - "lib/l10n/generated/*"
     - build/**
+    # Release staging and archived QA copies are not project source.
+    - dist-release/**
+    - output/**
+    - docs/qa/**
+    # Analyzer 14 plugins are compiled in the analysis server's isolated context.
+    - third_party/riverpod_lint/**
+    - third_party/riverpod_analyzer_utils/**
     - android/**
     - ios/**
     - web/**

@@ -36,7 +36,6 @@ import 'package:anx_reader/service/database_sync_manager.dart';
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/utils/get_path/databases_path.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:path/path.dart';
 import 'package:anx_reader/utils/log/common.dart';
@@ -219,9 +218,8 @@ class Sync extends _$Sync {
           trigger: trigger, shouldStart: shouldStart);
     } catch (e) {
       // Avoid logging DioException.toString(): it can contain private URLs.
-      final status = e is DioException ? e.response?.statusCode : null;
       AnxLog.warning(
-          'Sync incomplete: ${e.runtimeType}, HTTP $status, automatic=$automatic');
+          'Sync incomplete: ${syncFailureDiagnostic(e)}, automatic=$automatic');
       // Intentional pause/cancellation is not a failed synchronization. Final
       // automatic network failures are reported only after preflight retries.
       if (automatic && (!_autoSyncAllowed || !(shouldStart?.call() ?? true))) {

@@ -1,4 +1,5 @@
-import 'dart:ui';
+// Legacy callback forwarding is required by the pinned platform interface.
+// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,7 +17,7 @@ import 'in_app_webview_controller.dart';
 class WindowsHeadlessInAppWebViewCreationParams
     extends PlatformHeadlessInAppWebViewCreationParams {
   /// Creates a new [WindowsHeadlessInAppWebViewCreationParams] instance.
-  WindowsHeadlessInAppWebViewCreationParams({
+  const WindowsHeadlessInAppWebViewCreationParams({
     super.controllerFromPlatform,
     super.initialSize,
     this.webViewEnvironment,
@@ -263,9 +264,13 @@ class WindowsHeadlessInAppWebViewCreationParams
       );
 
   @override
+  // Narrow platform parameter types without changing the interface contract.
+  // ignore: overridden_fields
   final WindowsFindInteractionController? findInteractionController;
 
   @override
+  // Narrow platform parameter types without changing the interface contract.
+  // ignore: overridden_fields
   final WindowsWebViewEnvironment? webViewEnvironment;
 }
 
@@ -278,7 +283,7 @@ class WindowsHeadlessInAppWebView extends PlatformHeadlessInAppWebView
   bool _started = false;
   bool _running = false;
 
-  static const MethodChannel _sharedChannel = const MethodChannel(
+  static const MethodChannel _sharedChannel = MethodChannel(
     'com.pichillilorenzo/flutter_headless_inappwebview',
   );
 
@@ -342,6 +347,7 @@ class WindowsHeadlessInAppWebView extends PlatformHeadlessInAppWebView
     return null;
   }
 
+  @override
   Future<void> run() async {
     if (_started) {
       return;
@@ -386,7 +392,7 @@ class WindowsHeadlessInAppWebView extends PlatformHeadlessInAppWebView
     } catch (e) {
       _running = false;
       _started = false;
-      throw e;
+      rethrow;
     }
   }
 
@@ -406,9 +412,7 @@ class WindowsHeadlessInAppWebView extends PlatformHeadlessInAppWebView
     if ((params.shouldInterceptAjaxRequest != null ||
         params.onAjaxProgress != null ||
         params.onAjaxReadyStateChange != null)) {
-      if (settings.useShouldInterceptAjaxRequest == null) {
-        settings.useShouldInterceptAjaxRequest = true;
-      }
+      settings.useShouldInterceptAjaxRequest ??= true;
       if (params.onAjaxReadyStateChange != null &&
           settings.useOnAjaxReadyStateChange == null) {
         settings.useOnAjaxReadyStateChange = true;

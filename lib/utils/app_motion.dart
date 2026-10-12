@@ -1,13 +1,13 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:heroine/heroine.dart';
 
 /// Visual motion only. Never use this for debounce, network, or task timeouts.
 abstract final class AppMotion {
   // Set before building the app; unlike Prefs, safe during binding startup.
   static bool platformDisabled = false;
-  static bool get disabled => Prefs().isInitialized && Prefs().eInkMode;
+  static bool get disabled =>
+      Prefs().isInitialized && Prefs().eInkMotionDisabled;
   static Duration duration(Duration normal) =>
       disabled ? Duration.zero : normal;
   static AnimationStyle? get style =>

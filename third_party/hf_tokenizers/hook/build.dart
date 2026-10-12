@@ -203,7 +203,8 @@ Future<Uri> _ohosBuild(
     ..['CARGO_HOME'] = config['cargo_home']!
     ..['RUSTUP_HOME'] = config['rustup_home']!
     ..['RUSTUP_TOOLCHAIN'] = config['rustup_toolchain']!
-    ..['PATH'] = '${config['cargo_home']!}/bin:${Platform.environment['PATH'] ?? ''}'
+    ..['PATH'] =
+        '${config['cargo_home']!}/bin:${Platform.environment['PATH'] ?? ''}'
     ..['CARGO_TARGET_DIR'] = targetDir
     ..['CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER'] = linker
     ..['CC_aarch64_unknown_linux_ohos'] = linker
@@ -252,10 +253,9 @@ Future<Uri> _ohosBuild(
     throw StateError('OHOS readelf failed: ${inspected.stderr}');
   }
   final report = '${inspected.stdout}\n${inspected.stderr}';
-  final needed = RegExp(r'\(NEEDED\)\s+Shared library: \[([^\]]+)\]')
-      .allMatches(report)
-      .map((match) => match.group(1)!)
-      .toList();
+  final needed = RegExp(
+    r'\(NEEDED\)\s+Shared library: \[([^\]]+)\]',
+  ).allMatches(report).map((match) => match.group(1)!).toList();
   final glibc = RegExp(
     r'GLIBC_|ld-linux|ld64\.so|'
     r'lib(c|m|pthread|dl|rt|resolv|util|anl|nsl)\.so\.\d+|'
@@ -435,8 +435,9 @@ Future<Uri> _mobileBuild(
       sdk,
       '--show-sdk-path',
     ]);
-    if (result.exitCode != 0)
+    if (result.exitCode != 0) {
       throw StateError('iOS SDK unavailable: ${result.stderr}');
+    }
     env['SDKROOT'] = result.stdout.toString().trim();
   }
   final result = await Process.run(
@@ -445,11 +446,13 @@ Future<Uri> _mobileBuild(
     workingDirectory: crateDir.toFilePath(),
     environment: env,
   );
-  if (result.exitCode != 0)
+  if (result.exitCode != 0) {
     throw StateError('Tokenizer $triple build failed: ${result.stderr}');
+  }
   final library = File('$targetDir/$triple/release/${_localLibraryName(os)}');
-  if (!await library.exists())
+  if (!await library.exists()) {
     throw StateError('Tokenizer output missing: $triple');
+  }
   return library.uri;
 }
 

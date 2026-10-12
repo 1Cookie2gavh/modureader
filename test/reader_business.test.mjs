@@ -10,7 +10,7 @@ const sourceUris = new Map()
 const sourceUri = async name => {
   if (sourceUris.has(name)) return sourceUris.get(name)
   let source = await readFile(new URL(`../assets/foliate-js/src/${name}`, import.meta.url), 'utf8')
-  for (const [, dependency] of source.matchAll(/from '\.\/([^']+)'/g)) {
+  for (const [, dependency] of source.matchAll(/(?:from\s+|import\s+)'\.\/([^']+)'/g)) {
     source = source.replaceAll(`'./${dependency}'`, JSON.stringify(await sourceUri(dependency)))
   }
   const uri = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
@@ -110,6 +110,50 @@ test('explicit script opt-in keeps the original content', () => {
   sanitizeBookDocument(doc, true)
   assert.equal(doc.querySelectorAll('script').length, 1)
   assert.equal(doc.querySelector('p').getAttribute('onclick'), 'enabled()')
+})
+
+test('reflow source-page bridge uses View navigation rather than renderer-only targets', async () => {
+  const viewSource = await readFile(new URL('../assets/foliate-js/src/view.js', import.meta.url), 'utf8')
+  const bookSource = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8')
+  const methods = viewSource.slice(viewSource.indexOf('  resolveNavigation(target) {'),
+    viewSource.indexOf('\n  async goToFraction('))
+  const bridge = bookSource.slice(bookSource.indexOf('window.goToDocumentOriginalPage ='),
+    bookSource.indexOf('// Search has its own origin/previous/next controls'))
+  const View = runInNewContext(`(class {
+    #sectionProgress; history = {replaceState() {}, pushState() {}, clear() {}};
+    ${methods}
+  })`, {CFI: {isCFI: /^epubcfi\(/}, console: {error() {}}})
+  globalThis.document = new JSDOM('').window.document
+  globalThis.pdfjsLib = {getDocument: () => ({promise: Promise.resolve({
+    numPages: 3, getMetadata: async () => ({info: {}}), getOutline: async () => [],
+  })})}
+  const pdf = await makePDF(new Blob(['fixture']))
+  const imageEpub = {sections: [{}, {}, {}], resolveHref: href => {
+    assert.equal(typeof href, 'string', 'EPUB hrefs must not receive renderer targets')
+    return {index: 0}
+  }}
+  for (const book of [pdf, imageEpub]) {
+    const view = new View(), visited = [], history = []
+    view.book = book
+    view.history.replaceState = value => history.push(value)
+    view.history.pushState = () => assert.fail('reflow must not create a jump history entry')
+    view.renderer = {goTo: async target => {
+      const {index} = await target
+      visited.push(index)
+      view.lastLocation = {cfi: `page-${index}`}
+    }}
+    const window = {}
+    runInNewContext(bridge, {window, reader: {view}})
+    for (const page of [1, 2, 1, 0])
+      assert.equal(await window.goToDocumentOriginalPage(page), true)
+    assert.deepEqual(visited, [1, 2, 1, 0])
+    assert.deepEqual(history, ['page-1', 'page-2', 'page-1', 'page-0'])
+    for (const page of [-1, 3, 1.5, '1', null])
+      assert.equal(await window.goToDocumentOriginalPage(page), false)
+    view.renderer.goTo = async () => false
+    assert.equal(await window.goToDocumentOriginalPage(1), false)
+    assert.equal(history.length, 4, 'failed navigation must not commit progress')
+  }
 })
 
 test('PDF extraction uses all pages even with a partial outline, without HTML execution', async () => {

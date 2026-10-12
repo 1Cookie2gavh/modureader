@@ -205,7 +205,9 @@ void main() {
         await desktopReadsAndWrites();
         await einkSync.synchronize();
         final synced = await position(eink);
-        for (var i = 0; i < 5; i++) await session.flush();
+        for (var i = 0; i < 5; i++) {
+          await session.flush();
+        }
         expect((await position(eink)).revision, synced.revision);
         expect((await session.refresh()).position, 'chapter-8');
       });

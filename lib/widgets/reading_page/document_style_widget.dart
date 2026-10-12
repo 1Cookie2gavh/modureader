@@ -13,6 +13,7 @@ import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'document_text_style_dialog.dart';
 import 'eink_refresh_controls.dart';
+import 'reader_settings_scroll_view.dart';
 
 /// Quick controls for fixed-page documents, not the text-book style settings.
 class DocumentStyleWidget extends StatefulWidget {
@@ -143,7 +144,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
     return DocumentPanelTheme(
         child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SingleChildScrollView(
+      child: ReaderSettingsScrollView(
         child: Column(children: [
           Row(children: [
             Expanded(

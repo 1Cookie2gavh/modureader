@@ -131,14 +131,16 @@ void main() {
     await tester.tap(find.text('查询字典（可单选或多选）'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(CheckboxListTile, '第二词典'));
-    await tester.tap(find.widgetWithText(FilledButton, '查询'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关闭'));
     await tester.pumpAndSettle();
     expect(find.text('来源：第二词典 · 本地导入'), findsNothing);
     expect((await DictionaryPreferences.load()).localIds, {'one'});
     await tester.tap(find.text('查询字典（可单选或多选）'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('全选本地'));
-    await tester.tap(find.widgetWithText(FilledButton, '查询'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关闭'));
     await tester.pumpAndSettle();
     expect(find.text('来源：第二词典 · 本地导入'), findsOneWidget);
     expect(store.items.every((d) => d.enabled), true);
@@ -271,27 +273,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets(
-      'source picker cancels without changing consent or local selection on mobile',
+      'source picker remembers explicit choices on mobile without enabling other sources',
       (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 740);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(
-        app(DictionaryLookup(word: '苹果', store: FakeDictionaries())));
+    final online = FakeOnlineDictionary()..result.complete([]);
+    await tester.pumpWidget(app(DictionaryLookup(
+        word: '苹果', store: FakeDictionaries(), onlineService: online)));
     await tester.pumpAndSettle();
     await tester.tap(find.text('查询字典（可单选或多选）'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('清空本地'));
+    await tester.pumpAndSettle();
     await tester
         .ensureVisible(find.widgetWithText(CheckboxListTile, '维基词典 · 中文'));
     await tester.tap(find.widgetWithText(CheckboxListTile, '维基词典 · 中文'));
-    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关闭'));
     await tester.pumpAndSettle();
     final prefs = await DictionaryPreferences.load();
-    expect(prefs.localIds, isNull);
-    expect(prefs.online, isEmpty);
-    expect(find.text('apple; apple tree'), findsOneWidget);
+    expect(prefs.localIds, isEmpty);
+    expect(prefs.online, {OnlineDictionary.wiktionaryZh});
+    expect(find.text('apple; apple tree'), findsNothing);
     expect(tester.takeException(), isNull);
   });
   testWidgets(

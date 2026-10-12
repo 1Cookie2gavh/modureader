@@ -419,8 +419,8 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
             onChanged: (value) {
               setState(() {
                 _temperature = value;
-                _isModified = true;
               });
+              _saveParameters();
             },
           ),
           _buildParameterSlider(
@@ -433,8 +433,8 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
             onChanged: (value) {
               setState(() {
                 _maxTokens = value.round();
-                _isModified = true;
               });
+              _saveParameters();
             },
           ),
           _buildParameterSlider(
@@ -447,8 +447,8 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
             onChanged: (value) {
               setState(() {
                 _contextTurns = value.round();
-                _isModified = true;
               });
+              _saveParameters();
             },
           ),
           const Divider(height: 28),
@@ -484,8 +484,8 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
               if (value == null) return;
               setState(() {
                 _reasoningEffort = value;
-                _isModified = true;
               });
+              _saveParameters();
             },
           ),
           const SizedBox(height: 10),
@@ -806,6 +806,22 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
 
     setState(() => _isModified = false);
     Navigator.pop(context);
+  }
+
+  void _saveParameters() {
+    final provider = _existingProvider();
+    if (provider == null) {
+      setState(() => _isModified = true);
+      return;
+    }
+    // Parameter choices must not commit unfinished endpoint or key edits.
+    ref.read(aiProvidersProvider.notifier).updateProvider(provider.copyWith(
+          temperature:
+              normalizeAiTemperatureForModel(provider.model, _temperature),
+          maxTokens: _maxTokens,
+          contextTurns: _contextTurns,
+          reasoningEffort: _reasoningEffort,
+        ));
   }
 
   void _testConnection() {

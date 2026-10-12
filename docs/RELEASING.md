@@ -1,12 +1,12 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.6+10108**, 2026-10-11.
+Single-edition guide in English. Prepared for stable **1.2.7+10116**, 2026-10-12.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
 ## Build toolchain
 
-Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.6. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
+Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.7. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
 
 Current Android builds use Gradle 9.2.1 (checksum-pinned), AGP 9.0.1 and Kotlin 2.3.20 with `android.builtInKotlin=true`. Gradle 9.2.x's embedded Kotlin 2.2.20 matches the pinned Flutter 3.47.2 build plugin; see the [Gradle compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html). Keep `android.newDsl=false` while Flutter still uses legacy Android extension APIs ([AGP opt-out](https://developer.android.com/build/releases/agp-9-0-0-release-notes)). The minimum Android version remains API 26.
 
@@ -24,7 +24,7 @@ Build 10107 adds isolated AI menus/history and prevents AI Knowledge follow-ups 
 
 Build 10108 adds chapter-document validation and failed-resource invalidation for retry, preserving the outgoing page and reading position. All 585 JavaScript tests pass, including controlled null-document recovery and shared-resource retention. The reader bundle compiles with three existing top-level-await/legacy-target warnings. Xiaomi device revalidation remains pending; these local checks do not replace the full cloud release gates.
 
-The development-only `custom_lint` is pinned to 0.7.6, whose upstream fix invokes the Dart executable rather than the analysis server's AOT runtime for `pub get`. The previous 0.7.5 startup error (`pub is not an AOT snapshot`) was a lint-tool failure, not an application runtime failure. Keep the plugin enabled when validating the release. Standard Dart analysis completes without code errors. Running custom_lint separately still exposes an old Riverpod/analyzer incompatibility (`visitDotShorthandPropertyAccess`); do not claim complete custom-rule validation. Flutter's local analysis client also has a Chinese-workspace-path LSP framing error; direct Dart analysis avoids that client issue without disabling rules. CI uses an ASCII checkout path and retains its analyzer and test gates.
+Development analysis now uses a vendored Riverpod native analyzer plugin in an isolated tool dependency graph compatible with the pinned Flutter/Dart SDK. The app retains Riverpod 2 runtime dependencies; do not run the removed custom_lint entry. Use `flutter analyze --no-pub` / `dart analyze` and see [local toolchain](development/local-toolchain.md). CI retains analyzer and test gates. Historical build counts above describe 1.2.6, not current release acceptance.
 
 Native library extraction remains enabled through `packagingOptions.jniLibs.useLegacyPackaging=true`. Do not restore the old explicit `android:extractNativeLibs` manifest attribute: AGP 9 rejects that configuration at packaging time. Native JNI and 16 KB alignment verification still apply.
 

@@ -369,6 +369,8 @@ class _NarrateSettingsState extends ConsumerState<NarrateSettings>
         _highlightedModel = selectedVoiceModel;
       });
       _highlightAnimationController.reset();
+      _highlightAnimationController.duration =
+          AppMotion.duration(const Duration(milliseconds: 1500));
       _highlightAnimationController.forward();
     });
   }
@@ -597,8 +599,9 @@ class _NarrateSettingsState extends ConsumerState<NarrateSettings>
                                       !context.mounted ||
                                       revision != _configRevision ||
                                       _savingSettings ||
-                                      Prefs().ttsService != ttsServiceId)
+                                      Prefs().ttsService != ttsServiceId) {
                                     return;
+                                  }
                                   if ((selectedVoiceModel?.isEmpty ?? true) &&
                                       voices.isNotEmpty) {
                                     final currentLocale =

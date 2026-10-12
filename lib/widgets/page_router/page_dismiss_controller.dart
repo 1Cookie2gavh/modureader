@@ -26,7 +26,7 @@ class PageDismissController extends ChangeNotifier {
   }) {
     _animationController = AnimationController(
       vsync: vsync,
-      duration: AppMotion.duration(animationDuration),
+      duration: animationDuration,
     );
 
     // Default animation, target offset will be updated

@@ -4,6 +4,8 @@ import 'package:crypto/crypto.dart';
 import 'package:anx_reader/service/sync/immutable_sync_log.dart';
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'package:anx_reader/utils/platform_utils.dart';
 import 'package:anx_reader/service/sync/row_sync_record.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/service/sync/sync_client_base.dart';
@@ -16,7 +18,38 @@ class RowSyncArchive {
   static const format = 1;
   static const databaseVersion = 8;
 
-  static Future<void> write(String path, List<RowSyncRecord> records) async {
+  static Future<void> write(String path, List<RowSyncRecord> records,
+          {Directory? databaseDirectory}) =>
+      _withDatabasePath(path,
+          writing: true,
+          databaseDirectory: databaseDirectory,
+          action: (local) => _write(local, records));
+
+  // OHOS sqflite resolves customDir relative to its database root, not the
+  // supplied cache path. Keep portable archives separate from the live library.
+  static Future<T> _withDatabasePath<T>(String path,
+      {required bool writing,
+      required Future<T> Function(String) action,
+      Directory? databaseDirectory}) async {
+    databaseDirectory ??=
+        AnxPlatform.isOhos ? Directory(await getDatabasesPath()) : null;
+    if (databaseDirectory == null) return action(path);
+    final temporary = await databaseDirectory.createTemp('modu-sync-archive-');
+    // The pinned OHOS plugin also keys open handles by basename, not full path.
+    final local =
+        File(p.join(temporary.path, '${p.basename(temporary.path)}.db'));
+    try {
+      if (!writing) await File(path).copy(local.path);
+      final result = await action(local.path);
+      // action closes the database before the standalone transport is copied.
+      if (writing) await local.copy(path);
+      return result;
+    } finally {
+      await temporary.delete(recursive: true);
+    }
+  }
+
+  static Future<void> _write(String path, List<RowSyncRecord> records) async {
     final db = await openDatabase(path, singleInstance: false);
     try {
       await db.transaction((txn) async {
@@ -40,12 +73,20 @@ class RowSyncArchive {
   }
 
   static Future<List<RowSyncRecord>> read(String path,
-      {bool legacy = false}) async {
+      {bool legacy = false, Directory? databaseDirectory}) async {
     // A bounded metadata-only database; an oversized/corrupt download cannot
     // be mistaken for an empty cloud library.
     if (await File(path).length() > 64 * 1024 * 1024) {
       throw const FormatException('同步数据库超过 64 MiB 安全限制');
     }
+    return _withDatabasePath(path,
+        writing: false,
+        databaseDirectory: databaseDirectory,
+        action: (local) => _read(local, legacy: legacy));
+  }
+
+  static Future<List<RowSyncRecord>> _read(String path,
+      {required bool legacy}) async {
     var db = await openDatabase(path, readOnly: true, singleInstance: false);
     try {
       final integrity = await db.rawQuery('PRAGMA integrity_check');

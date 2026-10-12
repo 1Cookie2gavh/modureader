@@ -1,6 +1,7 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/providers/dashboard_tiles_provider.dart';
 import 'package:anx_reader/providers/total_reading_time.dart';
 import 'package:anx_reader/widgets/common/anx_button.dart';
@@ -45,33 +46,38 @@ class _StatisticDashboardTitleState
       );
     }
 
-    return Row(
-      children: [
-        TotalReadTime(),
-        const Spacer(),
-        if (tilesState.isEditing)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                onPressed: availableTiles.isEmpty ? null : showAddTileSheet,
-                icon: const Icon(Icons.add),
-                tooltip: l10n.statisticsDashboardAddCard,
-              ),
-              // IconButton(
-              //   onPressed: notifier.discardChanges,
-              //   icon: const Icon(Icons.close),
-              //   tooltip: 'Discard',
-              // ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: notifier.saveLayout,
-                icon: const Icon(Icons.save),
-                tooltip: l10n.commonSave,
-              ),
-            ],
-          ),
-      ],
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          TotalReadTime(),
+          if (tilesState.isEditing)
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: notifier.restoreDefaults,
+                  icon: const Icon(Icons.restore),
+                  label: Text(
+                      ModuStrings.text(context, '恢复默认', 'Restore defaults')),
+                ),
+                IconButton(
+                  onPressed: availableTiles.isEmpty ? null : showAddTileSheet,
+                  icon: const Icon(Icons.add),
+                  tooltip: l10n.statisticsDashboardAddCard,
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: notifier.saveLayout,
+                  icon: const Icon(Icons.save),
+                  tooltip: l10n.commonSave,
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

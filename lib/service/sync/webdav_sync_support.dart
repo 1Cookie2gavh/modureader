@@ -59,8 +59,9 @@ extension _WebdavSyncSupport on WebdavClient {
       final location = response.headers.value('location');
       Uri? next;
       try {
-        if (location != null && location.trim().isNotEmpty)
+        if (location != null && location.trim().isNotEmpty) {
           next = current.resolve(location);
+        }
       } catch (_) {/* malformed redirects remain a visible HTTP error */}
       String withoutSlash(Uri uri) => uri.path.replaceFirst(RegExp(r'/$'), '');
       if (!directory ||

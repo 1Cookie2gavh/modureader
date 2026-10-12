@@ -6,7 +6,6 @@ import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/widgets/reading_page/document_reflow_reader.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -344,6 +343,108 @@ void main() {
     expect(text(tester), 'OCR words');
     expect(ocr, 1);
   });
+  for (final ocr in [false, true]) {
+    testWidgets('initial reflow failure still allows source-page arrows ($ocr)',
+        (tester) async {
+      var source = 1;
+      final requested = <int>[];
+      Future<String> content() async {
+        requested.add(source);
+        if (source == 1) throw StateError('Page extraction failed');
+        return 'Page $source text';
+      }
+
+      await open(tester,
+          ocr: ocr,
+          info: (page) async {
+            source = page ?? 1;
+            return {'page': source, 'total': 3};
+          },
+          extract: (_) => content(),
+          recognize: content);
+      expect(pages, isEmpty);
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(find.textContaining('Could not reflow'), findsOneWidget);
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(requested, [1, 1]);
+      await tester.tap(find.byKey(const ValueKey('reflow-next')));
+      await tester.pumpAndSettle();
+      expect(text(tester), 'Page 2 text');
+      expect(pages, [2]);
+      expect(
+          tester
+              .widget<IconButton>(find.byKey(const ValueKey('reflow-next')))
+              .onPressed,
+          isNull);
+      await tester.tap(find.byKey(const ValueKey('reflow-previous')));
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(text(tester), 'Page 2 text');
+      expect(pages, [2]);
+      await tester.tap(find.byKey(const ValueKey('reflow-previous')));
+      await tester.pumpAndSettle();
+      expect(text(tester), 'Page 0 text');
+      expect(pages, [2, 0]);
+      expect(requested, [1, 1, 2, 1, 0]);
+      expect(
+          tester
+              .widget<IconButton>(find.byKey(const ValueKey('reflow-previous')))
+              .onPressed,
+          isNull);
+    });
+  }
+
+  testWidgets(
+      'failed source metadata can be retried or skipped without committing progress',
+      (tester) async {
+    final requests = <int>[];
+    await open(tester,
+        info: (page) async {
+          final target = page ?? 0;
+          requests.add(target);
+          if (target == 1) throw StateError('Page metadata unavailable');
+          return {'page': target, 'total': 3};
+        },
+        extract: (page) async => 'Page $page text');
+    await tester.tap(find.byKey(const ValueKey('reflow-next')));
+    await tester.pumpAndSettle();
+    expect(text(tester), 'Page 0 text');
+    expect(pages, [0]);
+    expect(find.text('2 / 3'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(requests, [0, 1, 1]);
+    await key.currentState!.turn(1);
+    await tester.pumpAndSettle();
+    expect(requests, [0, 1, 1, 2]);
+    expect(text(tester), 'Page 2 text');
+    expect(pages, [0, 2]);
+  });
+
+  testWidgets(
+      'switching to OCR after failure retries the requested source page',
+      (tester) async {
+    final rendered = <int>[];
+    await open(tester,
+        extract: (page) async {
+          if (page == 1) throw StateError('Text extraction failed');
+          return 'First page';
+        },
+        renderRequest: (request) => rendered.add(request['page'] as int),
+        recognize: () async => 'Recovered with OCR');
+    await tester.tap(find.byKey(const ValueKey('reflow-next')));
+    await tester.pumpAndSettle();
+    expect(pages, [0]);
+    final dropdown = tester.widget<DropdownButton<bool>>(
+        find.byKey(const ValueKey('reflow-mode')));
+    dropdown.onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(rendered, [1]);
+    expect(pages, [0, 1]);
+    expect(text(tester), 'Recovered with OCR');
+  });
+
   testWidgets(
       'missing model asks for explicit download; failure keeps last successful page',
       (tester) async {

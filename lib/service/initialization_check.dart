@@ -59,14 +59,17 @@ class InitializationCheck {
     Future.delayed(const Duration(milliseconds: 800), () {
       showCupertinoSheet(
         context: navigatorKey.currentContext!,
-        builder: (context) => Scaffold(
-          body: OnboardingScreen(
-            onComplete: () async {
-              Prefs().lastAppVersion = cv;
-              Navigator.pop(context);
-            },
-          ),
-        ),
+        scrollableBuilder: (BuildContext context, ScrollController controller) {
+          Widget widgetBuilder(BuildContext context) => Scaffold(
+                body: OnboardingScreen(
+                  onComplete: () async {
+                    Prefs().lastAppVersion = cv;
+                    Navigator.pop(context);
+                  },
+                ),
+              );
+          return widgetBuilder(context);
+        },
       );
     });
   }
@@ -78,14 +81,17 @@ class InitializationCheck {
     Future.delayed(const Duration(milliseconds: 800), () {
       showCupertinoSheet(
         context: navigatorKey.currentContext!,
-        builder: (context) => ChangelogScreen(
-          lastVersion: lv,
-          currentVersion: cv,
-          onComplete: () {
-            Prefs().lastAppVersion = cv;
-            Navigator.pop(context);
-          },
-        ),
+        scrollableBuilder: (BuildContext context, ScrollController controller) {
+          Widget widgetBuilder(BuildContext context) => ChangelogScreen(
+                lastVersion: lv,
+                currentVersion: cv,
+                onComplete: () {
+                  Prefs().lastAppVersion = cv;
+                  Navigator.pop(context);
+                },
+              );
+          return widgetBuilder(context);
+        },
       );
     });
   }

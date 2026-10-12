@@ -113,7 +113,9 @@ class BookNoteDao extends BaseDao {
   }) async {
     if (sources.isEmpty ||
         sources.length > 128 ||
-        sources.map((s) => s.id).toSet().length != sources.length) return null;
+        sources.map((s) => s.id).toSet().length != sources.length) {
+      return null;
+    }
     return transaction((txn) async {
       final originals = <BookNote>[];
       for (final source in sources) {
@@ -125,15 +127,18 @@ class BookNoteDao extends BaseDao {
             note.content != source.text ||
             note.type != 'highlight' ||
             note.color.toLowerCase() != color.toLowerCase() ||
-            (note.readerNote?.trim().isNotEmpty ?? false)) return null;
+            (note.readerNote?.trim().isNotEmpty ?? false)) {
+          return null;
+        }
         originals.add(note);
       }
       final collisions = await txn.query(table,
           columns: ['id'],
           where: 'book_id = ? AND cfi = ?',
           whereArgs: [bookId, cfi]);
-      if (collisions.any((row) => !sources.any((s) => s.id == row['id'])))
+      if (collisions.any((row) => !sources.any((s) => s.id == row['id']))) {
         return null;
+      }
       final merged = originals.first;
       merged.cfi = cfi;
       merged.content = text;

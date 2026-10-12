@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';

@@ -594,8 +594,9 @@ void main() {
     try {
       final client = MemorySyncClient();
       client.beforeWrite = (attempt) async {
-        if (attempt == 1)
+        if (attempt == 1) {
           await a.insert('tb_notes', noteRow(1, 'during transfer'));
+        }
       };
       await RowSyncEngine(store: sa, client: client, cache: temp).synchronize();
       expect(client.writes, 2);

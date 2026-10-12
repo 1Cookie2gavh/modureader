@@ -8,8 +8,42 @@ import 'package:anx_reader/service/sync/sync_feedback.dart';
 import 'package:anx_reader/service/sync/sync_preflight.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common/src/exception.dart';
 
 void main() {
+  test(
+      'database diagnostics expose only categories, numeric codes and SQL verbs',
+      () {
+    for (final entry in {
+      'open_failed /private/book.db': 'open_failed',
+      'no such table: private_title': 'missing_table',
+      'database readonly': 'read_only',
+      'database_closed': 'closed',
+      'syntax error private_payload': 'syntax',
+      'UNIQUE constraint failed: private_title': 'constraint',
+      'private_payload': 'unknown',
+    }.entries) {
+      final error = SqfliteDatabaseException(
+          entry.key,
+          {
+            'sql': 'SELECT private_title FROM private_table',
+            'arguments': ['private_key']
+          },
+          resultCode: 14);
+      final summary = syncFailureDiagnostic(error);
+      expect(summary, contains('reason=${entry.value}'));
+      expect(summary, contains('code=14'));
+      expect(summary, contains('operation=SELECT'));
+      expect(summary, isNot(contains('private')));
+      for (final chinese in [true, false]) {
+        final feedback = syncFailureMessage(error, chinese: chinese);
+        expect(feedback, isNot(contains('private')));
+        expect(feedback, contains(chinese ? '数据库' : 'database'));
+      }
+    }
+    expect(syncFailureDiagnostic(SqfliteDatabaseException(null, null)),
+        contains('code=unknown, operation=unknown'));
+  });
   test('batch download summaries do not swap successes and failures', () {
     expect(bookDownloadSummary(L10nZhCn(), success: 0, failed: 10),
         '书籍文件下载完成，0成功，10失败');

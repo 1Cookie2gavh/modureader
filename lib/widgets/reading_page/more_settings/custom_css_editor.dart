@@ -39,6 +39,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
   bool _busy = false;
   String? _error;
   CssVisualStyle _visual = const CssVisualStyle();
+  Future<void> _autoWrites = Future.value();
 
   String _text(String zh, String en) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
@@ -96,14 +97,30 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
     return balanced;
   }
 
-  Future<void> _persistDraft() => Prefs().saveCustomCssProfile(
-      _index,
-      CustomCssProfile(
-          name: _nameController.text.trim(),
-          css: _cssController.text,
-          pattern: _highlight ? _patternController.text : '',
-          scope: _scope,
-          visual: _visual));
+  CustomCssProfile get _draft => CustomCssProfile(
+      name: _nameController.text.trim(),
+      css: _cssController.text,
+      pattern: _highlight ? _patternController.text : '',
+      scope: _scope,
+      visual: _visual);
+
+  Future<void> _persistDraft() => Prefs().saveCustomCssProfile(_index, _draft);
+
+  void _autoSave() {
+    if (!_validate()) return;
+    final index = _index;
+    final draft = _draft;
+    // Capture each edit before queuing; later slots must never receive it.
+    _autoWrites = _autoWrites.then((_) async {
+      await Prefs().saveCustomCssProfile(index, draft);
+      _apply();
+    }).catchError((Object error) {
+      if (mounted) {
+        setState(() => _error = _text(
+            '自动保存失败，请重新修改或重试', 'Could not auto-save. Edit again or retry.'));
+      }
+    });
+  }
 
   CustomCssSelection get _selection => CustomCssSelection(
       index: _index, enabled: _enabled, indices: _active.toList());
@@ -120,6 +137,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      await _autoWrites;
       await action();
     } on FormatException catch (e) {
       if (mounted) {
@@ -249,6 +267,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
   Future<void> _copy() => _run(() async {
         if (!_validate()) return;
         await _persistDraft();
+        if (!mounted) return;
         final p = Prefs().customCssProfiles[_index];
         await _append([
           CustomCssProfile(
@@ -397,6 +416,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                 : () => _run(() async {
                       if (!_validate()) return;
                       await _persistDraft();
+                      if (!context.mounted) return;
                       await _append([
                         CustomCssProfile(
                             name:
@@ -461,17 +481,26 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         ChoiceChip(
             label: Text(ModuStrings.text(context, '排版 CSS', 'Layout CSS')),
             selected: !_highlight,
-            onSelected:
-                _busy ? null : (_) => setState(() => _highlight = false)),
+            onSelected: _busy
+                ? null
+                : (_) {
+                    setState(() => _highlight = false);
+                    _autoSave();
+                  }),
         ChoiceChip(
             label: Text(ModuStrings.text(context, '正则高亮', 'Regex highlight')),
             selected: _highlight,
-            onSelected:
-                _busy ? null : (_) => setState(() => _highlight = true)),
+            onSelected: _busy
+                ? null
+                : (_) {
+                    setState(() => _highlight = true);
+                    _autoSave();
+                  }),
       ]),
       TextField(
           key: const ValueKey('custom-css-name'),
           controller: _nameController,
+          onChanged: (_) => _autoSave(),
           enabled: !_busy,
           maxLength: 40,
           decoration: InputDecoration(
@@ -482,6 +511,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         TextField(
             key: const ValueKey('custom-css-pattern'),
             controller: _patternController,
+            onChanged: (_) => _autoSave(),
             enabled: !_busy,
             maxLength: 512,
             decoration: InputDecoration(
@@ -505,19 +535,33 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                 child:
                     Text(ModuStrings.text(context, '作用范围：正文', 'Scope: Body'))),
           ],
-          onChanged: _busy ? null : (value) => setState(() => _scope = value!)),
+          onChanged: _busy
+              ? null
+              : (value) {
+                  setState(() => _scope = value!);
+                  _autoSave();
+                }),
       IgnorePointer(
           ignoring: _busy,
           child: CssVisualControls(
             style: _visual,
             highlight: _highlight,
-            onChanged: (style) => setState(() => _visual = style),
+            onChanged: (style) {
+              setState(() => _visual = style);
+              _autoSave();
+            },
           )),
       if (_error != null)
         Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error))),
+            child: Row(children: [
+              Expanded(
+                  child: Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error))),
+              TextButton(
+                  onPressed: _autoSave, child: Text(_text('重试', 'Retry'))),
+            ])),
       ExpansionTile(
         key: ValueKey('css-code-editor-$_index'),
         title: Text(ModuStrings.text(
@@ -538,7 +582,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                 maxLines: null,
                 expands: true,
                 onChanged: (_) {
-                  if (_error != null) setState(() => _error = null);
+                  _autoSave();
                 },
                 style: const TextStyle(
                     fontFamily: 'Courier New', fontSize: 14, height: 1.4),
@@ -555,17 +599,16 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         TextButton.icon(
             onPressed: _busy
                 ? null
-                : () => setState(() {
+                : () {
+                    setState(() {
                       _cssController.clear();
                       _error = null;
-                    }),
+                    });
+                    _autoSave();
+                  },
             icon: const Icon(Icons.clear, size: 16),
             label:
                 Text(ModuStrings.text(context, '清空当前代码', 'Clear current CSS'))),
-        ElevatedButton.icon(
-            onPressed: _busy ? null : () => _save(),
-            icon: const Icon(Icons.save, size: 16),
-            label: Text(ModuStrings.text(context, '保存模板', 'Save template'))),
       ]),
       const SizedBox(height: 8),
     ]);

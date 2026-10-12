@@ -13,9 +13,9 @@ export class ContinuousSectionWindow {
   loadQueue = []
   loading = false
   anchor = null
-  constructor({ container, sections, create, activate, changed,
+  constructor({ container, sections, create, activate, changed, alignScroll,
     maxViews = 9, maxBytes = 8 * 1024 * 1024 }) {
-    Object.assign(this, { container, sections, create, activate, changed, maxViews, maxBytes })
+    Object.assign(this, { container, sections, create, activate, changed, alignScroll, maxViews, maxBytes })
     container.style.display = 'flex'
     container.style.flexDirection = 'column'
     container.style.overflowAnchor = 'none'
@@ -274,7 +274,10 @@ export class ContinuousSectionWindow {
       // Never land in the temporary loading spacer at the end of the window.
       const last = this.ordered.at(-1)
       const end = this.top(last) + last.view.element.getBoundingClientRect().height
-      this.container.scrollTop = Math.max(0, Math.min(target(), end - this.height))
+      const desired = Math.max(0, Math.min(target(), end - this.height))
+      const aligned = desired > 0 && desired < end - this.height
+        ? this.alignScroll?.(desired, this.container.scrollTop) ?? desired : desired
+      this.container.scrollTop = Math.max(0, Math.min(aligned, end - this.height))
     } finally {
       this.busy = false
       this.track()

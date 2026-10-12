@@ -64,15 +64,18 @@ class _TtsWidgetState extends State<TtsWidget> {
       await TtsHandler().init(reader.initTts, reader.ttsNext, reader.ttsPrev);
       if (!mounted ||
           !reader.mounted ||
-          widget.epubPlayerKey.currentState != reader) return;
+          widget.epubPlayerKey.currentState != reader) {
+        return;
+      }
       await audioHandler.play();
     } catch (error) {
       AnxLog.warning('TTS panel startup failed: ${error.runtimeType}');
-      if (mounted)
+      if (mounted) {
         setState(() => _startupError = ModuStrings.text(
             context,
             '朗读启动失败，请重新打开朗读面板重试。',
             'Could not start speech. Reopen the narration panel to retry.'));
+      }
     }
   }
 

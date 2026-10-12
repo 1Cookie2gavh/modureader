@@ -118,8 +118,9 @@ class CancelableLangchainRunner {
     Future<void> stop() => cleanup ??= () async {
           cancelled = true;
           _cancellations.remove(stop);
-          if (pendingIteration?.isCompleted == false)
+          if (pendingIteration?.isCompleted == false) {
             pendingIteration!.complete();
+          }
           await subscription?.cancel();
           await _closeModel(model);
           if (!controller.isClosed) unawaited(controller.close());

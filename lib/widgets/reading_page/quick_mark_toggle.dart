@@ -23,7 +23,9 @@ class QuickMarkToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = platform ?? AnxPlatform.type;
     if (![AnxPlatformEnum.android, AnxPlatformEnum.ios, AnxPlatformEnum.ohos]
-        .contains(target)) return const SizedBox.shrink();
+        .contains(target)) {
+      return const SizedBox.shrink();
+    }
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     if (showExit) {
       if (!enabled) return const SizedBox.shrink();

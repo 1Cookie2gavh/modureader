@@ -556,14 +556,17 @@ Future<void> _showChangelog(BuildContext context) async {
 
   showCupertinoSheet(
     context: navigatorKey.currentContext ?? context,
-    builder: (sheetContext) => ChangelogScreen(
-      lastVersion: lastVersion,
-      currentVersion: currentVersion,
-      onComplete: () {
-        Prefs().lastAppVersion = currentVersion;
-        Navigator.pop(sheetContext);
-      },
-    ),
+    scrollableBuilder: (BuildContext context, ScrollController controller) {
+      Widget widgetBuilder(BuildContext sheetContext) => ChangelogScreen(
+            lastVersion: lastVersion,
+            currentVersion: currentVersion,
+            onComplete: () {
+              Prefs().lastAppVersion = currentVersion;
+              Navigator.pop(sheetContext);
+            },
+          );
+      return widgetBuilder(context);
+    },
   );
 }
 
@@ -572,14 +575,17 @@ Future<void> _showOnboarding(BuildContext context) async {
 
   showCupertinoSheet(
     context: navigatorKey.currentContext ?? context,
-    builder: (sheetContext) => Scaffold(
-      body: OnboardingScreen(
-        onComplete: () {
-          Prefs().lastAppVersion = currentVersion;
-          Navigator.pop(sheetContext);
-        },
-      ),
-    ),
+    scrollableBuilder: (BuildContext context, ScrollController controller) {
+      Widget widgetBuilder(BuildContext sheetContext) => Scaffold(
+            body: OnboardingScreen(
+              onComplete: () {
+                Prefs().lastAppVersion = currentVersion;
+                Navigator.pop(sheetContext);
+              },
+            ),
+          );
+      return widgetBuilder(context);
+    },
   );
 }
 

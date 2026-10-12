@@ -16,8 +16,9 @@ void validateSettingsValue(String key, dynamic value) {
   dynamic decoded() => jsonDecode(value as String);
   Map<String, dynamic> object() {
     final data = decoded();
-    if (data is! Map<String, dynamic>)
+    if (data is! Map<String, dynamic>) {
       throw const FormatException('Expected object');
+    }
     return data;
   }
 
@@ -154,8 +155,9 @@ void validateSettingsValue(String key, dynamic value) {
     }
   }
   if (key == 's3Info') S3Config(object());
-  if (key == 'vectorModelConfig' || key.startsWith('translateServiceConfig_'))
+  if (key == 'vectorModelConfig' || key.startsWith('translateServiceConfig_')) {
     object();
+  }
   if (key == 'remoteLibraryViewOptions') {
     final data = object();
     if (!['name', 'createdAt', 'modifiedAt', 'size'].contains(data['sort']) ||

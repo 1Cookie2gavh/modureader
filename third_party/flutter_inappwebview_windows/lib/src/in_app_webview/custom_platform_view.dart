@@ -1,3 +1,6 @@
+// Legacy callback forwarding is required by the pinned platform interface.
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:ui';
@@ -81,7 +84,7 @@ PointerButton _getButton(int value) {
   }
 }
 
-const MethodChannel _pluginChannel = IN_APP_WEBVIEW_STATIC_CHANNEL;
+const MethodChannel _pluginChannel = inAppWebViewStaticChannel;
 
 class CustomFlutterViewControllerValue {
   const CustomFlutterViewControllerValue({required this.isInitialized});
@@ -100,7 +103,7 @@ class CustomFlutterViewControllerValue {
 /// Controls a WebView and provides streams for various change events.
 class CustomPlatformViewController
     extends ValueNotifier<CustomFlutterViewControllerValue> {
-  Completer<void> _creatingCompleter = Completer<void>();
+  final Completer<void> _creatingCompleter = Completer<void>();
   int _textureId = 0;
   bool _isDisposed = false;
 
@@ -283,6 +286,7 @@ class CustomPlatformView extends StatefulWidget {
   final Function(int id)? onPlatformViewCreated;
 
   const CustomPlatformView({
+    super.key,
     this.creationParams,
     this.onPlatformViewCreated,
     this.scaleFactor,
@@ -290,7 +294,7 @@ class CustomPlatformView extends StatefulWidget {
   });
 
   @override
-  _CustomPlatformViewState createState() => _CustomPlatformViewState();
+  State<CustomPlatformView> createState() => _CustomPlatformViewState();
 }
 
 class _CustomPlatformViewState extends State<CustomPlatformView>
@@ -309,7 +313,7 @@ class _CustomPlatformViewState extends State<CustomPlatformView>
 
   late final AppLifecycleListener _listener;
 
-  PlatformUtil _platformUtil = PlatformUtil.instance();
+  final PlatformUtil _platformUtil = PlatformUtil.instance();
 
   @override
   void initState() {
@@ -504,10 +508,11 @@ class _CustomPlatformViewState extends State<CustomPlatformView>
     final box = _key.currentContext?.findRenderObject() as RenderBox?;
     if (box != null) {
       await _controller.ready;
+      if (!mounted) return;
       unawaited(
         _controller._setSize(
           box.size,
-          widget.scaleFactor ?? window.devicePixelRatio,
+          widget.scaleFactor ?? View.of(context).devicePixelRatio,
         ),
       );
     }
@@ -517,11 +522,12 @@ class _CustomPlatformViewState extends State<CustomPlatformView>
     final box = _key.currentContext?.findRenderObject() as RenderBox?;
     if (box != null) {
       await _controller.ready;
+      if (!mounted) return;
       final position = box.localToGlobal(Offset.zero);
       unawaited(
         _controller._setPosition(
           position,
-          widget.scaleFactor ?? window.devicePixelRatio,
+          widget.scaleFactor ?? View.of(context).devicePixelRatio,
         ),
       );
     }

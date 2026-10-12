@@ -55,7 +55,9 @@ Future<void> prepareTtsNotificationPermission() async {
     if (result == null ||
         result.isGranted ||
         context == null ||
-        !context.mounted) return;
+        !context.mounted) {
+      return;
+    }
     final chinese = Localizations.localeOf(context).languageCode == 'zh';
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
       content: Text(chinese

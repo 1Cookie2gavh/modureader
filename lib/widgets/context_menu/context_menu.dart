@@ -53,6 +53,7 @@ Future<void> showContextMenu(
     isNewNote = true;
   }
 
+  if (!context.mounted) return;
   if (!Prefs().selectionToolbar.enabled) {
     playerKey.removeOverlay();
     return;
@@ -134,7 +135,7 @@ Future<void> showContextMenu(
     boxShadow: [
       if (!Prefs().eInkMode)
         BoxShadow(
-          color: Colors.black.withOpacity(0.1),
+          color: Colors.black.withValues(alpha: 0.1),
           spreadRadius: 5,
           blurRadius: 7,
           offset: const Offset(0, 3),

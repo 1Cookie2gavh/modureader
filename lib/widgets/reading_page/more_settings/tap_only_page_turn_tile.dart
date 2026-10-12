@@ -14,7 +14,9 @@ class TapOnlyPageTurnTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = platform ?? AnxPlatform.type;
     if (![AnxPlatformEnum.android, AnxPlatformEnum.ios, AnxPlatformEnum.ohos]
-        .contains(current)) return const SizedBox.shrink();
+        .contains(current)) {
+      return const SizedBox.shrink();
+    }
     return SwitchListTile(
       key: const ValueKey('tap-only-page-turn'),
       contentPadding: EdgeInsets.zero,

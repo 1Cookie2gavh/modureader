@@ -24,7 +24,6 @@ import 'package:anx_reader/service/convert_to_epub/umd/convert_from_umd.dart';
 import 'package:anx_reader/service/book_source_format.dart';
 import 'package:anx_reader/service/book_formats.dart';
 import 'package:anx_reader/service/md5_service.dart';
-import 'package:anx_reader/service/book.dart';
 import 'package:anx_reader/service/knowledge/book_knowledge_index_queue.dart';
 import 'package:anx_reader/service/knowledge/book_knowledge_index_service.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
@@ -163,6 +162,7 @@ class BookBottomSheet extends ConsumerWidget {
       );
 
       if (result == null) return;
+      if (!context.mounted) return;
       PlatformFile newFile = result.files.first;
       String extension =
           p.extension(newFile.name).replaceAll('.', '').toLowerCase();
@@ -295,6 +295,7 @@ class BookBottomSheet extends ConsumerWidget {
           ref.read(syncProvider.notifier).syncData(SyncDirection.upload, ref);
         }
       } catch (e) {
+        if (!context.mounted) return;
         AnxToast.show(
             L10n.of(context).bookBottomSheetReplaceFailed(e.toString()));
       }
@@ -345,6 +346,7 @@ class BookBottomSheet extends ConsumerWidget {
                         .read(bookshelfPinsProvider.notifier)
                         .setPinned(bookPinKey(book), !pinned);
                   } catch (_) {
+                    if (!context.mounted) return;
                     AnxToast.show(ModuStrings.text(context, '置顶设置保存失败，请重试',
                         'Could not save pin. Please retry.'));
                   }
@@ -475,14 +477,18 @@ class BookBottomSheet extends ConsumerWidget {
 String _vectorActionLabel(
     bool indexed, BookKnowledgeQueueItem? item, BuildContext context) {
   final status = item?.status;
-  if (status == BookKnowledgeQueueStatus.queued)
+  if (status == BookKnowledgeQueueStatus.queued) {
     return ModuStrings.text(context, '排队中', 'Queued');
-  if (status == BookKnowledgeQueueStatus.cancelling)
+  }
+  if (status == BookKnowledgeQueueStatus.cancelling) {
     return ModuStrings.text(context, '正在取消', 'Cancelling');
-  if (status?.isActive == true)
+  }
+  if (status?.isActive == true) {
     return ModuStrings.text(context, '正在向量化', 'Indexing');
-  if (status == BookKnowledgeQueueStatus.failed)
+  }
+  if (status == BookKnowledgeQueueStatus.failed) {
     return ModuStrings.text(context, '重新排队', 'Retry indexing');
+  }
   return indexed
       ? (ModuStrings.text(context, '重新向量化', 'Reindex'))
       : (ModuStrings.text(context, '向量化', 'Vectorize'));

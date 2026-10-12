@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:async';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/utils/app_version.dart';
@@ -91,9 +92,9 @@ Future<void> main() async {
     }
   });
   await Prefs().initPrefs();
-  AppMotion.platformDisabled = Prefs().eInkMode;
+  AppMotion.platformDisabled = Prefs().eInkMotionDisabled;
   Prefs().addListener(() {
-    AppMotion.platformDisabled = Prefs().eInkMode;
+    AppMotion.platformDisabled = Prefs().eInkMotionDisabled;
   });
   await AppBrightness.instance.initialize(Prefs().prefs);
   await applyBundledModelDefaults(Prefs().prefs);
@@ -113,6 +114,8 @@ Future<void> main() async {
   }
 
   if (AnxPlatform.isAndroid) {
+    // Storage bootstrap does not use providers; _startConfiguredApp adds scope.
+    // ignore: missing_provider_scope
     runApp(AndroidStorageStartup(start: () async {
       await prepareAndroidStorage();
       await _startConfiguredApp();
@@ -294,7 +297,7 @@ class _MyAppState extends ConsumerState<MyApp>
       ],
       child: provider.Consumer<Prefs>(
         builder: (context, prefsNotifier, child) {
-          final motion = !prefsNotifier.eInkMode;
+          final motion = !prefsNotifier.eInkMotionDisabled;
           SmartDialog.config.custom = SmartConfigCustom(
               maskColor: Colors.black.withAlpha(35),
               useAnimation: motion,
@@ -306,8 +309,8 @@ class _MyAppState extends ConsumerState<MyApp>
           return MaterialApp(
             themeAnimationDuration: AppMotion.duration(kThemeAnimationDuration),
             debugShowCheckedModeBanner: false,
-            scrollBehavior: ScrollConfiguration.of(context).copyWith(
-              physics: prefsNotifier.eInkMode
+            scrollBehavior: const AppScrollBehavior().copyWith(
+              physics: prefsNotifier.eInkMotionDisabled
                   ? const EinkScrollPhysics()
                   : const BouncingScrollPhysics(),
               // dragDevices: {
@@ -321,11 +324,11 @@ class _MyAppState extends ConsumerState<MyApp>
               heroineController
             ],
             builder: (context, child) => EinkMotionScope(
-                enabled: prefsNotifier.eInkMode,
+                enabled: prefsNotifier.eInkMotionDisabled,
                 child: AppBrightnessLayer(
                   controller: AppBrightness.instance,
                   child: FlutterSmartDialog.init(
-                    loadingBuilder: prefsNotifier.eInkMode
+                    loadingBuilder: prefsNotifier.eInkMotionDisabled
                         ? (message) => Material(
                               color: Colors.white,
                               shape: RoundedRectangleBorder(

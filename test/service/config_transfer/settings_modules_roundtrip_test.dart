@@ -15,6 +15,7 @@ void main() {
     'themeColor': 12,
     'trueDarkMode': true,
     'showBookFormatBadge': false,
+    'showBookIndexBadge': false,
     'pageTurnStyle': 'scroll',
     'scrollPagePercent': 93,
     'readerShortcuts': '{"next":[{"key":"n","modifiers":1}]}',

@@ -156,8 +156,9 @@ class OnlineTts extends BaseTts {
 
   @override
   set pitch(double pitch) {
-    if (!pitch.isFinite || pitch < 0.5 || pitch > 2 || pitch == this.pitch)
+    if (!pitch.isFinite || pitch < 0.5 || pitch > 2 || pitch == this.pitch) {
       return;
+    }
     Prefs().ttsPitch = pitch;
     // Clear pending audio so it will be re-fetched with new pitch
     _clearPendingAudio();
@@ -900,10 +901,12 @@ class OnlineTts extends BaseTts {
         '音频控制失败，已保留当前位置，请重试 / Audio control failed; retry this sentence.';
     _shouldStop = true;
     final segment = _currentSegment;
-    if (segment != null && !_buffer.contains(segment))
+    if (segment != null && !_buffer.contains(segment)) {
       _buffer.insert(0, segment);
-    if (_playbackCompleter?.isCompleted == false)
+    }
+    if (_playbackCompleter?.isCompleted == false) {
       _playbackCompleter!.complete();
+    }
     updateTtsState(TtsStateEnum.paused);
     AnxLog.warning('TTS player control failed: ${error.runtimeType}');
   }

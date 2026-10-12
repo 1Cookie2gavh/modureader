@@ -6,6 +6,8 @@ import 'package:anx_reader/widgets/reading_page/vertical_page_chrome.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+// Native input fixture intentionally has no app providers.
+// ignore: missing_provider_scope
 void main() => runApp(const MaterialApp(home: _Harness()));
 
 class _Harness extends StatefulWidget {

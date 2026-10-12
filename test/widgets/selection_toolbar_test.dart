@@ -301,11 +301,12 @@ void main() {
       await tester.ensureVisible(key('toolbar-ai-web-search'));
       await tester.tap(key('toolbar-ai-web-search'));
       await tester.pumpAndSettle();
-      await tester.tap(key('toolbar-editor-save'));
-      await tester.pumpAndSettle();
+      expect(key('toolbar-editor-save'), findsNothing);
       final item = Prefs().selectionToolbar.items.firstWhere((i) => i.id == id);
       expect(item.scope, SelectionAiScope.context);
       expect(item.webSearch, true);
+      await tester.tap(find.text('关闭'));
+      await tester.pumpAndSettle();
       expect(
           Prefs()
               .selectionToolbar

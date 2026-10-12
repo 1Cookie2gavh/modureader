@@ -6,7 +6,7 @@ void main() async {
 
   final enFile = File('lib/l10n/app_en.arb');
   if (!await enFile.exists()) {
-    print('Error: English ARB file not found');
+    stdout.writeln('Error: English ARB file not found');
     return;
   }
 
@@ -20,7 +20,8 @@ void main() async {
     }
   }
 
-  print('Found ${orderedKeys.length} translation keys in English file');
+  stdout
+      .writeln('Found ${orderedKeys.length} translation keys in English file');
 
   final files = await l10nDir
       .list()
@@ -35,13 +36,13 @@ void main() async {
     await normalizeArbFile(file, orderedKeys, enMap);
   }
 
-  print('\nNormalization completed for ${files.length} files');
+  stdout.writeln('\nNormalization completed for ${files.length} files');
 }
 
 Future<void> normalizeArbFile(
     File file, List<String> orderedKeys, Map<String, dynamic> enMap) async {
   final fileName = file.path.split('/').last;
-  print('Processing $fileName...');
+  stdout.writeln('Processing $fileName...');
 
   try {
     final content = await file.readAsString();
@@ -63,7 +64,7 @@ Future<void> normalizeArbFile(
         normalizedMap[key] = currentMap[key];
         foundKeys++;
       } else {
-        print(
+        stdout.writeln(
             '  Warning: Missing key "$key", using English text as placeholder');
       }
     }
@@ -72,7 +73,7 @@ Future<void> normalizeArbFile(
     for (final key in currentMap.keys) {
       if (!key.startsWith('@@') && !orderedKeys.contains(key)) {
         extraKeys.add(key);
-        print('  Warning: Extra key found "$key" (will be removed)');
+        stdout.writeln('  Warning: Extra key found "$key" (will be removed)');
       }
     }
 
@@ -81,9 +82,9 @@ Future<void> normalizeArbFile(
 
     await file.writeAsString('$normalizedContent\n');
 
-    print(
+    stdout.writeln(
         '  ✓ Normalized $fileName: $foundKeys keys found, $missingKeys missing, ${extraKeys.length} extra removed');
   } catch (e) {
-    print('  ✗ Error processing $fileName: $e');
+    stdout.writeln('  ✗ Error processing $fileName: $e');
   }
 }

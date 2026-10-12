@@ -52,6 +52,20 @@ void main() {
     expect(text, isNot(contains('/device/bg.png')));
   });
 
+  test('E-Ink animation preference roundtrips in appearance settings',
+      () async {
+    Prefs().eInkMode = true;
+    Prefs().eInkDisableAnimations = false;
+    final text =
+        await GlobalSettingsTransfer.export(Prefs(), scope: 'appearance');
+    final data = await GlobalSettingsTransfer.decode(text);
+    expect(data['eInkDisableAnimations'], {'type': 'bool', 'value': false});
+    Prefs().eInkDisableAnimations = true;
+    await GlobalSettingsTransfer.apply(Prefs(), data);
+    expect(Prefs().eInkDisableAnimations, false);
+    expect(Prefs().eInkMotionDisabled, false);
+  });
+
   for (final rate in [3.0, 4.0]) {
     test('${rate}x speed survives global settings file and link import',
         () async {
@@ -94,7 +108,8 @@ void main() {
     }
   });
 
-  test('template drafting is device-local and excluded from file and link import',
+  test(
+      'template drafting is device-local and excluded from file and link import',
       () async {
     expect(Prefs().aiSkillTemplateDraft, false);
     final defaults = await GlobalSettingsTransfer.export(Prefs());

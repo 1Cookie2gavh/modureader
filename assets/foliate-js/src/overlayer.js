@@ -1,5 +1,5 @@
 import { SearchHighlighter } from './search-highlighter.js'
-import { annotationPointMapper, annotationRect } from './annotation-geometry.js'
+import { annotationPointMapper, annotationRect, annotationRangeRects } from './annotation-geometry.js'
 
 const createSVGElement = tag =>
     document.createElementNS('http://www.w3.org/2000/svg', tag)
@@ -83,7 +83,7 @@ export class Overlayer {
     #rects(range, map = annotationPointMapper(this.#doc, this.#svg)) {
         const zoom = this.#zoom
         return this.#splitRangeByParagraph(range).flatMap(part =>
-            Array.from(part.getClientRects(), rect => annotationRect(rect, map, zoom)))
+            annotationRangeRects(part).map(rect => annotationRect(rect, map, zoom)))
     }
     remove(key) {
         this.#search.remove(key)

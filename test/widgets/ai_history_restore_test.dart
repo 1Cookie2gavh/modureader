@@ -144,7 +144,9 @@ void main() {
                 final entries = await AiHistoryStore.readHistory();
                 if (entries.length == 1 &&
                     entries.single.completed &&
-                    entries.single.messages.length == count) break;
+                    entries.single.messages.length == count) {
+                  break;
+                }
                 await Future<void>.delayed(const Duration(milliseconds: 10));
               }
               final entries = await AiHistoryStore.readHistory();

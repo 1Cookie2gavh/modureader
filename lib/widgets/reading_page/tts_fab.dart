@@ -29,7 +29,7 @@ class _TtsFabState extends State<TtsFab> with SingleTickerProviderStateMixin {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: AppMotion.duration(const Duration(milliseconds: 220)),
+      duration: const Duration(milliseconds: 220),
     );
     _expandAnimation = CurvedAnimation(
       parent: _animationController,

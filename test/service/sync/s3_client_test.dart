@@ -43,9 +43,10 @@ class S3Fixture {
       if (failure != null) {
         response.statusCode = failure!;
         response.headers.set('retry-after', '120');
-        if (failure == 302)
+        if (failure == 302) {
           response.headers
               .set('location', 'https://never-follow.example/private');
+        }
         response.write('sensitive-response-body');
         await response.close();
         return;
@@ -66,7 +67,9 @@ class S3Fixture {
         final encoded = request.uri.queryParameters['encoding-type'] == 'url';
         String encodeName(String value) => !encoded
             ? value
-            : formEncodedNames ? Uri.encodeQueryComponent(value) : s3Encode(value);
+            : formEncodedNames
+                ? Uri.encodeQueryComponent(value)
+                : s3Encode(value);
         final entries = <String, bool>{};
         for (final key in objects.keys.where((key) => key.startsWith(prefix))) {
           final rest = key.substring(prefix.length);
@@ -83,7 +86,9 @@ class S3Fixture {
         final marker = request.uri.queryParameters['marker'];
         final start = continuation != null
             ? int.parse(continuation.split('+')[1].split('/')[0])
-            : marker == null ? 0 : keys.indexOf(marker) + 1;
+            : marker == null
+                ? 0
+                : keys.indexOf(marker) + 1;
         if (marker != null) expect(keys, contains(marker));
         final limit = int.parse(request.uri.queryParameters['max-keys']!)
             .clamp(1, pageSize);
@@ -110,9 +115,10 @@ class S3Fixture {
                 '<ETag>"${md5.convert(objects[key]!)}"</ETag></Contents>');
           }
         }
-        if (more)
+        if (more) {
           response.write(
               '<NextContinuationToken>page+${start + page.length}/=</NextContinuationToken><NextMarker>${xml(encodeName(page.last))}</NextMarker>');
+        }
         response.write('</ListBucketResult>');
       } else if (request.method == 'PUT') {
         final bytes =
@@ -159,14 +165,23 @@ class S3Fixture {
 void main() {
   test('literal listing names are scoped to RainYun only', () {
     for (final host in ['cn-nb1.rains3.com', '19216811.cn-nb1.rains3.com']) {
-      expect(S3Config(configuration({'endpoint': 'https://$host'}))
-          .useEncodedListingNames, false);
+      expect(
+          S3Config(configuration({'endpoint': 'https://$host'}))
+              .useEncodedListingNames,
+          false);
     }
-    expect(S3Config(configuration({'provider': 'rainyun'}))
-        .useEncodedListingNames, false);
-    for (final host in ['s3.amazonaws.com', 'notrains3.com', 'rains3.com.example.org']) {
-      expect(S3Config(configuration({'endpoint': 'https://$host'}))
-          .useEncodedListingNames, true);
+    expect(
+        S3Config(configuration({'provider': 'rainyun'})).useEncodedListingNames,
+        false);
+    for (final host in [
+      's3.amazonaws.com',
+      'notrains3.com',
+      'rains3.com.example.org'
+    ]) {
+      expect(
+          S3Config(configuration({'endpoint': 'https://$host'}))
+              .useEncodedListingNames,
+          true);
     }
   });
   test(
@@ -278,7 +293,13 @@ void main() {
     test('RainYun listings preserve spaces, literal plus and percent names',
         () async {
       server.formEncodedNames = true;
-      final names = {'a b.png', 'a+b.png', 'a%20b.png', 'a%2Bb.png', '中文 +%&.png'};
+      final names = {
+        'a b.png',
+        'a+b.png',
+        'a%20b.png',
+        'a%2Bb.png',
+        '中文 +%&.png'
+      };
       for (final root in ['Books/中文', 'Books/中文 folder+%']) {
         server.objects.clear();
         server.objects['$root/data/cover/'] = [];
@@ -287,8 +308,11 @@ void main() {
         }
         server.objects['$root/folder +%/child'] = [1];
         for (final version in ['v1', 'v2']) {
-          final client = server.client({'provider': 'rainyun',
-            'remoteRoot': root, 'listVersion': version});
+          final client = server.client({
+            'provider': 'rainyun',
+            'remoteRoot': root,
+            'listVersion': version
+          });
           final listing = await client.readDir('modu/data/cover');
           expect(listing.map((f) => f.name).toSet(), names);
           expect((await client.readProps('modu/data/cover'))?.isDir, true);

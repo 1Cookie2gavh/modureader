@@ -8,6 +8,10 @@ The source review includes the changes in [1.2.5](https://github.com/sobranie240
 
 ## Settings entry points
 
+Unreleased scrollbars: the bookshelf, Reading History, settings, remote library, notes, Lookup and scrollable dialogs use translucent draggable thumbs. They appear while scrolling and hide after about 1.2 seconds idle, on the right for vertical scrolling. Horizontal scrolling remains available without a scrollbar. Fitting content has no visible thumb. E-Ink with animations disabled shows/hides without fading. Embedded web pages and continuous reading also have scrollbars; paginated reading and single-line fields do not.
+
+Unreleased autosave changes: ordinary switches, selections and ordering persist immediately; PDF/OCR style sliders save on release. Valid CSS edits save automatically, while invalid edits preserve the last valid configuration. Connection credentials, new templates and text requiring complete validation retain Save; deletion, replacement imports and resets retain confirmation. Speech buffering preferences are remembered immediately but apply after stopping and restarting narration. See the [settings persistence audit](development/settings-autosave-audit.md).
+
 Open **Settings** from the home navigation. The app language can follow the system or be selected manually. Built-in prompts have localized defaults; prompts you have edited are not automatically translated or overwritten.
 
 | Category | Purpose |
@@ -37,6 +41,8 @@ These come from [preferences](../lib/config/shared_preference_provider.dart) whe
 | Setting | Default |
 | --- | --- |
 | E-Ink, tap-only turns, long-press paragraph selection | Off |
+| Bookshelf layout | Thumbnails; switch to a cover-free list from the shelf toolbar |
+| E-Ink → Disable all animations | On; only adjustable and effective in E-Ink mode |
 | Scroll page amount | 80%; range 80%–100% |
 | Selection-search / web-translation zoom | 100%; range 50%–200% |
 | Automatic selection translation | Off |
@@ -48,6 +54,8 @@ These come from [preferences](../lib/config/shared_preference_provider.dart) whe
 | Automatic sync preference | On, only works after enabling cloud sync |
 | Timed reading sync | Off; default interval 5 minutes |
 | Service/key sync and credentials in backup | Off |
+
+The bookshelf toolbar switches between thumbnails and a text-only list and remembers the selection. List rows keep titles, authors, reading progress, format/index badges and sync status; folder rows show their names and book counts. Long-press still enters selection mode for folder organization and batch deletion, with each book's overflow menu on the right.
 
 ## Checking and installing updates
 
@@ -68,7 +76,7 @@ Import multiple files or choose a folder and select its supported books, includi
 
 Cover-opening and return transitions are shared across platforms and follow the disabled-motion preferences; iOS retains edge-swipe return. Dragging iOS text-selection handles updates the selection menu. MOBI note popups require a reliably matching legacy layout; AZW3 note types and explicit image-note text are recognized. Matched notes are hidden from the body and remain available in popups; ambiguous MOBI content stays visible.
 
-The floating home navigation bar is translucent, with space at the end of scrollable content so the last item remains accessible. **Appearance → E-Ink** disables app transitions, animated page turning and decorative motion, uses monochrome labels, and restores normal motion when switched off. Appearance also includes a default-enabled book-format badge switch; scanned and indexed labels are independent. Long-press a cover (or right-click on desktop) to enter selection mode and reveal its lower-right overflow menu, on the shelf and inside folders.
+The floating home navigation bar is translucent, with space at the end of scrollable content so the last item remains accessible. **Appearance → E-Ink** uses monochrome labels and disables app transitions, animated page turning and decorative motion by default. Its **Disable all animations** switch is greyed out outside E-Ink mode; turn it off to restore saved animation settings while keeping the monochrome palette and hardware refresh settings. The choice is remembered across restarts and mode changes, without overwriting open-book or page-turn preferences. Appearance provides separate **Show book format labels** and **Show indexed labels** switches, both enabled by default and remembered independently. Indexed labels match format-label font size and padding in thumbnail and list layouts. Hiding indexed labels does not delete indexes or hide indexing progress/failure notices; scanned labels remain independent. Long-press a cover (or right-click on desktop) to enter selection mode and reveal its lower-right overflow menu, on the shelf and inside folders.
 
 Tap the text to open the bottom panel. Drag the progress slider to preview a chapter title, or use previous chapter, previous page, next page and next chapter. **Chapter progress** means chapter number / chapter count; **progress within the chapter** means current page / pages in that chapter.
 
@@ -107,6 +115,8 @@ Desktop and Android hardware keyboards can configure paging, menu, play/pause an
 
 ## CSS and selection tools
 
+In-reader settings use Reading / Style / CSS / Other tabs, with CSS templates in their own tab. Style, detailed settings and PDF reading settings follow the Lookup popup sizing rules and scroll within the panel. Selection-toolbar and keyboard-shortcut configuration remain available from Settings.
+
 **Settings → CSS settings** provides 32 named slots and 13 editable presets. Enable the master switch and desired profiles; multiple profiles can apply together. Each book can follow the default combination or select its own. Profile contents are shared globally, so editing one can affect other books using it.
 
 CSS changes layout; regex highlights style matching text with colors, backgrounds and underlines without rewriting text or annotation positions. Import trusted CSS / JSON only: remote resource URLs can make network requests. New, copied and imported profiles start disabled; imports fill empty slots without silently overwriting profiles.
@@ -144,6 +154,8 @@ Index / re-index from a book's menu, or enable automatic indexing after import (
 ## Dictionaries, search and translation
 
 **Lookup** is enabled by default in the selection toolbar. Choose dictionaries, encyclopedia, translation and AI Knowledge independently for automatic overview queries. Book AI, Classical Chinese translation and Web search use separate tabs; Book AI prefills selected text without automatically sending. AI permits context selection, editing before sending and follow-ups. Classical Chinese translation hides reading-skill controls. Standalone dictionary/translation/AI tools remain available, disabled by default. Online providers receive the query or chosen context and may charge for requests.
+
+In Lookup → Lookup settings, drag the four sections and Save to reorder their tabs and overview results on this device. Reordering turns off query-text ordering; enable it again for smart overview results, or turn it off to return to your saved custom order. Disabled sources retain their positions. These settings are excluded from sync and settings backups.
 
 Choose one or several local dictionaries and optional Chinese/English Wiktionary in dictionary sources. Results identify their source, license/link for online entries, and unmatched selected dictionaries.
 
