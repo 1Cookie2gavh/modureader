@@ -1,6 +1,6 @@
 # Modu changelog
 
-Current release: **1.2.7+10116**. Updated 2026-10-12.
+Current release: **1.2.7+10117**. Updated 2026-10-12.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
@@ -10,6 +10,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### English
 
+- Fix(ai): Restore selection context across inline page-alignment runs and styled text. AI Knowledge receives nearby paragraph text when context is enabled; keep the existing 120-character window on each side and 600-character limit, without enabling local book search.
 - Feat(history): Add an edit-only Reset button to restore the default reading-history cards and their order, saving immediately without deleting reading records ([#32](https://github.com/sobranie2406/modureader/issues/32)). Thanks [@ndd200](https://github.com/ndd200) for the suggestion.
 - Fix(pdf): Fix next/previous source-page navigation in text/OCR reflow: pass the page number through the reader navigation API so successful extraction is not incorrectly reported as a reflow failure.
 - Feat(pdf): Add multi-page text extraction with printer-style page ranges, sequential local OCR, completed-page reuse and cancellable retry. Navigate directly between extracted-page previews without returning to the image view; keep extraction into AI as a draft.
@@ -32,6 +33,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### 简体中文
 
+- Fix(ai): 修复分页对齐及行内样式拆分文字节点后划词上下文缩短的问题；开启结合上下文时，AI 知识正确收到所在段落的前后文。保留前后各 120 字符、总计最多 600 字符的范围，不启用本地书籍搜索。
 - Feat(history): 阅读历史卡片编辑状态新增“恢复默认”按钮，还原默认卡片组合与排列顺序并立即保存，不删除阅读记录（[#32](https://github.com/sobranie2406/modureader/issues/32)）。感谢 [@ndd200](https://github.com/ndd200) 提出建议。
 - Fix(pdf): 修复文字／OCR 重排结果切换上一页、下一页失败；按阅读器导航接口传递原版页码，避免提取成功后因原页定位失败而误报重排失败。
 - Feat(pdf): 提取文字新增「连续识别」，支持打印机式页码范围、逐页本地 OCR、已完成结果复用和停止后重试；文字预览可直接切换上一页／下一页，无需返回原图。提取至 AI 仍沿用填入草稿的行为。

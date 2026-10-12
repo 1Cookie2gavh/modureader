@@ -127,65 +127,23 @@ const _collapseWhitespace = (text) =>
     ? text.replace(/\s+/g, ' ').trim()
     : '';
 
-const _sliceWithWindow = (text, start, end) => {
-  if (!text) return '';
-  const safeStart = Math.max(0, Math.min(text.length, start));
-  const safeEnd = Math.max(safeStart, Math.min(text.length, end));
-  return text.slice(safeStart, safeEnd);
-};
-
 const buildRangeContextText = (range) => {
   if (!range) return '';
-
-  const selectionText = range.toString().trim();
-  const startNode = range.startContainer;
-  const endNode = range.endContainer;
-  const startText = startNode?.textContent ?? '';
-  const endText = endNode?.textContent ?? '';
-
-  let contextText = '';
-
-  if (startNode === endNode) {
-    const segment = _sliceWithWindow(
-      startText,
-      range.startOffset - CONTEXT_WINDOW_CHARS,
-      range.endOffset + CONTEXT_WINDOW_CHARS
-    );
-    contextText = _collapseWhitespace(segment);
-  } else {
-    const startSegment = _collapseWhitespace(
-      _sliceWithWindow(
-        startText,
-        range.startOffset - CONTEXT_WINDOW_CHARS,
-        range.startOffset + CONTEXT_WINDOW_CHARS
-      )
-    );
-    const endSegment = _collapseWhitespace(
-      _sliceWithWindow(
-        endText,
-        range.endOffset - CONTEXT_WINDOW_CHARS,
-        range.endOffset + CONTEXT_WINDOW_CHARS
-      )
-    );
-    const parts = [
-      startSegment,
-      selectionText,
-      endSegment
-    ].filter(Boolean);
-    contextText = parts.join(' ');
-  }
-
-  if (!contextText && selectionText) {
-    contextText = selectionText;
-  }
-
-  contextText = _collapseWhitespace(contextText);
-
-  if (contextText.length > MAX_CONTEXT_CHARS) {
-    return contextText.slice(0, MAX_CONTEXT_CHARS);
-  }
-
-  return contextText;
+  const block = node => {
+    const element = node.nodeType === 1 ? node : node.parentElement;
+    return element?.closest('p, li, dt, dd, blockquote, figcaption, pre, td, th, h1, h2, h3, h4, h5, h6, div, body')
+      ?? element;
+  };
+  // Page alignment splits text into inline runs; use logical paragraph boundaries.
+  const before = range.cloneRange();
+  before.selectNodeContents(block(range.startContainer));
+  before.setEnd(range.startContainer, range.startOffset);
+  const after = range.cloneRange();
+  after.selectNodeContents(block(range.endContainer));
+  after.setStart(range.endContainer, range.endOffset);
+  const text = before.toString().slice(-CONTEXT_WINDOW_CHARS)
+    + range.toString() + after.toString().slice(0, CONTEXT_WINDOW_CHARS);
+  return _collapseWhitespace(text).slice(0, MAX_CONTEXT_CHARS);
 };
 
 const handleSelection = (view, doc, index) => {

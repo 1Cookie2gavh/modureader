@@ -1,6 +1,6 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.7+10116**, 2026-10-12.
+Single-edition guide in English. Prepared for stable **1.2.7+10117**, 2026-10-12.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
