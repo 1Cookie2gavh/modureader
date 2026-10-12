@@ -191,7 +191,8 @@ dev_dependencies:
 
 
   # Used directly by scripts/localization/catalog.dart, separate from lint plugin.
-  analyzer: ^7.6.0
+  # Legacy generators require the pre-element-model migration API.
+  analyzer: 7.3.0
 flutter:
   uses-material-design: true
   config:

@@ -10,6 +10,11 @@ application's Riverpod runtime just to update lint tooling.
 isolated dependency context. See
 [compatibility notes](../../third_party/riverpod_lint/README.modu.md).
 Use `flutter analyze --no-pub` / `dart analyze`, not `dart run custom_lint`.
+The application code generators remain on analyzer 7.3.0; 7.6.0 breaks their
+legacy element APIs. This pin does not downgrade the isolated lint plugin.
+Code generation still reports its older parser's SDK-language-version warning;
+it completes successfully and produces unchanged output. Do not suppress this
+warning or confuse the generator parser with the SDK/native lint analyzer.
 Run `node --test test/tooling_lint_compatibility.test.mjs` to verify that a
 Riverpod 2 annotation still triggers the context-safety rule. This test creates
 and removes only its own uniquely named temporary source file.
