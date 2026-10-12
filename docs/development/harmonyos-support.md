@@ -90,6 +90,11 @@ are separate checks.
 
 ## Observed blockers
 
+For 1.2.7, the temporary OHOS source adapter also maps the five audited
+Cupertino sheet callbacks from `scrollableBuilder` to `builder`; none of these
+callbacks uses the supplied scroll controller. Canonical source retains the
+current Flutter API. Exact anchor counts fail closed if these callers change.
+
 By user decision, full compilation runs in the cloud, not on the local Mac.
 The independently installed Flutter OH 3.41.9+ohos-1.0.2 (Dart 3.11.5) was
 verified, then moved to Trash on 2026-10-07 with its private package cache.

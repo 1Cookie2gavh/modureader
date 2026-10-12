@@ -7,12 +7,25 @@ this adapter after an audited Flutter OH upgrade supports onReorderItem.
 
 Flutter OH also lacks Hero.curve/reverseCurve. Omit those arguments in this
 temporary checkout while retaining the shared cover transition and gestures.
+
+The five Cupertino sheet callbacks do not consume the newer controller;
+adapt them to the older builder API in the OHOS checkout only.
 """
 import os
 from pathlib import Path
 import sys
 
 PATCHES = {
+    'lib/page/home_page.dart': (
+        'scrollableBuilder:\n'
+        '                (BuildContext context, ScrollController controller) {',
+        'builder: (BuildContext context) {'),
+    'lib/service/initialization_check.dart': (
+        'scrollableBuilder: (BuildContext context, ScrollController controller) {',
+        'builder: (BuildContext context) {'),
+    'lib/page/settings_page/advanced.dart': (
+        'scrollableBuilder: (BuildContext context, ScrollController controller) {',
+        'builder: (BuildContext context) {'),
     'lib/page/settings_page/ai_reading_skills.dart': (
         'onReorderItem: (oldIndex, newIndex) {',
         'onReorder: (oldIndex, newIndex) {\n'
@@ -33,6 +46,11 @@ PATCHES = {
         '          transitionOnUserGestures: true,'),
 }
 
+ANCHOR_COUNTS = {
+    'lib/service/initialization_check.dart': 2,
+    'lib/page/settings_page/advanced.dart': 2,
+}
+
 
 def plan(root):
     result = {}
@@ -41,8 +59,9 @@ def plan(root):
         if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
             raise ValueError('App source must remain inside the checkout')
         text = path.read_text()
-        if text.count(before) != 1:
-            raise ValueError(f'{relative}: expected one reviewed API anchor; re-audit required')
+        count = ANCHOR_COUNTS.get(relative, 1)
+        if text.count(before) != count:
+            raise ValueError(f'{relative}: expected {count} reviewed API anchors; re-audit required')
         if 'onReorderItem:' in before and text.count('onReorderItem:') != 1:
             raise ValueError(f'{relative}: expected one reviewed reorder callback; re-audit required')
         result[path] = text.replace(before, after)
@@ -64,7 +83,7 @@ def install(root):
         for path, data in originals.items():
             path.write_bytes(data)
         raise
-    print('Adapted reorder callbacks and Hero arguments; canonical source unchanged.')
+    print('Adapted reorder, Hero and Cupertino sheet APIs; canonical source unchanged.')
 
 
 if __name__ == '__main__':

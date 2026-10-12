@@ -7,10 +7,23 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts/harmony'))
-from patch_app import PATCHES, install, plan
+from patch_app import ANCHOR_COUNTS, PATCHES, install, plan
 
 
 class AppCompatibilityTest(unittest.TestCase):
+    def test_sheet_adapter_retains_contents_without_unused_controller(self):
+        edits = plan(ROOT)
+        for relative in ('lib/page/home_page.dart',
+                         'lib/service/initialization_check.dart',
+                         'lib/page/settings_page/advanced.dart'):
+            path = ROOT / relative
+            original = path.read_text()
+            before, after = PATCHES[relative]
+            self.assertEqual(original.count(before), ANCHOR_COUNTS.get(relative, 1))
+            self.assertNotIn('scrollableBuilder:', edits[path])
+            self.assertEqual(edits[path].replace(after, before), original)
+            self.assertEqual(path.read_text(), original)
+
     def test_hero_adapter_only_removes_unsupported_arguments_from_copy(self):
         path = ROOT / 'lib/widgets/page_router/reader_cover_hero.dart'
         original = path.read_text()
@@ -59,7 +72,7 @@ class AppCompatibilityTest(unittest.TestCase):
             for relative, (before, _) in PATCHES.items():
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(before)
+                path.write_text(before * ANCHOR_COUNTS.get(relative, 1))
                 paths.append(path)
             paths[-1].write_text('changed')
             env = {'GITHUB_ACTIONS': 'true', 'GITHUB_WORKSPACE': str(root)}
