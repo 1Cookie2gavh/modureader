@@ -1307,12 +1307,24 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       while (_refreshRequested && mounted) {
         _refreshRequested = false;
         final previous = _progress.current;
-        final latest = await _progress.refresh();
+        var preserveNarration = _hasNarrationSession;
+        final latest = await _progress.refresh(preservePosition: () {
+          preserveNarration = preserveNarration || _hasNarrationSession;
+          return preserveNarration;
+        });
         if (previous?.revision != latest.revision) _syncRestoreAttempts = 0;
         if (!mounted) return;
         if (latest.deleted) {
           _remotePositionPending = true;
           return;
+        }
+        if (preserveNarration) {
+          _syncRefreshRetry?.cancel();
+          _syncRestoreAttempts = 0;
+          _remotePositionPending = false;
+          _readerPositionInitialized = true;
+          await renderAnnotations(webViewController);
+          continue;
         }
         if (latest.position.isNotEmpty &&
             (_remotePositionPending ||
@@ -1371,10 +1383,18 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   void detachNarration() => _narrationDetached = true;
 
+  bool get _hasNarrationSession {
+    if (!mounted || _narrationDetached) return false;
+    final handler = TtsHandler();
+    return handler.mediaItem.value?.id == book.id.toString() &&
+        handler.ttsStateNotifier.value != TtsStateEnum.stopped;
+  }
+
   Future<void> restoreNarration(NarrationPosition? saved) async {
     if (!mounted ||
         _narrationDetached ||
         _restoringNarration ||
+        _hasNarrationSession ||
         widget.cfi != null ||
         readingPageKey.currentState?.isReflowReading == true) {
       return;

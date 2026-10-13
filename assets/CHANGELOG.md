@@ -1,10 +1,26 @@
 # Modu changelog
 
-Current release: **1.2.8+10124**. Updated 2026-10-13.
+Current release: **1.2.9+10127**. Updated 2026-10-13.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
 Older sections retain their original version scope; they are not current acceptance reports.
+
+## 1.2.9
+
+### English
+
+- Fix(reader): Keep viewport-based page alignment out of footnote popups, preventing repeated height adjustments; normalize unnumbered footnote list margins and padding without changing ordinary numbered lists.
+- Fix(selection): Fit Android touch-selection highlights to the actual text bounds on aligned pages, preserving the selected text, automatic word selection and draggable handles.
+- Fix(tts): Preserve active narration and its live position when sync refreshes the reader, instead of reinitializing playback or restoring a paused remote position. Reopening a book still restores its highlight paused.
+- Fix(sync): Distinguish successful uploads with newer local progress pending from real sync failures. Persist and retry the remaining changes without stopping narration; retain network/conflict errors, data-merge protections and Jianguoyun rate limits.
+
+### 简体中文
+
+- Fix(reader): 注释弹窗不再应用按屏幕高度调整行距的正文对齐逻辑，避免反复改变高度；统一无编号注释列表的左右留白，保留普通编号列表样式。
+- Fix(selection): 修正 Android 分页对齐后的蓝色划词高亮过高问题，按实际文字范围绘制，保留选中文本、自动选词与拖动手柄。
+- Fix(tts): 同步刷新阅读界面时保留当前朗读及实时位置，不再重新初始化播放或强制恢复为暂停的远端位置；重新打开书籍仍恢复高亮并保持暂停。
+- Fix(sync): 区分“已上传但又产生新进度”和真正的同步失败，持续朗读时不再误报失败；新增进度持久化排队、自动补传，不中断朗读，保留网络／冲突错误、数据合并保护及坚果云限频。
 
 ## 1.2.8
 

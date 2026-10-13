@@ -26,6 +26,7 @@ class MemorySyncClient extends SyncClientBase {
   final revisions = <String, int>{};
   int writes = 0;
   Future<void> Function(int)? beforeWrite;
+  Future<void> Function()? beforeLogWrite;
   @override
   Future<RemoteFile?> readProps(String path) async => files.containsKey(path)
       ? RemoteFile(
@@ -60,6 +61,7 @@ class MemorySyncClient extends SyncClientBase {
       {bool replace = true,
       void Function(int, int)? onProgress,
       CancelToken? cancelToken}) async {
+    await beforeLogWrite?.call();
     files[remotePath] = await File(localPath).readAsBytes();
   }
 
@@ -608,6 +610,103 @@ void main() {
     } finally {
       await temp.delete(recursive: true);
     }
+  });
+
+  for (final transport in ['atomic', 'log', 'missing validator']) {
+    test('continuous progress queues remaining changes: $transport', () async {
+      final temp = await Directory.systemTemp.createTemp('modu-live-progress-');
+      try {
+        final MemorySyncClient client = transport == 'missing validator'
+            ? MissingValidatorClient(10)
+            : MemorySyncClient()
+          ..atomic = transport == 'atomic';
+        if (transport == 'missing validator') {
+          final cloud = '${temp.path}/cloud.db';
+          await RowSyncArchive.write(cloud, await sb.snapshot());
+          client.files[RowSyncEngine.remotePath] =
+              await File(cloud).readAsBytes();
+        }
+        var position = 0;
+        Future<void> advance() async {
+          position++;
+          await a.update(
+              'tb_books',
+              {
+                'last_read_position': 'reading-$position',
+                'reading_percentage': position / 100,
+              },
+              where: 'id = ?',
+              whereArgs: [1]);
+        }
+
+        await advance();
+        client.beforeWrite = (_) => advance();
+        client.beforeLogWrite = advance;
+        final engine = RowSyncEngine(
+            store: sa,
+            client: client,
+            cache: temp,
+            validatorRetryDelay: Duration.zero);
+        expect(await engine.synchronize(),
+            RowSyncOutcome.publishedWithPendingChanges);
+        final local =
+            (await sa.snapshot()).singleWhere((r) => r.kind == 'position');
+        expect(local.data['last_read_position'], 'reading-$position');
+        // A different device gets the confirmed snapshot, not unsent progress.
+        client.beforeWrite = null;
+        client.beforeLogWrite = null;
+        await RowSyncEngine(store: sb, client: client, cache: temp)
+            .synchronize();
+        final uploaded =
+            (await sb.snapshot()).singleWhere((r) => r.kind == 'position');
+        expect(uploaded.data['last_read_position'], 'reading-${position - 1}');
+        // Once local progress stabilizes, the queued pass converges both devices.
+        expect(await engine.synchronize(), RowSyncOutcome.published);
+        await RowSyncEngine(store: sb, client: client, cache: temp)
+            .synchronize();
+        expect(sameSyncRecords(await sa.snapshot(), await sb.snapshot()), true);
+      } finally {
+        await temp.delete(recursive: true);
+      }
+    });
+  }
+
+  test('a later network failure is not masked by an earlier successful upload',
+      () async {
+    final temp = await Directory.systemTemp.createTemp('modu-live-failure-');
+    try {
+      final client = MemorySyncClient();
+      client.beforeWrite = (attempt) async {
+        if (attempt == 1) {
+          await a.insert('tb_notes', noteRow(1, 'unsent'));
+        } else {
+          throw DioException(
+              requestOptions: RequestOptions(path: 'fixture'),
+              type: DioExceptionType.connectionError);
+        }
+      };
+      await expectLater(
+          RowSyncEngine(store: sa, client: client, cache: temp).synchronize(),
+          throwsA(isA<DioException>()));
+      expect(client.writes, 2);
+      expect((await a.query('tb_notes')).single['content'], 'unsent');
+    } finally {
+      await temp.delete(recursive: true);
+    }
+  });
+
+  test('pending progress is persisted and not reported as fully synchronized',
+      () {
+    final source = File('lib/providers/sync.dart').readAsStringSync();
+    expect(source,
+        contains('if (hasPendingChanges) await _pendingSync.request();'));
+    expect(source,
+        contains('if (!hasPendingChanges && Prefs().syncCompletedToast)'));
+    expect(source, contains('return !hasPendingChanges;'));
+    expect(
+        source,
+        contains(
+            'if (completed) await _pendingSync.acknowledge(pendingRevision);'));
   });
 
   test(

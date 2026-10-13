@@ -128,7 +128,7 @@ class RowSyncArchive {
   }
 }
 
-enum RowSyncOutcome { unchanged, published }
+enum RowSyncOutcome { unchanged, published, publishedWithPendingChanges }
 
 class RowSyncEngine {
   RowSyncEngine(
@@ -295,11 +295,23 @@ class RowSyncEngine {
           published = true;
         }
 
+        Future<RowSyncOutcome?> finishPublished({String? checkpoint}) async {
+          if (sameSyncRecords(await store.snapshot(), merged)) {
+            return finish(RowSyncOutcome.published, checkpoint: checkpoint);
+          }
+          // Live reading need not stop for an upload to succeed. Newer local
+          // revisions remain in the database and must be queued for a later sync.
+          if (attempt + 1 >= maxAttempts) {
+            return finish(RowSyncOutcome.publishedWithPendingChanges,
+                checkpoint: checkpoint);
+          }
+          return null;
+        }
+
         if (atomicSupport != true) {
           await publishLog();
-          if (sameSyncRecords(await store.snapshot(), merged)) {
-            return await finish(RowSyncOutcome.published);
-          }
+          final outcome = await finishPublished();
+          if (outcome != null) return outcome;
           continue;
         }
         final upload = '${staging.path}/upload-$attempt.db';
@@ -308,19 +320,15 @@ class RowSyncEngine {
           await client.uploadFileConditionally(upload, remotePath,
               expectedETag: remote?.eTag, createOnly: remote == null);
           published = true;
-          if (sameSyncRecords(await store.snapshot(), merged)) {
-            return await finish(RowSyncOutcome.published, checkpoint: upload);
-          }
+          final outcome = await finishPublished(checkpoint: upload);
+          if (outcome != null) return outcome;
           // Reading/import can continue during upload. If it produced another
           // operation, include it in the next bounded pass instead of marking
           // an older snapshot as fully synchronized.
         } on MissingSyncValidatorException {
           if (attempt + 1 >= maxAttempts) {
             await publishLog();
-            if (sameSyncRecords(await store.snapshot(), merged)) {
-              return await finish(RowSyncOutcome.published);
-            }
-            break;
+            return (await finishPublished())!;
           }
           // No PUT was sent. Reload and re-merge the whole remote snapshot;
           // never attach a newly fetched ETag to an older merged upload.
@@ -331,9 +339,8 @@ class RowSyncEngine {
             // Only the immutable log may use plain PUT, never the shared file.
             atomicSupport = false;
             await publishLog();
-            if (sameSyncRecords(await store.snapshot(), merged)) {
-              return await finish(RowSyncOutcome.published);
-            }
+            final outcome = await finishPublished();
+            if (outcome != null) return outcome;
             continue;
           }
           if (e.response?.statusCode != 412) rethrow;

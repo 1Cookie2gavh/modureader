@@ -1,3 +1,5 @@
+import { annotationRangeRects } from './annotation-geometry.js';
+
 // Like a native reader's word-boundary iterator, Intl.Segmenter resolves the
 // pressed word in its paragraph. Only the initial long press is normalized;
 // handle adjustments and ordinary mouse dragging keep their own ranges.
@@ -145,11 +147,12 @@ export function isInitialSmartSelection(doc, range) {
 // setBaseAndExtent and live Range edits). Use one set of reader touch handles
 // for Android text selections, without the native drag magnifier.
 function installExpandedSelectionHandles(doc, { onDragStart }) {
-  let host, controls = [], owned, drag, disposed = false;
+  let host, highlight, selectionStyle, controls = [], owned, drag, disposed = false;
   const win = doc.defaultView, listeners = [];
   const hide = () => {
     drag = null; owned = null;
     host?.remove(); host = null; controls = [];
+    selectionStyle?.remove(); selectionStyle = null; highlight = null;
   };
   const isHandle = event => host && event.composedPath().includes(host);
   const endpoint = (range, end) => {
@@ -177,6 +180,22 @@ function installExpandedSelectionHandles(doc, { onDragStart }) {
   };
   const paint = () => {
     if (!owned || !sameRange(owned, activeRange(doc))) { hide(); return; }
+    // Positioned page runs inflate Chromium's native selection paint. Reuse
+    // annotation glyph bounds without changing the selected range or layout.
+    const rects = doc.querySelector('modu-page-run')?.__moduPageRun
+      ? annotationRangeRects(owned) : [];
+    highlight.replaceChildren(...rects.map(rect => {
+      const box = doc.createElement('i');
+      box.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;background:rgba(64,156,255,.35);pointer-events:none;`;
+      return box;
+    }));
+    if (rects.length && !selectionStyle) {
+      selectionStyle = doc.createElement('style');
+      selectionStyle.textContent = '::selection { background-color:transparent!important; } ::selection:window-inactive { background-color:transparent!important; }';
+      doc.head.append(selectionStyle);
+    } else if (!rects.length) {
+      selectionStyle?.remove(); selectionStyle = null;
+    }
     controls.forEach((control, index) => {
       const point = endpoint(owned, index === 1);
       const visible = point && point.x >= -10 && point.x <= win.innerWidth + 10 &&
@@ -205,6 +224,9 @@ function installExpandedSelectionHandles(doc, { onDragStart }) {
         box-shadow:0 1px 3px #0006; }
     `;
     root.append(css);
+    highlight = doc.createElement('div');
+    highlight.dataset.selectionHighlight = '';
+    root.append(highlight);
     controls = ['start', 'end'].map(side => {
       const control = doc.createElement('span');
       control.dataset.selectionHandle = side;

@@ -378,7 +378,10 @@ class Sync extends _$Sync {
 
     try {
       final assetListing = SyncAssetListing(client);
-      await syncDatabase(direction, assetListing: assetListing);
+      final outcome = await syncDatabase(direction, assetListing: assetListing);
+      final hasPendingChanges =
+          outcome == RowSyncOutcome.publishedWithPendingChanges;
+      if (hasPendingChanges) await _pendingSync.request();
 
       await syncFiles(assetListing: assetListing);
       await this
@@ -417,10 +420,10 @@ class Sync extends _$Sync {
 
       // Backup cleanup is now handled by DatabaseSyncManager
 
-      if (Prefs().syncCompletedToast) {
+      if (!hasPendingChanges && Prefs().syncCompletedToast) {
         AnxToast.show(syncSuccessMessage(chinese: _chineseFeedback));
       }
-      return true;
+      return !hasPendingChanges;
     } finally {
       changeState(state.copyWith(isSyncing: false));
       // _deleteBackUpDb();
@@ -480,10 +483,12 @@ class Sync extends _$Sync {
     }
   }
 
-  Future<void> syncDatabase(SyncDirection direction,
+  Future<RowSyncOutcome> syncDatabase(SyncDirection direction,
       {SyncAssetListing? assetListing}) async {
     final client = _syncClient;
-    if (client == null) return;
+    if (client == null) {
+      throw const SyncFeedbackFailure(SyncFailureCode.notConfigured);
+    }
     // Existing upload/download callers now converge records safely in both
     // directions; no entry point may overwrite a whole live library.
     try {
@@ -505,6 +510,7 @@ class Sync extends _$Sync {
       // Compatibility mode may not have a database8.db at all. Completion is
       // determined by the verified transport, not the old shared file's mtime.
       Prefs().lastUploadBookDate = DateTime.now();
+      return outcome;
     } finally {
       // A local merge may succeed even if a later upload fails. Refresh live
       // readers/editors in that case too; never leave stale snapshots active.

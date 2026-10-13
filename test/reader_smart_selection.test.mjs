@@ -8,8 +8,12 @@ const require = createRequire(process.env.MODU_JSDOM_ROOT
   ? `${process.env.MODU_JSDOM_ROOT}/package.json`
   : new URL('../assets/foliate-js/package.json', import.meta.url));
 const { JSDOM } = require('jsdom');
-const load = async name => import(`data:text/javascript;base64,${Buffer.from(
-  await readFile(new URL(`../assets/foliate-js/src/${name}.js`, import.meta.url), 'utf8')).toString('base64')}`);
+const moduleURL = async name => {
+  let source = await readFile(new URL(`../assets/foliate-js/src/${name}.js`, import.meta.url), 'utf8');
+  if (name === 'smart-selection') source = source.replace('./annotation-geometry.js', await moduleURL('annotation-geometry'));
+  return `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+};
+const load = async name => import(await moduleURL(name));
 const { wordBounds, smartSelectionRange, installSmartSelection, isInitialSmartSelection } = await load('smart-selection');
 const { installSettledSelection } = await load('settled-selection');
 
@@ -135,6 +139,27 @@ test('Android native single-character selection expands once; handle adjustments
 
 const handlesHost = f => f.doc.querySelector('[data-modu-selection-handles]');
 const handleAt = (f, side) => handlesHost(f)?.shadowRoot.querySelector(`[data-selection-handle="${side}"]`);
+
+test('aligned Android selections paint glyph height and restore native painting on dismissal', async () => {
+  const f = fixture('<p><modu-page-run>中国文化</modu-page-run></p>',
+    { nativeTouchSelection: true, enabled: () => false });
+  const run = f.doc.querySelector('modu-page-run'), node = run.firstChild;
+  run.__moduPageRun = true;
+  f.dom.window.Range.prototype.getClientRects = function () {
+    return [{ left: 10, right: 50, top: 40, bottom: 60, width: 40, height: 20 }];
+  };
+  f.hit(node, 1); f.send('pointerdown'); f.select(0, 2, node);
+  await f.control.beforeSelection();
+  const box = handlesHost(f).shadowRoot.querySelector('[data-selection-highlight] i');
+  assert.equal(box.style.height, '20px'); assert.equal(box.style.top, '40px');
+  assert.equal(f.text(), '中国');
+  assert.equal(run.style.cssText, '');
+  assert.match(f.doc.head.textContent, /background-color:transparent/);
+  f.select(0, 0, node);
+  assert.equal(handlesHost(f), null);
+  assert.equal(f.doc.head.querySelector('style'), null);
+  f.close();
+});
 
 test('Android automatic word and paragraph expansion immediately displays two draggable handles', async () => {
   for (const paragraph of [false, true]) {

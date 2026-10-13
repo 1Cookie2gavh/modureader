@@ -197,7 +197,12 @@ test('old/new CFIs retain text across nested markup, adjacent nodes and grapheme
   assert.ok([...doc.querySelectorAll('modu-page-run')].some(el=>el.textContent==='العربية'));
 });
 test('TTS and word selection cross inline runs without reading note markers',async()=>{
-  const load=async name=>import(`data:text/javascript;base64,${Buffer.from(await readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url))).toString('base64')}`);
+  const moduleURL=async name=>{
+    let code=await readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url),'utf8');
+    if(name==='smart-selection')code=code.replace('./annotation-geometry.js',await moduleURL('annotation-geometry'));
+    return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+  };
+  const load=async name=>import(await moduleURL(name));
   const {TTS}=await load('tts');
   const dom=new JSDOM('<p>南宋的故事。<em>第二句话。</em><sup role="doc-noteref">12</sup></p><p>另一段。</p>');
   const doc=dom.window.document;

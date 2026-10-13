@@ -9,6 +9,7 @@ class ReaderProgressSession {
   final BookDao dao;
   final int bookId;
   ReadingPositionSnapshot? current;
+  ReadingPositionSnapshot? _positionBeforeConflict;
   int generation = 0;
   Future<void> _pending = Future.value();
 
@@ -18,9 +19,20 @@ class ReaderProgressSession {
     return result;
   }
 
-  Future<ReadingPositionSnapshot> refresh() => _serial(() async {
+  Future<ReadingPositionSnapshot> refresh(
+          {bool Function()? preservePosition}) =>
+      _serial(() async {
         final next = await dao.readReadingPosition(bookId);
         if (current?.revision != next.revision) generation++;
+        final live = _positionBeforeConflict ?? current;
+        _positionBeforeConflict = null;
+        // Keep an active speech cursor, but accept the revision for its next
+        // real progress write. Refresh itself must never publish a local edit.
+        if (preservePosition?.call() == true && live != null && !next.deleted) {
+          return current = ReadingPositionSnapshot(
+              live.position, live.percentage, next.revision,
+              narration: live.narration);
+        }
         return current = next;
       });
 
@@ -32,11 +44,13 @@ class ReaderProgressSession {
             bookId, position, percentage,
             expectedRevision: current!.revision, narration: narration);
         if (next == null) {
+          _positionBeforeConflict ??= current;
           current = await dao.readReadingPosition(bookId);
           this.generation++;
           return false;
         }
         current = next;
+        _positionBeforeConflict = null;
         return true;
       });
 
@@ -51,11 +65,13 @@ class ReaderProgressSession {
             bookId, latest.position, latest.percentage,
             expectedRevision: latest.revision, narration: narration);
         if (next == null) {
+          _positionBeforeConflict ??= current;
           current = await dao.readReadingPosition(bookId);
           this.generation++;
           return false;
         }
         current = next;
+        _positionBeforeConflict = null;
         return true;
       });
 }

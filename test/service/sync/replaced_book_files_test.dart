@@ -373,7 +373,7 @@ void main() {
     expect(cleanup, lessThan(completion));
     expect(
         source.substring(source.indexOf('Future<void> syncFiles('),
-            source.indexOf('Future<void> syncDatabase(')),
+            source.indexOf('Future<RowSyncOutcome> syncDatabase(')),
         isNot(contains('.reclaim()')));
   });
 

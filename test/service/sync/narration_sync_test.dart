@@ -18,6 +18,77 @@ void main() {
   const first = 'epubcfi(/6/2!/4/2, /1:0,/1:10)';
   const second = 'epubcfi(/6/4!/4/2,/1:0,/1:12)';
 
+  for (final conflict in [false, true]) {
+    test(
+        'sync keeps live speech without publishing stale data, conflict=$conflict',
+        () async {
+      final db = await fixture();
+      addTearDown(db.close);
+      final dao = IsolatedBookDao(db);
+      final session = ReaderProgressSession(dao, 1);
+      await session.refresh();
+      await session.record(first, .4,
+          generation: session.generation,
+          narration: const NarrationPosition(first, 'playing'));
+      await dao.updateReadingPosition(1, second, .8,
+          narration: const NarrationPosition(second, 'paused'));
+      final remote = await dao.readReadingPosition(1);
+      if (conflict) {
+        expect(
+            await session.recordNarration(
+                const NarrationPosition(first, 'paused'),
+                generation: session.generation),
+            false);
+      }
+      final live = await session.refresh(preservePosition: () => true);
+      expect(live.position, first);
+      expect(live.percentage, .4);
+      expect(live.narration?.state, 'playing');
+      expect(live.revision, remote.revision);
+      await session.flush();
+      final unchanged = await dao.readReadingPosition(1);
+      expect(unchanged.position, second);
+      expect(unchanged.revision, remote.revision);
+      // Only a genuine subsequent media action publishes the local cursor.
+      expect(
+          await session.recordNarration(
+              const NarrationPosition(first, 'paused'),
+              generation: session.generation),
+          true);
+      final saved = await dao.readReadingPosition(1);
+      expect(saved.position, first);
+      expect(saved.percentage, .4);
+      expect(saved.narration?.cfi, first);
+      expect(saved.narration?.state, 'paused');
+    });
+  }
+
+  test(
+      'speech protection is checked after reading the database and never revives a deleted book',
+      () async {
+    final db = await fixture();
+    addTearDown(db.close);
+    final dao = IsolatedBookDao(db),
+        session = ReaderProgressSession(IsolatedBookDao(db), 1);
+    await session.refresh();
+    await session.record(first, .4,
+        generation: session.generation,
+        narration: const NarrationPosition(first, 'playing'));
+    await dao.updateReadingPosition(1, second, .8,
+        narration: const NarrationPosition(second, 'paused'));
+    var playing = false;
+    final refresh = session.refresh(preservePosition: () => playing);
+    playing = true;
+    expect((await refresh).position, first);
+    // A newly opened/idle reader still imports the remote cursor normally.
+    expect((await session.refresh()).position, second);
+    await db.update('tb_books', {'is_deleted': 1},
+        where: 'id=?', whereArgs: [1]);
+    expect((await session.refresh(preservePosition: () => true)).deleted, true);
+    expect(
+        await session.record(first, .4, generation: session.generation), false);
+  });
+
   test(
       'optional speech envelope validates without changing legacy position payload',
       () {

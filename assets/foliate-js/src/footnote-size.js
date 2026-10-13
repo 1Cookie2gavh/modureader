@@ -8,8 +8,10 @@ export function footnoteFontSize(readerFontSize) {
 }
 
 export const footnoteLayoutCSS = `
+html { --modu-align-pages: 0 !important; }
 html, body { min-block-size: 0 !important; block-size: auto !important; }
 body { display: flow-root !important; padding-block-end: 1em !important; }
+.duokan-footnote-content { margin-inline: 0 !important; padding-inline: 0 !important; }
 `;
 
 // All sizes are outer border-box CSS pixels. The cap is AREA, not 25% of
