@@ -27,16 +27,22 @@ test('custom bindings replace defaults and match modifiers without stealing edit
   assert.equal(send('p'),true); assert.equal(send('p',true),true);
   assert.deepEqual(actions,['playPause']);
   doc.getSelection = () => 'selected'; assert.equal(send('p'),false);
+  assert.equal(controller.actionFromKeyboard('playPause'),true);
+  assert.equal(controller.actionFromKeyboard('menu'),false);
+  doc.activeElement = {isContentEditable:true};
   assert.equal(controller.actionFromKeyboard('playPause'),false);
+  doc.activeElement = null;
   doc.getSelection = () => ''; assert.equal(controller.actionFromKeyboard('playPause'),true);
-  assert.deepEqual(actions,['playPause','playPause']);
+  assert.deepEqual(actions,['playPause','playPause','playPause']);
   controller.destroy(); assert.equal(send('p'),false);
 });
 test('reader toggle pauses playing audio and resumes paused audio behind active-state guards', async () => {
   const source = await readFile(new URL('../lib/page/reading_page.dart', import.meta.url), 'utf8');
   const start = source.indexOf('Future<void> handleReaderShortcut(');
   const method = source.slice(start, source.indexOf('\n  @override', start));
-  assert.match(method, /if \(!_canUsePageKeys \|\| _shortcutBusy\) return/);
+  assert.match(method, /_canUseNarrationKeys/);
+  assert.match(method, /_canUsePageKeys/);
+  assert.match(method, /_shortcutBusy/);
   assert.match(method, /state != TtsStateEnum.playing && state != TtsStateEnum.paused/);
   assert.match(method, /case 'playPause':\s*if \(state == TtsStateEnum.playing\) \{\s*await audioHandler.pause\(\);\s*\} else \{\s*await audioHandler.play\(\);/);
   assert.doesNotMatch(method, /case '(play|pause)':/);

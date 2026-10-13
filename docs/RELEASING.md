@@ -1,12 +1,12 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.7+10117**, 2026-10-12.
+Single-edition guide in English. Prepared for stable **1.2.8+10124**, 2026-10-13.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
 ## Build toolchain
 
-Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.7. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
+Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.8. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
 
 Current Android builds use Gradle 9.2.1 (checksum-pinned), AGP 9.0.1 and Kotlin 2.3.20 with `android.builtInKotlin=true`. Gradle 9.2.x's embedded Kotlin 2.2.20 matches the pinned Flutter 3.47.2 build plugin; see the [Gradle compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html). Keep `android.newDsl=false` while Flutter still uses legacy Android extension APIs ([AGP opt-out](https://developer.android.com/build/releases/agp-9-0-0-release-notes)). The minimum Android version remains API 26.
 
@@ -51,7 +51,7 @@ Linux packages target Debian 13 (trixie) and require GTK3, WPE WebKit 2.0, WPEBa
 | Linux | On Debian 13, run sudo apt install ./Modu-VERSION-linux-ARCH.deb. Start from the app menu or modureader command. sudo apt remove modureader does not actively clear the personal library. x64 corresponds to amd64; ARM64 to arm64. |
 | Android | Install the ARM64 APK. Updates must retain the same project signing key. Android x64 is not distributed. |
 | iOS | The ARM64 IPA requires iOS 16+ and your own valid signing for the app and Share Extension. It cannot be installed directly without signing. |
-| HarmonyOS | Native ARM64 HAP, unsigned and not yet device-validated. Sign locally with a valid HarmonyOS certificate/profile and install using the official tools. Android signing is not interchangeable. |
+| HarmonyOS | Native ARM64 HAP, unsigned. Sign locally with a valid HarmonyOS certificate/profile and install using the official tools. Android signing is not interchangeable. |
 
 Mac disk images expose **only Modu.app and the Applications shortcut**. Attribution and licenses remain inside Contents/Resources/Distribution; packaging re-signs and verifies the app afterward. Other installers likewise keep necessary documents inside app resources/install directories rather than placing separate documentation packages in the release.
 
@@ -79,6 +79,7 @@ Linux packages include the ONNX Runtime 1.22.0 shared library omitted by an olde
 - [Documentation index](README.md) distinguishes current guides from historical releases/test evidence. Historical versions, test counts and limits remain historical; third-party originals and licenses are preserved.
 - Update both homepages and paired user documents when functionality changes. User guide screenshots show actual layout; pair phone settings with Mac results and separate English/Chinese content.
 - docs/RELEASE_NOTES.md prepares the current release description. Published changes must also update the corresponding release, not overwrite an older release with a new version's text.
+- Public release notes do not list pending physical-device validation. Keep detailed test coverage in dated testing reports, and retain known compatibility limits and installation requirements without claiming unverified fixes.
 - Starting with **1.2.0**, stable and preview notes use **English first, 简体中文 second**, in separate sections on both GitHub and Gitee. Do not reorder older versions or remove installation warnings, checksums or source links.
 - For newly written release notes and changelog entries, use one concise change per Markdown bullet in the form `- Type(scope): Description`, following the supplied ANX-style example. Use `Feat` for features, `Fix` for fixes, `Perf` for performance, `Ci` for build/release automation, `Docs` for documentation and `Chore` for maintenance. Omit `(scope)` only for genuinely project-wide changes. Use stable module names such as `reader`, `tts`, `sync`, `bookshelf`, `ai`, `appearance`, `android` and `l10n`.
 - Keep the same item order, type and scope in the English and Chinese sections. Describe actual Modu changes in the release's source range; do not copy another project's feature claims, issue numbers or credits. Add linked Issue/PR references and contributor thanks only when verified and relevant. Keep limitations and validation status accurate; installation/signing warnings, checksums and source links remain separate from the change bullets. Do not rewrite published historical releases merely to apply this style.

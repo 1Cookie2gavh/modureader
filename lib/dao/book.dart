@@ -1,5 +1,6 @@
 import 'package:anx_reader/dao/base_dao.dart';
 import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/models/narration_position.dart';
 import 'package:anx_reader/models/reading_position_snapshot.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
@@ -99,7 +100,7 @@ class BookDao extends BaseDao {
   Future<ReadingPositionSnapshot> _readPosition(
       Transaction txn, int bookId) async {
     final rows = await txn.rawQuery('''SELECT b.last_read_position,
-      b.reading_percentage, b.is_deleted, r.clock, r.revision
+      b.reading_percentage, b.is_deleted, r.clock, r.revision, r.narration
       FROM tb_books b JOIN $syncRecordsTable r
       ON r.kind='position' AND r.local_id=b.id WHERE b.id=?''', [bookId]);
     if (rows.length != 1) throw StateError('Reading position unavailable');
@@ -109,6 +110,7 @@ class BookDao extends BaseDao {
       normalizeReadingProgress(row['reading_percentage'] as num?),
       '${row['clock']}:${row['revision']}',
       deleted: row['is_deleted'] == 1,
+      narration: NarrationPosition.decode(row['narration']),
     );
   }
 
@@ -116,13 +118,17 @@ class BookDao extends BaseDao {
   /// position imported by sync, even if the old page is saved later in time.
   Future<ReadingPositionSnapshot?> updateReadingPosition(
       int bookId, String position, double percentage,
-      {required String expectedRevision}) async {
+      {required String expectedRevision, NarrationPosition? narration}) async {
     return transaction((txn) async {
       final current = await _readPosition(txn, bookId);
       if (current.deleted || current.revision != expectedRevision) return null;
       final normalized = normalizeReadingProgress(percentage);
+      if (narration != null) NarrationPosition.decode(narration.encode());
+      final narrationChanged = narration != null &&
+          narration.encode() != current.narration?.encode();
       if (current.position == position && current.percentage == normalized) {
-        return current;
+        if (!narrationChanged) return current;
+        await RowSyncStore.touchPosition(txn, bookId);
       }
       await txn.update(
           table,
@@ -134,6 +140,10 @@ class BookDao extends BaseDao {
           where: 'id = ?',
           whereArgs: [bookId]);
       // The position trigger already records the actual change, exactly once.
+      if (narrationChanged) {
+        await txn.update(syncRecordsTable, {'narration': narration.encode()},
+            where: "kind='position' AND local_id=?", whereArgs: [bookId]);
+      }
       return _readPosition(txn, bookId);
     });
   }

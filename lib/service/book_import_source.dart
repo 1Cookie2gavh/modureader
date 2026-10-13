@@ -81,9 +81,12 @@ Future<List<File>> stageBookImportFiles(
 class MobileBookFolder {
   static const channel = MethodChannel('com.modu.reader/book_folder');
 
-  static Future<List<BookImportEntry>?> pick() async {
+  static Future<List<BookImportEntry>?> pick(
+      {bool files = false,
+      List<String> extensions = allowBookExtensions}) async {
     final result = await channel.invokeListMethod<dynamic>('pick', {
-      'extensions': allowBookExtensions,
+      'extensions': extensions,
+      'files': files,
     });
     return result
         ?.map((dynamic item) => BookImportEntry(

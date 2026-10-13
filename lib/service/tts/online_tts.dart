@@ -38,12 +38,14 @@ class OnlineTts extends BaseTts {
     AudioPlayer? player,
     AudioPlayer Function()? createPlayer,
     Future<void> Function(TtsSegment)? highlight,
+    Future<void> Function(TtsSentence, double)? followProgress,
   })  : assert(synthesize != null || backend != null),
         _backendOverride = backend,
         _collectOverride = collect,
         _synthesizeOverride = synthesize,
         _playOverride = play,
         _highlightOverride = highlight,
+        _followProgressOverride = followProgress,
         _player = player,
         _createPlayer = createPlayer;
 
@@ -51,6 +53,7 @@ class OnlineTts extends BaseTts {
   Future<Uint8List> Function(String)? _synthesizeOverride;
   Future<void> Function(TtsSegment)? _playOverride;
   Future<void> Function(TtsSegment)? _highlightOverride;
+  Future<void> Function(TtsSentence, double)? _followProgressOverride;
   bool _isHighlighting = false;
   String? _playbackError;
   @override
@@ -301,6 +304,51 @@ class OnlineTts extends BaseTts {
   }
 
   // ============ Buffer Management ============
+  VoidCallback _trackSpeechProgress(AudioPlayer player, TtsSegment segment) {
+    var duration = Duration.zero;
+    var lastMs = -500;
+    var live = true;
+    var following = false;
+    final durations = player.onDurationChanged.listen((value) {
+      if (live) duration = value;
+    });
+    final positions = player.onPositionChanged.listen((position) async {
+      final ms = position.inMilliseconds;
+      if (!live ||
+          following ||
+          !isPlaying ||
+          _shouldStop ||
+          !identical(_currentSegment, segment) ||
+          duration.inMilliseconds <= 0 ||
+          ms <= 0 ||
+          ms - lastMs < 500) {
+        return;
+      }
+      lastMs = ms;
+      following = true;
+      final fraction = (ms / duration.inMilliseconds).clamp(0.0, 0.999);
+      try {
+        if (_followProgressOverride != null) {
+          await _followProgressOverride!(segment.sentence, fraction);
+        } else {
+          await epubPlayerKey.currentState?.ttsFollowProgress(
+              cfi: segment.sentence.cfi,
+              text: segment.sentence.text,
+              fraction: fraction);
+        }
+      } catch (_) {
+        // Page following is optional; cached speech must continue.
+      } finally {
+        following = false;
+      }
+    });
+    return () {
+      live = false;
+      unawaited(durations.cancel());
+      unawaited(positions.cancel());
+    };
+  }
+
   void _resetBuffer() {
     _buffer.clear();
     _currentSegment = null;
@@ -627,8 +675,13 @@ class OnlineTts extends BaseTts {
               if (_usesPlaybackRate) {
                 await audioPlayer!.setPlaybackRate(_playbackRate);
               }
-              await audioPlayer!.play(source);
-              await _playbackCompleter!.future;
+              final stopTracking = _trackSpeechProgress(audioPlayer!, segment);
+              try {
+                await audioPlayer.play(source);
+                await _playbackCompleter!.future;
+              } finally {
+                stopTracking();
+              }
             }
           } catch (e) {
             AnxLog.severe('Playback error: $e');

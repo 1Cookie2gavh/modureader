@@ -67,6 +67,21 @@ test('automatic signatures ignore editor preview but track margin and grid setti
  for(const fields of [{autoCrop:'yes'},{autoMargin:-1},{autoMargin:NaN},{autoMargin:.21}])
     assert.throws(()=>G.validateReadingLayout({...auto,all:{...auto.all,...fields}}));
 });
+test('cancelling preprocessing reaches crop detection and leaves the next request usable',async()=>{
+ const controller=new AbortController();let entered,seen;
+ const started=new Promise(resolve=>entered=resolve);
+ const book={cropRegionRenderer:{render:async(request,{signal}={})=>{
+   if(request.page===0){
+     seen=signal;entered();await new Promise((resolve,reject)=>signal.addEventListener('abort',
+       ()=>reject(new DOMException('cancelled','AbortError')),{once:true}));
+   }
+   return {cropDetection:{detected:true,crop:{x:.1,y:.1,width:.8,height:.8}}};
+ }}};
+ const old=G.resolveReadingRegions(auto,0,book,{signal:controller.signal});
+ await started;assert.equal(seen,controller.signal);
+ const next=G.resolveReadingRegions(auto,1,book);controller.abort();
+ await assert.rejects(old,{name:'AbortError'});assert.equal((await next)[0].x,.1);
+});
 
 test('next/previous traverse panels before original pages, including parity overrides', () => {
     let current = {page: -1, panel: 0};

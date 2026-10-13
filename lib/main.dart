@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'package:anx_reader/service/ios_linked_books.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/utils/app_version.dart';
 import 'package:anx_reader/service/app_brightness.dart';
@@ -92,6 +94,14 @@ Future<void> main() async {
     }
   });
   await Prefs().initPrefs();
+  if (Platform.isIOS) {
+    try {
+      await IosLinkedBooks.restore();
+    } catch (_) {
+      // Unavailable providers must not prevent opening the local library.
+      debugPrint('Unable to restore linked-book access');
+    }
+  }
   AppMotion.platformDisabled = Prefs().eInkMotionDisabled;
   Prefs().addListener(() {
     AppMotion.platformDisabled = Prefs().eInkMotionDisabled;
@@ -173,18 +183,40 @@ class MyApp extends ConsumerStatefulWidget {
 class _MyAppState extends ConsumerState<MyApp>
     with WidgetsBindingObserver, WindowListener {
   bool _closingWindow = false;
+  StreamSubscription<List<ConnectivityResult>>? _syncConnectivity;
+
+  void _resumeAutomaticSync() {
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        !Prefs().webdavStatus ||
+        !Prefs().autoSync) {
+      return;
+    }
+    unawaited(ref.read(syncProvider.notifier).syncData(SyncDirection.both, null,
+        trigger: SyncTrigger.auto, immediate: true));
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     windowManager.addListener(this);
+    _syncConnectivity =
+        Connectivity().onConnectivityChanged.listen((connections) {
+      if (connections.any((value) => value != ConnectivityResult.none) &&
+          (!Prefs().onlySyncWhenWifi ||
+              connections.contains(ConnectivityResult.wifi))) {
+        _resumeAutomaticSync();
+      }
+    }, onError: (Object error) {
+      AnxLog.warning('Sync connectivity monitor failed: ${error.runtimeType}');
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     windowManager.removeListener(this);
+    _syncConnectivity?.cancel();
     super.dispose();
   }
 
@@ -279,11 +311,7 @@ class _MyAppState extends ConsumerState<MyApp>
       if (AnxPlatform.isIOS) {
         Server().start();
       }
-      if (Prefs().webdavStatus) {
-        unawaited(ref
-            .read(syncProvider.notifier)
-            .syncData(SyncDirection.both, null, trigger: SyncTrigger.auto));
-      }
+      _resumeAutomaticSync();
     }
   }
 

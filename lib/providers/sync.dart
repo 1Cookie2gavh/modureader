@@ -1,5 +1,7 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
+import 'package:anx_reader/service/ios_linked_books.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:io' as io;
 import 'package:anx_reader/service/book.dart' show getBookMetadata;
 import 'package:anx_reader/models/document_reading_mode.dart';
@@ -21,6 +23,7 @@ import 'package:anx_reader/service/sync/sync_client_factory.dart';
 import 'package:anx_reader/service/sync/sync_client_base.dart';
 import 'package:anx_reader/service/sync/sync_paths.dart';
 import 'package:anx_reader/service/sync/sync_preflight.dart';
+import 'package:anx_reader/service/sync/pending_auto_sync.dart';
 import 'package:anx_reader/service/sync/webdav_client.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/service/sync/row_sync_engine.dart';
@@ -66,6 +69,8 @@ class Sync extends _$Sync {
   bool _pendingAutomatic = false;
   SyncDirection? _pendingManualDirection;
   final _autoStart = AutoSyncStartGate();
+  final _pendingSync = PendingAutoSync(() => Prefs().prefs);
+  Timer? _retryAutomatic;
   SyncClientBase? _automaticClient;
   Object? _automaticPolicy;
   SyncClientBase? _remoteListClient;
@@ -87,10 +92,29 @@ class Sync extends _$Sync {
   void pauseAutomaticSync() {
     _autoStart.invalidate();
     _pendingAutomatic = false;
+    _retryAutomatic?.cancel();
+    _retryAutomatic = null;
+  }
+
+  void _retryPendingSyncLater() {
+    if (!_pendingSync.pending ||
+        !_autoSyncAllowed ||
+        _syncClient?.isConfigured != true ||
+        _retryAutomatic != null) {
+      return;
+    }
+    // No busy loop while offline. The normal gate still enforces DAV cooldowns.
+    _retryAutomatic = Timer(const Duration(minutes: 1), () {
+      _retryAutomatic = null;
+      if (_pendingSync.pending && _autoSyncAllowed) {
+        unawaited(syncData(SyncDirection.both, null));
+      }
+    });
   }
 
   @override
   SyncStateModel build() {
+    ref.onDispose(pauseAutomaticSync);
     return const SyncStateModel(
       direction: SyncDirection.both,
       isSyncing: false,
@@ -164,9 +188,20 @@ class Sync extends _$Sync {
     WidgetRef? ref, {
     SyncTrigger trigger = SyncTrigger.auto,
     bool Function()? shouldStart,
+    bool immediate = false,
+    Future<void>? savedReading,
   }) async {
     if (shouldStart != null && (!shouldStart() || _syncRunning)) return;
     final automatic = trigger == SyncTrigger.auto;
+    try {
+      if (automatic && immediate) {
+        await _pendingSync.request(savedReading: savedReading);
+      }
+      await _pendingSync.ready;
+    } catch (error) {
+      AnxLog.warning('Sync progress save failed: ${error.runtimeType}');
+      return;
+    }
     final scheduledClient = _syncClient;
     final policy =
         scheduledClient is WebdavClient ? scheduledClient.requestPolicy : null;
@@ -175,6 +210,7 @@ class Sync extends _$Sync {
       await policy?.prepare();
     } catch (error) {
       AnxToast.show(syncFailureMessage(error, chinese: _chineseFeedback));
+      _retryPendingSyncLater();
       return;
     }
     if (!identical(_automaticClient, scheduledClient) ||
@@ -191,6 +227,8 @@ class Sync extends _$Sync {
         _pendingAutomatic = true;
         return;
       }
+      // Foreground/exit requests supersede a reader-only or ordinary delayed start.
+      if (immediate) _autoStart.invalidate();
       if (!await _autoStart.wait(
           () =>
               _autoSyncAllowed &&
@@ -198,7 +236,12 @@ class Sync extends _$Sync {
               (scheduledClient is! WebdavClient ||
                   identical(policy, scheduledClient.requestPolicy)) &&
               (shouldStart?.call() ?? true),
-          duration: policy?.automaticDelay ?? const Duration(seconds: 2))) {
+          duration:
+              policy?.automaticStartDelay(immediate: _pendingSync.pending) ??
+                  (_pendingSync.pending
+                      ? Duration.zero
+                      : const Duration(seconds: 2)))) {
+        _retryPendingSyncLater();
         return;
       }
     } else {
@@ -210,12 +253,15 @@ class Sync extends _$Sync {
       return;
     }
     _syncRunning = true;
+    _retryAutomatic?.cancel();
+    _retryAutomatic = null;
     try {
       if (!(shouldStart?.call() ?? true)) return;
-      policy?.syncStarted();
-      await policy?.persist();
-      await _syncData(direction, ref,
+      await _pendingSync.ready;
+      final pendingRevision = _pendingSync.revision;
+      final completed = await _syncData(direction, ref,
           trigger: trigger, shouldStart: shouldStart);
+      if (completed) await _pendingSync.acknowledge(pendingRevision);
     } catch (e) {
       // Avoid logging DioException.toString(): it can contain private URLs.
       AnxLog.warning(
@@ -238,22 +284,24 @@ class Sync extends _$Sync {
       } else if (pendingAutomatic && _autoSyncAllowed) {
         unawaited(
             syncData(SyncDirection.both, null, trigger: SyncTrigger.auto));
+      } else {
+        _retryPendingSyncLater();
       }
     }
   }
 
-  Future<void> _syncData(
+  Future<bool> _syncData(
     SyncDirection direction,
     WidgetRef? ref, {
     SyncTrigger trigger = SyncTrigger.auto,
     bool Function()? shouldStart,
   }) async {
     if (trigger == SyncTrigger.auto && !Prefs().autoSync) {
-      return;
+      return false;
     }
 
     if (!(await shouldSync(automatic: trigger == SyncTrigger.auto))) {
-      return;
+      return false;
     }
 
     final client = _syncClient;
@@ -264,7 +312,7 @@ class Sync extends _$Sync {
     // Do not overlap a library sync with an active file transfer.
     if (state.isSyncing) {
       AnxLog.info('Sync already in progress, skipping');
-      return;
+      return false;
     }
 
     // Fail visibly without treating authentication/network errors as absence.
@@ -284,9 +332,14 @@ class Sync extends _$Sync {
       },
       probe: client.ping,
     )) {
-      return;
+      return false;
     }
-    if (!(shouldStart?.call() ?? true)) return;
+    if (!(shouldStart?.call() ?? true)) return false;
+    // An offline attempt must not consume Jianguoyun's ten-minute sync interval.
+    if (client is WebdavClient) {
+      client.requestPolicy.syncStarted();
+      await client.requestPolicy.persist();
+    }
     await _createSyncDir();
 
     AnxLog.info('Sync ping success');
@@ -320,7 +373,7 @@ class Sync extends _$Sync {
         throw const SyncFeedbackFailure(SyncFailureCode.newerDatabase);
       }
     }
-    if (!(shouldStart?.call() ?? true)) return;
+    if (!(shouldStart?.call() ?? true)) return false;
     changeState(state.copyWith(isSyncing: true));
 
     try {
@@ -367,6 +420,7 @@ class Sync extends _$Sync {
       if (Prefs().syncCompletedToast) {
         AnxToast.show(syncSuccessMessage(chinese: _chineseFeedback));
       }
+      return true;
     } finally {
       changeState(state.copyWith(isSyncing: false));
       // _deleteBackUpDb();
@@ -597,6 +651,13 @@ class Sync extends _$Sync {
   }
 
   Future<void> releaseBook(Book book) async {
+    if (IosLinkedBooks.isLinked(book.filePath)) {
+      AnxToast.show(ModuStrings.text(
+          navigatorKey.currentContext!,
+          '原位书籍未复制到默读，无需释放原书空间。',
+          'This book is read in place; no copied book storage to release.'));
+      return;
+    }
     final syncStatus = await ref.read(syncStatusProvider.future);
 
     Future<void> deleteLocalBook() async {
@@ -676,6 +737,10 @@ class Sync extends _$Sync {
       // A shelf widget can still hold the pre-replacement filename.
       book = await bookDao.selectBookById(book.id);
       if (book.isDeleted) return;
+      if (IosLinkedBooks.isLinked(book.filePath)) {
+        throw StateError(
+            '原位书籍未上传原书，请在当前设备重新授权或普通导入。 / Add the original in place or import it on this device.');
+      }
       final remotePath = SyncPaths.data(book.filePath);
       final localPath = getBasePath(book.filePath);
       await downloadFile(remotePath, localPath, expectedMd5: book.md5);

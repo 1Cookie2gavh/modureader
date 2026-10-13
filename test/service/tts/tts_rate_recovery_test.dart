@@ -26,6 +26,10 @@ class NativePlayer extends Fake implements AudioPlayer {
   @override
   Stream<void> get onPlayerComplete => completed.stream;
   @override
+  Stream<Duration> get onPositionChanged => const Stream.empty();
+  @override
+  Stream<Duration> get onDurationChanged => const Stream.empty();
+  @override
   Future<void> setReleaseMode(ReleaseMode mode) async {
     if (failInit) throw PlatformException(code: 'native-init');
   }

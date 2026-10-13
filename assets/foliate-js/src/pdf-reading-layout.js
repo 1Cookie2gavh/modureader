@@ -22,10 +22,10 @@ export async function resolveReflowRegion(config, page, book, options = {}) {
 }
 // A separate low-resolution renderer avoids cancelling scrolling/detail renders.
 // Cache only small coordinates, keyed by original page and detection settings.
-export async function resolveReadingRegions(config, page, book, {hideWatermarks = false, active = () => true} = {}) {
+export async function resolveReadingRegions(config, page, book, {hideWatermarks = false, active = () => true, signal} = {}) {
     const layout = pageLayout(config, page) ?? {}
     if (!layout.autoCrop || book?.nativeTextPages?.has(page)) return readingRegions(config, page, book)
-    const check = () => { if (!active()) throw new DOMException('Reader changed', 'AbortError') }
+    const check = () => { if (signal?.aborted || !active()) throw new DOMException('Reader changed', 'AbortError') }
     check()
     let state = cropStates.get(book)
     if (!state) { state = {cache: new Map(), tail: Promise.resolve()}; cropStates.set(book, state) }
@@ -37,7 +37,7 @@ export async function resolveReadingRegions(config, page, book, {hideWatermarks 
         try {
             const result = await book.cropRegionRenderer.render({page, region: FULL_PAGE,
                 rotation: 0, width: 1000, height: 1200, analyzeCrop: true, detectionOnly: true,
-                margin: layout.autoMargin ?? .03, hideWatermarks})
+                margin: layout.autoMargin ?? .03, hideWatermarks}, {signal})
             check()
             if (!result.cropDetection) throw new Error('Missing crop detection')
             if (result.cropDetection.detected) crop = validateRegion(result.cropDetection.crop)

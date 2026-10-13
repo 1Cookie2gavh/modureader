@@ -9,7 +9,7 @@ import { bookFrameSandbox } from './frame-script-policy.js'
 import { ContinuousSectionWindow } from './continuous-section-window.js'
 import { VerticalColumnRules } from './vertical-column-rules.js'
 import './transient-scrollbar.js'
-import { alignPaginatedText, resetPageAlignment, lineAlignedOffset, invalidateScrollLines, prepareScrollLines } from './text-page-layout.js'
+import { alignPaginatedText, resetPageAlignment, fitTextLineSpacing, lineAlignedOffset, invalidateScrollLines, prepareScrollLines } from './text-page-layout.js'
 
 const lerp = (min, max, x) => x * (max - min) + min
 const easeOutSine = x => Math.sin((x * Math.PI) / 2)
@@ -338,7 +338,7 @@ class View {
     if (this.#column) this.columnize(layout)
     else this.scrolled(layout)
   }
-  scrolled({ gap, columnWidth }) {
+  scrolled({ gap, columnWidth, height }) {
     const vertical = this.#vertical
     const doc = this.document
     if (!doc) return
@@ -355,6 +355,7 @@ class View {
       'margin': 'auto',
     })
     this.setImageSize()
+    if (!vertical && !this.#rtl) fitTextLineSpacing(doc, height)
     this.expand()
   }
   columnize({ width, height, gap, columnWidth, topMargin, bottomMargin }) {
@@ -371,9 +372,9 @@ class View {
       'column-width': `${Math.trunc(columnWidth)}px`,
       'column-gap': `${gap}px`,
       'column-fill': 'auto',
-      ...(vertical
-        ? { 'width': `${width}px` }
-        : { 'height': `${height}px` }),
+      // Measure at the new viewport size, not the previous iframe's column width.
+      'width': `${width}px`,
+      'height': `${height}px`,
       'padding': vertical ? verticlePadding : horizontalPadding,
       'overflow': 'hidden',
       // force wrap long words
@@ -391,6 +392,7 @@ class View {
       'margin': '0',
     })
     this.setImageSize()
+    if (!vertical && !this.#rtl) fitTextLineSpacing(doc)
     alignPaginatedText(doc, { width, height, gap, columnWidth, topMargin, bottomMargin }, vertical || this.#rtl)
     this.expand()
   }
@@ -907,8 +909,8 @@ export class Paginator extends HTMLElement {
       // this.#header.replaceChildren()
       // this.#footer.replaceChildren()
 
-      return { flow, margin, gap, columnWidth, topMargin, bottomMargin,
-        ...(this.getAttribute('mobile-image-fit') === 'true' ? { width, height, mobileImageFit: true } : {}) }
+      return { flow, margin, gap, columnWidth, topMargin, bottomMargin, width, height,
+        mobileImageFit: this.getAttribute('mobile-image-fit') === 'true' }
     }
 
     const divisor = maxColumnCount == 0

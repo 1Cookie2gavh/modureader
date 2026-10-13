@@ -226,6 +226,34 @@ void main() {
     final split = lifecycle.split('state == AppLifecycleState.resumed');
     expect(split.first, contains('pauseAutomaticSync()'));
     expect(split.first, isNot(contains('.syncData(')));
-    expect(split.last, contains('.syncData('));
+    expect(split.last, contains('_resumeAutomaticSync()'));
+    final resume = source.substring(
+        source.indexOf('void _resumeAutomaticSync()'),
+        source.indexOf(
+            '@override', source.indexOf('void _resumeAutomaticSync()')));
+    expect(resume, contains('AppLifecycleState.resumed'));
+    expect(resume, contains('immediate: true'));
+    expect(resume, contains('Prefs().autoSync'));
+    final network = source.substring(source.indexOf('_syncConnectivity ='),
+        source.indexOf('@override', source.indexOf('_syncConnectivity =')));
+    expect(network, contains('_resumeAutomaticSync()'));
+    expect(network, contains('ConnectivityResult.none'));
+    expect(network, contains('onlySyncWhenWifi'));
+  });
+
+  test(
+      'book exit waits for progress and startup requests immediate automatic sync',
+      () {
+    final player =
+        File('lib/page/book_player/epub_player.dart').readAsStringSync();
+    final dispose = player.substring(player.indexOf('void dispose()'),
+        player.indexOf('InAppWebViewSettings initialSettings'));
+    expect(dispose, contains('savedReading: saveReadingProgress()'));
+    expect(dispose, contains('immediate: true'));
+    expect(dispose.indexOf('detachNarration()'),
+        lessThan(dispose.indexOf('syncData(')));
+    final home = File('lib/page/home_page.dart').readAsStringSync();
+    final startup = home.substring(home.indexOf('Future<void> initAnx()'));
+    expect(startup, contains('immediate: true'));
   });
 }

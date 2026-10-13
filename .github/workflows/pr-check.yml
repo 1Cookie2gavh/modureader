@@ -75,6 +75,9 @@ jobs:
       - name: Release architecture validation tests
         run: python3 -m unittest discover -s test -p 'release_package_test.py' -v
 
+      - name: Windows activation focus regression
+        run: python3 -m unittest discover -s test -p 'windows_activation_focus_test.py' -v
+
       - name: Update manifest and model mirror validation
         run: |
           python3 -m unittest discover -s test -p 'update_manifest_test.py' -v

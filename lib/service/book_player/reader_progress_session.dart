@@ -1,5 +1,6 @@
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/models/reading_position_snapshot.dart';
+import 'package:anx_reader/models/narration_position.dart';
 
 /// Serializes real reading actions and database refreshes for one open reader.
 /// Lifecycle saves merely drain work; they never invent a new reading action.
@@ -24,12 +25,12 @@ class ReaderProgressSession {
       });
 
   Future<bool> record(String position, double percentage,
-          {required int generation}) =>
+          {required int generation, NarrationPosition? narration}) =>
       _serial(() async {
         if (current == null || generation != this.generation) return false;
         final next = await dao.updateReadingPosition(
             bookId, position, percentage,
-            expectedRevision: current!.revision);
+            expectedRevision: current!.revision, narration: narration);
         if (next == null) {
           current = await dao.readReadingPosition(bookId);
           this.generation++;
@@ -40,4 +41,21 @@ class ReaderProgressSession {
       });
 
   Future<void> flush() => _pending;
+
+  Future<bool> recordNarration(NarrationPosition narration,
+          {required int generation}) =>
+      _serial(() async {
+        final latest = current;
+        if (latest == null || generation != this.generation) return false;
+        final next = await dao.updateReadingPosition(
+            bookId, latest.position, latest.percentage,
+            expectedRevision: latest.revision, narration: narration);
+        if (next == null) {
+          current = await dao.readReadingPosition(bookId);
+          this.generation++;
+          return false;
+        }
+        current = next;
+        return true;
+      });
 }

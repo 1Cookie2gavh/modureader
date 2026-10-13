@@ -15,6 +15,34 @@ Response<dynamic> busy(int status, {String? retryAfter}) => Response<dynamic>(
     }));
 
 void main() {
+  test('immediate exit/resume skips debounce but not Jianguoyun interval', () {
+    var now = DateTime.utc(2026);
+    for (final limited in [false, true]) {
+      final policy = WebdavRequestPolicy(jianguoyun: limited, now: () => now);
+      expect(policy.automaticStartDelay(immediate: true), Duration.zero);
+      policy.syncStarted();
+      now = now.add(const Duration(minutes: 1));
+      expect(policy.automaticStartDelay(immediate: true),
+          limited ? const Duration(minutes: 9) : Duration.zero);
+      now = now.add(const Duration(minutes: 9));
+      expect(policy.automaticStartDelay(immediate: true), Duration.zero);
+      policy.observe(busy(503, retryAfter: '3600'));
+      expect(policy.automaticStartDelay(immediate: true),
+          const Duration(hours: 1));
+    }
+  });
+
+  test('immediate requests still respect the rolling request budget', () async {
+    var now = DateTime.utc(2026);
+    final policy =
+        WebdavRequestPolicy(jianguoyun: true, now: () => now, requestLimit: 1);
+    await policy.beforeRequest(RequestOptions());
+    expect(policy.automaticStartDelay(immediate: true),
+        const Duration(minutes: 30));
+    now = now.add(const Duration(minutes: 30));
+    expect(policy.automaticStartDelay(immediate: true), Duration.zero);
+  });
+
   test('recognition uses the hostname, never a path or lookalike', () {
     for (final url in [
       'https://dav.jianguoyun.com/dav/',

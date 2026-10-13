@@ -1,5 +1,10 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
+import 'package:anx_reader/dao/book.dart';
+import 'package:anx_reader/providers/book_list.dart';
+import 'package:anx_reader/providers/sync_status.dart';
+import 'package:anx_reader/service/ios_linked_books.dart';
+import 'package:anx_reader/service/md5_service.dart';
 
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/book.dart';
@@ -14,13 +19,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 bool _pickingBooks = false;
 
 Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
-    {bool folder = false, List<String>? droppedPaths}) async {
+    {bool folder = false,
+    bool inPlace = false,
+    List<String>? droppedPaths}) async {
   if (_pickingBooks) return;
   _pickingBooks = true;
   final mobileFolder = folder && (Platform.isAndroid || Platform.isIOS);
   try {
+    if (inPlace && !Platform.isIOS) return;
     List<BookImportEntry>? entries;
-    if (droppedPaths != null) {
+    if (inPlace) {
+      entries = await _withImportProgress(
+          context,
+          () => MobileBookFolder.pick(
+              files: !folder, extensions: IosLinkedBooks.extensions));
+    } else if (droppedPaths != null) {
       entries = await _withImportProgress(
           context, () => discoverBookImportFiles(droppedPaths));
     } else if (mobileFolder) {
@@ -55,15 +68,69 @@ Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
     if (entries.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(ModuStrings.text(
-              context, '没有找到支持的书籍文件', 'No supported books found'))));
+              context,
+              inPlace
+                  ? '原位添加支持 EPUB、PDF、MOBI、AZW3、FB2；其他格式请用普通导入。'
+                  : '没有找到支持的书籍文件',
+              inPlace
+                  ? 'In-place reading supports EPUB, PDF, MOBI, AZW3 and FB2. Use normal import for other formats.'
+                  : 'No supported books found'))));
       return;
     }
     final selected = await showDialog<List<BookImportEntry>>(
       animationStyle: AppMotion.style,
       context: context,
-      builder: (_) => BookImportSelection(entries: entries!),
+      builder: (_) => BookImportSelection(entries: entries!, inPlace: inPlace),
     );
     if (selected == null || selected.isEmpty || !context.mounted) return;
+    if (inPlace) {
+      var failed = 0;
+      await _withImportProgress(context, () async {
+        for (final entry in selected) {
+          String? key;
+          try {
+            key = await IosLinkedBooks.link(entry.id);
+            final file = File(IosLinkedBooks.resolve(key)!);
+            final md5 = await MD5Service.calculateFileMd5(file.path);
+            if (md5 == null) {
+              throw const FileSystemException('Cannot verify book');
+            }
+            final existing = await bookDao.getBookByMd5(md5);
+            // Keep existing imported files and records; renew missing links only.
+            if (existing != null &&
+                !existing.isDeleted &&
+                await File(existing.fileFullPath).exists()) {
+              await IosLinkedBooks.forget(key);
+              key = null;
+              continue;
+            }
+            await getBookMetadata(file,
+                md5: md5,
+                linkedPath: key,
+                sourceFormat: entry.name.split('.').last.toLowerCase());
+            key = null; // The saved book now owns this bookmark.
+          } catch (_) {
+            failed++;
+          } finally {
+            if (key != null &&
+                !(await bookDao.getCurrentBooks()).contains(key)) {
+              await IosLinkedBooks.forget(key);
+            }
+          }
+        }
+        await ref.read(bookListProvider.notifier).refresh();
+        ref.invalidate(syncStatusProvider);
+      });
+      if (failed > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(ModuStrings.format(
+                context,
+                '{count} 本书未能添加，请检查文件和授权后重试。',
+                '{count} books could not be added. Check files and access, then retry.',
+                values: {'count': failed}))));
+      }
+      return;
+    }
     final files = await _withImportProgress(
         context,
         () async => mobileFolder
@@ -86,7 +153,7 @@ Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
     }
   } finally {
     try {
-      if (mobileFolder) {
+      if (mobileFolder || inPlace) {
         await MobileBookFolder.release();
       }
     } finally {
@@ -121,8 +188,10 @@ Future<T> _withImportProgress<T>(
 }
 
 class BookImportSelection extends StatefulWidget {
-  const BookImportSelection({super.key, required this.entries});
+  const BookImportSelection(
+      {super.key, required this.entries, this.inPlace = false});
   final List<BookImportEntry> entries;
+  final bool inPlace;
   @override
   State<BookImportSelection> createState() => _BookImportSelectionState();
 }
@@ -131,54 +200,62 @@ class _BookImportSelectionState extends State<BookImportSelection> {
   late final selected = widget.entries.map((e) => e.id).toSet();
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: Text(
-            ModuStrings.text(context, '选择要导入的书籍', 'Select books to import')),
+        title: Text(ModuStrings.text(
+            context,
+            widget.inPlace ? '原位添加书籍' : '选择要导入的书籍',
+            widget.inPlace ? 'Add books in place' : 'Select books to import')),
         content: SizedBox(
             width: 520,
             height: MediaQuery.sizeOf(context).height * .55,
-            child: Column(children: [
-              Text(ModuStrings.text(
-                  context,
-                  '支持 EPUB、MOBI、AZW3、FB2、PDF、TXT、Markdown、UMD。文件夹包含子文件夹，原文件保持不变。',
-                  'EPUB, MOBI, AZW3, FB2, PDF, TXT, Markdown and UMD. Includes subfolders; original files are kept.')),
-              CheckboxListTile(
-                title: Text(ModuStrings.text(context, '全选', 'Select all')),
-                subtitle: Text(ModuStrings.format(
-                    context, '已选 {count} 本', '{count} books selected',
-                    values: {'count': selected.length})),
-                value: selected.length == widget.entries.length
-                    ? true
-                    : selected.isEmpty
-                        ? false
-                        : null,
-                tristate: true,
-                onChanged: (_) => setState(() {
-                  if (selected.length == widget.entries.length) {
-                    selected.clear();
-                  } else {
-                    selected.addAll(widget.entries.map((e) => e.id));
+            child: ListView.builder(
+                itemCount: widget.entries.length + 2,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Text(ModuStrings.text(
+                        context,
+                        widget.inPlace
+                            ? '原位读取 EPUB、PDF、MOBI、AZW3、FB2，不复制原书。仅本机授权，不上传原书或包含在备份中；封面和索引仍占空间。移动或删除原文件可能导致无法阅读。TXT、Markdown、UMD 需使用普通导入以转换格式。'
+                            : '支持 EPUB、MOBI、AZW3、FB2、PDF、TXT、Markdown、UMD。文件夹包含子文件夹，原文件保持不变。',
+                        widget.inPlace
+                            ? 'Read EPUB, PDF, MOBI, AZW3 and FB2 in place without copying. Access is device-local; originals are not uploaded or included in backups. Covers and indexes still use space. Moving or deleting originals can break access. Use normal import for TXT, Markdown and UMD conversion.'
+                            : 'EPUB, MOBI, AZW3, FB2, PDF, TXT, Markdown and UMD. Includes subfolders; original files are kept.'));
                   }
-                }),
-              ),
-              Expanded(
-                  child: ListView.builder(
-                      itemCount: widget.entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = widget.entries[index];
-                        return CheckboxListTile(
-                            key: ValueKey(entry.id),
-                            title: Text(entry.name),
-                            subtitle: Text(entry.label),
-                            value: selected.contains(entry.id),
-                            onChanged: (value) => setState(() {
-                                  if (value == true) {
-                                    selected.add(entry.id);
-                                  } else {
-                                    selected.remove(entry.id);
-                                  }
-                                }));
-                      })),
-            ])),
+                  if (index == 1) {
+                    return CheckboxListTile(
+                      title:
+                          Text(ModuStrings.text(context, '全选', 'Select all')),
+                      subtitle: Text(ModuStrings.format(
+                          context, '已选 {count} 本', '{count} books selected',
+                          values: {'count': selected.length})),
+                      value: selected.length == widget.entries.length
+                          ? true
+                          : selected.isEmpty
+                              ? false
+                              : null,
+                      tristate: true,
+                      onChanged: (_) => setState(() {
+                        if (selected.length == widget.entries.length) {
+                          selected.clear();
+                        } else {
+                          selected.addAll(widget.entries.map((e) => e.id));
+                        }
+                      }),
+                    );
+                  }
+                  final entry = widget.entries[index - 2];
+                  return CheckboxListTile(
+                      key: ValueKey(entry.id),
+                      title: Text(entry.name),
+                      subtitle: Text(entry.label),
+                      value: selected.contains(entry.id),
+                      onChanged: (value) => setState(() {
+                            if (value == true) {
+                              selected.add(entry.id);
+                            } else {
+                              selected.remove(entry.id);
+                            }
+                          }));
+                })),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
@@ -191,8 +268,10 @@ class _BookImportSelectionState extends State<BookImportSelection> {
                       widget.entries
                           .where((e) => selected.contains(e.id))
                           .toList()),
-              child:
-                  Text(ModuStrings.text(context, '导入所选', 'Import selected'))),
+              child: Text(ModuStrings.text(
+                  context,
+                  widget.inPlace ? '添加所选' : '导入所选',
+                  widget.inPlace ? 'Add selected' : 'Import selected'))),
         ],
       );
 }

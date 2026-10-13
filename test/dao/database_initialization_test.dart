@@ -211,7 +211,7 @@ void main() {
         () async {
       await legacy(version);
       final db = await DBHelper().initDB();
-      expect(await db.getVersion(), 8);
+      expect(await db.getVersion(), currentDbVersion);
       expect((await db.query('tb_books')).single['last_read_position'],
           'chapter2');
       expect((await db.query('tb_notes')).single['content'], 'Keep this note');
@@ -234,6 +234,6 @@ void main() {
     expect(await file.readAsString(), 'intentionally invalid test database');
     await file.rename('${file.path}.test-backup');
     final db = await DBHelper().initDB();
-    expect(await db.getVersion(), 8);
+    expect(await db.getVersion(), currentDbVersion);
   });
 }

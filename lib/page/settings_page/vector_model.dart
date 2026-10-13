@@ -12,6 +12,7 @@ import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
+import 'package:anx_reader/widgets/settings/offline_model_picker.dart';
 import 'package:flutter/material.dart';
 
 class VectorModelSettings extends StatefulWidget {
@@ -39,6 +40,40 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
   bool _loadingLocalModels = true;
   bool _obscureApiKey = true;
   bool _testing = false;
+  String? _importingId;
+
+  Future<void> _importLocalModel(LocalEmbeddingModel model) async {
+    if (_importingId != null ||
+        _downloadProgress.isNotEmpty ||
+        _testingModels.isNotEmpty ||
+        _deletingModels.isNotEmpty) {
+      return;
+    }
+    setState(() => _importingId = model.id);
+    try {
+      final files = await pickOfflineModelFiles(
+          context, model.name, 'model_quantized.onnx\ntokenizer.json');
+      if (files == null || !mounted) return;
+      await _localModelStore.importFiles(model, files,
+          releaseModel: () =>
+              LocalOnnxEmbeddingEngine.instance.releaseModel(model.id));
+      if (mounted) {
+        await _refreshLocalModels();
+        if (mounted) {
+          AnxToast.show(
+              _label('导入并校验完成，可离线使用', 'Imported and verified. Ready offline.'));
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        AnxToast.show(_label(
+            '导入失败。请选择本型号的完整模型和分词器，大小和 SHA-256 必须与下载版本一致；请先停止向量化或下载后重试。',
+            'Import failed. Select the complete model and tokenizer with matching size and SHA-256. Stop indexing or downloads and retry.'));
+      }
+    } finally {
+      if (mounted) setState(() => _importingId = null);
+    }
+  }
 
   @override
   void initState() {
@@ -521,12 +556,26 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
               spacing: 8,
               runSpacing: 8,
               children: [
+                AnxButton.outlined(
+                  key: ValueKey('import-model-${model.id}'),
+                  isLoading: _importingId == model.id,
+                  onPressed: _importingId != null ||
+                          _downloadProgress.isNotEmpty ||
+                          _testingModels.isNotEmpty ||
+                          _deletingModels.isNotEmpty
+                      ? null
+                      : () => _importLocalModel(model),
+                  child: Text(_label('离线导入', 'Offline import')),
+                ),
                 if (downloaded) ...[
                   if (!bundled)
                     AnxButton.text(
                       key: ValueKey('delete-model-${model.id}'),
                       isLoading: deleting,
-                      onPressed: testing || deleting || progress != null
+                      onPressed: _importingId != null ||
+                              testing ||
+                              deleting ||
+                              progress != null
                           ? null
                           : () => _deleteLocalModel(model),
                       child: Text(
@@ -534,7 +583,7 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
                     ),
                   AnxButton.text(
                     isLoading: testing,
-                    onPressed: testing || deleting
+                    onPressed: _importingId != null || testing || deleting
                         ? null
                         : () => _testLocalModel(model),
                     child: Text(
@@ -542,7 +591,7 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
                   ),
                   const SizedBox(width: 8),
                   AnxButton.outlined(
-                    onPressed: selected || deleting
+                    onPressed: _importingId != null || selected || deleting
                         ? null
                         : () {
                             Prefs().vectorLocalModelId = model.id;
@@ -559,7 +608,9 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
                 ] else
                   AnxButton.outlined(
                     isLoading: progress != null,
-                    onPressed: _downloadProgress.isEmpty && !deleting
+                    onPressed: _importingId == null &&
+                            _downloadProgress.isEmpty &&
+                            !deleting
                         ? () => _downloadLocalModel(model)
                         : null,
                     child: Text(

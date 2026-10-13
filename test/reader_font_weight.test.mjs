@@ -14,6 +14,20 @@ const getCSS = vm.runInNewContext(book.slice(start, book.indexOf('const fixHeadi
   readerSelectionCSS: () => '', isPdf: false,
 });
 
+test('production paragraph selector survives stable page runs without styling structural wrappers', async () => {
+  const layout=await readFile(new URL('../assets/foliate-js/src/text-page-layout.js',import.meta.url),'utf8');
+  const {preparePageRuns}=await import(`data:text/javascript;base64,${Buffer.from(layout).toString('base64')}`);
+  const css=getCSS({spacing:1.8,paragraphSpacing:3});
+  const selector=css.slice(css.indexOf('p, li, blockquote'),css.indexOf('{',css.indexOf('p, li, blockquote'))).trim();
+  const dom=new JSDOM('<div id="wrapper"><div id="text">正文<em>强调</em></div><p>另一段</p></div>');
+  const doc=dom.window.document, text=doc.querySelector('#text');
+  assert.ok(text.matches(selector));
+  preparePageRuns(doc);
+  assert.ok(text.matches(selector),'page runs must be transparent to the production paragraph rule');
+  assert.equal(doc.querySelector('#wrapper').matches(selector),false);
+  dom.window.close();
+});
+
 test('weight applies to nested text through inheritance and permits synthetic bold', () => {
   const css = readerFontWeightCSS({ fontWeight: 700 });
   assert.match(css, /body\s*\{\s*font-weight: 700 !important/);

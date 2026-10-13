@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/models/narration_position.dart';
 import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:anx_reader/service/sync/row_sync_record.dart';
@@ -92,6 +93,7 @@ class RowSyncStore {
       kind TEXT NOT NULL, sync_id TEXT NOT NULL, local_id INTEGER,
       clock INTEGER NOT NULL, revision TEXT NOT NULL, deleted INTEGER NOT NULL,
       payload TEXT NOT NULL DEFAULT '{}', dirty INTEGER NOT NULL DEFAULT 1,
+      narration TEXT,
       PRIMARY KEY(kind, sync_id), UNIQUE(kind, local_id))''');
     await db.execute('''CREATE TABLE IF NOT EXISTS tb_sync_secrets (
       id TEXT PRIMARY KEY NOT NULL, encrypted_payload TEXT NOT NULL, updated_at TEXT NOT NULL)''');
@@ -286,6 +288,14 @@ class RowSyncStore {
         'UPDATE $syncRecordsTable SET clock=$_clock, '
         "revision=lower(hex(randomblob(16))),dirty=1 WHERE kind='position' AND local_id=?",
         [bookId]);
+  }
+
+  static Future<void> installNarration(DatabaseExecutor db) async {
+    final columns = await db.rawQuery('PRAGMA table_info($syncRecordsTable)');
+    if (!columns.any((row) => row['name'] == 'narration')) {
+      await db
+          .execute('ALTER TABLE $syncRecordsTable ADD COLUMN narration TEXT');
+    }
   }
 
   /// Merge into live rows in one transaction, including changes made while
@@ -496,6 +506,12 @@ class RowSyncStore {
   }
 
   static void validate(RowSyncRecord r) {
+    if (r.narration != null) {
+      if (r.kind != 'position') {
+        throw const FormatException('Narration must belong to a book position');
+      }
+      NarrationPosition.decode(r.narration!.encode());
+    }
     bookSyncAliasTarget(r); // Validate reserved redirects before materializing.
     final fields = _fields[r.kind];
     if (fields == null ||

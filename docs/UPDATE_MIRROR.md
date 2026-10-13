@@ -1,8 +1,8 @@
 # Application update mirror
 
-## Release procedure: Modu 1.2.7+10117
+## Release procedure: Modu 1.2.8+10124
 
-This guide describes the Modu publishing repository's `v1.2.7` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
+This guide describes the Modu publishing repository's `v1.2.8` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
 
 A single Update Source option controls both checking and downloading. Each fresh app launch starts with GitHub preferred. A GitHub check that fails because of connection, timeout, TLS/certificate or HTTP request errors falls back to the fixed HTTPS Gitee manifest and switches the source for the whole workflow:
 
@@ -21,7 +21,7 @@ Successful GitHub checks use GitHub metadata and downloads. A check resolved thr
 | macOS | ARM64, x64 | DMG |
 | Windows | ARM64, x64 | setup EXE |
 | Linux | ARM64, x64 | DEB |
-| HarmonyOS | ARM64 | Unsigned HAP; manual signing/installation, not device-validated |
+| HarmonyOS | ARM64 | Unsigned HAP; manual signing/installation |
 
 There are nine packages in total. Android x64 is excluded from the release matrix and update manifest. The existing update manifest still contains the eight supported installer targets; HarmonyOS HAP is distributed as a manual download with a checksum, not through an unimplemented automatic HAP installer.
 

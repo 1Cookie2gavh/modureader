@@ -59,6 +59,7 @@ class RowSyncArchive {
         await txn.execute('''CREATE TABLE $syncRecordsTable (
           kind TEXT NOT NULL, sync_id TEXT NOT NULL, clock INTEGER NOT NULL,
           revision TEXT NOT NULL, deleted INTEGER NOT NULL, payload TEXT NOT NULL,
+          narration TEXT,
           PRIMARY KEY(kind,sync_id))''');
         for (final raw in records) {
           final record = normalizeSyncReadingPosition(raw);

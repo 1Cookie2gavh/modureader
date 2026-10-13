@@ -70,6 +70,8 @@ Back up and upgrade in place; do not uninstall or clear data first. Opening an i
 
 ## Reading ordinary books
 
+Unreleased iOS addition: Bookshelf → **+ → Add files/folder in place (no copy)** reads authorized EPUB/PDF/MOBI/AZW3/FB2 originals without importing full copies. First select a file or folder in the system Files picker. Keep files downloaded and available; deleting a shelf entry preserves the external original. Access authorization is device-local and originals are excluded from automatic upload and backup ZIPs, so another device needs reselection or ordinary import. Covers/indexes still use storage. TXT/Markdown/UMD require normal conversion-based import. Existing copied books are not automatically migrated. Physical iOS verification is pending.
+
 Supported formats include EPUB, PDF, MOBI, AZW3, FB2, TXT, Markdown and text UMD. TXT / Markdown / UMD are converted to EPUB on import for reading and synchronization. UMD retains chapters, metadata and supported covers; image/comic UMD is unsupported. The library supports folders, tags, pinning and moving selected books into folders. Download remote books before reading offline or indexing them.
 
 Import multiple files or choose a folder and select its supported books, including subfolders. Desktop drag-and-drop accepts folders on the library or reading screen. Source files are preserved. Cover badges show the original TXT / MD / UMD format when recognized, otherwise the stored format, and a scanned-book label where applicable; manual classification takes priority over automatic detection.
@@ -100,12 +102,15 @@ The brightness panel's moon button inverts PDF page colours and turns the surrou
 
 - Automatic cropping detects content bounds per page while retaining useful text, page numbers and footnotes. Use manual crop/panels for difficult layouts.
 - Image enhancement offers ink color, contrast, darkening, whitening, sharpening and scanned watermark fading. Adjust intensity, compare the original or reset. Conservative watermark fading cannot remove every watermark.
+- PDF reading prepares nearby cropped/enhanced pages automatically. It starts one reading panel ahead, increasing to two after fast processing samples when device hints allow. Continuous mode also retains nearby content for reverse scrolling; full-panel backing images are capped at 2MP and the window at seven frames. Zoomed details are refined separately. This is an in-memory optimization, not an offline conversion of the whole book; rapid jumps or expensive pages can still require waiting.
 - Processing does not rewrite the source book. Controls follow the app theme; manual / every-N-pages refresh appears only in E-Ink mode and requires a supported device interface.
 - Text reflow uses the page's text layer; OCR reflow recognizes image text. Both process the current page, or the whole cropped page when cropping is enabled, and display the result directly in the reader.
 - Reflowed text supports styling, selection, annotations and AI tools. The PDF panel's gear opens the relevant text-style controls.
 - Only **Extract** asks for a region. Recognition fills an editable AI draft; review and send it yourself. It does not automatically upload the book.
 
 ### OCR models
+
+Unreleased: each OCR card has **Offline import**, on desktop and mobile. Select the complete detection and recognition ONNX files together (upstream names or `det.onnx` / `rec.onnx`). Only the exact catalogue version passes the pinned size/SHA-256 checks. Import does not select a different model; use **Use** afterward if needed. No network is accessed during import. ZIPs and download fragments are not accepted.
 
 Open **Settings → OCR model**. **PP-OCRv4 Chinese / English** is recommended; v5 mobile Chinese / English, v3 Chinese / English and v3 English are also available. Weights are downloaded on demand, not bundled. Choose upstream or the Gitee mirror: v4 / v3 use Hugging Face upstream, while v5 uses ModelScope.
 
@@ -140,6 +145,8 @@ AI Knowledge never calls local book/library tools, including follow-ups and retr
 Backups store your changes to built-in prompts and your custom templates, not redundant copies of unchanged defaults. Restoring a default replaces its customization. Remote AI receives the actual request text and supplied context; see [Privacy](../PRIVACY.md).
 
 ## Vector indexing and semantic retrieval
+
+Unreleased: local model cards offer **Offline import**. Copy the complete `model_quantized.onnx` and `tokenizer.json` from the same supported model/version on a connected device, and select both files together on the offline device. The importer verifies against the app's own manifest; arbitrary ONNX models or user-supplied manifests are not accepted. Existing model selection and indexes are retained. Gitee fragments must first be assembled into complete files.
 
 Open **Settings → Vector Model / Embedding Models**. Embedding models retrieve passages; chat models answer questions. They are configured separately.
 
@@ -190,6 +197,8 @@ The reader style panel also provides Original / Simplified / Traditional Chinese
 **Settings → Sync** provides **WebDAV / Object storage** tabs. Object storage includes presets for Alibaba OSS, Tencent COS, Amazon S3, Cloudflare R2, RainYun ROS, Qiniu Kodo, Baidu BOS and Volcengine TOS, plus custom endpoints such as MinIO. Upgrades directly retain existing WebDAV accounts, passwords and enabled state. Turn sync off and wait for transfers before explicitly changing backend. Both connection configurations are retained separately; cloud files are not migrated. Passwords and keys are hidden by default with a common Show/Hide button. See [object storage setup, permissions and limitations](OBJECT_STORAGE_SYNC.md).
 
 Jianguoyun is recognized automatically. Repeated automatic-sync triggers coalesce, with subsequent starts at least ten minutes apart and a per-device/account rolling budget of 480 requests per half-hour. Manual sync respects the budget and server cooldown; restarting does not reset them. Other devices and apps still share the provider's limits. Other WebDAV servers keep their normal automatic-sync frequency. All providers respect HTTP 429/503 and Retry-After. Local changes are retained for later retry.
+
+With automatic sync enabled, startup, foreground/unlock and network restoration initiate sync without the ordinary two-second debounce, on both the bookshelf and reader (including E-Ink devices). Closing a book first drains saved reading/narration writes, then requests sync. Jianguoyun still observes its ten-minute interval, budget and cooldown; Wi-Fi-only restrictions remain. Pending requests are device-local and survive restart; only successful sync acknowledges them. While foregrounded, failed requests are retried after one minute through the same rate-limit gate. Locking/backgrounding cancels waiting timers, not the pending intent; foreground/network restoration resumes it. Background execution or immediate completion before locking is not guaranteed.
 
 For older TXT / Markdown books whose converted EPUB checksum fails, upgrade and sync the device holding the local book before downloading on another device. Keep that local copy until synchronization and download succeed.
 

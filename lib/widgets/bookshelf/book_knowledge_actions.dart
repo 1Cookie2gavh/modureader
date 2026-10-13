@@ -1,5 +1,7 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
+import 'package:anx_reader/service/ios_linked_books.dart';
+import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 
 import 'package:anx_reader/dao/book.dart';
@@ -121,19 +123,24 @@ Future<bool> confirmAndDeleteBooksFromBookshelf(
                   dialogContext, '删除 {count} 本书', 'Delete {count} books',
                   values: {'count': list.length})),
           content: Text(
-            list.length == 1
-                ? ModuStrings.format(
+            list.any((book) => IosLinkedBooks.isLinked(book.filePath))
+                ? ModuStrings.text(
                     dialogContext,
-                    '确定删除《{title}》吗？书籍文件及本地向量索引也会被删除。',
-                    'Delete “{title}”? The book file and local vector index will also be deleted.',
-                    values: {
-                        'title': list.first.title
-                      })
-                : ModuStrings.format(
-                    dialogContext,
-                    '确定删除所选 {count} 本书吗？书籍文件及本地向量索引也会被删除。',
-                    'Delete the {count} selected books? Their files and local vector indexes will also be deleted.',
-                    values: {'count': list.length}),
+                    '确定删除所选书籍吗？将删除书架记录、封面、本地索引及默读内的副本。原位添加的外部原书会保留。',
+                    'Delete the selected books, covers, local indexes and copies stored in Modu? External originals added in place are kept.')
+                : (list.length == 1
+                    ? ModuStrings.format(
+                        dialogContext,
+                        '确定删除《{title}》吗？书籍文件及本地向量索引也会被删除。',
+                        'Delete “{title}”? The book file and local vector index will also be deleted.',
+                        values: {
+                            'title': list.first.title
+                          })
+                    : ModuStrings.format(
+                        dialogContext,
+                        '确定删除所选 {count} 本书吗？书籍文件及本地向量索引也会被删除。',
+                        'Delete the {count} selected books? Their files and local vector indexes will also be deleted.',
+                        values: {'count': list.length})),
           ),
           actions: [
             TextButton(
@@ -165,7 +172,9 @@ Future<void> deleteBooksFromBookshelf(
   for (final book in list) {
     await bookKnowledgeIndexQueue.cancelAndRemove(book.id);
     await bookDao.setDeleted(book.id, true);
-    await _deleteIfPresent(File(book.fileFullPath));
+    // Delete only owned storage, never the security-scoped original.
+    await _deleteIfPresent(File(getBasePath(book.filePath)));
+    await IosLinkedBooks.forget(book.filePath);
     await _deleteIfPresent(File(book.coverFullPath));
     await BookKnowledgeIndexService().deleteIndex(book);
   }

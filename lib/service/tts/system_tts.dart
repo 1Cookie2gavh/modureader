@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/utils/platform_utils.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -165,6 +166,19 @@ class SystemTts extends BaseTts {
         AnxLog.info(
             'TTS system audio started; elapsedMs=${watch.elapsedMilliseconds}');
       }
+    });
+    var lastProgressMs = -500;
+    flutterTts.setProgressHandler((spoken, start, end, word) {
+      if (!live ||
+          !isPlaying ||
+          spoken != text ||
+          text != _currentVoiceText ||
+          watch.elapsedMilliseconds - lastProgressMs < 500) {
+        return;
+      }
+      lastProgressMs = watch.elapsedMilliseconds;
+      unawaited(epubPlayerKey.currentState
+          ?.ttsFollowProgress(text: text, offset: start));
     });
     flutterTts.setErrorHandler((message) {
       if (!live || signal.isCompleted) return;

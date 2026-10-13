@@ -113,8 +113,19 @@ void main() {
       expect(find.text('测试推理'), findsNothing);
       expect(store.calls, 0);
       expect(store.downloadSource, EmbeddingDownloadSource.huggingFace);
+      final imported = find
+          .byKey(ValueKey('import-model-${LocalEmbeddingModels.all.first.id}'));
+      await tester.ensureVisible(imported);
+      await tester.tap(imported);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('model_quantized.onnx'), findsOneWidget);
+      await tester.tap(find.text('取消').last);
+      await tester.pumpAndSettle();
+      expect(store.calls, 0);
       final source = find.byType(DropdownButtonFormField<String>);
       await tester.ensureVisible(source);
+      await tester.pumpAndSettle();
       await tester.tap(source);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Gitee 镜像').last);

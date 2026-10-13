@@ -771,7 +771,7 @@ const getCSS = ({ fontSize,
     }
     `}
 
-    p, li, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span))), font {
+    p, li, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span, modu-page-run))), font {
         color: ${fontColor} !important;
         ${useBookStyles ? '' : `line-height: ${spacing} !important;`}
         ${useBookStyles ? '' : `text-align: ${textAlign === 'auto' ? (justify ? 'justify' : 'start') : textAlign};`}
@@ -2307,6 +2307,8 @@ window.ttsCurrentDetail = () => {
   initTts()
   return reader.view.tts.currentDetail()
 }
+
+window.ttsFollowProgress = progress => reader.view.followTTSProgress(progress)
 
 window.ttsCollectDetails = (count = 1, includeCurrent = false, offset = 1) => {
   initTts()

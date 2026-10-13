@@ -1,5 +1,6 @@
 import { adjacentPanel, readingRegions, layoutSignature, resolveReadingRegions } from './pdf-reading-layout.js'
 import { scrollPagePlan, scrollVisibleRegion, scrollSourcePoint } from './pdf-scroll-layout.js'
+import { PdfRenderBudget } from './pdf-render-budget.js'
 import './transient-scrollbar.js'
 
 const GAP = 16, MAX_FRAMES = 7
@@ -15,8 +16,12 @@ export class PdfScrollReader {
     generation = 0
     detailGeneration = 0
     blocked = new Set()
-    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate = () => true }) {
-        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate })
+    budget = new PdfRenderBudget()
+    baseController = new AbortController()
+    direction = 1
+    lastTop = 0
+    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate = () => true, canPrepare = () => true }) {
+        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate, canPrepare })
         Object.assign(this.element.style, { width: '100%', height: '100%', overflow: 'auto',
             position: 'relative', boxSizing: 'border-box', overflowAnchor: 'none',
             overscrollBehavior: 'contain', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' })
@@ -74,14 +79,18 @@ export class PdfScrollReader {
                 }
             }
             this.entries = [e]
+            // A search anchor can select a different panel or the original page.
+            await this.prepareBase(e)
+            if (this.destroyed || version !== this.generation) return false
             this.layoutEntry(e)
             this.restore(e, center)
             this.savedLocation = this.location
             e = null
             return true
-        } finally { e?.element.remove() }
+        } finally { if (e) this.dispose(e) }
     }
     activate(reason = 'navigation') {
+        if (this.baseController.signal.aborted) this.baseController = new AbortController()
         this.active = true
         if (!this.scrollbars && this.element.parentNode) {
             this.scrollbars = [globalThis.moduAttachScrollbar(
@@ -100,29 +109,67 @@ export class PdfScrollReader {
     suspend() {
         this.stopMomentum()
         this.active = false
+        this.baseController.abort()
         this.scrollbars?.forEach(bar => bar.update())
         clearTimeout(this.timer)
         this.detailGeneration++
     }
     async load({ page, panel }, before = null) {
-        const src = await this.book.sections[page].load()
-        if (this.destroyed) throw new Error('Reader closed')
+        const started = performance.now(), signal = this.baseController.signal
+        const available = () => !this.destroyed && !signal.aborted
+        const section = this.book.sections[page]
+        const src = await (section.loadFrame ? section.loadFrame() : section.load())
+        if (!available()) throw new DOMException('Reader closed', 'AbortError')
         const e = await this.createFrame(page, src, this.element, before)
         try {
-            if (this.destroyed) throw new Error('Reader closed')
+            if (!available()) throw new DOMException('Reader closed', 'AbortError')
             Object.assign(e.iframe.style, { display: 'block', width: `${e.width}px`, height: `${e.height}px` })
             await (e.iframe.contentDocument.querySelector('[data-document-base]') ?? e.iframe.contentDocument.querySelector('img'))?.decode()
-            if (this.destroyed) throw new Error('Reader closed')
+            if (!available()) throw new DOMException('Reader closed', 'AbortError')
             e.nativeText = e.iframe.contentDocument.documentElement.dataset.documentImage === 'false'
             e.fallback = e.nativeText
             e.panel = e.nativeText ? 0 : panel
             e.regions = e.nativeText ? readingRegions(null, page) :
                 await resolveReadingRegions(this.layout, page, this.book,
-                    {hideWatermarks: this.view.display?.hideWatermarks, active: () => !this.destroyed})
+                    {hideWatermarks: this.view.display?.hideWatermarks, active: available, signal})
             e.crop = e.regions[e.panel]
             if (!e.crop) throw new Error('Invalid PDF panel')
+            await this.prepareBase(e, signal)
+            if (!available()) throw new DOMException('Reader closed', 'AbortError')
+            this.budget.record(performance.now() - started)
             return e
-        } catch (error) { e.element.remove(); throw error }
+        } catch (error) { this.dispose(e); throw error }
+    }
+    async prepareBase(e, signal = this.baseController.signal) {
+        if (e.nativeText || !this.book.sections[e.index].loadFrame) return
+        const key = JSON.stringify([e.crop, this.view.enhancement, this.view.display?.hideWatermarks])
+        if (e.baseKey === key) return
+        const bounds = this.bounds()
+        const plan = scrollPagePlan({ pageWidth: e.width, pageHeight: e.height,
+            width: Math.max(1, (this.element.clientWidth || bounds.width) - 12),
+            height: Math.max(1, bounds.height), crop: e.crop, view: this.view })
+        const dpr = devicePixelRatio || 1
+        // The renderer caps the whole-panel backing image at 2MP, even at 15x zoom.
+        const result = await (this.book.scrollRegionRenderer ?? this.book.readingRegionRenderer).render({
+            page: e.index, region: e.crop, enhancement: this.view.enhancement,
+            hideWatermarks: this.view.display?.hideWatermarks,
+            width: e.crop.width * e.width * plan.scale * dpr,
+            height: e.crop.height * e.height * plan.scale * dpr,
+        }, {signal})
+        if (this.destroyed || signal.aborted) throw new DOMException('Reader closed', 'AbortError')
+        let url = URL.createObjectURL(result.blob)
+        try {
+            const img = e.iframe.contentDocument.querySelector('[data-document-base]') ?? e.iframe.contentDocument.querySelector('img')
+            img.src = url
+            Object.assign(img.style, {position: 'absolute', left: `${e.crop.x * e.width}px`,
+                top: `${e.crop.y * e.height}px`, width: `${e.crop.width * e.width}px`, height: `${e.crop.height * e.height}px`})
+            await img.decode()
+            if (this.destroyed || signal.aborted) throw new DOMException('Reader closed', 'AbortError')
+            if (e.baseUrl) URL.revokeObjectURL(e.baseUrl)
+            e.baseUrl = url; url = null
+            e.baseKey = key
+            e.baseRaster = {width: result.width, height: result.height}
+        } finally { if (url) URL.revokeObjectURL(url) }
     }
     layoutEntry(e) {
         const bounds = this.bounds()
@@ -161,6 +208,7 @@ export class PdfScrollReader {
         this.element.scrollTop = top
         this.programmaticLeft = this.element.scrollLeft
         this.programmaticTop = this.element.scrollTop
+        this.lastTop = this.element.scrollTop
     }
     resize(view = this.view) {
         this.stopMomentum()
@@ -303,22 +351,29 @@ export class PdfScrollReader {
             e = null
             this.changed(this.current !== current)
             return true
-        } catch (_) {
-            if (!this.destroyed && this.active) { this.blocked.add(direction); this.onState('failed') }
+        } catch (error) {
+            if (!this.destroyed && this.active && error.name !== 'AbortError') { this.blocked.add(direction); this.onState('failed') }
             return false
         } finally { if (e) this.dispose(e) }
     }
     ensureNeighbors() {
         if (this.neighborTask) return this.neighborTask
-        if (!this.active || this.destroyed) return Promise.resolve()
+        if (!this.active || this.destroyed || !this.canPrepare()) return Promise.resolve()
         this.extending = true
         this.neighborTask = Promise.resolve().then(async () => {
-            if (!this.active || this.destroyed) return
-            if (this.element.scrollTop < this.bounds().height) await this.extend(-1)
-            for (let n = 0; n < MAX_FRAMES && this.active && !this.destroyed; n++) {
-                const last = this.entries.at(-1)
-                if (!last || last.element.offsetTop + last.plan.height > this.element.scrollTop + this.bounds().height * 2) break
-                if (!await this.extend(1)) break
+            // Prepare the direction of travel first, including tall pages whose
+            // next page lies outside the old two-screen loading threshold.
+            for (const direction of [this.direction, -this.direction]) {
+                for (let n = 0; n < MAX_FRAMES && this.active && !this.destroyed && this.canPrepare(); n++) {
+                    const current = this.entries.indexOf(this.current), edge = direction > 0 ? this.entries.at(-1) : this.entries[0]
+                    if (!edge || current < 0) break
+                    const count = direction > 0 ? this.entries.length - current - 1 : current
+                    const wanted = direction === this.direction ? this.budget.ahead : 1
+                    const covered = direction > 0 ? edge.element.offsetTop + edge.plan.height >= this.element.scrollTop + this.bounds().height * 2
+                        : edge.element.offsetTop <= this.element.scrollTop - this.bounds().height
+                    if (count >= wanted && covered) break
+                    if (!await this.extend(direction)) break
+                }
             }
         }).finally(() => { this.extending = false; this.neighborTask = null })
         return this.neighborTask
@@ -331,6 +386,9 @@ export class PdfScrollReader {
     }
     changed(record) {
         if (!this.active || this.destroyed) return
+        if (record && this.element.scrollTop !== this.lastTop)
+            this.direction = this.element.scrollTop > this.lastTop ? 1 : -1
+        this.lastTop = this.element.scrollTop
         this.savedLocation = this.location
         this.recordPending ||= record
         // Load neighbours during a gesture; only expensive raster refinement
@@ -353,13 +411,16 @@ export class PdfScrollReader {
     }
     async refreshDetail() {
         const generation = ++this.detailGeneration
-        const active = () => this.active && !this.destroyed && generation === this.detailGeneration
+        const active = () => this.active && !this.destroyed && this.canPrepare() && generation === this.detailGeneration
         for (const e of this.entries) {
             if (!active()) return
             if (e.nativeText) continue
             const viewport = this.viewport
             const region = scrollVisibleRegion(e.plan, e.crop, e.element.getBoundingClientRect(), viewport)
             if (!region) continue
+            const density = e.plan.scale * (devicePixelRatio || 1)
+            if (e.baseRaster?.width / e.crop.width >= e.width * density - 2 &&
+                e.baseRaster?.height / e.crop.height >= e.height * density - 2) continue
             let url
             try {
                 const dpr = devicePixelRatio || 1
@@ -387,7 +448,11 @@ export class PdfScrollReader {
         }
     }
     getContents() { return this.entries.map(e => ({ doc: e.iframe.contentDocument, index: e.index })) }
-    dispose(e) { if (e.url) URL.revokeObjectURL(e.url); e.element.remove() }
+    dispose(e) {
+        if (e.url) URL.revokeObjectURL(e.url)
+        if (e.baseUrl) URL.revokeObjectURL(e.baseUrl)
+        e.element.remove()
+    }
     destroy() {
         this.suspend(); this.destroyed = true; this.generation++
         this.scrollbars?.forEach(bar => bar.destroy())

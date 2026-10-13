@@ -2,7 +2,10 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/reader_shortcuts.dart';
 import 'package:anx_reader/page/settings_page/reader_shortcuts.dart';
+import 'package:anx_reader/page/settings_page/reading.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +16,34 @@ void main() {
     await Prefs().initPrefs();
     await L10n.delegate.load(const Locale('en'));
     await L10n.delegate.load(const Locale('zh'));
+  });
+  testWidgets(
+      'global reading settings open shortcuts without resetting bindings',
+      (tester) async {
+    final custom = Prefs().readerShortcuts;
+    custom.bindings[ReaderAction.next]!.clear();
+    Prefs().readerShortcuts = custom;
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+            locale: const Locale('zh'),
+            supportedLocales: L10n.supportedLocales,
+            localizationsDelegates: L10n.localizationsDelegates,
+            home: const Scaffold(body: ReadingSettings()))));
+    await tester.pumpAndSettle();
+    final list = find.byType(Scrollable).first;
+    final entry = find.text('自定义按键');
+    await tester.scrollUntilVisible(entry, 400,
+        scrollable: list, maxScrolls: 40);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(entry).dy,
+        greaterThan(tester.getTopLeft(find.text('翻页方式')).dy));
+    expect(tester.getTopLeft(entry).dy,
+        lessThan(tester.getTopLeft(find.byType(ScrollPagePercentTile)).dy));
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.byType(ReaderShortcutsSettings), findsOneWidget);
+    expect(Prefs().readerShortcuts.encode(), custom.encode());
+    expect(tester.takeException(), isNull);
   });
   testWidgets(
       'capture multiple keys, report conflict, delete and confirm reset',

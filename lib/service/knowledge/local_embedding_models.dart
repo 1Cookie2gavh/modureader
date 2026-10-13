@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:anx_reader/service/offline_model_import.dart';
 import 'package:anx_reader/service/knowledge/bundled_embedding_assets.dart';
 import 'package:anx_reader/service/knowledge/embedding_model_manifest.dart';
 import 'package:crypto/crypto.dart';
@@ -174,6 +175,32 @@ class LocalEmbeddingModelStore {
     if (await isBundled(model)) await download(model);
     if (!await isDownloaded(model)) {
       throw StateError('本地模型 ${model.name} 尚未下载或文件损坏，请前往「设置 → 向量模型」下载后重试');
+    }
+  }
+
+  Future<void> importFiles(LocalEmbeddingModel model, List<File> files,
+      {required Future<void> Function() releaseModel}) async {
+    if (_closed || !LocalEmbeddingModels.all.contains(model)) {
+      throw StateError('Unknown model or closed model store');
+    }
+    final directory = await modelDirectory(model);
+    final key = directory.absolute.path;
+    if (_downloads.containsKey(key) ||
+        (_users[key] ?? 0) > 0 ||
+        _deleting.contains(key)) {
+      throw StateError('Model is downloading or in use');
+    }
+    _deleting.add(key); // Reuse the exclusive model-file mutation lease.
+    try {
+      final manifest = await _manifest.files(model.id);
+      await releaseModel();
+      await importPinnedModelFiles(directory, files, {
+        for (final file in manifest)
+          file.name: (size: file.size, sha256: file.sha256),
+      });
+      _verifiedFiles.clear();
+    } finally {
+      _deleting.remove(key);
     }
   }
 

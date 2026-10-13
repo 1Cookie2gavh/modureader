@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/models/narration_position.dart';
 import 'package:anx_reader/utils/reading_progress.dart';
 
 part 'book_sync_identity.dart';
@@ -6,7 +7,8 @@ part 'book_sync_identity.dart';
 /// Portable identity and operation clock; never a device-local integer row ID.
 class RowSyncRecord {
   const RowSyncRecord(
-      this.kind, this.id, this.clock, this.revision, this.deleted, this.data);
+      this.kind, this.id, this.clock, this.revision, this.deleted, this.data,
+      {this.narration});
 
   final String kind;
   final String id;
@@ -14,6 +16,7 @@ class RowSyncRecord {
   final String revision;
   final bool deleted;
   final Map<String, Object?> data;
+  final NarrationPosition? narration;
   String get key => '$kind/$id';
 
   Map<String, Object?> toMap() => {
@@ -23,6 +26,7 @@ class RowSyncRecord {
         'revision': revision,
         'deleted': deleted ? 1 : 0,
         'payload': jsonEncode(data),
+        'narration': narration?.encode(),
       };
 
   factory RowSyncRecord.fromMap(Map<String, Object?> row) {
@@ -33,6 +37,7 @@ class RowSyncRecord {
       row['revision'] as String,
       row['deleted'] == 1,
       Map<String, Object?>.from(jsonDecode(row['payload'] as String) as Map),
+      narration: NarrationPosition.decode(row['narration']),
     ));
   }
 }
@@ -54,7 +59,8 @@ RowSyncRecord normalizeSyncReadingPosition(RowSyncRecord record) {
     }
   }
   return RowSyncRecord(record.kind, record.id, record.clock, record.revision,
-      record.deleted, data);
+      record.deleted, data,
+      narration: record.narration);
 }
 
 bool _hasReadingPosition(RowSyncRecord record) =>
@@ -130,6 +136,11 @@ RowSyncRecord _winner(RowSyncRecord a, RowSyncRecord b) {
   if (comparison == 0) comparison = a.revision.compareTo(b.revision);
   if (comparison == 0) {
     comparison = jsonEncode(a.data).compareTo(jsonEncode(b.data));
+  }
+  // Old clients relay the same revision without this optional extension.
+  if (comparison == 0) {
+    comparison =
+        (a.narration?.encode() ?? '').compareTo(b.narration?.encode() ?? '');
   }
   final winner = comparison >= 0 ? a : b;
   if (a.kind == 'time' &&

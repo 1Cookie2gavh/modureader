@@ -31,10 +31,12 @@ const scrollLayout = uri((await source('pdf-scroll-layout'))
     .replace("'./pdf-reading-viewport.js'", JSON.stringify(viewport))
     .replace("'./document-regions.js'", JSON.stringify(geometry)));
 const scrollReader = uri((await source('pdf-scroll-reader'))
+    .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'", JSON.stringify(layout))
     .replace("'./pdf-scroll-layout.js'", JSON.stringify(scrollLayout)));
 await import(uri((await source('fixed-layout'))
+    .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./document-reading-options.js'", JSON.stringify(uri(await source('document-reading-options'))))
     .replace("'./frame-script-policy.js'", JSON.stringify(uri(await source('frame-script-policy'))))
     .replace("'./pdf-reading-layout.js'", JSON.stringify(layout))
@@ -254,6 +256,18 @@ test('pending PDF prefetch yields to foreground navigation and cannot commit sta
         assert.equal(cancelled,1);assert.equal(h.renderer.index,2);
         assert.equal(h.events.at(-1).index,2);
     } finally {h.close()}
+});
+test('single-page preprocessing follows grid order, including the next panel on the same original page',async()=>{
+    const h=harness(),requests=[];
+    for(const section of h.renderer.book.sections)section.loadFrame=async()=>html;
+    h.source.render=async request=>{requests.push(request);return {blob:new Blob(['png']),width:600,height:800}};
+    try {
+        await h.renderer.setPdfLayout(config,true);await h.renderer.goTo({index:0});
+        await new Promise(resolve=>setTimeout(resolve,300));
+        assert.equal(requests.length,2);assert.deepEqual(requests.map(r=>r.page),[0,0]);
+        assert.equal(requests[0].region.x,0);assert.equal(requests[1].region.x,.5);
+        assert.equal(h.renderer.pdfRegionLocation.panel,0);
+    }finally{h.close()}
 });
 for (const scanned of [false, true]) test(`${scanned ? 'scanned ebook' : 'PDF'} image clicks navigate the real renderer, including replacement frames`, async () => {
     const viewSource=await source('view');

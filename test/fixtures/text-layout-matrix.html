@@ -1,0 +1,52 @@
+<!doctype html><meta charset="utf-8">
+<title>Reader text layout matrix</title>
+<style>html,body{margin:0;width:100%;height:100%;background:#faf8ef}foliate-paginator{display:block;width:100%;height:100%}</style>
+<script type="module">
+import '../../assets/foliate-js/src/paginator.js';
+import { prepareScrollLines } from '../../assets/foliate-js/src/text-page-layout.js';
+import { readerFontCSS } from '../../assets/foliate-js/src/reader-fonts.js';
+import { readerFontWeightCSS } from '../../assets/foliate-js/src/reader-font-weight.js';
+import { readerSelectionCSS } from '../../assets/foliate-js/src/selection-style.js';
+import { reducedReaderMotionCSS } from '../../assets/foliate-js/src/reader-motion.js';
+const bookSource = await (await fetch('../../assets/foliate-js/src/book.js')).text();
+const cssStart = bookSource.indexOf('const getCSS =');
+const productionCSS = new Function('readerFontCSS','readerFontWeightCSS','readerSelectionCSS','reducedReaderMotionCSS',
+  'const isPdf=false;' + bookSource.slice(cssStart,bookSource.indexOf('const fixHeadingColor',cssStart)) + ';return getCSS;')(
+    readerFontCSS,readerFontWeightCSS,readerSelectionCSS,reducedReaderMotionCSS);
+const sentence = '这是用于排版验证的虚构文章。清晨，他打开窗户，看见远处的山和树。“今天继续阅读吗？”她问。字体、窗口和边距改变后，每行文字都应完整显示。';
+let renderer, urls = [];
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+window.matrix = {
+  async open({font=20,spacing=1.8,paragraph=.6,flow='paginated',top=50,bottom=35,gap=5,long=false,mixed=false,family='sans-serif',production=false,markup='p',paragraphCount=48,forcedBreak=false}={}) {
+    renderer?.destroy(); renderer?.remove(); urls.forEach(URL.revokeObjectURL); urls=[];
+    renderer = document.createElement('foliate-paginator'); document.body.append(renderer);
+    for (const [name,value] of Object.entries({flow,gap:gap+'%','top-margin':top+'px','bottom-margin':bottom+'px',
+      'max-column-count':'1','mobile-touch-paging':'true'})) renderer.setAttribute(name,value);
+    const paragraphs = Array.from({length:long?340:paragraphCount},(_,i)=>`<${markup}>${sentence.repeat(2+i%3)}</${markup}>`).join('');
+    const content = `${forcedBreak?`<p>${'单独保留的短页。'.repeat(8)}</p><div style="break-before:column">`:''}${mixed?'<h1>字号不同的标题</h1>':''}${paragraphs}${forcedBreak?'</div>':''}`;
+    const sections = [0,1].map(index=>({id:String(index),size:content.length,linear:'yes',
+      load:async()=>{const url=URL.createObjectURL(new Blob([`<!doctype html><meta charset="utf-8"><body>${content}</body>`],{type:'text/html'}));urls.push(url);return url},unload(){}}));
+    await renderer.open({sections,dir:'ltr'});
+    renderer.setStyles(production ? productionCSS({fontSize:font/16,fontName:'system',fontWeight:400,spacing,
+      paragraphSpacing:paragraph,letterSpacing:0,textIndent:2,textAlign:'start',headingFontSize:1,
+      fontColor:'#333',flow,useBookStyles:false,customCSSEnabled:false}) :
+      `html{--modu-align-pages:1;font:${font}px ${family};widows:1;orphans:1}body{padding:0}p{line-height:${spacing}!important;margin:${paragraph/2}em 0!important;text-indent:2em}h1{line-height:${spacing};font-size:1.5em}`);
+    await renderer.goTo({index:0}); await frame(); await frame();
+    return this.inspect();
+  },
+  inspect() {
+    const doc=renderer.getContents()[0].doc, c=renderer.shadowRoot.querySelector('#container');
+    const walker=doc.createTreeWalker(doc.body,4), range=doc.createRange(), rects=[];
+    for(let n=walker.nextNode();n;n=walker.nextNode()) {range.selectNodeContents(n);for(const r of range.getClientRects())
+      if(r.width&&r.height)rects.push({top:r.top,bottom:r.bottom,left:r.left,right:r.right});}
+    return {rects,lines:prepareScrollLines(doc),height:c.clientHeight,width:c.clientWidth,start:c.scrollTop,
+      pageSize:renderer.size,pages:renderer.pages,bodyHeight:doc.documentElement.getBoundingClientRect().height,
+      runs:doc.querySelectorAll('modu-page-run').length,lineHeight:doc.defaultView.getComputedStyle(doc.body.firstElementChild).lineHeight};
+  },
+  async turn(direction=1) {await renderer[direction>0?'next':'prev'](); await frame();return this.inspect()},
+  async scroll(y) {renderer.shadowRoot.querySelector('#container').scrollTop=y;await new Promise(resolve=>setTimeout(resolve,350));return this.inspect()},
+  watch() {const doc=renderer.getContents()[0].doc;this.mutations=0;this.observer?.disconnect();this.observer=new MutationObserver(records=>this.mutations+=records.length);this.observer.observe(doc.body,{subtree:true,attributes:true,childList:true,characterData:true})},
+  get renderer(){return renderer},
+};
+window.ready=true;
+</script>

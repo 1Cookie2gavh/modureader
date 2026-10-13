@@ -208,8 +208,10 @@ class WebdavRequestPolicy {
     return until.difference(_now());
   }
 
-  Duration get automaticDelay {
-    var delay = const Duration(seconds: 2);
+  Duration get automaticDelay => automaticStartDelay();
+
+  Duration automaticStartDelay({bool immediate = false}) {
+    var delay = immediate ? Duration.zero : const Duration(seconds: 2);
     if (jianguoyun && _lastSync != null) {
       final remaining =
           _lastSync!.add(const Duration(minutes: 10)).difference(_now());

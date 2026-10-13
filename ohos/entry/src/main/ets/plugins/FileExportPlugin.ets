@@ -9,11 +9,14 @@ import AbilityAware from '@ohos/flutter_ohos/src/main/ets/embedding/engine/plugi
 export default class FileExportPlugin implements FlutterPlugin, MethodCallHandler, AbilityAware {
   private channel: MethodChannel | null = null;
   private context: common.UIAbilityContext | null = null;
+  private cacheDir: string | null = null;
   private saving: boolean = false;
 
   getUniqueClassName(): string { return 'ModuFileExportPlugin'; }
 
   onAttachedToEngine(binding: FlutterPluginBinding): void {
+    // Match path_provider's application context, not the ability's module cache.
+    this.cacheDir = binding.getApplicationContext().cacheDir;
     this.channel = new MethodChannel(binding.getBinaryMessenger(), 'modu/file_export');
     this.channel.setMethodCallHandler(this);
   }
@@ -22,6 +25,7 @@ export default class FileExportPlugin implements FlutterPlugin, MethodCallHandle
     this.channel?.setMethodCallHandler(null);
     this.channel = null;
     this.context = null;
+    this.cacheDir = null;
   }
 
   onAttachedToAbility(binding: AbilityPluginBinding): void {
@@ -39,7 +43,7 @@ export default class FileExportPlugin implements FlutterPlugin, MethodCallHandle
   }
 
   private async saveFile(call: MethodCall, result: MethodResult): Promise<void> {
-    if (this.saving || this.context === null) {
+    if (this.saving || this.context === null || this.cacheDir === null) {
       result.error('unavailable', 'File export is busy or not in foreground', null);
       return;
     }
@@ -50,7 +54,7 @@ export default class FileExportPlugin implements FlutterPlugin, MethodCallHandle
       const fileName = args.get('fileName') as string;
       if (!sourcePath || !fileName || /[/\\\x00]/.test(fileName) ||
           fileName === '.' || fileName === '..' ||
-          !sourcePath.startsWith(this.context.cacheDir + '/modu-export-') ||
+          !sourcePath.startsWith(this.cacheDir + '/modu-export-') ||
           sourcePath.includes('/../')) {
         result.error('invalid_arguments', 'Invalid export snapshot', null);
         return;

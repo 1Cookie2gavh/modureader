@@ -4,6 +4,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('in-place notice and selection fit a small phone',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: BookImportSelection(inPlace: true, entries: [
+      BookImportEntry(id: 'a', name: 'book.epub', label: 'book.epub'),
+    ]))));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+      'in-place selection explains scope, backups and conversion limits',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: BookImportSelection(inPlace: true, entries: [
+      BookImportEntry(id: 'a', name: 'book.epub', label: 'book.epub'),
+    ]))));
+    expect(find.textContaining('without copying'), findsOneWidget);
+    expect(find.textContaining('not uploaded or included in backups'),
+        findsOneWidget);
+    expect(find.textContaining('TXT, Markdown and UMD'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
       'folder defaults to all books, allows individual selection and returns only chosen entries',
       (tester) async {

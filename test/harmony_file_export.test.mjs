@@ -38,9 +38,14 @@ function harness({ uris = ['file://docs/中文.txt'], failure, pickerWait } = {}
       }
     },
   };
-  const Plugin = vm.runInNewContext(code, { fs, picker });
+  const Plugin = vm.runInNewContext(code, { fs, picker,
+    MethodChannel: class { setMethodCallHandler() {} },
+  });
   const plugin = new Plugin();
-  plugin.onAttachedToAbility({ getAbility: () => ({ context: { cacheDir: '/cache' } }) });
+  plugin.onAttachedToEngine({ getBinaryMessenger: () => ({}),
+    getApplicationContext: () => ({ cacheDir: '/cache' }) });
+  // Native path_provider uses the engine application context, not this cache.
+  plugin.onAttachedToAbility({ getAbility: () => ({ context: { cacheDir: '/haps/entry/cache' } }) });
   const invoke = (overrides = {}) => new Promise(resolve => plugin.onMethodCall({
     method: 'saveFile',
     args: new Map(Object.entries({
@@ -63,6 +68,15 @@ test('success returns unmodified URI only after copy and both closes', async () 
   const h = harness();
   assert.deepEqual(await h.invoke(), { value: 'file://docs/中文.txt' });
   assert.deepEqual(h.events.map(e => e[0]), ['picker', 'open', 'open', 'copy', 'close', 'close']);
+});
+
+test('rejects ability cache and detached engine rather than widening file access', async () => {
+  const h = harness();
+  assert.equal((await h.invoke({ sourcePath: '/haps/entry/cache/modu-export-123/log.txt' })).error,
+    'invalid_arguments');
+  h.plugin.onDetachedFromEngine({});
+  assert.equal((await h.invoke()).error, 'unavailable');
+  assert.equal(h.events.length, 0);
 });
 
 test('cancel neither opens files nor reports success with a path', async () => {

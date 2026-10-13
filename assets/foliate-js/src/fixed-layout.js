@@ -4,6 +4,7 @@ import { adjacentPanel, readingRegions, restoredPanel, layoutSignature,
 import { normalizePdfView, pdfViewport, panPdfViewport } from './pdf-reading-viewport.js'
 import { normalizeDocumentDisplay, attachDocumentGestures } from './document-reading-options.js'
 import { PdfScrollReader } from './pdf-scroll-reader.js'
+import { PdfRenderBudget } from './pdf-render-budget.js'
 
 const parseViewport = str => str
     ?.split(/[,;\s]/) // NOTE: technically, only the comma is valid
@@ -67,6 +68,7 @@ export class FixedLayout extends HTMLElement {
     #pdfPrefetchTimer
     #pdfPrefetchGeneration = 0
     #pdfPrefetchBusy = false
+    #pdfBudget = new PdfRenderBudget()
     #pdfScroll
     #destroyed = false
     #autoTimer
@@ -190,27 +192,39 @@ export class FixedLayout extends HTMLElement {
     }
     #schedulePdfPrefetch() {
         clearTimeout(this.#pdfPrefetchTimer)
-        const page = this.#pdfPage + 1, generation = ++this.#pdfPrefetchGeneration
+        let target = this.#pdfFallback ? {page: this.#pdfPage + 1, panel: 0} :
+            adjacentPanel(this.#pdfLayout, this.book.sections.length, this.#pdfPage, this.#pdfPanel, 1, this.book)
+        const generation = ++this.#pdfPrefetchGeneration
         // Only native PDFs opt in. Never probe ordinary ebook chapters here.
-        if (!this.book?.sections[page]?.loadFrame || this.#pdfScroll || !this.#pdfEnabled) return
+        if (!target || !this.book?.sections[target.page]?.loadFrame || this.#pdfScroll || !this.#pdfEnabled) return
         const active = () => !this.#destroyed && !this.#pdfBusy && this.#pdfEnabled &&
             generation === this.#pdfPrefetchGeneration
         this.#pdfPrefetchTimer = setTimeout(async () => {
             if (!active() || !this.readerActive) return
             this.#pdfPrefetchBusy = true
             try {
-                const regions = await resolveReadingRegions(this.#pdfLayout, page, this.book,
-                    {hideWatermarks: this.#pdfView.display?.hideWatermarks, active})
-                if (!active()) return
-                const bounds = this.getBoundingClientRect()
-                await this.book.readingRegionRenderer.render({page, region: regions[0],
-                    enhancement: this.#pdfView.enhancement,
-                    hideWatermarks: this.#pdfView.display?.hideWatermarks,
-                    width: Math.max(1, bounds.width * (devicePixelRatio || 1)),
-                    height: Math.max(1, bounds.height * (devicePixelRatio || 1))})
+                const ahead = this.#pdfBudget.ahead
+                for (let n = 0; n < ahead && target && active() && this.readerActive; n++) {
+                    const {page, panel} = target, started = performance.now()
+                    if (!this.book.sections[page]?.loadFrame) break
+                    await this.book.sections[page].loadFrame()
+                    if (!active()) return
+                    const regions = await resolveReadingRegions(this.#pdfLayout, page, this.book,
+                        {hideWatermarks: this.#pdfView.display?.hideWatermarks, active})
+                    if (!active()) return
+                    const bounds = this.getBoundingClientRect()
+                    await this.book.readingRegionRenderer.render({page, region: regions[panel],
+                        enhancement: this.#pdfView.enhancement,
+                        hideWatermarks: this.#pdfView.display?.hideWatermarks,
+                        width: Math.max(1, bounds.width * (devicePixelRatio || 1)),
+                        height: Math.max(1, bounds.height * (devicePixelRatio || 1))})
+                    if (!active()) return
+                    this.#pdfBudget.record(performance.now() - started)
+                    target = adjacentPanel(this.#pdfLayout, this.book.sections.length, page, panel, 1, this.book)
+                }
             } catch (_) { /* Optional: a failed prefetch must never change the visible page. */ }
             finally { if (generation === this.#pdfPrefetchGeneration) this.#pdfPrefetchBusy = false }
-        }, 800)
+        }, this.#pdfBudget.delay)
     }
     #schedulePdfDetail(record = false) {
         this.#cancelPdfDetail()
@@ -440,6 +454,7 @@ export class FixedLayout extends HTMLElement {
         this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'loading' } }))
         const flow = new PdfScrollReader({ book: this.book, layout: this.#pdfLayout, view: this.#pdfView,
             canAnimate: () => this.readerActive && this.hasAttribute('animated'),
+            canPrepare: () => this.readerActive,
             bounds: () => this.getBoundingClientRect(),
             createFrame: (index, src, parent, before) => this.#createFrame('center', { index, src }, true, parent, before),
             onLoad: (doc, index) => this.dispatchEvent(new CustomEvent('load', { detail: { doc, index } })),

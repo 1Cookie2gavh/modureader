@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 const { JSDOM } = createRequire(`${process.env.MODU_JSDOM_ROOT}/package.json`)('jsdom');
 const source = await readFile(new URL('../assets/foliate-js/src/text-page-layout.js', import.meta.url), 'utf8');
-const { pageLineOffsets, preparePageRuns, alignPaginatedText, resetPageAlignment, safeScrollOffset, settledScrollOffset, lineAlignedOffset, prepareScrollLines, invalidateScrollLines } =
+const { pageLineOffsets, preparePageRuns, alignPaginatedText, resetPageAlignment, fitTextLineSpacing, fittedLineHeight, safeScrollOffset, settledScrollOffset, lineAlignedOffset, prepareScrollLines, invalidateScrollLines } =
   await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const cfiSource = await readFile(new URL('../assets/foliate-js/src/epubcfi.js', import.meta.url), 'utf8');
 const CFI = await import(`data:text/javascript;base64,${Buffer.from(cfiSource).toString('base64')}`);
@@ -20,7 +20,87 @@ test('full pages align both edges; final page keeps natural gaps', () => {
     assert.deepEqual(pageLineOffsets(rows,20,bottom,true),rows.map(()=>-5));
   }
   assert.equal(pageLineOffsets([{top:20,bottom:40}],20,400,false),null);
-  assert.equal(pageLineOffsets(Array.from({length:4},(_,i)=>({top:20+i*30,bottom:40+i*30})),20,800,false),null);
+});
+
+test('natural two/three-line pages at large sizes also align both edges', () => {
+  for (const count of [2, 3]) {
+    const rows = Array.from({ length: count }, (_, i) => ({ top: 90 + i * 90, bottom: 140 + i * 90 }));
+    const offsets = pageLineOffsets(rows, 60, 330, false);
+    assert.ok(offsets, `${count}-line natural page was skipped`);
+    assert.equal(rows[0].top + offsets[0], 60);
+    assert.equal(rows.at(-1).bottom + offsets.at(-1), 330);
+  }
+});
+
+test('small line heights remain readable and fit the actual available viewport', () => {
+  for (const viewport of [260,493,759,889]) for (const glyph of [19,28,39,56])
+    for (const requested of [0,glyph*.8,glyph*1.8]) {
+      const fitted=fittedLineHeight(requested,glyph,viewport);
+      assert.ok(fitted>=glyph+2);
+      const natural=Math.max(requested,glyph+2);
+      assert.ok(Math.abs(fitted-natural)<=Math.min(8,natural*.2)+.001);
+      if(fitted!==natural)assert.ok(Math.abs((viewport-glyph-1)/fitted-Math.round((viewport-glyph-1)/fitted))<.00001);
+    }
+});
+
+test('short landscape viewports distribute a spare line and paragraph gap', () => {
+  const rows=Array.from({length:5},(_,i)=>({top:89+i*42,bottom:129+i*42}));
+  const offsets=pageLineOffsets(rows,80,335,false);
+  assert.equal(rows[0].top+offsets[0],80);
+  assert.equal(rows.at(-1).bottom+offsets.at(-1),335);
+});
+
+test('leading paragraph margin is reclaimed without guessing fullness from whitespace', () => {
+  const rows=Array.from({length:5},(_,i)=>({top:146+i*120,bottom:193+i*120}));
+  const offsets=pageLineOffsets(rows,50,809,false);
+  assert.equal(rows[0].top+offsets[0],50);
+  assert.equal(rows.at(-1).bottom+offsets.at(-1),809);
+  assert.deepEqual(pageLineOffsets(rows,50,1500,true),rows.map(()=>-96),'chapter ends keep natural spacing');
+});
+
+test('a following paragraph margin can legitimately leave more than one line of spare space', () => {
+  const rows=Array.from({length:8},(_,i)=>({top:57+i*72,bottom:104+i*72}));
+  const offsets=pageLineOffsets(rows,45,770,false);
+  assert.equal(rows[0].top+offsets[0],45);
+  assert.equal(rows.at(-1).bottom+offsets.at(-1),770);
+  const tallLines=Array.from({length:7},(_,i)=>({top:105+i*84,bottom:138+i*84}));
+  const fitted=pageLineOffsets(tallLines,80,789,false);
+  assert.equal(tallLines[0].top+fitted[0],80);
+  assert.equal(tallLines.at(-1).bottom+fitted.at(-1),789,'the bottom half of a CSS line box also consumes space');
+});
+
+test('font measurement repairs zero line-height and resets without overwriting settings', () => {
+  const dom=new JSDOM('<style>html{--modu-align-pages:1}p{line-height:0!important}</style><p>段中第一行第二行</p>');
+  const doc=dom.window.document, p=doc.querySelector('p'), original=p.firstChild;
+  dom.window.Range.prototype.getClientRects=()=>[{width:100,height:28,top:-14,bottom:14}];
+  fitTextLineSpacing(doc,759);
+  assert.ok(parseFloat(p.style.lineHeight)>=30);
+  const first=p.style.lineHeight;
+  resetPageAlignment(doc);
+  assert.equal(p.style.lineHeight,'');
+  fitTextLineSpacing(doc,759);
+  assert.equal(p.style.lineHeight,first,'repeated preparation must not accumulate adjustments');
+  resetPageAlignment(doc);
+  doc.documentElement.style.setProperty('--modu-align-pages','0');
+  fitTextLineSpacing(doc,759);
+  assert.equal(p.style.lineHeight,'','publisher styles are preserved');
+  assert.equal(p.firstChild,original);
+  dom.window.close();
+});
+
+test('overlapping font boxes retain separate lines instead of merging entire paragraphs', () => {
+  const dom=new JSDOM('<p>第一行第二行第三行</p>'),doc=dom.window.document;
+  const overlapping=Array.from({length:30},(_,i)=>({top:i*24,bottom:i*24+28,width:100,height:28}));
+  dom.window.Range.prototype.getClientRects=()=>overlapping;
+  assert.equal(prepareScrollLines(doc).length,30);
+  dom.window.Range.prototype.getClientRects=()=>[
+    {top:0,bottom:40,width:100,height:40}, {top:4,bottom:18,width:30,height:14},
+    {top:30,bottom:70,width:100,height:40}, {top:35,bottom:50,width:30,height:15},
+  ];
+  invalidateScrollLines(doc);
+  assert.deepEqual(prepareScrollLines(doc),[{top:0,bottom:40},{top:30,bottom:70}],
+    'nested mixed-size fragments must keep bottom edges sorted for binary searches');
+  dom.window.close();
 });
 
 function fixture({enabled='1', unsafe=false, long=false}={}) {
@@ -38,6 +118,33 @@ function fixture({enabled='1', unsafe=false, long=false}={}) {
   return {dom,doc};
 }
 const layout={height:450,topMargin:20,bottomMargin:20,columnWidth:300,gap:20};
+test('explicit break-before and break-after preserve a sparse publisher page', () => {
+  for (const kind of ['before', 'after']) {
+    const { doc, dom } = fixture();
+    const target = doc.querySelectorAll('p')[kind === 'before' ? 1 : 0];
+    target.style.setProperty(`break-${kind}`, 'column');
+    const originalRects = dom.window.Element.prototype.getClientRects;
+    dom.window.Element.prototype.getClientRects = function () {
+      if (this === target) return [{ left: Number(this.dataset.page) * 320 + 10, width: 200, height: 384 }];
+      return originalRects.call(this);
+    };
+    alignPaginatedText(doc, layout, false);
+    const { runs } = preparePageRuns(doc);
+    assert.equal(runs[0].style.top, '0px');
+    assert.equal(runs[9].style.top, '0px');
+    assert.equal(runs[19].getClientRects()[0].bottom, 430, 'following natural page still aligns');
+    resetPageAlignment(doc);
+    target.style.removeProperty(`break-${kind}`);
+    alignPaginatedText(doc, layout, false);
+    assert.equal(runs[9].getClientRects()[0].bottom, 430, 'layout change recomputes break boundaries');
+    dom.window.close();
+  }
+});
+
+test('compression cannot overlap glyphs and a single line is never stretched', () => {
+  assert.equal(pageLineOffsets([{ top: 0, bottom: 30 }, { top: 35, bottom: 65 }], 0, 60, false), null);
+  assert.equal(pageLineOffsets([{ top: 0, bottom: 30 }], 0, 300, false), null);
+});
 test('stable runs preserve text and live ranges across relayout and re-enable', () => {
   const {doc}=fixture(),text=doc.body.textContent;
   alignPaginatedText(doc,layout,false);
@@ -135,6 +242,18 @@ test('mixed sizes prefer both edges when possible',()=>{
   assert.ok(!cuts(result,edges)&&!cuts(result+400,edges));
   assert.equal(safeScrollOffset([],100,0,400),100);
   assert.equal(safeScrollOffset(rows,0,0,400),0);
+});
+test('short viewports search far enough to clear large glyphs on taps and idle stops',()=>{
+  for(const viewport of [255,315]) for(const glyph of [40,56]) {
+    const edges=Array.from({length:100},(_,i)=>({top:i*(glyph+8),bottom:i*(glyph+8)+glyph}));
+    for(const direction of [-1,1]) for(let target=500;target<650;target++) {
+      const current=target-direction*viewport;
+      const paged=safeScrollOffset(edges,target,current,viewport);
+      assert.ok(!cuts(paged+(direction>0?viewport:0),edges));
+      const settled=settledScrollOffset(edges,target,target-direction,viewport);
+      assert.ok(!cuts(settled+(direction>0?viewport:0),edges));
+    }
+  }
 });
 test('settling follows reading direction, never masks/reflows and becomes stable at its target',()=>{
   // At viewport 20, these 24px glyphs / 40px rows cannot fit both edges in gaps.

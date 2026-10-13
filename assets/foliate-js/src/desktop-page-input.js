@@ -119,7 +119,8 @@ export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
   on(doc.defaultView, 'blur', cancel);
   return { cancel,
     actionFromKeyboard(action) {
-      if (!nativeKeysEnabled() || selected() || interactive({ target: doc.activeElement })) return false;
+      const narration = ['playPause', 'previousPassage', 'nextPassage'].includes(action);
+      if (!nativeKeysEnabled() || (!narration && selected()) || interactive({ target: doc.activeElement })) return false;
       onAction(action);
       return true;
     },

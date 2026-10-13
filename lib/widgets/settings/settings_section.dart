@@ -52,7 +52,7 @@ class SettingsSection extends AbstractSettingsSection {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: FilledContainer(
             padding: EdgeInsetsGeometry.zero,
-            child: tileList,
+            child: Material(type: MaterialType.transparency, child: tileList),
           ),
         ),
       ],

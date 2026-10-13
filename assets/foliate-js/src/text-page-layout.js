@@ -2,6 +2,7 @@
 // They are transparent to EPUB CFIs and are never recreated on a page turn.
 const documents = new WeakMap()
 const scrollLines = new WeakMap()
+const spacingStyles = new WeakMap()
 const excluded = 'script, style, template, table, pre, ruby, math, svg, figure'
 const noteSelector = 'sup, sub, [role="doc-noteref"], [epub\\:type~="noteref"], img[zy-footnote], img.epub-footnote, img.epub-footnote1'
 const isNote = el => el.closest(noteSelector)
@@ -47,6 +48,11 @@ export function preparePageRuns(doc) {
 
 export function resetPageAlignment(doc) {
   invalidateScrollLines(doc)
+  for (const [el, value, priority] of spacingStyles.get(doc) ?? []) {
+    if (value) el.style.setProperty('line-height', value, priority)
+    else el.style.removeProperty('line-height')
+  }
+  spacingStyles.delete(doc)
   const state = documents.get(doc)
   if (!state) return
   for (const run of state.runs) run.style.setProperty('top', '0px', 'important')
@@ -57,16 +63,60 @@ export function resetPageAlignment(doc) {
     }
 }
 
+export function fittedLineHeight(requested, glyphHeight, viewport) {
+  const minimum = glyphHeight + 2
+  const natural = Math.max(requested || minimum, minimum)
+  if (!(viewport > glyphHeight)) return natural
+  const available = viewport - glyphHeight - 1
+  const intervals = Math.min(Math.round(available / natural), Math.floor(available / minimum))
+  if (intervals < 3) return natural
+  const fitted = available / intervals
+  return Math.abs(fitted - natural) <= Math.min(8, natural * .2) ? fitted : natural
+}
+
+// Measure the actual font after it loads, before the chapter becomes visible.
+// CSS line-height may be smaller than the font's range boxes (even zero).
+export function fitTextLineSpacing(doc, viewport = 0) {
+  if (!doc?.body || doc.defaultView.getComputedStyle(doc.documentElement)
+    .getPropertyValue('--modu-align-pages').trim() !== '1') return
+  const blocks = new Map(), styles = new Map(), range = doc.createRange()
+  const styleOf = el => {
+    if (!styles.has(el)) styles.set(el, doc.defaultView.getComputedStyle(el))
+    return styles.get(el)
+  }
+  const walker = doc.createTreeWalker(doc.body, 4)
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent.trim() || node.parentElement.closest(excluded) || isNote(node.parentElement)) continue
+    let block = node.parentElement
+    while (block !== doc.body && styleOf(block).display === 'inline') block = block.parentElement
+    if (!['block', 'list-item'].includes(styleOf(block).display)) continue
+    range.selectNodeContents(node)
+    const rect = [...range.getClientRects()].find(r => r.width > 0 && r.height > 0)
+    if (!rect) continue
+    const item = blocks.get(block) ?? { height: 0, requested: parseFloat(styleOf(block).lineHeight) }
+    item.height = Math.max(item.height, rect.height)
+    blocks.set(block, item)
+  }
+  const originals = []
+  for (const [el, { height, requested }] of blocks) {
+    const fitted = fittedLineHeight(requested, height, viewport)
+    if (Number.isFinite(requested) && Math.abs(fitted - requested) < .01) continue
+    originals.push([el, el.style.getPropertyValue('line-height'), el.style.getPropertyPriority('line-height')])
+    el.style.setProperty('line-height', `${fitted}px`, 'important')
+  }
+  spacingStyles.set(doc, originals)
+}
+
 export function pageLineOffsets(rows, top, bottom, last) {
   if (!rows.length) return []
   const start = top - rows[0].top
   if (last) return rows.map(() => start)
-  if (rows.length < 4) return null
+  if (rows.length < 2) return null
   const extra = bottom - rows.at(-1).bottom - start
   const step = extra / (rows.length - 1)
-  const typical = (rows.at(-1).top - rows[0].top) / (rows.length - 1)
-  // Explicit page breaks/large illustrations must not stretch a sparse page.
-  if (Math.abs(step) > Math.min(8, typical * .2)) return null
+  // Like Legado's page-finalization step, distribute spare height between
+  // already-measured lines. The caller excludes explicit breaks/media rather
+  // than guessing whether a browser column is full from paragraph margins.
   if (rows.some((row, i) => i && row.top - rows[i - 1].bottom + step < 1)) return null
   return rows.map((_, i) => start + step * i)
 }
@@ -105,8 +155,22 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
       oldTop: parseFloat(doc.defaultView.getComputedStyle(el).top) || 0 })
   }
   const last = Math.max(...pages.keys())
+  const forced = new Set()
+  const forcedBreak = value => /^(always|page|column|left|right|recto|verso)$/.test(value)
+  // Do not stretch a dedication/heading page before a publisher-forced break.
+  for (const el of doc.body.querySelectorAll(':not(modu-page-run)')) {
+    const style = doc.defaultView.getComputedStyle(el)
+    if (style.display === 'inline' || style.display === 'none') continue
+    const before = forcedBreak(style.breakBefore) || forcedBreak(style.pageBreakBefore)
+    const after = forcedBreak(style.breakAfter) || forcedBreak(style.pageBreakAfter)
+    if (!before && !after) continue
+    const rects = [...el.getClientRects()].filter(r => r.width > 0)
+    if (!rects.length) continue
+    if (before) forced.add(pageOf(rects[0]) - 1)
+    if (after) forced.add(pageOf(rects.at(-1)))
+  }
   for (const [index, page] of pages) {
-    if (page.unsafe || !page.runs.length) continue
+    if (page.unsafe || forced.has(index) || !page.runs.length) continue
     const rows = []
     for (const item of page.runs.sort((a, b) => a.r.top - b.r.top)) {
       let row = rows.at(-1)
@@ -115,7 +179,9 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
       row.bottom = Math.max(row.bottom, item.r.bottom)
       row.runs.push(item)
     }
-    const offsets = pageLineOffsets(rows, topMargin, height - bottomMargin, index === last)
+    // A skipped/blank column is an explicit layout boundary, not prose overflow.
+    const offsets = pageLineOffsets(rows, topMargin, height - bottomMargin,
+      index === last || !pages.has(index + 1))
     if (!offsets) continue
     for (const { el, r, oldTop } of page.notes) {
       const distances = rows.map(row => Math.abs((row.top + row.bottom) / 2 - (r.top + r.bottom) / 2))
@@ -144,7 +210,9 @@ const closestStop = (candidates, target) => candidates.length
 export function safeScrollOffset(edges, target, current, viewport) {
   if (!edges.length || !Number.isFinite(target) || target === current) return target
   const forward = target > current
-  const limit = Math.min(120, viewport * .15)
+  const glyph = Math.max(0, ...edges.map(row => row.bottom - row.top))
+  // A short viewport's percentage window may be narrower than one large glyph.
+  const limit = Math.max(Math.min(120, viewport * .15), glyph < viewport ? glyph + 1 : 0)
   const min = forward ? Math.max(current + 1, target - limit) : target
   const max = forward ? target : Math.min(current - 1, target + limit)
   if (min > max) return target
@@ -157,7 +225,9 @@ export function safeScrollOffset(edges, target, current, viewport) {
 
 export function settledScrollOffset(edges, target, previous, viewport) {
   if (!edges.length || !Number.isFinite(target) || target === previous) return target
-  const limit = Math.min(48, viewport * .08), min = Math.max(0, target - limit), max = target + limit
+  const glyph = Math.max(0, ...edges.map(row => row.bottom - row.top))
+  const limit = Math.max(Math.min(48, viewport * .08), glyph < viewport ? glyph / 2 + 1 : 0)
+  const min = Math.max(0, target - limit), max = target + limit
   const both = interLineStops(edges, target, min, max, [0, viewport])
   return closestStop(both.length ? both : interLineStops(edges, target, min, max,
     [target > previous ? viewport : 0]), target)
@@ -200,7 +270,9 @@ export function prepareScrollLines(doc) {
   const merged = []
   for (const edge of edges.sort((a, b) => a.top - b.top)) {
     const last = merged.at(-1)
-    if (last && edge.top <= last.bottom) last.bottom = Math.max(last.bottom, edge.bottom)
+    // Overlapping font boxes on adjacent lines are not one paragraph-sized row.
+    if (last && (edge.bottom <= last.bottom || Math.abs(edge.top - last.top) < .5))
+      last.bottom = Math.max(last.bottom, edge.bottom)
     else merged.push(edge)
   }
   state.edges = merged

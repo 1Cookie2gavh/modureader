@@ -3,7 +3,9 @@ import 'package:anx_reader/utils/platform_utils.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/page_turn_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/page/reading_page.dart';
+import 'package:anx_reader/page/settings_page/reader_shortcuts.dart';
 import 'package:anx_reader/utils/ui/status_bar.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/page_turning/diagram.dart';
@@ -15,7 +17,9 @@ import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percen
 import 'package:flutter/material.dart';
 
 class OtherSettings extends StatefulWidget {
-  const OtherSettings({super.key});
+  const OtherSettings({super.key, this.showKeyboardShortcuts = false});
+
+  final bool showKeyboardShortcuts;
 
   @override
   State<OtherSettings> createState() => _OtherSettingsState();
@@ -322,6 +326,17 @@ class _OtherSettingsState extends State<OtherSettings> {
           ),
           screenTimeout(),
           pageTurningControl(),
+          if (widget.showKeyboardShortcuts)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                  ModuStrings.text(context, '自定义按键', 'Keyboard shortcuts')),
+              subtitle: Text(ModuStrings.text(context, '翻页、菜单和朗读控制 · 支持多个按键',
+                  'Pages, menu and narration · multiple bindings')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const ReaderShortcutsSettings())),
+            ),
           ScrollPagePercentTile(onChanged: (value) {
             epubPlayerKey.currentState?.changeScrollPagePercent(value);
           }),

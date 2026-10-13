@@ -73,6 +73,27 @@ Future<void> show(
 }
 
 void main() {
+  testWidgets(
+      'offline import explains pinned files and cancels without changes',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+    final stores = <String, FakeOcrStore>{};
+    await show(tester, (model) => stores[model.id] = FakeOcrStore(model));
+    final selected = Prefs().ocrModelId;
+    final button =
+        find.byKey(ValueKey('ocr-import-${OcrModels.defaultModel.id}'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.textContaining('SHA-256').last, findsOneWidget);
+    expect(find.textContaining('ch_PP-OCRv4_rec_infer.onnx'), findsOneWidget);
+    await tester.tap(find.text('取消').last);
+    await tester.pumpAndSettle();
+    expect(Prefs().ocrModelId, selected);
+    expect(stores.values.every((store) => store.downloads == 0), true);
+  });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();

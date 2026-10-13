@@ -208,7 +208,9 @@ Win32Window::MessageHandler(HWND hwnd,
     }
 
     case WM_ACTIVATE:
-      if (child_content_ != nullptr) {
+      // Show Desktop also sends activation messages while losing focus/minimizing.
+      if (LOWORD(wparam) != WA_INACTIVE && HIWORD(wparam) == 0 &&
+          child_content_ != nullptr) {
         SetFocus(child_content_);
       }
       return 0;

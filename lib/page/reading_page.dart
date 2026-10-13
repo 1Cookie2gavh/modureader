@@ -72,7 +72,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:anx_reader/utils/reader_wakelock.dart';
 
 class ReadingPage extends ConsumerStatefulWidget {
   const ReadingPage({
@@ -340,15 +340,35 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         FocusManager.instance.primaryFocus?.context);
   }
 
+  bool get _canUseNarrationKeys =>
+      mounted &&
+      !widget.book.isDeleted &&
+      _readingRouteVisible &&
+      _observedRoute?.isCurrent == true &&
+      !_readerDrawerOpen &&
+      !_searchDialogOpen &&
+      _aiChat == null &&
+      (bottomBarOffstage || _currentPage is TtsWidget) &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState ==
+              AppLifecycleState.resumed) &&
+      !readerFocusBlocksPageKeys(FocusManager.instance.primaryFocus?.context);
+
+  bool _isNarrationShortcut(String action) =>
+      const ['playPause', 'previousPassage', 'nextPassage'].contains(action);
+
   void _updatePageKeys({bool force = false}) {
     if (!mounted) return;
     epubPlayerKey.currentState?.setDocumentReaderActive(_canUsePageKeys);
     _pageKeys.update(
-        active: _canUsePageKeys,
-        volume: Prefs().volumeKeyTurnPage,
+        active: _canUsePageKeys || _canUseNarrationKeys,
+        volume: _canUsePageKeys && Prefs().volumeKeyTurnPage,
         shortcuts: Prefs()
             .readerShortcuts
-            .nativeBindings(ctrlBrackets: Prefs().keyboardShortcutTurnPage),
+            .nativeBindings(ctrlBrackets: Prefs().keyboardShortcutTurnPage)
+            .where((binding) =>
+                _canUsePageKeys || const [4, 6, 7].contains(binding['action']))
+            .toList(),
         force: force);
   }
 
@@ -383,9 +403,13 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     _readerFocusNode = FocusNode(debugLabel: 'reading_page_focus');
     _pageKeys = ReaderPageKeys(
         onShortcut: (code) {
-          if (!_canUsePageKeys) return;
           for (final action in ReaderAction.values) {
-            if (action.nativeCode == code) _sendReaderShortcut(action.name);
+            if (action.nativeCode == code &&
+                (_isNarrationShortcut(action.name)
+                    ? _canUseNarrationKeys
+                    : _canUsePageKeys)) {
+              _sendReaderShortcut(action.name);
+            }
           }
         },
         onHostStateChanged: _refreshReaderHostState,
@@ -442,16 +466,16 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   @override
   void dispose() {
+    epubPlayerKey.currentState?.detachNarration();
     FocusManager.instance.removeListener(_updatePageKeys);
     _pageKeys.dispose();
     Prefs().removeListener(_updateReadingSync);
     readerRouteObserver.unsubscribe(this);
     _readingSync.dispose();
     if (AnxPlatform.isDesktop) unawaited(_fullscreen.close());
-    Sync().syncData(SyncDirection.upload, ref, trigger: SyncTrigger.auto);
     _readTimeWatch.stop();
     _awakeTimer?.cancel();
-    WakelockPlus.disable();
+    unawaited(ReaderWakelock.setEnabled(false));
     showStatusBar();
     WidgetsBinding.instance.removeObserver(this);
     readingTimeDao.insertReadingTime(
@@ -553,6 +577,16 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   // }
 
   KeyEventResult _handleReaderKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      final key = ReaderKey.fromEvent(event);
+      final action = Prefs().readerShortcuts.actions()[key?.id];
+      if (action != null &&
+          _isNarrationShortcut(action) &&
+          _canUseNarrationKeys) {
+        if (event is! KeyRepeatEvent) _sendReaderShortcut(action);
+        return KeyEventResult.handled;
+      }
+    }
     if (!_canUsePageKeys ||
         _searchDialogOpen ||
         ModalRoute.of(context)?.isCurrent != true) {
@@ -598,6 +632,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void _sendReaderShortcut(String action) {
+    if (_isNarrationShortcut(action) && _currentPage is TtsWidget) {
+      unawaited(handleReaderShortcut(action));
+      return;
+    }
     final direction = action == 'next'
         ? 1
         : action == 'previous'
@@ -612,7 +650,12 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   bool _shortcutBusy = false;
   Future<void> handleReaderShortcut(String action) async {
-    if (!_canUsePageKeys || _shortcutBusy) return;
+    if ((_isNarrationShortcut(action)
+            ? !_canUseNarrationKeys
+            : !_canUsePageKeys) ||
+        _shortcutBusy) {
+      return;
+    }
     if (action == 'menu') {
       showOrHideAppBarAndBottomBar(true);
       return;
@@ -690,9 +733,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   Future<void> setAwakeTimer(int minutes) async {
     _awakeTimer?.cancel();
     _awakeTimer = null;
-    WakelockPlus.enable();
+    unawaited(ReaderWakelock.setEnabled(true));
     _awakeTimer = Timer.periodic(Duration(minutes: minutes), (timer) {
-      WakelockPlus.disable();
+      unawaited(ReaderWakelock.setEnabled(false));
       _awakeTimer?.cancel();
       _awakeTimer = null;
     });
@@ -787,6 +830,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         epubPlayerKey: epubPlayerKey,
       );
     });
+    _updatePageKeys();
   }
 
   Future<void> _returnToNarration() async {

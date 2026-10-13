@@ -19,8 +19,12 @@ class MainActivity : AudioServiceActivity() {
     private var refreshHostResumed = false
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val insets = window.decorView.rootWindowInsets
+        // Xiaomi hardware keyboards can leave a visible, zero-height IME.
+        // Flutter/DOM editor guards still protect text entry in that case.
         val imeVisible = Build.VERSION.SDK_INT >= 30 &&
-            window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
+            insets?.isVisible(WindowInsets.Type.ime()) == true &&
+            (insets.getInsets(WindowInsets.Type.ime()).bottom > 0)
         val result = readerKeys.handle(
             event.keyCode, event.action, event.repeatCount, event.deviceId,
             readerKeysActive && hasWindowFocus() && !imeVisible,

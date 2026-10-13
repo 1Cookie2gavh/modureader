@@ -54,6 +54,10 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
   private var scoped = false
   private var extensions = Set<String>()
   private var entries = [String: URL]()
+  private var pickingFiles = false
+  private var linkedScopes = [String: URL]()
+  private var scopeUsers = [URL: Int]()
+  private let bookmarkKey = "moduLinkedBooksV1"
   private let worker = DispatchQueue(label: "com.modu.reader.book-folder")
 
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -73,9 +77,54 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
       while let presented = presenter.presentedViewController { presenter = presented }
       pending = result
       extensions = Set(args["extensions"] as? [String] ?? [])
-      let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+      pickingFiles = args["files"] as? Bool ?? false
+      let picker = UIDocumentPickerViewController(
+        forOpeningContentTypes: pickingFiles ? [.item] : [.folder], asCopy: false)
+      picker.allowsMultipleSelection = pickingFiles
       picker.delegate = self
       presenter.present(picker, animated: true)
+    case "link":
+      worker.async {
+        do {
+          guard let id = args["id"] as? String, let source = self.entries[id],
+                ["epub", "pdf", "mobi", "azw3", "fb2"].contains(source.pathExtension.lowercased()) else {
+            throw CocoaError(.fileReadUnknown)
+          }
+          let key = "file/ios-linked-\(UUID().uuidString).\(source.pathExtension.lowercased())"
+          // Persist the selected scope (folder or file), not an unrestricted path.
+          let scope = self.pickingFiles ? source : (self.root ?? source)
+          let bookmark = try scope.bookmarkData(options: .minimalBookmark,
+            includingResourceValuesForKeys: nil, relativeTo: nil)
+          let relative = self.pickingFiles ? "" : String(source.path.dropFirst(scope.path.count + 1))
+          var records = UserDefaults.standard.dictionary(forKey: self.bookmarkKey) ?? [:]
+          records[key] = ["bookmark": bookmark, "relative": relative]
+          let path = try self.openLink(key, record: records[key])
+          UserDefaults.standard.set(records, forKey: self.bookmarkKey)
+          DispatchQueue.main.async { result(["key": key, "path": path]) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "LINK_FAILED", message: "Unable to retain original book access", details: nil)) }
+        }
+      }
+    case "restoreLinks":
+      worker.async {
+        let records = UserDefaults.standard.dictionary(forKey: self.bookmarkKey) ?? [:]
+        var paths = [String: String]()
+        for (key, record) in records {
+          // One missing/revoked provider must not block the rest of the shelf.
+          if let path = try? self.openLink(key, record: record) { paths[key] = path }
+        }
+        DispatchQueue.main.async { result(paths) }
+      }
+    case "forgetLink":
+      worker.async {
+        if let key = args["key"] as? String {
+          if let scope = self.linkedScopes.removeValue(forKey: key) { self.releaseScope(scope) }
+          var records = UserDefaults.standard.dictionary(forKey: self.bookmarkKey) ?? [:]
+          records.removeValue(forKey: key)
+          UserDefaults.standard.set(records, forKey: self.bookmarkKey)
+        }
+        DispatchQueue.main.async { result(nil) }
+      }
     case "copy":
       let ids = args["ids"] as? [String] ?? []
       worker.async {
@@ -106,6 +155,8 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
     case "release":
       worker.async {
         self.entries.removeAll()
+        for url in self.pickedFileScopes { url.stopAccessingSecurityScopedResource() }
+        self.pickedFileScopes.removeAll()
         if self.scoped { self.root?.stopAccessingSecurityScopedResource() }
         self.root = nil
         self.scoped = false
@@ -123,6 +174,19 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
   func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
     guard let result = pending, let folder = urls.first else { return }
     pending = nil
+    if pickingFiles {
+      worker.async {
+        var found = [[String: String]]()
+        for url in urls where self.extensions.contains(url.pathExtension.lowercased()) {
+          if url.startAccessingSecurityScopedResource() { self.pickedFileScopes.append(url) }
+          let id = String(found.count)
+          self.entries[id] = url
+          found.append(["id": id, "name": url.lastPathComponent, "label": url.lastPathComponent])
+        }
+        DispatchQueue.main.async { result(found) }
+      }
+      return
+    }
     root = folder
     scoped = folder.startAccessingSecurityScopedResource()
     worker.async {
@@ -150,6 +214,64 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
       } catch {
         DispatchQueue.main.async { result(FlutterError(code: "READ_FAILED", message: "Unable to read selected folder", details: nil)) }
       }
+    }
+  }
+
+  private var pickedFileScopes = [URL]()
+
+  private func acquireScope(_ url: URL) -> Bool {
+    if let count = scopeUsers[url] { scopeUsers[url] = count + 1; return true }
+    guard url.startAccessingSecurityScopedResource() else { return false }
+    scopeUsers[url] = 1
+    return true
+  }
+
+  private func releaseScope(_ url: URL) {
+    guard let count = scopeUsers[url] else { return }
+    if count > 1 { scopeUsers[url] = count - 1 }
+    else {
+      scopeUsers.removeValue(forKey: url)
+      url.stopAccessingSecurityScopedResource()
+    }
+  }
+
+  private func openLink(_ key: String, record: Any?) throws -> String {
+    guard key.hasPrefix("file/ios-linked-"),
+          let record = record as? [String: Any], let data = record["bookmark"] as? Data,
+          let relative = record["relative"] as? String,
+          !relative.hasPrefix("/"), !relative.split(separator: "/").contains("..") else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    var stale = false
+    let scope = try URL(resolvingBookmarkData: data, options: .withoutUI,
+      relativeTo: nil, bookmarkDataIsStale: &stale)
+    // Books in one authorized folder share its scope instead of exhausting
+    // iOS security-scoped resource slots with one access per book.
+    let accessed = acquireScope(scope)
+    do {
+      let source = relative.isEmpty ? scope : scope.appendingPathComponent(relative)
+      if !relative.isEmpty && !source.resolvingSymlinksInPath().path.hasPrefix(
+          scope.resolvingSymlinksInPath().path + "/") {
+        throw CocoaError(.fileReadNoPermission)
+      }
+      let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+      guard values.isRegularFile == true, values.isSymbolicLink != true,
+            FileManager.default.isReadableFile(atPath: source.path) else {
+        throw CocoaError(.fileReadNoPermission)
+      }
+      if stale {
+        let renewed = try scope.bookmarkData(options: .minimalBookmark,
+          includingResourceValuesForKeys: nil, relativeTo: nil)
+        var records = UserDefaults.standard.dictionary(forKey: bookmarkKey) ?? [:]
+        records[key] = ["bookmark": renewed, "relative": relative]
+        UserDefaults.standard.set(records, forKey: bookmarkKey)
+      }
+      if let old = linkedScopes.removeValue(forKey: key) { releaseScope(old) }
+      if accessed { linkedScopes[key] = scope }
+      return source.path
+    } catch {
+      if accessed { releaseScope(scope) }
+      throw error
     }
   }
 }

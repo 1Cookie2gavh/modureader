@@ -26,7 +26,7 @@ class _ReadingSettingsState extends ConsumerState<ReadingSettings> {
         CustomSettingsTile(child: StyleSettings()),
       ]),
       SettingsSection(title: Text(L10n.of(context).readingPageOther), tiles: [
-        CustomSettingsTile(child: OtherSettings()),
+        CustomSettingsTile(child: OtherSettings(showKeyboardShortcuts: true)),
       ]),
     ]);
   }

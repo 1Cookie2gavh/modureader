@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'package:anx_reader/service/offline_model_import.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -92,6 +93,21 @@ class OcrModelStore {
   }
 
   void close() => _dio.close(force: true);
+
+  Future<void> importFiles(List<File> files) async {
+    if (_downloading || _deleting.isNotEmpty || (_readers[model.id] ?? 0) > 0) {
+      throw StateError('OCR model files are busy');
+    }
+    _downloading = true;
+    try {
+      await importPinnedModelFiles(await root(), files, {
+        for (final entry in model.files.entries)
+          entry.key: (size: entry.value.$2, sha256: entry.value.$3),
+      });
+    } finally {
+      _downloading = false;
+    }
+  }
   static const version = 'ppocr-v4-mobile-1';
   static const revision = '1cfba2e90fc938db55889873735088de210cc173';
   static const mirrorBase =

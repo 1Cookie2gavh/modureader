@@ -57,6 +57,8 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'pendingAutoSyncRequested',
+  'pendingAutoSyncCompleted',
   'aiSkillTemplateDraft',
   'aiDraftByScreen',
   'aiChatAppearanceByScreen',
@@ -84,6 +86,8 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'pendingAutoSyncRequested',
+  'pendingAutoSyncCompleted',
   'aiSkillTemplateDraft',
   'aiDraftByScreen',
   'aiChatAppearanceByScreen',

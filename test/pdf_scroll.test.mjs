@@ -14,7 +14,9 @@ const layout=uri((await source('pdf-reading-layout')).replace("'./document-regio
 const scrollLayout=uri((await source('pdf-scroll-layout')).replace("'./pdf-reading-viewport.js'",JSON.stringify(viewport))
     .replace("'./document-regions.js'",JSON.stringify(geometry)));
 const {scrollPagePlan,scrollVisibleRegion,scrollSourcePoint}=await import(scrollLayout);
+const {PdfRenderBudget}=await import(uri(await source('pdf-render-budget')));
 const {PdfScrollReader}=await import(uri((await source('pdf-scroll-reader'))
+    .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'",JSON.stringify(layout)).replace("'./pdf-scroll-layout.js'",JSON.stringify(scrollLayout))));
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
@@ -199,5 +201,137 @@ test('paused finger, touch cancellation and finger-count changes do not launch s
         Object.defineProperty(h.flow.element,'scrollTop',{configurable:true,get:()=>bounded,set:v=>{bounded=Math.max(0,Math.min(100,v))}});
         h.flow.startMomentum(0,1);clock.step();assert.equal(clock.pending.size,0,'stops at the scroll boundary');
     }finally{h.close();clock.close()}
+});
+function nativePdf(h) {
+    const rendered=[], frames=[];
+    for (const [index,section] of h.book.sections.entries()) {
+        section.load=async()=>{throw Error('must not rasterize the unprocessed page')};
+        section.loadFrame=async()=>{frames.push(index);return String(index)};
+    }
+    h.book.scrollRegionRenderer={render:async(request)=>{
+        rendered.push(request);
+        return {blob:new Blob(['prepared']),width:request.width,height:request.height};
+    }};
+    return {rendered,frames};
+}
+test('preprocessing depth uses measured time and conservative device limits',()=>{
+    for(const device of [{},{deviceMemory:8,hardwareConcurrency:8}]) {
+        const budget=new PdfRenderBudget(device);
+        assert.equal(budget.ahead,1);
+        budget.record(50);budget.record(60);assert.equal(budget.ahead,1);
+        budget.record(70);assert.equal(budget.ahead,2);
+        budget.record(1000);assert.equal(budget.ahead,1);assert.equal(budget.delay,250);
+        const elapsed=budget.elapsed;budget.record(NaN);budget.record(-1);assert.equal(budget.elapsed,elapsed);
+    }
+    for(const device of [{deviceMemory:2,hardwareConcurrency:8},{deviceMemory:8,hardwareConcurrency:4}]) {
+        const budget=new PdfRenderBudget(device);
+        for(let i=0;i<10;i++)budget.record(5);
+        assert.equal(budget.ahead,1);
+    }
+});
+test('scroll prepares cropped/enhanced neighboring panels before display, without touching text or progress',async()=>{
+    const h=harness({version:1,all:{preset:'single',autoCrop:true},pages:{}});
+    const {rendered,frames}=nativePdf(h);
+    const crop={x:.1,y:.15,width:.8,height:.7};
+    h.book.cropRegionRenderer={render:async()=>({cropDetection:{detected:true,crop}})};
+    h.flow.view.enhancement={ink:7,contrast:2,darken:1,whiten:1,sharpen:2,watermark:1};
+    h.flow.view.display={hideWatermarks:true};
+    let details=0;h.book.readingRegionRenderer.render=async()=>{details++;throw Error('unnecessary detail')};
+    try {
+        await h.flow.open(10,0);const original=h.flow.entries[0].iframe.contentDocument.querySelector('span').firstChild;
+        h.flow.activate();const before=h.flow.location;await h.flow.ensureNeighbors();
+        const next=h.flow.entries.find(e=>e.index===11);
+        assert.ok(next?.baseUrl,'next page has a decoded processed backing image');
+        assert.ok(frames.includes(11));assert.equal(h.flow.location.page,10);
+        near(h.flow.location.center.y,before.center.y);
+        for(const request of rendered){
+            for(const key of Object.keys(crop))near(request.region[key],crop[key]);
+            assert.deepEqual(request.enhancement,h.flow.view.enhancement);
+            assert.equal(request.hideWatermarks,true);
+        }
+        const current=h.flow.entries.find(e=>e.index===10);
+        assert.equal(current.iframe.contentDocument.querySelector('span').firstChild,original);
+        const count=rendered.length;
+        h.flow.pan(0,120);await h.flow.refreshDetail();
+        assert.equal(details,0);assert.equal(rendered.length,count,'scrolling reuses the full-panel image');
+        assert.ok(h.flow.entries.length<=7);
+    }finally{h.close()}
+});
+test('tall PDF pages still prepare a next panel, faster devices prepare two and reverse travel prepares previous',async()=>{
+    const h=harness();nativePdf(h);
+    h.flow.view.zoom=3;h.flow.budget=new PdfRenderBudget({hardwareConcurrency:8,deviceMemory:8});
+    try {
+        await h.flow.open(20,0);h.flow.activate();await h.flow.ensureNeighbors();
+        assert.ok(h.flow.entries.some(e=>e.index===21),'next page is outside two screen heights');
+        for(let i=0;i<3;i++)h.flow.budget.record(10);
+        await h.flow.ensureNeighbors();assert.ok(h.flow.entries.some(e=>e.index===22));
+        h.flow.pan(0,-10);await h.flow.ensureNeighbors();assert.equal(h.flow.direction,-1);
+        assert.ok(h.flow.entries.some(e=>e.index===18));assert.ok(h.flow.entries.length<=7);
+    }finally{h.close()}
+});
+test('suspending/closing cancels unfinished processed pages and never installs their late pixels',async()=>{
+    const h=harness();nativePdf(h);let finish,signal,entered;
+    try {
+        await h.flow.open(0,0);
+        const started=new Promise(resolve=>entered=resolve);
+        h.book.scrollRegionRenderer.render=(request,options)=>{
+            signal=options.signal;entered();return new Promise(resolve=>finish=()=>resolve({blob:new Blob(['late']),width:600,height:800}));
+        };
+        h.flow.activate();const neighbors=h.flow.ensureNeighbors();await started;
+        h.flow.suspend();assert.equal(signal.aborted,true);
+        finish();await neighbors;
+        assert.equal(h.flow.entries.length,1);assert.deepEqual(h.states,[]);
+        assert.equal(h.flow.element.children.length,1);
+        h.close();assert.equal(h.flow.element.children.length,0);
+    }finally{h.close()}
+});
+test('processed base reuse invalidates on enhancement/crop changes; zoom requests only visible detail',async()=>{
+    const h=harness();const {rendered}=nativePdf(h);const details=[];
+    h.book.readingRegionRenderer.render=async request=>{details.push(request);return {blob:new Blob(['detail'])}};
+    try {
+        await h.flow.open(0,0);h.flow.active=true;const e=h.flow.entries[0];
+        const first=e.baseUrl;await h.flow.prepareBase(e);assert.equal(rendered.length,1);
+        h.flow.view.enhancement={ink:7};await h.flow.prepareBase(e);
+        assert.equal(rendered.length,2);assert.notEqual(e.baseUrl,first);
+        e.crop={x:.1,y:.1,width:.8,height:.8};await h.flow.prepareBase(e);
+        assert.equal(rendered.length,3);assert.deepEqual(rendered.at(-1).region,e.crop);
+        h.flow.view.zoom=15;h.flow.layoutEntry(e);await h.flow.refreshDetail();
+        assert.equal(details.length,1);assert.ok(details[0].region.height<.1);
+        assert.ok(details[0].region.width<.1);assert.equal(rendered.length,3);
+    }finally{h.close()}
+});
+test('background reader does not launch neighbor preprocessing',async()=>{
+    const h=harness();const {rendered}=nativePdf(h);
+    try {
+        await h.flow.open(0,0);h.flow.canPrepare=()=>false;h.flow.activate();await h.flow.ensureNeighbors();
+        assert.equal(rendered.length,1);assert.equal(h.flow.entries.length,1);
+        h.flow.canPrepare=()=>true;await h.flow.ensureNeighbors();assert.ok(rendered.length>1);
+    }finally{h.close()}
+});
+test('processed page failures keep current pixels and recover on retry',async()=>{
+    const h=harness();nativePdf(h);const render=h.book.scrollRegionRenderer.render;
+    try {
+        await h.flow.open(0,0);const first=h.flow.entries[0],url=first.baseUrl;
+        h.book.scrollRegionRenderer.render=async request=>{if(request.page===1)throw Error('encode failed');return render(request)};
+        h.flow.activate();await h.flow.ensureNeighbors();
+        assert.equal(h.flow.entries[0],first);assert.equal(first.baseUrl,url);assert.deepEqual(h.states,['failed']);
+        h.book.scrollRegionRenderer.render=render;assert.equal(await h.flow.retry(),true);
+        assert.ok(h.flow.entries.some(e=>e.index===1&&e.baseUrl));
+    }finally{h.close()}
+});
+test('scroll recycles prepared bitmap URLs and close releases every retained base image',async()=>{
+    const h=harness();nativePdf(h);const revoke=URL.revokeObjectURL,revoked=new Set(),allocated=new Set();
+    URL.revokeObjectURL=url=>{revoked.add(url);revoke(url)};
+    try {
+        await h.flow.open(10,0);h.flow.activate();await h.flow.ensureNeighbors();
+        for(let i=0;i<16;i++){
+            for(const e of h.flow.entries)allocated.add(e.baseUrl);
+            h.flow.pan(0,600);await h.flow.ensureNeighbors();assert.ok(h.flow.entries.length<=7);
+        }
+        for(const e of h.flow.entries)allocated.add(e.baseUrl);
+        assert.ok(revoked.size>0);
+        for(const e of h.flow.entries)assert.ok(!revoked.has(e.baseUrl));
+        h.close();for(const url of allocated)assert.ok(revoked.has(url));
+    }finally{h.close();URL.revokeObjectURL=revoke}
 });
 test.after(()=>{children.forEach(child=>child.window.close());dom.window.close()});

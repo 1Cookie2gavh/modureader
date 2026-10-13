@@ -7,6 +7,7 @@ import 'package:anx_reader/widgets/common/anx_button.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
+import 'package:anx_reader/widgets/settings/offline_model_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
@@ -24,10 +25,12 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
   CancelToken? _download;
   String? _downloadingId, _saveError, _deletingId;
   bool _saving = false;
+  String? _importingId;
   double _progress = 0;
   bool get _busy =>
       _checking.isNotEmpty ||
       _saving ||
+      _importingId != null ||
       _download != null ||
       _deletingId != null;
   String t(String zh, String en) => ModuStrings.text(context, zh, en);
@@ -215,6 +218,40 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
     }
   }
 
+  Future<void> _import(OcrModelSpec model) async {
+    if (_busy) return;
+    setState(() {
+      _importingId = model.id;
+      _errors.remove(model.id);
+    });
+    try {
+      final files = await pickOfflineModelFiles(
+          context,
+          t(model.name, model.englishName),
+          model.files.entries
+              .map(
+                  (entry) => '${entry.key} / ${entry.value.$1.split('/').last}')
+              .join('\n'));
+      if (files == null || !mounted) return;
+      await _stores[model.id]!.importFiles(files);
+      if (!mounted) return;
+      await _check(model);
+      if (mounted && _ready.contains(model.id)) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                t('导入并校验完成，可离线使用', 'Imported and verified. Ready offline.'))));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errors[model.id] = t(
+            '导入失败。请选择本型号的全部完整文件，大小和 SHA-256 必须与下载版本一致；请先停止识别或下载后重试。',
+            'Import failed. Select all complete files for this model with matching size and SHA-256. Stop recognition or downloads and retry.'));
+      }
+    } finally {
+      if (mounted) setState(() => _importingId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => settingsSections(sections: [
         SettingsSection(title: Text(t('OCR 模型', 'OCR model')), tiles: [
@@ -358,6 +395,11 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
                           onPressed: () => _download?.cancel('User cancelled'),
                           child: Text(t('取消下载', 'Cancel download')))
                     else ...[
+                      AnxButton.outlined(
+                          key: ValueKey('ocr-import-${model.id}'),
+                          isLoading: _importingId == model.id,
+                          onPressed: _busy ? null : () => _import(model),
+                          child: Text(t('离线导入', 'Offline import'))),
                       if (_present.contains(model.id))
                         AnxButton.text(
                             key: ValueKey('ocr-delete-${model.id}'),

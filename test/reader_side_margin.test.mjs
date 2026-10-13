@@ -64,7 +64,9 @@ test('desktop scrolling margins remain adjustable without the mobile image-fit p
         reader.attrs.gap = `${percent}%`;
         const layout = reader.layout({vertical: false, rtl: false});
         assert.ok(Math.abs(layout.columnWidth + 2 * layout.gap - width) < 1e-8);
-        assert.equal(layout.mobileImageFit, undefined);
+        assert.equal(layout.mobileImageFit, false);
+        assert.equal(layout.width, width);
+        assert.equal(layout.height, 900, 'line fitting receives the viewport on desktop too');
         assert.equal(reader.container.style.overflowY, 'auto',
           'desktop page input must not disable scrolling');
       }
@@ -92,12 +94,14 @@ test('vertical scrolling and footnote sizing keep their independent width policy
 });
 
 test('scrolled view applies the calculated width to the body, not an additional fixed limit', () => {
+  const fittedHeights=[];
   const method = source.slice(source.indexOf('  scrolled({'), source.indexOf('\n  columnize('))
     .replaceAll('this.#', 'this.');
   const View = runInNewContext(`class View {
     vertical = false; document = {documentElement: {}, body: {}};
     setImageSize() {} expand() {} ${method}
-  }; View`, {setStylesImportant: (element, styles) => Object.assign(element, styles)});
+  }; View`, {setStylesImportant: (element, styles) => Object.assign(element, styles),
+    fitTextLineSpacing: (_,height) => fittedHeights.push(height)});
   const reader = new Harness(1280, 800);
   const view = new View();
   for (const percent of [0, 6, 20, 0]) {
@@ -106,5 +110,6 @@ test('scrolled view applies the calculated width to the body, not an additional 
     view.scrolled(layout);
     assert.equal(view.document.body['max-width'], `${layout.columnWidth}px`);
     assert.equal(view.document.documentElement.padding, `0 ${layout.gap}px`);
+    assert.equal(fittedHeights.at(-1),800);
   }
 });

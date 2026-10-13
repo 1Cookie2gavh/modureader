@@ -1,8 +1,8 @@
 # Display assets
 
-## Current: Modu 1.2.0+10082
+## Current: Modu 1.2.8+10124
 
-Feature claims follow the stable Modu publishing repository's `v1.2.0` commit `77dc238fb2ae2ce02455bd80c500ee9fd140f219`, not uncommitted application changes. The default Chinese homepage is [README.md](../../README.md); the English homepage is [README_EN.md](../../README_EN.md). `README_zh.md` keeps the previous Chinese URL working.
+Feature claims follow the source prepared for `v1.2.8`. The default Chinese homepage is [README.md](../../README.md); the English homepage is [README_EN.md](../../README_EN.md). `README_zh.md` keeps the previous Chinese URL working. The 2026-10-13 refresh replaces twelve assets: paired bookshelf-home, OCR, vector-model, listening, sync and scanned-PDF images; the remaining gallery assets are retained.
 
 The 35 images in `showcase/cross-platform/` are the current homepage set, including later documentation artwork for the stable features. A macOS window sits behind an overlapping foreground iPhone, with a clear headline, light backdrop and soft shadows. Each major feature has its own image beside its description; Chinese artwork also includes framed vertical reading.
 
@@ -15,18 +15,18 @@ Feature configuration/result pairs use phone configuration → Mac result. The p
 | `bookshelf-home-*` | Bookshelf home with fictional books and index/format labels | Bookshelf home with Indexed, original-format and Scanned badges |
 | `library-*` | Create a folder for selected books | Stacked folder covers, translucent menus and indexed/format badges on individual books; Reading history navigation |
 | `styles-*` | Font, thickness and spacing | Comfortable book typography |
-| `scanned-pdf-*` | Original-page crop preview, per-page automatic crop and safety margin | The same page enlarged after cropping its outer margins |
-| `ocr-*` | Optional OCR model cards, with V4 recommended and actual model sources | Current-page reflowed text with selection handles and reader toolbar |
+| `scanned-pdf-*` | PDF crop/panel and image-enhancement controls | Continuous original pages with enhanced text |
+| `ocr-*` | Optional OCR model cards, V4 recommended, model source and offline file import | Current-page reflowed text with selection handles and reader toolbar |
 | `css-*` | Visual CSS and highlight rules | Colored dialogue, wavy underlines and keyword highlights |
-| `listening-*` | Narration template and voice description | Passage highlighting and compact playback controls |
+| `listening-*` | Narration template and voice description | Passage highlighting and the current single-row narration controls |
 | `skills-*` | A chapter-summary prompt | A reader AI answer and follow-up input |
 | `selection-*` | Custom AI action and scope | Selection handles, toolbar and annotation controls |
 | `translation-*` | Full-text engine, target language and bilingual display | Multiple inline translated paragraphs: English–Spanish for EN, English–Chinese for ZH |
 | `dictionary-*` | Imported dictionary enabled | An offline word definition beside the book |
 | `notes-*` | Highlight and comment editing | Saved book notes |
 | `statistics-*` | Add a dashboard card | Reading charts and records |
-| `vector-*` | Local embedding model | An AI answer citing retrieved chapter excerpts |
-| `sync-*` | Record sync and database backup | Restored reading progress and annotation, without vector-index transfer |
+| `vector-*` | Local embedding model with offline import | An AI answer citing retrieved chapter excerpts |
+| `sync-*` | Record sync and database backup | Restored narration position/highlight, paused, without vector-index transfer |
 | `backup-*` | Global settings export | Export completion and saved file location |
 
 The opening `reading-*` banners and `vertical-zh` show reading layouts directly. PDF and OCR layouts were previously checked against the local Mac app and use original demonstration prose. PDF page surfaces must be white in both language variants, including the phone's original-page preview and Mac reading result; device backdrops can remain light. Crop settings show the original page and rectangle while the Mac shows that page's cropped result, without implying source-file overwrite.

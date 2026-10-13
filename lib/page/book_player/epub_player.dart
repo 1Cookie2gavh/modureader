@@ -3,6 +3,7 @@ import 'package:anx_reader/service/book_player/document_type_store.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'dart:async';
+import 'package:anx_reader/models/narration_position.dart';
 import 'package:anx_reader/service/eink_refresh.dart';
 import 'package:anx_reader/widgets/reading_page/reading_info_line.dart';
 import 'package:anx_reader/widgets/reading_page/vertical_page_chrome.dart';
@@ -45,6 +46,8 @@ import 'package:anx_reader/providers/bookmark.dart';
 import 'package:anx_reader/providers/chapter_content_bridge.dart';
 import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/providers/sync_database_revision.dart';
+import 'package:anx_reader/providers/sync.dart';
+import 'package:anx_reader/enums/sync_direction.dart';
 import 'package:anx_reader/service/book_player/reader_progress_session.dart';
 import 'package:anx_reader/service/book_player/document_layout_store.dart';
 import 'package:anx_reader/service/book_player/pdf_reading_state_store.dart';
@@ -1042,6 +1045,28 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     );
   }
 
+  Future<void> ttsFollowProgress(
+      {String? cfi, String? text, double? fraction, int? offset}) async {
+    if (!mounted ||
+        _narrationDetached ||
+        _restoringNarration ||
+        TtsHandler().mediaItem.value?.id != book.id.toString() ||
+        !TtsHandler().isPlaying) {
+      return;
+    }
+    try {
+      await webViewController.evaluateJavascript(
+          source: 'window.ttsFollowProgress?.(${jsonEncode({
+            if (cfi != null) 'cfi': cfi,
+            if (text != null) 'text': text,
+            if (fraction != null) 'fraction': fraction,
+            if (offset != null) 'offset': offset,
+          })});');
+    } catch (_) {
+      // A hidden/disposed renderer must never interrupt cached audio.
+    }
+  }
+
   Future<bool> isFootNoteOpen() async => (await webViewController
       .evaluateJavascript(source: "window.isFootNoteOpen()"));
 
@@ -1326,6 +1351,11 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         widget.book.lastReadPosition = latest.position;
         widget.book.readingPercentage = latest.percentage;
         await renderAnnotations(webViewController);
+        if (previous != null &&
+            previous.revision != latest.revision &&
+            previous.narration?.encode() != latest.narration?.encode()) {
+          await restoreNarration(latest.narration);
+        }
       }
     } catch (error) {
       // No private CFI, note content or server data in diagnostics.
@@ -1335,15 +1365,72 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   bool _readerPositionInitialized = false;
 
+  bool _restoringNarration = false;
+  bool _narrationDetached = false;
+  NarrationPosition? _speechPosition;
+
+  void detachNarration() => _narrationDetached = true;
+
+  Future<void> restoreNarration(NarrationPosition? saved) async {
+    if (!mounted ||
+        _narrationDetached ||
+        _restoringNarration ||
+        widget.cfi != null ||
+        readingPageKey.currentState?.isReflowReading == true) {
+      return;
+    }
+    _restoringNarration = true;
+    try {
+      await TtsHandler().stop();
+      if (!mounted || _narrationDetached) return;
+      _speechPosition = saved;
+      if (saved?.canResume != true) return;
+      await TtsHandler().restorePaused(saved!.cfi);
+    } catch (error) {
+      AnxLog.warning('Narration restore failed: ${error.runtimeType}');
+    } finally {
+      _restoringNarration = false;
+    }
+  }
+
+  Future<void> recordNarrationState(TtsStateEnum state) async {
+    final current = _progress.current;
+    final speech = _speechPosition;
+    if (!mounted ||
+        _narrationDetached ||
+        _restoringNarration ||
+        current == null ||
+        speech == null ||
+        TtsHandler().mediaItem.value?.id != book.id.toString()) {
+      return;
+    }
+    if (!const [TtsStateEnum.playing, TtsStateEnum.paused, TtsStateEnum.stopped]
+        .contains(state)) {
+      return;
+    }
+    final next = NarrationPosition(speech.cfi, state.name);
+    _speechPosition = next;
+    try {
+      final accepted = await _progress.recordNarration(next,
+          generation: _progress.generation);
+      if (!accepted && mounted) await refreshReadingAfterSync();
+    } catch (error) {
+      AnxLog.warning('Narration save failed: ${error.runtimeType}');
+    }
+  }
+
   Future<void> _recordReadingAction(String position, double fraction,
-      {dynamic pdfRegion}) async {
+      {dynamic pdfRegion, NarrationPosition? narration}) async {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null &&
         lifecycle != AppLifecycleState.resumed &&
-        !TtsHandler().isPlaying) {
+        !TtsHandler().isPlaying &&
+        narration == null) {
       return;
     }
     if (!_readerReady ||
+        _restoringNarration ||
+        _narrationDetached ||
         !_readerPositionInitialized ||
         _remotePositionPending ||
         widget.cfi != null ||
@@ -1352,7 +1439,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     }
     try {
       final accepted = await _progress.record(position, fraction,
-          generation: _progress.generation);
+          generation: _progress.generation, narration: narration);
       if (!mounted) return;
       if (!accepted) {
         _remotePositionPending = true;
@@ -1458,6 +1545,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           }
           await refreshReadingAfterSync();
           if (!mounted) return;
+          await restoreNarration(_progress.current?.narration);
+          if (!mounted) return;
           if (quickMarkEnabled) await setQuickMarkEnabled(true);
           // Opening/reloading a reader always requires a new explicit start.
           _translationSession.stop();
@@ -1555,7 +1644,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         handlerName: 'onTtsProgress',
         callback: (args) {
           if (!mounted ||
-              !TtsHandler().isPlaying ||
+              _narrationDetached ||
+              _restoringNarration ||
+              TtsHandler().mediaItem.value?.id != book.id.toString() ||
+              TtsHandler().ttsStateNotifier.value == TtsStateEnum.stopped ||
               args.isEmpty ||
               args.first is! Map) {
             return;
@@ -1570,7 +1662,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               progress > 1) {
             return;
           }
-          unawaited(_recordReadingAction(position, progress.toDouble()));
+          if (!position.startsWith('epubcfi(')) return;
+          final narration = NarrationPosition(
+              position, TtsHandler().ttsStateNotifier.value.name);
+          _speechPosition = narration;
+          unawaited(_recordReadingAction(position, progress.toDouble(),
+              narration: narration));
         });
     controller.addJavaScriptHandler(
         handlerName: 'onClick',
@@ -2030,6 +2127,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   @override
   void dispose() {
+    detachNarration();
     Prefs().removeListener(_configureEinkPreferences);
     _einkPageRefresh.dispose();
     _translationSession.stop();
@@ -2038,7 +2136,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     readingProgress.dispose();
     _syncRefreshRetry?.cancel();
     _scrollDebounceTimer?.cancel();
-    saveReadingProgress();
+    unawaited(Sync().syncData(SyncDirection.both, null,
+        immediate: true, savedReading: saveReadingProgress()));
     removeOverlay();
     super.dispose();
   }

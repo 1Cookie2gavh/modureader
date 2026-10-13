@@ -603,21 +603,31 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
                   setState(() => Prefs().bookshelfListMode = !listMode);
                 },
               ),
-              PopupMenuButton<bool>(
+              PopupMenuButton<int>(
                 popUpAnimationStyle: AppMotion.style,
                 icon: const Icon(Icons.add),
                 tooltip: ModuStrings.text(context, '导入书籍', 'Import books'),
-                onSelected: (folder) =>
-                    pickBooksForImport(context, ref, folder: folder),
+                onSelected: (mode) => pickBooksForImport(context, ref,
+                    folder: mode.isOdd, inPlace: mode >= 2),
                 itemBuilder: (context) => [
                   PopupMenuItem(
-                      value: false,
+                      value: 0,
                       child: Text(ModuStrings.text(
                           context, '选择文件（可多选）', 'Select files (multiple)'))),
                   PopupMenuItem(
-                      value: true,
+                      value: 1,
                       child: Text(
                           ModuStrings.text(context, '导入文件夹', 'Import folder'))),
+                  if (Platform.isIOS) ...[
+                    PopupMenuItem(
+                        value: 2,
+                        child: Text(ModuStrings.text(context, '原位添加文件（不复制）',
+                            'Add files in place (no copy)'))),
+                    PopupMenuItem(
+                        value: 3,
+                        child: Text(ModuStrings.text(context, '原位添加文件夹（不复制）',
+                            'Add folder in place (no copy)'))),
+                  ],
                 ],
               ),
               IconButton(

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/dao/book_note.dart';
 import 'package:anx_reader/models/book_note.dart';
+import 'package:anx_reader/models/narration_position.dart';
 import 'package:anx_reader/models/reading_position_snapshot.dart';
 import 'package:anx_reader/service/book_player/reader_progress_session.dart';
 import 'package:anx_reader/service/sync/row_sync_engine.dart';
@@ -27,8 +28,9 @@ class IsolatedBookDao extends BookDao {
   @override
   Future<ReadingPositionSnapshot?> updateReadingPosition(
           int bookId, String position, double percentage,
-          {String? expectedRevision}) async =>
+          {String? expectedRevision, NarrationPosition? narration}) async =>
       super.updateReadingPosition(bookId, position, percentage,
+          narration: narration,
           expectedRevision:
               expectedRevision ?? (await readReadingPosition(bookId)).revision);
 }

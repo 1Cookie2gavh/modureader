@@ -1,6 +1,8 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:anx_reader/service/ios_linked_books.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/widgets/page_router/reading_route.dart';
 
 import 'package:anx_reader/dao/book.dart';
@@ -494,6 +496,13 @@ Future<void> pushToReadingPage(
   }
 
   if (!File(book.fileFullPath).existsSync()) {
+    if (IosLinkedBooks.isLinked(book.filePath)) {
+      AnxToast.show(ModuStrings.text(
+          context,
+          '原书不可访问。iOS 请通过“原位添加”重新授权，其他平台请普通导入原书。',
+          'Original unavailable. Add it in place again on iOS, or import it normally on other platforms.'));
+      return;
+    }
     ref.read(syncProvider.notifier).downloadBook(book);
     return;
   }
@@ -558,6 +567,7 @@ Future<void> saveBook(
   String? sourceMd5,
   String? sourceFormat,
   Object? documentReadingMode,
+  String? linkedPath,
 }) async {
   // Extract original filename (without extension)
   final fileNameWithoutExt = path.basenameWithoutExtension(file.path);
@@ -575,13 +585,16 @@ Future<void> saveBook(
 
   final extension = file.path.split('.').last;
 
-  final dbFilePath = 'file/$newBookName.$extension';
+  if (linkedPath != null && IosLinkedBooks.resolve(linkedPath) != file.path) {
+    throw const FileSystemException('Invalid linked book access');
+  }
+  final dbFilePath = linkedPath ?? 'file/$newBookName.$extension';
   final filePath = getBasePath(dbFilePath);
   String dbCoverPath = 'cover/$newBookName';
   // final coverPath = getBasePath(dbCoverPath);
 
   // Preserve the source until both file and database writes have succeeded.
-  await file.copy(filePath);
+  if (linkedPath == null) await file.copy(filePath);
   dbCoverPath = cover.isEmpty ? '' : await saveImageToLocal(cover, dbCoverPath);
   if (md5 != null) {
     provideBook ??= await bookDao.getBookByMd5(sourceMd5 ?? md5);
@@ -650,6 +663,7 @@ Future<void> getBookMetadata(
   bool coverOnly = false,
   bool classificationOnly = false,
   bool inspectDocumentOnImport = true,
+  String? linkedPath,
 }) async {
   if (classificationOnly && (book == null || coverOnly)) {
     throw ArgumentError('Classification requires an existing book');
@@ -746,6 +760,7 @@ Future<void> getBookMetadata(
         provideBook: book,
         sourceMd5: sourceMd5,
         sourceFormat: sourceFormat,
+        linkedPath: linkedPath,
         documentReadingMode: metadata['documentReadingMode']);
     ref?.read(bookListProvider.notifier).refresh();
   } finally {

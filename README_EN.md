@@ -35,7 +35,7 @@ Connect with the Modu Reader community on Telegram or QQ:
 
 Please submit bugs and feature requests through [GitHub Issues](https://github.com/sobranie2406/modureader/issues/new/choose). If you cannot use GitHub, use the [feedback form](https://docs.qq.com/smartsheet/form/dxaiuhjrhCar%2Ft00i2h%2FvI8Bvs?tab=t00i2h). Describe one issue or idea per report and include the Modu version, OS and device, reproduction steps and expected behavior. Do not share keys, passwords, private books or unredacted logs.
 
-![Bookshelf home with fictional books showing Indexed, file-format and Scanned badges](docs/images/showcase/cross-platform/bookshelf-home-en.png)
+![Bookshelf home with fictional books showing Indexed and file-format badges](docs/images/showcase/cross-platform/bookshelf-home-en.png)
 
 A green **Indexed** badge appears at the top left of indexed covers. Color-coded badges at the bottom left show the original file format, such as EPUB, PDF, TXT, MD or FB2; books identified or manually set as scans also show **Scanned**. TXT and Markdown imports retain their original-format labels after conversion to EPUB.
 
@@ -61,9 +61,9 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.2.7** — improves paging and scrolling, adds continuous PDF extraction, a cover-free bookshelf list and history layout reset, and refines settings and dialogs.
+**Latest release: 1.2.8** — remembers and syncs per-book narration positions and highlights, adds offline OCR/embedding model imports, and improves page alignment, adjacent PDF preprocessing and automatic sync.
 
-Android cover opening and AI keyboard/stream layouts have been refined. System speech errors and startup waits now recover with clearer diagnostics. HarmonyOS remains an unsigned HAP requiring local signing; see the [release notes](docs/RELEASE_NOTES.md) for limitations and installation requirements.
+Reader shortcut settings are restored and hardware-keyboard playback controls are improved. iOS adds optional in-place book access; HarmonyOS gains a reader wakelock bridge and corrected log-export path validation. See the [release notes](docs/RELEASE_NOTES.md) for device-validation scope, limitations and installation requirements.
 
 Modu checks for updates at launch. Settings → About Modu → App updates uses one GitHub/Gitee source selector for both checking and downloading, defaulting to GitHub. After switching sources, check again before downloading. Failed GitHub requests fall back to Gitee while size and SHA-256 verification remain mandatory. macOS downloads open in your browser. Gitee hosts packages, documentation and update metadata; old releases are replaced by the newest release, with links to the corresponding GitHub source.
 
@@ -113,8 +113,9 @@ Keep the original layout of a PDF or scanned image book while making the page fi
 - **Read in the right order:** split a page into panels, set their order, rotate the page and choose single-page or continuous-scroll reading.
 - **See the details:** fit the page to the screen or its width, zoom in, and enhance stroke strength, contrast, darkening, paper whitening or sharpness.
 - **Compare with the original:** preview changes and optionally fade scanned watermarks. Crop and enhancement settings do not rewrite the source book.
+- **Prepare adjacent pages:** device hints and measured processing time determine a one/two-panel lookahead for cropping, enhancement and decoded backing images. Zoomed details are refined separately; rapid jumps may still require waiting.
 
-![PDF crop settings on iPhone and an enlarged, cropped original page in the Mac reader](docs/images/showcase/cross-platform/scanned-pdf-en.png)
+![PDF crop and image-enhancement controls on iPhone, with continuous original pages on Mac](docs/images/showcase/cross-platform/scanned-pdf-en.png)
 
 EPUB, MOBI, AZW3 and FB2 image books are identified during import, not every time you open them. You can also change the classification in the bookshelf menu. Ordinary text books retain their familiar controls.
 
@@ -135,7 +136,7 @@ Go beyond an image of the page. Recognize text locally, then read the result **i
 
 ![Lightweight OCR model settings on iPhone and selectable reflowed text in the Mac reader](docs/images/showcase/cross-platform/ocr-en.png)
 
-1. In **Settings → OCR models**, choose a model and download source. **PP-OCRv4 Chinese / English** is the recommended starting point.
+1. In **Settings → OCR models**, choose a model and download source. **PP-OCRv4 Chinese / English** is the recommended starting point. Devices without internet can use **Offline import** on the model card to select the matching complete files.
 2. Open the PDF/scanned-book menu. **Text reflow** uses an available text layer; **OCR reflow** recognizes the current page image. Reflow uses the current page or its cropped area, without an extra region-selection step.
 3. Select words in the reflowed text to copy, translate, annotate or ask AI. The style gear adjusts the recognized text, not the original scan or other books.
 4. For a specific passage, choose **Extract**, select a region and send its text to an **editable AI draft**. Review it before sending.
@@ -150,7 +151,7 @@ Go beyond an image of the page. Recognize text locally, then read the result **i
 | PP-OCRv3 Chinese / English | About 12.5 MiB | Smaller alternative |
 | PP-OCRv3 English | About 10.9 MiB | Lightweight English recognition |
 
-Models are downloaded on demand, not bundled in the installer. Choose the upstream host or Gitee mirror; downloads are checked by size and SHA-256. Delete a downloaded model from its card to reclaim space without deleting books or recognized text.
+Models are downloaded on demand, not bundled in the installer. Choose the upstream host or Gitee mirror, or import files offline. Only the catalogue's pinned versions are accepted; the complete file set is verified by size and SHA-256 before installation. Delete a model from its card to reclaim space without deleting books or recognized text.
 
 OCR runs on the device after download and needs no API key. Sending extracted text to an online AI provider is a separate action. Recognition quality depends on scan clarity, language and layout; check names, numbers and complex columns against the original. OCR does not automatically index the entire book or rewrite the source PDF.
 
@@ -165,6 +166,8 @@ Bring EPUB, PDF, MOBI, AZW3, FB2, TXT, Markdown and text UMD books into one libr
 - Select multiple books to create a folder or move them into an existing one.
 - Browse a separate WebDAV library, search and sort files, then download books for offline reading.
 - Import an ANX Reader ZIP backup through the migration entry in Advanced settings.
+- Switch between thumbnails and a cover-free list. Long press or desktop right-click enters selection mode and reveals book menus.
+- On iOS, optionally add supported files/folders in place without copying originals. Originals are not automatically uploaded or included in backups; formats requiring conversion still use ordinary import.
 
 ![Create a folder on iPhone and see the organized book library on Mac](docs/images/showcase/cross-platform/library-en.png)
 
@@ -186,6 +189,7 @@ Adjust fonts, font thickness, line spacing, paragraph spacing and margins. Use s
 - Tap the page for chapter/page navigation; drag the progress slider to preview chapter titles.
 - Choose themes and backgrounds, or use dark, OLED and e-ink modes.
 - Manage named CSS profiles with editable presets, visual controls, regex highlights and optional custom code. Enable several profiles together or import/export them.
+- Horizontal prose pages finalize spacing from the actual viewport, fonts and all four margins before display, preserving natural chapter endings. Settled scrolls prefer complete lines: bottom edge when moving down, top edge when moving up, without hiding edge text.
 
 ![Font and spacing controls on iPhone, with the resulting book layout on Mac](docs/images/showcase/cross-platform/styles-en.png)
 
@@ -236,7 +240,9 @@ Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or 
 
 - MiMo offers preset voices and voice design through descriptions of timbre, tone and delivery.
 - OpenAI-compatible speech settings offer an instructions switch, templates and an editable prompt.
-- A compact reader toolbar provides play/pause, return to the narration position and read from here.
+- A compact reader toolbar provides return to narration, previous passage, play/pause, next passage and start from this page.
+- Each book remembers its narration position and highlight. Reopening restores the highlight while paused; press Play to continue. The position can sync to the same book on another device.
+- Long passages follow page boundaries using system word callbacks or an online audio-duration estimate, while retaining upcoming-audio caching.
 - Online narration supports up to 4× playback, with separate 3× and 4× slider steps after 2×.
 
 <details>
@@ -285,7 +291,7 @@ Choose what appears when you select text. Keep useful actions close and hide the
 - Toggle and drag-sort built-in tools, annotation controls and custom AI commands.
 - Edit command names, icons and prompts; common AI templates start disabled.
 - Choose selected text only or selected text with context, and opt into online search per command.
-- Selection templates are managed separately from reading skills but use the same reader AI dialog.
+- Selection templates are managed separately. AI Knowledge, Book AI and individual skills retain separate histories and sending preferences; AI Knowledge does not search local books.
 
 ![Toolbar configuration on iPhone and adjustable text selection on Mac](docs/images/showcase/cross-platform/selection-en.png)
 
@@ -358,6 +364,7 @@ Follow reading time, reading days, streaks and progress through individual books
 - Review time trends and the reading heatmap.
 - Explore per-book reading records.
 - Rearrange dashboard cards and keep the metrics you care about.
+- Reset the default card layout from history editing mode without deleting reading records.
 - Reading History includes Recently read, This week, Daily reading average and Most annotated cards. Tap a book title or cover to continue reading; deleted books retain their history and show a notice.
 
 ![Add a statistics card on iPhone and view reading charts on Mac](docs/images/showcase/cross-platform/statistics-en.png)
@@ -369,7 +376,7 @@ Follow reading time, reading days, streaks and progress through individual books
 Vector indexing turns book passages into searchable representations of their meaning. Combine keyword and semantic search to find relevant text, then let AI use retrieved passages as context for its answer.
 
 1. Choose a local ONNX model or a remote embedding API in Settings → Embedding Models.
-2. Download a local model when needed, then index a book from its menu.
+2. Download or import the matching model and tokenizer offline, verify their size and SHA-256, then index a book from its menu.
 3. Follow the background indexing task; use the resulting index for retrieval.
 
 ![Local embedding settings on iPhone and an AI answer grounded in retrieved passages on Mac](docs/images/showcase/cross-platform/vector-en.png)
@@ -396,14 +403,15 @@ Local embedding computation stays on the device. Remote embedding services recei
 
 ## Continue on another device
 
-Use your own WebDAV server to sync books, notes, bookmarks and reading progress. Keep a database backup before changing devices or restoring a library.
+Use your own WebDAV server to sync books, notes, bookmarks, reading progress and per-book narration positions. With narration-aware versions on both devices, reopening restores the highlight without automatically speaking. Keep a database backup before changing devices or restoring a library.
 
 - Automatic sync, Wi-Fi-only controls and optional timed sync during foreground reading.
+- Sync promptly on startup, foreground/unlock with network restoration and book exit, after reading/narration positions are saved. Persist unfinished requests for automatic retry, while retaining Jianguoyun rate/cooldown protection and Wi-Fi-only preferences.
 - ZIP database backup export/import with a visible save location.
 - Backup includes local books, covers, notes, reading records, AI chat history and general settings.
 - Sensitive service settings are excluded by default; backup export can optionally include them with encryption.
 
-![Sync and backup controls on iPhone, with restored reading progress and annotation on Mac](docs/images/showcase/cross-platform/sync-en.png)
+![Sync and backup controls on iPhone, with restored narration position and highlight paused on Mac](docs/images/showcase/cross-platform/sync-en.png)
 
 <details>
 <summary>Restore behavior and sync security</summary>

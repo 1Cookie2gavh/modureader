@@ -55,6 +55,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   bool _interruptionActive = false;
   Object? _interruptionResume;
   Future<void>? _pendingPause;
+  bool _restoredSession = false;
 
   bool get _chinese =>
       (Prefs().locale ?? WidgetsBinding.instance.platformDispatcher.locale)
@@ -111,6 +112,35 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         playbackState.value, tts.ttsStateNotifier.value,
         chinese: _chinese, buffering: tts.bufferingNotifier.value));
     if (tts.ttsStateNotifier.value != TtsStateEnum.stopped) _refreshMetadata();
+    unawaited(epubPlayerKey.currentState
+        ?.recordNarrationState(tts.ttsStateNotifier.value));
+  }
+
+  /// Rebuild only the speech cursor and highlight. Never synthesize or play.
+  Future<void> restorePaused(String cfi) async {
+    final reader = epubPlayerKey.currentState;
+    if (reader == null) return;
+    final command = ++_transportCommand;
+    await init(() async => (await reader.ttsCurrentDetail())?.text ?? '',
+        reader.ttsNext, reader.ttsPrev);
+    final text = await reader.initTts(fromCfi: cfi);
+    if (command != _transportCommand ||
+        !reader.mounted ||
+        epubPlayerKey.currentState != reader ||
+        text.trim().isEmpty) {
+      return;
+    }
+    _restoredSession = true;
+    _publishMetadata(ttsMediaItem(
+      bookId: reader.book.id.toString(),
+      title: reader.book.title,
+      author: reader.book.author,
+      chapter: reader.chapterTitle,
+      coverPath: reader.book.coverFullPath,
+      state: TtsStateEnum.paused,
+      chinese: _chinese,
+    ));
+    tts.updateTtsState(TtsStateEnum.paused);
   }
 
   Future<void> init(Function getCurrentText, Function getNextText,
@@ -240,7 +270,8 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final command = ++_transportCommand;
     final reader = epubPlayerKey.currentState;
     final previous = mediaItem.value;
-    final resuming = backend.ttsStateNotifier.value == TtsStateEnum.paused &&
+    final resuming = !_restoredSession &&
+        backend.ttsStateNotifier.value == TtsStateEnum.paused &&
         previous != null &&
         (reader == null || previous.id == reader.book.id.toString());
     AnxLog.info('TTS transport play: resume=$resuming, '
@@ -316,7 +347,9 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       updatePosition: Duration.zero,
       bufferedPosition: Duration.zero,
     ));
-    final resume = backend.ttsStateNotifier.value == TtsStateEnum.paused;
+    final resume = !_restoredSession &&
+        backend.ttsStateNotifier.value == TtsStateEnum.paused;
+    _restoredSession = false;
     backend.updateTtsState(TtsStateEnum.playing);
     // A media command must finish promptly, not hold its response open until
     // an entire book has finished. Later pause/stop remains authoritative.
@@ -371,6 +404,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> stop() async {
+    _restoredSession = false;
     _interruptionResume = null;
     ++_transportCommand;
     _interruptionActive = false;

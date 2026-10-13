@@ -597,4 +597,32 @@ export class TTS {
         if (!range || this.#locationOf(range) !== cfi) return null
         return this.#resultFrom(entry, { highlight: true })
     }
+
+    // Presentation-only progress: never advance the speech/prefetch iterator.
+    progressRange({ fraction, offset } = {}) {
+        const entry = this.#list.current()
+        const range = this.#partial && entry?.[1] === this.#partial.original
+            ? this.#partial.range : entry?.[1]
+        if (!range) return null
+        const length = getRangeText(range, this.#textFilter).length
+        let remaining = Number.isInteger(offset) ? offset
+            : Number.isFinite(fraction) ? Math.floor(length * fraction) : -1
+        if (remaining < 0 || !length) return null
+        remaining = Math.min(remaining, length - 1)
+        const root = range.commonAncestorContainer
+        const walker = this.doc.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+        for (let node = root.nodeType === 3 ? root : walker.nextNode(); node; node = walker.nextNode()) {
+            if (!range.intersectsNode(node) || this.#textFilter(node)) continue
+            const start = node === range.startContainer ? range.startOffset : 0
+            const end = node === range.endContainer ? range.endOffset : node.length
+            if (remaining >= end - start) { remaining -= end - start; continue }
+            const result = range.cloneRange()
+            let index = start + remaining
+            if (index > start && /[\uDC00-\uDFFF]/.test(node.data[index]) &&
+                /[\uD800-\uDBFF]/.test(node.data[index - 1])) index--
+            result.setStart(node, index)
+            return result
+        }
+        return null
+    }
 }

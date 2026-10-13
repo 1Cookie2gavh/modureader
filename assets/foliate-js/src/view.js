@@ -822,6 +822,43 @@ export class View extends HTMLElement {
         void this.syncTTSHighlight()
     }
   }
+  reportTTSProgress(index, range, cfi) {
+    const doc = range.startContainer.ownerDocument
+    const prefix = doc.createRange()
+    prefix.selectNodeContents(doc.body)
+    prefix.setEnd(range.startContainer, range.startOffset)
+    const fraction = Math.min(1, prefix.toString().length / Math.max(1, doc.body.textContent.length))
+    const progress = this.#sectionProgress?.getProgress(index, fraction) ?? {}
+    this.#emit('tts-progress', { cfi, fraction: progress.fraction })
+  }
+  followTTSProgress({ cfi, text, fraction, offset }) {
+    const tts = this.tts
+    const detail = tts?.currentDetail()
+    if (!detail || (cfi && cfi !== detail.cfi) || (text && text !== detail.text)) return false
+    const range = tts.progressRange({ fraction, offset })
+    if (!range) return false
+    const value = this.getCFI(tts.sectionIndex, range)
+    this.#ttsPresentation = { cfi: value, tts }
+    this.reportTTSProgress(tts.sectionIndex, range, value)
+    // Same-page audio ticks do not scroll or redraw the highlight. A range can
+    // span pages; compare its START with the visible range, not its whole end.
+    const visible = this.lastLocation?.range
+    try {
+      const resolved = this.resolveNavigation(value)
+      const doc = visible?.startContainer.ownerDocument
+      const content = this.renderer.getContents().find(x => x.index === tts.sectionIndex)
+      if (doc && content?.doc === doc) {
+        const point = resolved.anchor(doc).cloneRange()
+        point.collapse(true)
+        const end = visible.cloneRange()
+        end.collapse(false)
+        if (point.compareBoundaryPoints(0, visible) >= 0 &&
+            point.compareBoundaryPoints(0, end) < 0) return true
+      }
+    } catch (_) { /* Different chapter documents: follow via its stable CFI. */ }
+    void this.syncTTSHighlight()
+    return true
+  }
   initTTS(stop, { force = false, content, detached = false } = {}) {
     if (stop) {
       this.#ttsDocuments.clear()
@@ -852,14 +889,7 @@ export class View extends HTMLElement {
         this.#emit('tts-chapter', { index, chapterTitle })
         // Persist the speech cursor even when no visible page is being laid
         // out. Percent is text-based here; the CFI remains the exact position.
-        if (this.ttsBackground || document.hidden || detached) {
-          const prefix = doc.createRange()
-          prefix.selectNodeContents(doc.body)
-          prefix.setEnd(range.startContainer, range.startOffset)
-          const fraction = Math.min(1, prefix.toString().length / Math.max(1, doc.body.textContent.length))
-          const progress = this.#sectionProgress?.getProgress(index, fraction) ?? {}
-          this.#emit('tts-progress', { cfi: value, fraction: progress.fraction })
-        }
+        this.reportTTSProgress(index, range, value)
         void this.syncTTSHighlight()
         return value;
       },

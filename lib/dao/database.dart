@@ -14,7 +14,7 @@ import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Current app database version
-const int currentDbVersion = 8;
+const int currentDbVersion = 9;
 
 const createBookSQL = '''
 CREATE TABLE tb_books (
@@ -478,6 +478,7 @@ class DBHelper {
     }
 
     if (oldVersion < 8) await RowSyncStore.install(db);
+    if (oldVersion < 9) await RowSyncStore.installNarration(db);
 
     if (oldVersion != 0 && Prefs().webdavStatus) {
       updatedDB = true;

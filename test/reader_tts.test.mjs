@@ -407,6 +407,65 @@ function backgroundReader(chapters) {
   const nav = new TtsNavigator(() => view)
   return {view, nav, get loads() { return loads }}
 }
+test('foreground narration reports its exact highlight without waiting for a page turn', async () => {
+  const {view, nav} = backgroundReader(['<p>第一句。</p><p>第二句。</p>'])
+  view.ttsBackground = false
+  await nav.start()
+  assert.equal(view.progressEvents.length, 1)
+  assert.equal(view.progressEvents[0].cfi, '0:第一句。')
+  view.collectTTSDetails(4, {includeCurrent:true})
+  assert.equal(view.progressEvents.length, 1)
+  await nav.move(1)
+  assert.equal(view.progressEvents.at(-1).cfi, '0:第二句。')
+  assert.ok(Number.isFinite(view.progressEvents.at(-1).fraction))
+})
+
+test('speech progress ranges retain inline markup, skip notes and never move the audio cursor', () => {
+  const doc = documentFor('<p>前页<b>文字</b><a epub:type="noteref">1</a>后页😀正文。</p>')
+  const tts = new TTS(doc, null, null, range => range.toString(), {paragraphMode:true})
+  const text = tts.start()
+  const original = tts.currentDetail()
+  assert.equal(text, '前页文字后页😀正文。')
+  assert.equal(tts.progressRange({offset:4}).toString(), '后页😀正文。')
+  assert.equal(tts.progressRange({offset:7}).toString(), '😀正文。')
+  assert.equal(tts.progressRange({fraction:0}).startOffset, 0)
+  assert.equal(tts.progressRange({fraction:NaN}), null)
+  assert.deepEqual(tts.currentDetail(), original)
+  assert.equal(tts.resume(), text)
+})
+
+for (const visibleCharacters of [8, 40, 120]) {
+  test(`mid-paragraph following uses actual visible text boundary (${visibleCharacters} chars)`, async () => {
+    const doc = documentFor('<p>' + '长段正文'.repeat(80) + '。</p>')
+    const view = new SpeechView()
+    const node = doc.querySelector('p').firstChild
+    const rangeAt = (start, end=node.length) => {
+      const range=doc.createRange(); range.setStart(node,start); range.setEnd(node,end); return range
+    }
+    view.book={sections:[{}]}
+    view.getCFI=(_,range)=>String(range.startOffset)
+    view.resolveNavigation=cfi=>({index:0,anchor:()=>rangeAt(Number(cfi))})
+    let turns=0
+    view.renderer={getContents:()=>[{index:0,doc}], pinTtsSection(){},
+      async scrollToAnchor(range) { turns++; view.lastLocation={range:rangeAt(range.startOffset,Math.min(node.length,range.startOffset+visibleCharacters))} }}
+    view.initTTS(false)
+    view.tts.start()
+    await new Promise(resolve=>setImmediate(resolve))
+    view.lastLocation={range:rangeAt(0,visibleCharacters)}
+    turns=0
+    const cfi=view.tts.currentDetail().cfi
+    assert.equal(view.followTTSProgress({cfi,offset:visibleCharacters-1}),true)
+    assert.equal(turns,0)
+    assert.equal(view.followTTSProgress({cfi,offset:visibleCharacters+1}),true)
+    await new Promise(resolve=>setImmediate(resolve))
+    assert.equal(turns,1)
+    view.followTTSProgress({cfi,offset:visibleCharacters+2})
+    assert.equal(turns,1)
+    assert.equal(view.followTTSProgress({cfi:'stale',offset:200}),false)
+    assert.equal(view.tts.currentDetail().cfi,cfi)
+  })
+}
+
 test('chapter text is warmed before the boundary; a suspended new ZIP read is unnecessary', async () => {
   const {view, nav} = backgroundReader(['<p>当前段。</p><p>末段。</p>', '<h1>第二章</h1><p>正文。</p>'])
   let reads = 0

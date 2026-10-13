@@ -161,7 +161,8 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
       }
     }
     output.add(RowSyncRecord(
-        record.kind, id, record.clock, record.revision, record.deleted, data));
+        record.kind, id, record.clock, record.revision, record.deleted, data,
+        narration: record.narration));
   }
   for (final id in members) {
     final canonical = root(id);

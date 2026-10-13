@@ -1,6 +1,7 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:io';
+import 'package:anx_reader/service/ios_linked_books.dart';
 import 'dart:math';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -275,10 +276,11 @@ class BookBottomSheet extends ConsumerWidget {
 
         // Delete old file if path is different
         if (book.fileFullPath != newDestPath) {
-          final oldFile = File(book.fileFullPath);
+          final oldFile = File(getBasePath(book.filePath));
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
+          await IosLinkedBooks.forget(book.filePath);
         }
 
         // Clean up temporary file if text conversion happened
@@ -440,7 +442,10 @@ class BookBottomSheet extends ConsumerWidget {
                   L10n.of(context).bookBottomSheetReplaceFile),
               entry(BookAction.release, EvaIcons.cloud_upload,
                   L10n.of(context).bookSyncStatusReleaseSpace,
-                  enabled: local && Prefs().webdavStatus && !active),
+                  enabled: local &&
+                      Prefs().webdavStatus &&
+                      !active &&
+                      !IosLinkedBooks.isLinked(book.filePath)),
               const PopupMenuDivider(),
               entry(BookAction.delete, Icons.delete_outline,
                   L10n.of(context).commonDelete),

@@ -597,6 +597,8 @@ export const makePDF = async file => {
     book.extractPageText = request => extractPdfText(pdf, request)
     // Preview/editor requests must not cancel the visible reading surface.
     book.readingRegionRenderer = createPdfRegionRenderer(pdf)
+    // Prepared scroll pages must not cancel the visible high-resolution strip.
+    book.scrollRegionRenderer = createPdfRegionRenderer(pdf)
     book.cropRegionRenderer = createPdfRegionRenderer(pdf)
 
     const info = (await pdf.getMetadata())?.info
@@ -640,6 +642,7 @@ export const makePDF = async file => {
         book.documentAnalysis.clear()
         book.regionRenderer.clear()
         book.readingRegionRenderer.clear()
+        book.scrollRegionRenderer.clear()
         book.cropRegionRenderer.clear()
     }
     book.sections = Array.from({ length: pdf.numPages }).map((_, i) => ({
