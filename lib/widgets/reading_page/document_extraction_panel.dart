@@ -11,7 +11,7 @@ import 'package:anx_reader/service/ocr/ocr_models.dart';
 import 'package:anx_reader/service/ocr/document_page_range.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'document_reader_surface.dart';
+import 'document_panel_widgets.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'document_text_style_dialog.dart';
 
@@ -33,13 +33,7 @@ class DocumentExtractionPanel extends StatefulWidget {
       this.recognize,
       this.initialTextStyle = const DocumentTextStyle(),
       this.saveTextStyle,
-      this.brightness,
-      this.narrationBuilder,
-      this.stopNarration,
       this.forceOcr = false});
-  final Widget? brightness;
-  final Widget Function(String text)? narrationBuilder;
-  final Future<void> Function()? stopNarration;
   final Future<Map<String, dynamic>> Function(int?) info;
   final DocumentRequest render, extractText;
   final VoidCallback cancelRender;
@@ -57,8 +51,6 @@ class DocumentExtractionPanel extends StatefulWidget {
 class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   late final OcrModelStore _store = widget.modelStore ??
       OcrModelStore(model: OcrModels.byId(Prefs().ocrModelId));
-  final _surfaceKey = GlobalKey<DocumentReaderSurfaceState>();
-  bool _narrationOpened = false;
   final _textScroll = ScrollController();
   final _pageRange = TextEditingController();
   final _results = <int, String>{};
@@ -71,7 +63,18 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   double _aspect = 1;
   late DocumentTextStyle _textStyle = widget.initialTextStyle;
 
-  void _editTextStyle() => _surfaceKey.currentState?.openMenu('style');
+  Future<void> _editTextStyle() async {
+    final value = await showDialog<DocumentTextStyle>(
+        animationStyle: AppMotion.style,
+        context: context,
+        builder: (_) => DocumentTextStyleDialog(
+            initial: _textStyle,
+            save: (style) async {
+              await widget.saveTextStyle?.call(style);
+              if (mounted) setState(() => _textStyle = style);
+            }));
+    if (mounted && value != null) setState(() => _textStyle = value);
+  }
 
   Rect _region = const Rect.fromLTWH(.1, .1, .8, .8);
   bool _wholePage = false, _forceOcr = false, _busy = false;
@@ -92,7 +95,6 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
 
   @override
   void dispose() {
-    if (_narrationOpened) widget.stopNarration?.call();
     _generation++;
     _ocr?.cancel();
     _download?.cancel();
@@ -158,7 +160,6 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
       if (mounted && generation == _generation) {
         setState(() => _error =
             t('页面加载失败，请重试', 'Could not load this page. Please retry.'));
-        _surfaceKey.currentState?.openMenu('tools', toggle: false);
       }
     } finally {
       if (mounted && generation == _generation) setState(() => _busy = false);
@@ -189,12 +190,6 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   Future<void> _navigate(int direction) async {
     final page = _adjacentPage(direction);
     if (_busy || page == null) return;
-    if (_narrationOpened) {
-      _surfaceKey.currentState?.closeMenu();
-      await widget.stopNarration?.call();
-      if (!mounted) return;
-      _narrationOpened = false;
-    }
     final previewText = _reflow;
     if (await _load(page, keepResults: previewText)) {
       if (previewText && _result == null) {
@@ -202,16 +197,6 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
       }
       if (_textScroll.hasClients) _textScroll.jumpTo(0);
     }
-  }
-
-  Future<void> _toggleResult() async {
-    if (_narrationOpened) {
-      await widget.stopNarration?.call();
-      if (!mounted) return;
-      _narrationOpened = false;
-    }
-    _surfaceKey.currentState?.closeMenu();
-    setState(() => _reflow = !_reflow);
   }
 
   String get _draft => _multiple
@@ -323,7 +308,6 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
           if (!await _store.available()) {
             if (mounted && !cancel.cancelled) {
               setState(() => _needsModel = true);
-              _surfaceKey.currentState?.openMenu('tools', toggle: false);
             }
             return;
           }
@@ -357,14 +341,12 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         Navigator.of(context).pop(_draft);
       } else {
         setState(() => _reflow = true);
-        _surfaceKey.currentState?.closeMenu();
         if (_textScroll.hasClients) _textScroll.jumpTo(0);
       }
     } catch (_) {
       if (mounted && !cancel.cancelled) {
         setState(() => _error = t('提取失败，请缩小区域重试；如模型损坏，可重新下载。',
             'Extraction failed. Try a smaller region or download the model again.'));
-        _surfaceKey.currentState?.openMenu('tools', toggle: false);
       }
     } finally {
       _ocr = null;
@@ -382,230 +364,239 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   }
 
   @override
-  Widget build(BuildContext context) => DocumentReaderSurface(
-        key: _surfaceKey,
-        brightness: widget.brightness,
-        narration: _reflow &&
-                _result?.trim().isNotEmpty == true &&
-                widget.narrationBuilder != null
-            ? Builder(builder: (_) {
-                _narrationOpened = true;
-                return widget.narrationBuilder!(_result!);
-              })
-            : null,
-        header: Row(children: [
-          IconButton(
-              tooltip: t('关闭', 'Close'),
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.pop(context)),
-          Expanded(
-              child: Text(t('提取文字', 'Extract text'),
-                  style: const TextStyle(fontSize: 22))),
-          IconButton(
-              tooltip: t('OCR 文字样式', 'OCR text style'),
-              onPressed: _editTextStyle,
-              icon: const Icon(Icons.settings)),
-        ]),
-        style: DocumentTextStyleDialog(
-            initial: _textStyle,
-            embedded: true,
-            save: (style) async {
-              await widget.saveTextStyle?.call(style);
-              if (mounted) setState(() => _textStyle = style);
-            }),
-        body: Column(children: [
-          Expanded(
-              child: _reflow && _result != null
-                  ? SingleChildScrollView(
-                      controller: _textScroll,
-                      padding: EdgeInsets.symmetric(
-                          vertical: 20, horizontal: _textStyle.margin),
-                      child: SelectableText(
-                          _result!.trim().isEmpty
-                              ? t('此页未识别到文字', 'No text found on this page')
-                              : _result!,
-                          textAlign: _textStyle.alignment,
-                          style: _textStyle.textStyle))
-                  : _preview == null
-                      ? Center(
-                          child: _busy
-                              ? const EinkStaticIndicator(
-                                  child: CircularProgressIndicator())
-                              : TextButton(
-                                  onPressed: () => _load(null),
-                                  child: Text(t('重新加载', 'Reload'))))
-                      : LayoutBuilder(builder: (context, c) {
-                          final width =
-                              math.min(c.maxWidth, c.maxHeight * _aspect);
-                          return Center(
-                              child: SizedBox(
-                                  width: width,
-                                  height: width / _aspect,
-                                  child: DocumentRegionSelector(
-                                      image: _image!,
-                                      region: _region,
-                                      enabled:
-                                          !_busy && !_wholePage && !_multiple,
-                                      showRegion: !_wholePage && !_multiple,
-                                      onChanged: (r) => setState(() {
-                                            _region = r;
-                                            _clearResults();
-                                          }))));
-                        })),
-          if (_busy)
-            EinkStaticIndicator(
-                child: LinearProgressIndicator(value: _progress)),
-        ]),
-        navigation: Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(
-                  tooltip: t('上一页', 'Previous page'),
-                  onPressed: !_busy && _adjacentPage(-1) != null
-                      ? () => _navigate(-1)
-                      : null,
-                  icon: const Icon(Icons.chevron_left)),
-              Text('${_page + 1} / $_total'),
-              IconButton(
-                  tooltip: t('下一页', 'Next page'),
-                  onPressed: !_busy && _adjacentPage(1) != null
-                      ? () => _navigate(1)
-                      : null,
-                  icon: const Icon(Icons.chevron_right)),
-              if (_result != null)
-                TextButton(
-                    onPressed: _busy ? null : _toggleResult,
-                    child: Text(_reflow
-                        ? t('原版', 'Original')
-                        : t('提取结果', 'Extracted text'))),
-            ]),
-        tools: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(t('文字识别', 'Text recognition'),
-              style: Theme.of(context).textTheme.titleLarge),
-          if (_multiple && _batchPages.isNotEmpty)
-            Text(t('已完成 ${_results.length} / ${_batchPages.length} 页',
-                '${_results.length} / ${_batchPages.length} pages completed')),
-          if (_busy && _activePage != null)
-            Text(t('正在提取第 ${_activePage! + 1} 页',
-                'Extracting page ${_activePage! + 1}')),
-          if (_reflow) ...[
-            Text(t('核对提取结果后填入 AI 输入框，不会自动发送。',
-                'Review the extracted text before filling the AI draft. It is not sent automatically.')),
-          ] else ...[
-            Wrap(spacing: 8, children: [
-              ChoiceChip(
-                  label: Text(t('区域识别', 'Selected area')),
-                  selected: !_wholePage && !_multiple,
-                  onSelected: _busy
-                      ? null
-                      : (_) => setState(() {
-                            _wholePage = false;
-                            _multiple = false;
-                            _clearResults();
-                          })),
-              ChoiceChip(
-                  label: Text(t('整页识别', 'Whole page')),
-                  selected: _wholePage && !_multiple,
-                  onSelected: _busy
-                      ? null
-                      : (_) => setState(() {
-                            _wholePage = true;
-                            _multiple = false;
-                            _clearResults();
-                          })),
-              ChoiceChip(
-                  label: Text(t('连续识别', 'Multiple pages')),
-                  selected: _multiple,
-                  onSelected: _busy
-                      ? null
-                      : (_) => setState(() {
-                            _multiple = true;
-                            _clearResults();
-                          })),
-            ]),
-            if (_multiple)
-              TextField(
-                key: const ValueKey('extraction-page-range'),
-                controller: _pageRange,
-                enabled: !_busy,
-                maxLength: 512,
-                decoration: InputDecoration(
-                  labelText: t('页码范围', 'Page range'),
-                  hintText: '1-5,8,10-12',
-                  helperText: t('使用文档页码（共 $_total 页），逗号分隔',
-                      'Document page numbers ($_total total), separated by commas'),
-                  counterText: '',
-                ),
-                onChanged: (_) => setState(_clearResults),
-              ),
-            if (!_wholePage && !_multiple)
-              Text(t('拖动框内移动区域，拖动四角调整大小',
-                  'Drag inside to move; drag a corner to resize.')),
-            SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(t('强制 OCR', 'Force OCR')),
-                subtitle: Text(t('默认优先使用文字层；识别在本机进行',
-                    'Prefer embedded text by default; OCR runs on this device.')),
-                value: _forceOcr,
-                onChanged: _busy
-                    ? null
-                    : (v) => setState(() {
-                          _forceOcr = v;
-                          _clearResults();
-                        })),
-          ],
-          if (_needsModel)
+  Widget build(BuildContext context) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: 1000,
+          height: MediaQuery.sizeOf(context).height * .9,
+          child: DocumentPanelTheme(
+              child: Column(children: [
             Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(t(
-                    '此区域需要 OCR。请先下载已选模型，再点击提取。可在设置 → OCR 模型中选择模型及下载源；识别在本机进行，不上传书页。',
-                    'OCR is needed. Download the selected model, then extract again. Choose a model and source in Settings → OCR model. Recognition stays on this device; book pages are not uploaded.'))),
-          if (_error != null)
-            Text(
-                _activePage == null
-                    ? _error!
-                    : '${t('第 ${_activePage! + 1} 页', 'Page ${_activePage! + 1}')} · $_error',
-                style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              alignment: WrapAlignment.center,
-              children: [
-                if (_busy)
-                  OutlinedButton(onPressed: _stop, child: Text(t('停止', 'Stop')))
-                else ...[
-                  if (_needsModel || _error != null)
-                    OutlinedButton(
-                        onPressed: _downloadModel,
-                        child: Text(t(
-                            '下载 / 修复 OCR 模型', 'Download / repair OCR model'))),
-                  if (!_reflow || !_complete)
-                    OutlinedButton(
-                        onPressed: _preview == null
-                            ? null
-                            : () => _startExtraction(toAi: false),
-                        child: Text(t('预览提取结果', 'Preview extracted text'))),
-                  FilledButton.icon(
-                      onPressed: _preview == null ||
-                              (_complete && _draft.trim().isEmpty)
-                          ? null
-                          : () {
-                              if (_complete) {
-                                Navigator.pop(context, _draft);
-                              } else {
-                                _startExtraction(toAi: true);
-                              }
-                            },
-                      icon: const Icon(Icons.edit_note),
-                      label: Text(t('提取至 AI 输入框', 'Extract to AI draft'))),
-                ],
-              ]),
-          Text(
-              t('填入后由你确认发送。OCR：PP-OCRv4 / RapidOCR · Apache-2.0',
-                  'Review before sending. OCR: PP-OCRv4 / RapidOCR · Apache-2.0'),
-              style: Theme.of(context).textTheme.bodySmall),
-        ]),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(children: [
+                  Expanded(
+                      child: Text(t('提取文字', 'Extract text'),
+                          style: Theme.of(context).textTheme.titleLarge)),
+                  IconButton(
+                      tooltip: t('OCR 文字样式', 'OCR text style'),
+                      onPressed: _busy ? null : _editTextStyle,
+                      icon: const Icon(Icons.settings)),
+                  IconButton(
+                      tooltip: t('关闭', 'Close'),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close)),
+                ])),
+            Expanded(
+                child: _reflow && _result != null
+                    ? SingleChildScrollView(
+                        controller: _textScroll,
+                        padding: EdgeInsets.symmetric(
+                            vertical: 20, horizontal: _textStyle.margin),
+                        child: SelectableText(
+                            _result!.trim().isEmpty
+                                ? t('此页未识别到文字', 'No text found on this page')
+                                : _result!,
+                            textAlign: _textStyle.alignment,
+                            style: _textStyle.textStyle))
+                    : _preview == null
+                        ? Center(
+                            child: _busy
+                                ? const EinkStaticIndicator(
+                                    child: CircularProgressIndicator())
+                                : TextButton(
+                                    onPressed: () => _load(null),
+                                    child: Text(t('重新加载', 'Reload'))))
+                        : LayoutBuilder(builder: (context, c) {
+                            final width =
+                                math.min(c.maxWidth, c.maxHeight * _aspect);
+                            return Center(
+                                child: SizedBox(
+                                    width: width,
+                                    height: width / _aspect,
+                                    child: DocumentRegionSelector(
+                                        image: _image!,
+                                        region: _region,
+                                        enabled:
+                                            !_busy && !_wholePage && !_multiple,
+                                        showRegion: !_wholePage && !_multiple,
+                                        onChanged: (r) => setState(() {
+                                              _region = r;
+                                              _clearResults();
+                                            }))));
+                          })),
+            if (_busy)
+              EinkStaticIndicator(
+                  child: LinearProgressIndicator(value: _progress)),
+            // The controls stay scrollable on phones and at large accessibility sizes.
+            ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * .43),
+                child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            IconButton(
+                                tooltip: t('上一页', 'Previous page'),
+                                onPressed: !_busy && _adjacentPage(-1) != null
+                                    ? () => _navigate(-1)
+                                    : null,
+                                icon: const Icon(Icons.chevron_left)),
+                            Text('${_page + 1} / $_total'),
+                            IconButton(
+                                tooltip: t('下一页', 'Next page'),
+                                onPressed: !_busy && _adjacentPage(1) != null
+                                    ? () => _navigate(1)
+                                    : null,
+                                icon: const Icon(Icons.chevron_right)),
+                            if (_result != null)
+                              TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () =>
+                                          setState(() => _reflow = !_reflow),
+                                  child: Text(_reflow
+                                      ? t('原版', 'Original')
+                                      : t('提取结果', 'Extracted text'))),
+                          ]),
+                      if (_multiple && _batchPages.isNotEmpty)
+                        Text(t(
+                            '已完成 ${_results.length} / ${_batchPages.length} 页',
+                            '${_results.length} / ${_batchPages.length} pages completed')),
+                      if (_busy && _activePage != null)
+                        Text(t('正在提取第 ${_activePage! + 1} 页',
+                            'Extracting page ${_activePage! + 1}')),
+                      if (_reflow) ...[
+                        TextButton.icon(
+                            onPressed: _busy ? null : _editTextStyle,
+                            icon: const Icon(Icons.settings),
+                            label: Text(t('OCR 文字样式', 'OCR text style'))),
+                        Text(t('核对提取结果后填入 AI 输入框，不会自动发送。',
+                            'Review the extracted text before filling the AI draft. It is not sent automatically.')),
+                      ] else ...[
+                        Wrap(spacing: 8, children: [
+                          ChoiceChip(
+                              label: Text(t('区域识别', 'Selected area')),
+                              selected: !_wholePage && !_multiple,
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(() {
+                                        _wholePage = false;
+                                        _multiple = false;
+                                        _clearResults();
+                                      })),
+                          ChoiceChip(
+                              label: Text(t('整页识别', 'Whole page')),
+                              selected: _wholePage && !_multiple,
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(() {
+                                        _wholePage = true;
+                                        _multiple = false;
+                                        _clearResults();
+                                      })),
+                          ChoiceChip(
+                              label: Text(t('连续识别', 'Multiple pages')),
+                              selected: _multiple,
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(() {
+                                        _multiple = true;
+                                        _clearResults();
+                                      })),
+                        ]),
+                        if (_multiple)
+                          TextField(
+                            key: const ValueKey('extraction-page-range'),
+                            controller: _pageRange,
+                            enabled: !_busy,
+                            maxLength: 512,
+                            decoration: InputDecoration(
+                              labelText: t('页码范围', 'Page range'),
+                              hintText: '1-5,8,10-12',
+                              helperText: t('使用文档页码（共 $_total 页），逗号分隔',
+                                  'Document page numbers ($_total total), separated by commas'),
+                              counterText: '',
+                            ),
+                            onChanged: (_) => setState(_clearResults),
+                          ),
+                        if (!_wholePage && !_multiple)
+                          Text(t('拖动框内移动区域，拖动四角调整大小',
+                              'Drag inside to move; drag a corner to resize.')),
+                        SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(t('强制 OCR', 'Force OCR')),
+                            subtitle: Text(t('默认优先使用文字层；识别在本机进行',
+                                'Prefer embedded text by default; OCR runs on this device.')),
+                            value: _forceOcr,
+                            onChanged: _busy
+                                ? null
+                                : (v) => setState(() {
+                                      _forceOcr = v;
+                                      _clearResults();
+                                    })),
+                      ],
+                      if (_needsModel)
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(t(
+                                '此区域需要 OCR。请先下载已选模型，再点击提取。可在设置 → OCR 模型中选择模型及下载源；识别在本机进行，不上传书页。',
+                                'OCR is needed. Download the selected model, then extract again. Choose a model and source in Settings → OCR model. Recognition stays on this device; book pages are not uploaded.'))),
+                      if (_error != null)
+                        Text(
+                            _activePage == null
+                                ? _error!
+                                : '${t('第 ${_activePage! + 1} 页', 'Page ${_activePage! + 1}')} · $_error',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.error)),
+                      Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            if (_busy)
+                              OutlinedButton(
+                                  onPressed: _stop,
+                                  child: Text(t('停止', 'Stop')))
+                            else ...[
+                              if (_needsModel || _error != null)
+                                OutlinedButton(
+                                    onPressed: _downloadModel,
+                                    child: Text(t('下载 / 修复 OCR 模型',
+                                        'Download / repair OCR model'))),
+                              if (!_reflow || !_complete)
+                                OutlinedButton(
+                                    onPressed: _preview == null
+                                        ? null
+                                        : () => _startExtraction(toAi: false),
+                                    child: Text(
+                                        t('预览提取结果', 'Preview extracted text'))),
+                              FilledButton.icon(
+                                  onPressed: _preview == null ||
+                                          (_complete && _draft.trim().isEmpty)
+                                      ? null
+                                      : () {
+                                          if (_complete) {
+                                            Navigator.pop(context, _draft);
+                                          } else {
+                                            _startExtraction(toAi: true);
+                                          }
+                                        },
+                                  icon: const Icon(Icons.edit_note),
+                                  label: Text(
+                                      t('提取至 AI 输入框', 'Extract to AI draft'))),
+                            ],
+                          ]),
+                      Text(
+                          t('填入后由你确认发送。OCR：PP-OCRv4 / RapidOCR · Apache-2.0',
+                              'Review before sending. OCR: PP-OCRv4 / RapidOCR · Apache-2.0'),
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ]))),
+          ])),
+        ),
       );
 }
 

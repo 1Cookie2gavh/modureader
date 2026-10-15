@@ -3,7 +3,7 @@ import 'package:anx_reader/widgets/settings/qq_community.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Community entry points in About; feedback forms deliberately omit contacts.
+/// Shared community entry points in About and Bug reports / Feature requests.
 class CommunityLinks extends StatelessWidget {
   const CommunityLinks({super.key});
 

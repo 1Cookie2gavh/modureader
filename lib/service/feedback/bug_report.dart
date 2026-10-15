@@ -1,6 +1,6 @@
 enum FeedbackType { bug, feature }
 
-/// Only user-entered text and selected, previewed diagnostics.
+/// Only user-entered text and explicitly selected, previewed diagnostics.
 /// Preparing a report never submits it or reads preferences/library data.
 abstract class FeedbackReport {
   const FeedbackReport();
@@ -20,14 +20,11 @@ abstract class FeedbackReport {
   Uri get templateUri;
   Uri get prefilledUri;
   String? get crashLog => null;
-  String? get runtimeLog => null;
 
   // Be conservative across desktop/mobile URL handlers. Never truncate text.
   // Diagnostic text must not enter URLs/browser history, even when short.
   bool get needsClipboard =>
-      crashLog != null ||
-      runtimeLog != null ||
-      prefilledUri.toString().length > 1800;
+      crashLog != null || prefilledUri.toString().length > 1800;
 }
 
 class BugReport extends FeedbackReport {
@@ -40,7 +37,6 @@ class BugReport extends FeedbackReport {
     this.additional = '',
     this.environment,
     this.crashLog,
-    this.runtimeLog,
   });
 
   static const repository = FeedbackReport.repository;
@@ -59,8 +55,6 @@ class BugReport extends FeedbackReport {
   final String? environment;
   @override
   final String? crashLog;
-  @override
-  final String? runtimeLog;
 
   @override
   FeedbackType get type => FeedbackType.bug;
@@ -83,7 +77,7 @@ ${steps.trim()}
 
 ${actual.trim().isEmpty ? '' : '## Actual behavior / 实际结果\n${actual.trim()}\n\n'}## Expected behavior / 预期行为
 ${expected.trim()}
-${environment == null ? '' : '\n## Environment / 运行环境\n$environment\n'}${additional.trim().isEmpty ? '' : '\n## Additional context / 补充信息\n${additional.trim()}\n'}${crashLog == null ? '' : '\n## Crash diagnostics / 崩溃诊断日志\n$crashLog\n'}${runtimeLog == null ? '' : '\n## Runtime diagnostics / 运行日志\n$runtimeLog\n'}''';
+${environment == null ? '' : '\n## Environment / 运行环境\n$environment\n'}${additional.trim().isEmpty ? '' : '\n## Additional context / 补充信息\n${additional.trim()}\n'}${crashLog == null ? '' : '\n## Crash diagnostics / 崩溃诊断日志\n$crashLog\n'}''';
 
   /// Match the field IDs in .github/ISSUE_TEMPLATE/bug-report.yaml. A `body`
   /// query alone does not prefill a YAML issue form's custom fields.

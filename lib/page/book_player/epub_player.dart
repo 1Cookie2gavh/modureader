@@ -1,5 +1,4 @@
 import 'package:anx_reader/utils/app_motion.dart';
-import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/service/book_player/document_type_store.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
@@ -607,7 +606,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         longPressSelectParagraph: ${Prefs().longPressSelectParagraph},
         selectionLocale: ${jsonEncode(Prefs().effectiveLocale.toLanguageTag())},
         scrollPagePercent: ${Prefs().scrollPagePercent},
-        continuousScroll: ${Prefs().continuousScroll},
         spacing: ${style.lineHeight},
         fontWeight: ${style.fontWeight},
         simulateBold: ${style.simulateBold},
@@ -696,11 +694,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     // Input distance only: do not restyle/reflow the chapter or move its CFI.
     webViewController.evaluateJavascript(
         source: 'window.setScrollPagePercent(${percent.clamp(80, 100)});');
-  }
-
-  void changeContinuousScroll(bool enabled) {
-    webViewController.evaluateJavascript(
-        source: 'changeStyle({continuousScroll: $enabled});');
   }
 
   void goToHref(String href) {
@@ -1543,8 +1536,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         callback: (args) {
           if (!mounted || args.isEmpty || args.first is! Map) return;
           final data = args.first as Map;
-          RuntimeDiagnostics.record(RuntimeEvent.reader,
-              state: data['state'] is String ? data['state'] as String : null);
           setState(() {
             _chapterLoading = data['state'] == 'loading';
             _chapterLoadFailed = data['state'] == 'failed';
@@ -1559,7 +1550,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         handlerName: 'onLoadEnd',
         callback: (args) async {
           if (!mounted) return;
-          RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'ready');
           setState(() {
             _readerReady = true;
             _readerLoadFailed = false;
@@ -2098,7 +2088,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   @override
   void initState() {
-    RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'create');
     if (widget.cfi?.startsWith(DocumentReflowAnchor.prefix) == true) {
       _pendingLinkedCfi = widget.cfi;
     }
@@ -2140,7 +2129,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     if (!mounted || _readerReady || _readerLoadFailed) return;
     setState(() => _readerLoadFailed = true);
     AnxLog.warning('Reader initial load failed');
-    RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'failed');
   }
 
   Future<void> _retryReaderChapter() async {
@@ -2159,7 +2147,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   @override
   void dispose() {
-    RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'dispose_pending');
     detachNarration();
     Prefs().removeListener(_configureEinkPreferences);
     _einkPageRefresh.dispose();

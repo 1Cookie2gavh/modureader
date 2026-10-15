@@ -1841,7 +1841,6 @@ const callFlutter = (name, data) => {
 }
 
 const setStyle = (oldStyle) => {
-  const previousCfi = reader.view.lastLocation?.cfi
   applyReaderMotion(document, style.eInkMode === true && style.eInkDisableAnimations !== false)
   document.documentElement.style.backgroundColor = style.backgroundColor
   const turn = {
@@ -1877,8 +1876,7 @@ const setStyle = (oldStyle) => {
   // Keep script-enabled / vertical books and note popups on the single-view
   // renderer: speculative documents must never execute author scripts.
   reader.view.renderer.setAttribute('continuous-scroll',
-    style.continuousScroll !== false && !style.allowScript &&
-      !style.writingMode?.startsWith('vertical') ? 'true' : 'false')
+    !style.allowScript && !style.writingMode?.startsWith('vertical') ? 'true' : 'false')
   reader.view.renderer.setAttribute('top-margin', `${style.topMargin}px`)
   reader.view.renderer.setAttribute('bottom-margin', `${style.bottomMargin}px`)
   reader.view.renderer.setAttribute('gap', `${style.sideMargin}%`)
@@ -1935,14 +1933,14 @@ const setStyle = (oldStyle) => {
   }
 
   if (oldStyle?.writingMode !== style.writingMode ||
-    (oldStyle?.continuousScroll !== style.continuousScroll && turn.scroll) ||
     oldStyle?.pageTurnStyle !== style.pageTurnStyle && [oldStyle?.pageTurnStyle, style.pageTurnStyle].includes('scroll')
   ) {
-    refreshLayout(previousCfi)
+    refreshLayout()
   }
 }
 
-const refreshLayout = (cfi = reader.view.lastLocation?.cfi) => {
+const refreshLayout = () => {
+  const cfi = reader.view.lastLocation?.cfi
   // Refresh in place; visiting the next chapter here used to publish a false
   // reading position and could move an active speech cursor.
   if (cfi) return reader.view.goTo(cfi, { recordHistory: false })

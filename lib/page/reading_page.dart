@@ -126,37 +126,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     _restoreReaderFocusAfterPanel();
   }
 
-  Widget _documentBrightness() => BrightnessWidget(
-      controller: AppBrightness.instance,
-      onNightModeChanged: () {
-        epubPlayerKey.currentState?.refreshReadingTheme();
-        if (mounted) setState(() {});
-      });
-
   Widget _buildDocumentReflow() {
     final player = epubPlayerKey.currentState!;
     final styles = DocumentTextStyleStore(Prefs().prefs);
     return DocumentReflowReader(
       key: _reflowKey,
-      brightness: _documentBrightness(),
-      narration: TtsWidget(epubPlayerKey: epubPlayerKey),
-      readerActions: [
-        IconButton(
-            icon: const Icon(Icons.toc),
-            tooltip: ModuStrings.text(context, '目录', 'Contents'),
-            onPressed: () {
-              reflowReader?.closeMenu();
-              tocHandler();
-            }),
-        IconButton(
-            icon: const Icon(EvaIcons.edit),
-            tooltip: ModuStrings.text(context, '笔记', 'Notes'),
-            onPressed: () {
-              reflowReader?.closeMenu();
-              showBottomBar();
-              noteHandler();
-            }),
-      ],
       store: DocumentReflowStore(player.cssBookKey),
       forceOcr: _reflowOcr!,
       anchor: _reflowAnchor,
@@ -834,11 +808,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> styleHandler() async {
-    if (isReflowReading) {
-      hideBottomBar();
-      reflowReader?.openStyleMenu();
-      return;
-    }
     List<ReadTheme> themes = await themeDao.selectThemes();
     if (!mounted || bottomBarOffstage) return;
     setState(() {
@@ -1141,14 +1110,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       return;
     }
     final textStyles = DocumentTextStyleStore(Prefs().prefs);
-    reflowReader?.closeMenu();
-    final text = await Navigator.of(context).push<String>(MaterialPageRoute(
-      builder: (_) => Scaffold(
-          body: DocumentExtractionPanel(
-        brightness: _documentBrightness(),
-        narrationBuilder: (text) =>
-            TtsWidget(epubPlayerKey: epubPlayerKey, extractedText: text),
-        stopNarration: () => audioHandler.stop(),
+    final text = await showDialog<String>(
+      animationStyle: AppMotion.style,
+      context: context,
+      builder: (_) => DocumentExtractionPanel(
         initialTextStyle: textStyles.read(bookKey),
         saveTextStyle: (style) => textStyles.save(bookKey, style),
         forceOcr: forceOcr,
@@ -1165,8 +1130,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             player.cancelPdfRegionRender();
           }
         },
-      )),
-    ));
+      ),
+    );
     if (!mounted || epubPlayerKey.currentState?.cssBookKey != bookKey) return;
     if (text == null || text.trim().isEmpty) {
       _restoreReaderFocusAfterPanel();

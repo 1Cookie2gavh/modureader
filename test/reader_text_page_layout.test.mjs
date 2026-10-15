@@ -118,62 +118,6 @@ function fixture({enabled='1', unsafe=false, long=false}={}) {
   return {dom,doc};
 }
 const layout={height:450,topMargin:20,bottomMargin:20,columnWidth:300,gap:20};
-test('publisher numbered headings keep text, floating border and CFI together', () => {
-  const { doc, dom } = fixture();
-  const heading = doc.createElement('h4');
-  heading.innerHTML = '<span style="float:left;border-right:2px solid gray;margin-left:-2.6em">035</span>带编号的小标题';
-  doc.body.prepend(heading);
-  const original = heading.innerHTML;
-  const text = heading.lastChild;
-  const range = doc.createRange();
-  range.selectNodeContents(text);
-  const cfi = CFI.fromRange(range);
-  // A heading split over two columns protects both fragments.
-  heading.getClientRects = () => [0, 2].map(page => ({
-    left: page * 320 + 10, top: 100, bottom: 150, width: 250, height: 50,
-  }));
-  for (const height of [450, 500, 450]) {
-    resetPageAlignment(doc);
-    alignPaginatedText(doc, { ...layout, height }, false);
-    assert.equal(heading.innerHTML, original);
-    assert.equal(CFI.toRange(doc, CFI.parse(cfi)).toString(), text.textContent);
-    assert.equal(doc.querySelector('p modu-page-run').style.top, '0px');
-    assert.equal(doc.querySelectorAll('p')[1].lastChild.getClientRects()[0].bottom, height - 20,
-      'ordinary pages still align');
-    assert.equal(doc.querySelectorAll('p')[2].firstChild.style.top, '0px');
-  }
-  dom.window.close();
-});
-
-test('line-spacing fitting leaves headings and decorated/float paragraphs intact', () => {
-  const dom = new JSDOM(`<style>html{--modu-align-pages:1}p,h4{line-height:10px}</style>
-    <h4>标题</h4><p id="float"><span style="float:left">编号</span>标题正文</p>
-    <p id="border" style="border-left:2px solid gray">边框段落</p><p id="plain">普通正文</p>`);
-  const doc = dom.window.document;
-  dom.window.Range.prototype.getClientRects = () => [{ width: 100, height: 28 }];
-  const before = [...doc.querySelectorAll('h4,#float,#border')].map(el => el.outerHTML);
-  fitTextLineSpacing(doc, 759);
-  assert.ok(parseFloat(doc.querySelector('#plain').style.lineHeight) >= 30);
-  preparePageRuns(doc);
-  assert.deepEqual([...doc.querySelectorAll('h4,#float,#border')].map(el => el.outerHTML), before);
-  resetPageAlignment(doc);
-  assert.equal(doc.querySelector('#plain').style.lineHeight, '');
-  dom.window.close();
-});
-
-test('new publisher decorations after settings changes protect already prepared runs', () => {
-  const { doc, dom } = fixture();
-  alignPaginatedText(doc, layout, false);
-  resetPageAlignment(doc);
-  const p = doc.querySelector('p');
-  p.style.borderLeft = '2px solid gray';
-  p.getClientRects = () => [{ left: 10, top: 25, bottom: 409, width: 250, height: 384 }];
-  alignPaginatedText(doc, layout, false);
-  assert.equal(p.lastChild.style.top, '0px');
-  assert.equal(doc.querySelectorAll('p')[1].lastChild.getClientRects()[0].bottom, 430);
-  dom.window.close();
-});
-
 test('explicit break-before and break-after preserve a sparse publisher page', () => {
   for (const kind of ['before', 'after']) {
     const { doc, dom } = fixture();

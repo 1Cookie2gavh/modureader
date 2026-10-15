@@ -86,7 +86,6 @@ Tap the text to open the bottom panel. Drag the progress slider to preview a cha
 
 - Import TTF / OTF fonts locally. Successful imports apply immediately; batch imports apply the last successful font. Online font downloads need a connection.
 - Scroll-page movement can be set to 80%–100% of the viewport. Free scrolling is independent of this setting.
-- Unreleased: **Scroll continuously across chapters** is on by default. Turn it off in the reading style panel or Reading settings to scroll one chapter at a time; use page turning at the chapter end or the contents to move to another chapter. Changes apply and save immediately. Original-page PDF scrolling is unchanged.
 - Long press can match a word or expand to a paragraph. Selection handles remain available to adjust the range after the initial match.
 - Mobile tap-only paging does not disable selection or continuous scrolling. Desktop arrow keys and eligible drags turn pages; selecting or typing is not treated as paging.
 - Reading brightness follows the system by default, with manual 0–100 adjustment. Android uses window brightness; other platforms dim the app without fully hiding the controls. This preference is local to the device.
@@ -106,7 +105,6 @@ The brightness panel's moon button inverts PDF page colours and turns the surrou
 - PDF reading prepares nearby cropped/enhanced pages automatically. It starts one reading panel ahead, increasing to two after fast processing samples when device hints allow. Continuous mode also retains nearby content for reverse scrolling; full-panel backing images are capped at 2MP and the window at seven frames. Zoomed details are refined separately. This is an in-memory optimization, not an offline conversion of the whole book; rapid jumps or expensive pages can still require waiting.
 - Processing does not rewrite the source book. Controls follow the app theme; manual / every-N-pages refresh appears only in E-Ink mode and requires a supported device interface.
 - Text reflow uses the page's text layer; OCR reflow recognizes image text. Both process the current page, or the whole cropped page when cropping is enabled, and display the result directly in the reader.
-- Unreleased: reflow and extraction results share ebook-style reading chrome and bottom menus. Style applies only to this book's recognized/reflowed text and saves immediately; menus fit their content up to 80% of screen height without resizing the text viewport. Original-page navigation and OCR-specific controls remain available. Extract opens a full-page workspace: select a region on the image, preview text, and use the bottom recognition menu for whole-page/batch recognition or the AI draft. OCR preview narration reads the preview, not the underlying book, and stops when changing preview pages or leaving the workspace.
 - Reflowed text supports styling, selection, annotations and AI tools. The PDF panel's gear opens the relevant text-style controls.
 - Only **Extract** asks for a region. Recognition fills an editable AI draft; review and send it yourself. It does not automatically upload the book.
 
@@ -235,8 +233,6 @@ Windows exports default to the user's Downloads directory, usually `C:\Users\<us
 ANX import accepts original schema-7 backup ZIPs. It imports downloaded books, covers, notes, progress, time, folders and tags, but not accounts, app settings, AI chats or books with missing content. Files determine identity; repeated import does not duplicate matching records. A local database snapshot is created first. Standalone DB files, encrypted ZIPs and unknown schema versions are unsupported. This is migration, not ongoing cross-app sync.
 
 ## Data, security and feedback
-
-Unreleased: contact links are removed from feedback. Bug reports include crash and safe runtime diagnostics by default, independently optional, with full preview and confirmation before proceeding; nothing uploads automatically. Runtime diagnostics retain only the current process's last 300 fixed operation states, elapsed times, durations and RSS samples, never raw ordinary logs, titles, book text, paths, URLs, accounts or keys. They clear on every restart. Ordinary local logs still default to startup cleanup (configurable under Advanced); separate crash diagnostics remain available after restart.
 
 Storage shows usage and can clear regenerable temporary data. Wait for imports, sync and downloads to finish before clearing. Cache cleanup should retain books, notes, chats, downloaded models and completed indexes.
 

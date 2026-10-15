@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/page/reading_page.dart';
@@ -352,14 +351,12 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         backend.ttsStateNotifier.value == TtsStateEnum.paused;
     _restoredSession = false;
     backend.updateTtsState(TtsStateEnum.playing);
-    RuntimeDiagnostics.record(RuntimeEvent.ttsPlay);
     // A media command must finish promptly, not hold its response open until
     // an entire book has finished. Later pause/stop remains authoritative.
     unawaited(
         Future<void>.sync(() => resume ? backend.resume() : backend.speak())
             .catchError((Object error) {
       AnxLog.warning('TTS playback command failed: ${error.runtimeType}');
-      RuntimeDiagnostics.record(RuntimeEvent.ttsFailed);
       if (command == _transportCommand && identical(tts, backend)) {
         backend.updateTtsState(TtsStateEnum.paused);
       }
@@ -383,7 +380,6 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     final backend = tts;
     AnxLog.info('TTS transport pause');
-    RuntimeDiagnostics.record(RuntimeEvent.ttsPause);
     backend.updateTtsState(TtsStateEnum.paused);
     final previousPause = _pendingPause;
     final pausing = Future<void>.sync(() async {
@@ -408,7 +404,6 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> stop() async {
-    RuntimeDiagnostics.record(RuntimeEvent.ttsStop);
     _restoredSession = false;
     _interruptionResume = null;
     ++_transportCommand;

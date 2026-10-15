@@ -116,37 +116,6 @@ void main() {
       .controller!
       .text;
 
-  testWidgets(
-      'bottom style updates reflow without rereading or changing source page',
-      (tester) async {
-    var reads = 0;
-    await open(tester, extract: (_) async {
-      reads++;
-      return 'Reflow text';
-    });
-    final field = find.byKey(const ValueKey('reflow-text'));
-    final before = tester.widget<TextField>(field).controller;
-    await tester.tap(find.byKey(const ValueKey('document-style-menu')));
-    await tester.pumpAndSettle();
-    tester
-        .widget<Slider>(find.byKey(const ValueKey('ocr-style-size')))
-        .onChanged!(28);
-    await tester.pump();
-    tester
-        .widget<Slider>(find.byKey(const ValueKey('ocr-style-size')))
-        .onChangeEnd!(28);
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).style!.fontSize, 28);
-    expect(tester.widget<TextField>(field).controller, same(before));
-    expect(reads, 1);
-    expect(pages, [0]);
-    await tester.tap(find.byTooltip('Hide menu'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('reflow-original')).hitTestable(),
-        findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
   Offset textPoint(WidgetTester tester, int offset) {
     final render = tester
         .state<EditableTextState>(find.byType(EditableText))

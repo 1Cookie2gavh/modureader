@@ -1,6 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
-import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/service/ios_linked_books.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:io' as io;
@@ -254,8 +253,6 @@ class Sync extends _$Sync {
       return;
     }
     _syncRunning = true;
-    final diagnosticTimer = Stopwatch()..start();
-    RuntimeDiagnostics.record(RuntimeEvent.syncStart);
     _retryAutomatic?.cancel();
     _retryAutomatic = null;
     try {
@@ -265,12 +262,7 @@ class Sync extends _$Sync {
       final completed = await _syncData(direction, ref,
           trigger: trigger, shouldStart: shouldStart);
       if (completed) await _pendingSync.acknowledge(pendingRevision);
-      RuntimeDiagnostics.record(
-          completed ? RuntimeEvent.syncComplete : RuntimeEvent.syncPending,
-          durationMs: diagnosticTimer.elapsedMilliseconds);
     } catch (e) {
-      RuntimeDiagnostics.record(RuntimeEvent.syncFailed,
-          durationMs: diagnosticTimer.elapsedMilliseconds);
       // Avoid logging DioException.toString(): it can contain private URLs.
       AnxLog.warning(
           'Sync incomplete: ${syncFailureDiagnostic(e)}, automatic=$automatic');
