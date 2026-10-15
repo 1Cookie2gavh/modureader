@@ -13,6 +13,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'document_reader_surface.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
+import 'package:anx_reader/service/ocr/document_text_geometry.dart';
+import 'package:anx_reader/service/ocr/document_text_reflow.dart';
 import 'document_text_style_dialog.dart';
 
 typedef DocumentRequest = Future<Map<String, dynamic>> Function(
@@ -62,6 +64,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   final _textScroll = ScrollController();
   final _pageRange = TextEditingController();
   final _results = <int, String>{};
+  final _formatted = <int, String>{};
   List<int> _batchPages = [];
   bool _multiple = false;
   int? _activePage;
@@ -87,6 +90,9 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   void initState() {
     super.initState();
     _forceOcr = widget.forceOcr;
+    _textStyle.loadFont().then((_) {
+      if (mounted) setState(() {});
+    }).catchError((_) {});
     _load(null);
   }
 
@@ -168,6 +174,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
 
   void _clearResults() {
     _results.clear();
+    _formatted.clear();
     _batchPages = [];
     _result = null;
     _error = null;
@@ -313,13 +320,13 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
             'height': r.height
           }
         };
-        var text = '';
+        var result = DocumentTextResult('');
         if (!_forceOcr) {
           final reply = await widget.extractText(request);
-          text = (reply['text'] as String? ?? '').trim();
+          result = DocumentTextResult.decode(reply);
         }
         cancel.check();
-        if (text.isEmpty) {
+        if (result.text.trim().isEmpty) {
           if (!await _store.available()) {
             if (mounted && !cancel.cancelled) {
               setState(() => _needsModel = true);
@@ -337,10 +344,14 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
             }
           }
 
-          text = await (widget.recognize?.call(png, cancel, progress) ??
-              LocalOcrService()
-                  .recognize(png, _store, cancel, progress: progress));
+          result = widget.recognize != null
+              ? DocumentTextResult(
+                  await widget.recognize!(png, cancel, progress))
+              : await LocalOcrService().recognizeWithRegions(
+                  png, _store, cancel,
+                  progress: progress);
         }
+        final text = result.text;
         cancel.check();
         if (!mounted) return;
         if (text.trim().isEmpty && !_multiple) {
@@ -350,6 +361,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         }
         setState(() {
           _results[page] = text;
+          _formatted[page] = reflowDocumentText(text, regions: result.regions);
           _result = _results[_page];
         });
       }
@@ -419,13 +431,13 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                   ? SingleChildScrollView(
                       controller: _textScroll,
                       padding: EdgeInsets.symmetric(
-                          vertical: 20, horizontal: _textStyle.margin),
-                      child: SelectableText(
-                          _result!.trim().isEmpty
+                          vertical: _textStyle.verticalMargin,
+                          horizontal: _textStyle.margin),
+                      child: SelectableText.rich(
+                          _textStyle.buildTextSpan(_result!.trim().isEmpty
                               ? t('此页未识别到文字', 'No text found on this page')
-                              : _result!,
-                          textAlign: _textStyle.alignment,
-                          style: _textStyle.textStyle))
+                              : _formatted[_page] ?? _result!),
+                          textAlign: _textStyle.alignment))
                   : _preview == null
                       ? Center(
                           child: _busy

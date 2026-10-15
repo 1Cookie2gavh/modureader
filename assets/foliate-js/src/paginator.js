@@ -1662,8 +1662,8 @@ export class Paginator extends HTMLElement {
       clearReaderFontFallback(doc)
       captureBookFontFamilies(doc, this.#styles, pair)
       prepareReaderFontWeight(doc, this.#styles)
-      pair[0].textContent = before
-      pair[1].textContent = after
+      if (pair[0].textContent !== before) pair[0].textContent = before
+      if (pair[1].textContent !== after) pair[1].textContent = after
       return true
     }
     return false
@@ -1953,8 +1953,19 @@ export class Paginator extends HTMLElement {
     }]
     return []
   }
-  setStyles(styles) {
+  setStyles(styles, { paintOnly = false, fontColor } = {}) {
     this.#styles = styles
+    const documents = [...this.getContents().map(({ doc }) => doc),
+      ...[...this.#pendingViews].map(view => view.document)]
+    for (const doc of documents) {
+      if (fontColor) doc?.documentElement?.style.setProperty('--modu-reader-font-color', fontColor)
+    }
+    // Replacing a sheet containing @font-face makes WebKit/Chromium hide text
+    // while reloading fonts, even when only its color declarations changed.
+    if (paintOnly) {
+      this.#applyBackground()
+      return
+    }
     if (this.#continuous) {
       for (const entry of this.#continuous.entries.values()) {
         const view = entry.view
@@ -1976,8 +1987,8 @@ export class Paginator extends HTMLElement {
       clearReaderFontFallback(this.#view.document)
       captureBookFontFamilies(this.#view.document, styles, $$styles)
       prepareReaderFontWeight(this.#view.document, styles)
-      $beforeStyle.textContent = before
-      $style.textContent = after
+      if ($beforeStyle.textContent !== before) $beforeStyle.textContent = before
+      if ($style.textContent !== after) $style.textContent = after
     }
 
     this.#applyBackground()

@@ -3,6 +3,8 @@ import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/utils/time_to_human.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 
 class BookNoteTile extends StatelessWidget {
   const BookNoteTile({
@@ -10,6 +12,7 @@ class BookNoteTile extends StatelessWidget {
     required this.note,
     this.onTap,
     this.onLongPress,
+    this.onViewOriginal,
     this.trailing,
     this.backgroundColor,
     this.margin = const EdgeInsets.only(bottom: 8),
@@ -18,6 +21,7 @@ class BookNoteTile extends StatelessWidget {
   final BookNote note;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onViewOriginal;
   final Widget? trailing;
   final Color? backgroundColor;
   final EdgeInsetsGeometry margin;
@@ -33,6 +37,7 @@ class BookNoteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iconColor = Color(int.tryParse('0xaa${note.color}') ?? 0xaa555555);
+    final anchor = DocumentReflowAnchor.parse(note.cfi);
     final infoStyle = const TextStyle(
       fontSize: 14,
       color: Colors.grey,
@@ -95,6 +100,12 @@ class BookNoteTile extends StatelessWidget {
                     height: 3,
                     color: Colors.grey.shade300,
                   ),
+                  if (anchor != null && onViewOriginal != null)
+                    TextButton.icon(
+                        onPressed: onViewOriginal,
+                        icon: const Icon(Icons.image_outlined),
+                        label: Text(
+                            '${ModuStrings.text(context, '查看原图', 'View original')} · ${anchor.page + 1}')),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

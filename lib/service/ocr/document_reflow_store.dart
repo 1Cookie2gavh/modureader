@@ -3,24 +3,39 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'document_text_reflow.dart';
+import 'document_text_geometry.dart';
 
 /// Not an EPUB CFI: never pass these positions to the original PDF renderer.
 class DocumentReflowAnchor {
   const DocumentReflowAnchor(
-      this.page, this.ocr, this.revision, this.start, this.end);
+      this.page, this.ocr, this.revision, this.start, this.end,
+      {this.rects = const [], this.original = false});
   static const prefix = 'modu-reflow:';
   final int page, start, end;
   final bool ocr;
   final String revision;
-  String encode() => '${prefix}v1:$page:${ocr ? 1 : 0}:$revision:$start:$end';
+  final List<DocumentImageRect> rects;
+  final bool original;
+  String encode() {
+    final base = '$page:${ocr ? 1 : 0}:$revision:$start:$end';
+    return rects.isEmpty
+        ? '${prefix}v1:$base'
+        : '${prefix}v2:$base:${base64Url.encode(utf8.encode(jsonEncode(rects.map((r) => r.toJson()).toList())))}';
+  }
+
+  String get originalReference =>
+      '${prefix}source:${encode().substring(prefix.length)}';
   static DocumentReflowAnchor? parse(String value) {
-    final match =
-        RegExp(r'^modu-reflow:v1:(\d+):([01]):([a-f0-9]{64}):(\d+):(\d+)$')
-            .firstMatch(value);
+    if (value.length > 1000000) return null;
+    final original = value.startsWith('${prefix}source:');
+    if (original) value = prefix + value.substring('${prefix}source:'.length);
+    final match = RegExp(
+            r'^modu-reflow:v([12]):(\d+):([01]):([a-f0-9]{64}):(\d+):(\d+)(?::([A-Za-z0-9_=-]+))?$')
+        .firstMatch(value);
     if (match == null) return null;
-    final page = int.tryParse(match[1]!),
-        start = int.tryParse(match[4]!),
-        end = int.tryParse(match[5]!);
+    final page = int.tryParse(match[2]!),
+        start = int.tryParse(match[5]!),
+        end = int.tryParse(match[6]!);
     if (page == null ||
         start == null ||
         end == null ||
@@ -30,7 +45,23 @@ class DocumentReflowAnchor {
         end > 1000000) {
       return null;
     }
-    return DocumentReflowAnchor(page, match[2] == '1', match[3]!, start, end);
+    final rects = <DocumentImageRect>[];
+    if (match[1] == '1' && match[7] != null) return null;
+    if (match[1] == '2') {
+      try {
+        final raw = jsonDecode(utf8.decode(base64Url.decode(match[7]!)));
+        if (raw is! List || raw.isEmpty || raw.length > 4096) return null;
+        for (final value in raw) {
+          final rect = DocumentImageRect.decode(value);
+          if (rect == null) return null;
+          rects.add(rect);
+        }
+      } catch (_) {
+        return null;
+      }
+    }
+    return DocumentReflowAnchor(page, match[3] == '1', match[4]!, start, end,
+        rects: List.unmodifiable(rects), original: original);
   }
 
   bool matches(DocumentReflowPage value) =>
@@ -41,24 +72,70 @@ class DocumentReflowAnchor {
 
 class DocumentReflowPage {
   DocumentReflowPage(
-      {required this.page, required this.ocr, required this.rawText})
-      : text = reflowDocumentText(rawText),
-        revision =
-            sha256.convert(utf8.encode(reflowDocumentText(rawText))).toString();
+      {required this.page,
+      required this.ocr,
+      required this.rawText,
+      this.layoutVersion = 4,
+      List<DocumentTextRegion> rawRegions = const []})
+      : rawRegions = DocumentTextResult(rawText, rawRegions).regions {
+    final mapped = <DocumentTextRegion>[];
+    final ordered = [...this.rawRegions]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    var cursor = 0;
+    text = reflowDocumentText(rawText,
+        layoutVersion: layoutVersion,
+        regions: layoutVersion >= 3 ? this.rawRegions : const [],
+        mapLine: (rawStart, rawEnd, start, end) {
+      while (cursor < ordered.length && ordered[cursor].end <= rawStart) {
+        cursor++;
+      }
+      for (var i = cursor;
+          i < ordered.length && ordered[i].start < rawEnd;
+          i++) {
+        final region = ordered[i];
+        final a = region.start.clamp(rawStart, rawEnd);
+        final b = region.end.clamp(rawStart, rawEnd);
+        final mappedStart = (start + a - rawStart).clamp(start, end);
+        final mappedEnd = (start + b - rawStart).clamp(start, end);
+        if (mappedEnd > mappedStart) {
+          mapped.add(DocumentTextRegion(mappedStart, mappedEnd, region.rect));
+        }
+      }
+    });
+    regions = List.unmodifiable(mapped);
+    // Geometry is part of the immutable revision: identical OCR words can move.
+    revision = sha256
+        .convert(utf8.encode(rawRegions.isEmpty
+            ? text
+            : jsonEncode([text, rawRegions.map((r) => r.toJson()).toList()])))
+        .toString();
+  }
   final int page;
   final bool ocr;
-  final String rawText, text, revision;
+  final int layoutVersion;
+  final String rawText;
+  late final String text, revision;
+  final List<DocumentTextRegion> rawRegions;
+  late final List<DocumentTextRegion> regions;
+  DocumentReflowAnchor anchor(int start, int end) =>
+      DocumentReflowAnchor(page, ocr, revision, start, end,
+          rects: List.unmodifiable(regions
+              .where((r) => r.start < end && r.end > start)
+              .map((r) => r.rect)));
   Map<String, Object> toJson() => {
-        'version': 1,
+        'version':
+            layoutVersion >= 3 ? layoutVersion : (rawRegions.isEmpty ? 1 : 2),
         'page': page,
         'ocr': ocr,
         'rawText': rawText,
         'text': text,
-        'revision': revision
+        'revision': revision,
+        if (rawRegions.isNotEmpty)
+          'regions': rawRegions.map((r) => r.toJson()).toList(),
       };
   static DocumentReflowPage? decode(dynamic data) {
     if (data is! Map ||
-        data['version'] != 1 ||
+        ![1, 2, 3, 4].contains(data['version']) ||
         data['page'] is! int ||
         data['ocr'] is! bool ||
         data['rawText'] is! String) {
@@ -66,11 +143,24 @@ class DocumentReflowPage {
     }
     final raw = data['rawText'] as String;
     if (raw.length > 1000000 || (data['page'] as int) < 0) return null;
-    final value =
-        DocumentReflowPage(page: data['page'], ocr: data['ocr'], rawText: raw);
-    return value.revision == data['revision'] && value.text == data['text']
-        ? value
-        : null;
+    try {
+      if (data['version'] == 2 && data['regions'] is! List) return null;
+      final geometry = data['version'] != 1
+          ? DocumentTextResult.decode({'text': raw, 'regions': data['regions']})
+              .regions
+          : const <DocumentTextRegion>[];
+      final value = DocumentReflowPage(
+          page: data['page'],
+          ocr: data['ocr'],
+          rawText: raw,
+          layoutVersion: data['version'],
+          rawRegions: geometry);
+      return value.revision == data['revision'] && value.text == data['text']
+          ? value
+          : null;
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -96,7 +186,20 @@ class DocumentReflowStore {
 
   Future<DocumentReflowPage?> read(int page, String profile) async {
     final result = await _read(_index(page, profile));
-    return result?.page == page ? result : null;
+    if (result?.page != page) return null;
+    if (result!.layoutVersion < 4) {
+      // Save both revisions before replacing the current index; old notes keep
+      // their exact text and source-image coordinates without another OCR run.
+      final updated = DocumentReflowPage(
+          page: page,
+          ocr: result.ocr,
+          rawText: result.rawText,
+          rawRegions: result.rawRegions);
+      await save(result, profile);
+      await save(updated, profile);
+      return updated;
+    }
+    return result;
   }
 
   Future<DocumentReflowPage?> readAnchor(DocumentReflowAnchor anchor) async {

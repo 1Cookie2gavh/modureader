@@ -5,6 +5,29 @@ import { runInNewContext } from 'node:vm';
 const book = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
 const setStyle = book.slice(book.indexOf('const setStyle ='), book.indexOf('const onRelocated ='));
 
+test('ebook night palette bypasses geometry and highlight rescans, but typography never does', () => {
+  for (const change of [
+    {fontColor:'#ddd',backgroundColor:'#111',readingNightMode:true,backgroundImage:'none',verticalPageChrome:{}},
+    {fontSize:24}, {spacing:2}, {customCSS:'p{margin:2em}'}, {sideMargin:10},
+  ]) {
+    const oldStyle={fontSize:20,spacing:1.6,sideMargin:5,pageTurnStyle:'slide',useBookStyles:true};
+    const attrs=new Map(), options=[], highlights=[];
+    runInNewContext(`${setStyle};setStyle(oldStyle)`, {
+      oldStyle, style:{...oldStyle,...change},
+      reader:{view:{renderer:{setAttribute:(k,v)=>attrs.set(k,v),
+        setStyles:(_,o)=>options.push(o),getContents:()=>[{doc:{}}]}}},
+      document:{documentElement:{style:{}}},applyReaderMotion(){},applyVerticalPageChrome(){},
+      getCSS(){},highlightWarnings:new Set(),updateCustomHighlights:()=>highlights.push(true),
+    });
+    const paintOnly='fontColor' in change;
+    assert.equal(options[0].paintOnly,paintOnly);
+    assert.equal(attrs.has('flow'),!paintOnly);
+    assert.equal(attrs.has('gap'),!paintOnly);
+    assert.equal(attrs.has('max-column-count'),!paintOnly);
+    assert.equal(highlights.length,paintOnly?0:1);
+  }
+});
+
 test('chapter scroll preference defaults on and preserves script/vertical safety guards', () => {
   for (const enabled of [undefined, true, false])
     for (const allowScript of [false, true])

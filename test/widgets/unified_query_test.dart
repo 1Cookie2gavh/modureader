@@ -37,6 +37,19 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
   });
+  testWidgets('reflow translation opens the translation tab directly',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: UnifiedQuery(
+                text: 'OCR result',
+                initialSection: QuerySection.translation,
+                panelBuilder: (section, text) =>
+                    Text('panel:${section.name}:$text')))));
+    await tester.pumpAndSettle();
+    expect(find.text('panel:translation:OCR result'), findsOneWidget);
+    expect(find.text('panel:dictionary:OCR result'), findsNothing);
+  });
   testWidgets(
       'real AI tabs preserve drafts in isolated conversations and fit a keyboard',
       (tester) async {

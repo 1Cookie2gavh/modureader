@@ -2,9 +2,11 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/constants/note_annotations.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_notes_state.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/widgets/common/axis_flex.dart';
 import 'package:anx_reader/widgets/context_menu/annotation_color_palette.dart';
 import 'package:anx_reader/widgets/context_menu/excerpt_menu.dart';
+import 'package:anx_reader/widgets/context_menu/selection_action_toolbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +27,43 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
   });
+
+  for (final reflow in [false, true]) {
+    testWidgets('selection narration is excluded only for reflow: $reflow',
+        (tester) async {
+      final config = Prefs().selectionToolbar;
+      await Prefs().saveSelectionToolbar(config.copyWith(items: [
+        for (final item in config.items)
+          item.action == 'narrate' ? item.copyWith(enabled: true) : item,
+      ]));
+      final saved = Prefs().selectionToolbar.encode();
+      await tester.pumpWidget(app(AxisFlex(axis: Axis.horizontal, children: [
+        ExcerptMenu(
+          annoCfi: reflow
+              ? '${DocumentReflowAnchor.prefix}test'
+              : 'epubcfi(/6/4!/4/2,/1:0,/1:12)',
+          annoContent: '测试正文',
+          onClose: () {},
+          footnote: false,
+          decoration: const BoxDecoration(),
+          toggleTranslationMenu: () {},
+          toggleReaderNoteMenu: ({bool? show}) {},
+          openReaderNoteMenu: (_) async {},
+          onNoteCreated: (_) {},
+          axis: Axis.horizontal,
+          reverse: false,
+        )
+      ])));
+      await tester.pumpAndSettle();
+      final actions = tester
+          .widget<SelectionActionToolbar>(find.byType(SelectionActionToolbar))
+          .items;
+      expect(actions.any((item) => item.action == 'narrate'), !reflow);
+      expect(actions.any((item) => item.action == 'copy'), isTrue);
+      expect(Prefs().selectionToolbar.encode(), saved);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   test(
       'original colours remain unchanged and every new colour is included in note filters',

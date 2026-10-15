@@ -67,6 +67,11 @@ void main() {
         expect(applicationTheme.colorScheme.primary, Colors.black);
         expect(applicationTheme.colorScheme.surface, Colors.white);
 
+        await Prefs().saveThemeModeToPrefs(brightness.name);
+        await tester.pumpAndSettle();
+        verifyInherited();
+        expect(applicationTheme.colorScheme.surface, Colors.white);
+
         Prefs().eInkMode = false;
         await tester.pumpAndSettle();
         verifyInherited();

@@ -86,7 +86,6 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               initialValue: Prefs().eInkMode,
               onToggle: (bool value) {
                 setState(() {
-                  Prefs().saveThemeModeToPrefs('light');
                   Prefs().eInkMode = value;
                 });
               },

@@ -7,6 +7,7 @@ import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'ocr_model_store.dart';
 import 'ocr_processing.dart';
 import 'ocr_model_metadata.dart';
+import 'document_text_geometry.dart';
 
 class OcrCancellation {
   bool cancelled = false;
@@ -27,11 +28,18 @@ class LocalOcrService {
   /// Single on-demand job, no persistent queue, no restart/recovery task.
   Future<String> recognize(
           Uint8List image, OcrModelStore store, OcrCancellation cancellation,
+          {void Function(int, int)? progress}) async =>
+      (await recognizeWithRegions(image, store, cancellation,
+              progress: progress))
+          .text;
+
+  Future<DocumentTextResult> recognizeWithRegions(
+          Uint8List image, OcrModelStore store, OcrCancellation cancellation,
           {void Function(int, int)? progress}) =>
       store.withModelFiles(
           () => _recognize(image, store, cancellation, progress: progress));
 
-  Future<String> _recognize(
+  Future<DocumentTextResult> _recognize(
       Uint8List image, OcrModelStore store, OcrCancellation cancellation,
       {void Function(int, int)? progress}) async {
     if (_running) throw StateError('Another OCR task is running');
@@ -56,7 +64,7 @@ class LocalOcrService {
           progress?.call(event[1] as int, event[2] as int);
         } else if (event is List && event.first == 'result') {
           cancellation.check();
-          return event[1] as String;
+          return DocumentTextResult.decode(event[1] as Map);
         } else {
           throw StateError(
               'OCR failed or cancelled; select a smaller area and retry');
@@ -133,9 +141,10 @@ void _ocrWorker(List<Object?> args) async {
 
     result = [
       'result',
-      await recognizeOcrImage(args[3] as Uint8List, alphabet, run,
-          cancelled: () => cancelled,
-          progress: (n, total) => reply.send(['progress', n, total]))
+      (await recognizeOcrImageWithRegions(args[3] as Uint8List, alphabet, run,
+              cancelled: () => cancelled,
+              progress: (n, total) => reply.send(['progress', n, total])))
+          .toJson()
     ];
   } catch (_) {
     result = ['error'];

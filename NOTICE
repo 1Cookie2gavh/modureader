@@ -12,6 +12,12 @@ ReadAny Team; see LICENSES/ReadAny-GPL-3.0-or-later.txt.
 Source: https://github.com/sobranie2406/modureader
 Third-party notices remain in their original source and dependency distributions.
 
+Edge Read Aloud v2 token generation is adapted from edge-tts 7.3.0 drm.py,
+Copyright (c) 2025- rany <rany@riseup.net>, licensed under LGPLv3.
+Modifications Copyright (c) 2026 Modu contributors; the Dart adaptation retains
+LGPLv3. See LICENSES/edge-tts-LGPL-3.0.txt and LICENSE.
+Source: https://github.com/rany2/edge-tts/blob/7.3.0/src/edge_tts/drm.py
+
 Windows ONNX dispatcher includes modified flutter_onnxruntime 1.8.4 code,
 Copyright (c) 2025 MASIC AI, licensed under MIT; see LICENSES/flutter_onnxruntime-MIT.txt.
 

@@ -7,9 +7,9 @@ import 'dart:typed_data';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/tts/models/tts_voice.dart';
+import 'package:anx_reader/service/tts/edge_tts_token.dart';
 import 'package:anx_reader/service/tts/tts_service.dart';
 import 'package:anx_reader/service/tts/tts_service_provider.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -26,7 +26,7 @@ class EdgeTtsClient {
   static const _trustedClientToken = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
   static const _chromiumFullVersion = '143.0.3650.75';
   static const _chromiumMajorVersion = '143';
-  static const _secMsGecVersion = '1-$_chromiumFullVersion';
+  static const _secMsGecVersion = '2-$_chromiumFullVersion';
   static const _windowsEpochSeconds = 11644473600;
   static const _defaultVoice = 'zh-CN-XiaoxiaoNeural';
   static const _uuid = Uuid();
@@ -48,14 +48,12 @@ class EdgeTtsClient {
     double clockSkewSeconds = 0,
   }) {
     final current = (now ?? DateTime.now()).toUtc();
-    final unixSeconds = current.microsecondsSinceEpoch / 1000000;
-    var windowsSeconds = unixSeconds + clockSkewSeconds + _windowsEpochSeconds;
-    windowsSeconds -= windowsSeconds % 300;
-    final windowsTicks = (windowsSeconds * 10000000).round();
-    return sha256
-        .convert(ascii.encode('$windowsTicks$_trustedClientToken'))
-        .toString()
-        .toUpperCase();
+    // Integer buckets avoid rounding into the next window just before its edge.
+    final windowsMicros = current.microsecondsSinceEpoch +
+        (clockSkewSeconds * 1000000).round() +
+        _windowsEpochSeconds * 1000000;
+    final windowsTicks = (windowsMicros ~/ 300000000) * 3000000000;
+    return edgeTtsV2Token(windowsTicks, _trustedClientToken);
   }
 
   Future<List<TtsVoice>> getVoices() async {

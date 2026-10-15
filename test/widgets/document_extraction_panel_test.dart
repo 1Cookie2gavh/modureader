@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
+import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/widgets/reading_page/document_extraction_panel.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'pdf_region_preview_test.dart' as fixture;
 
@@ -31,6 +33,8 @@ Future<void> open(WidgetTester tester,
     Future<void> Function()? stopNarration,
     ValueChanged<String?>? result}) async {
   await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10n.delegate],
+      supportedLocales: L10n.supportedLocales,
       home: Builder(
           builder: (context) => Scaffold(
               body: TextButton(
@@ -59,6 +63,7 @@ Future<void> open(WidgetTester tester,
                     result?.call(value);
                   },
                   child: const Text('Open'))))));
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Open'));
   await tester.pumpAndSettle();
 }
@@ -77,6 +82,26 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+  testWidgets('source layout affects preview but not the original AI draft',
+      (tester) async {
+    const raw = '甲乙丙丁戊己庚辛壬。\n接着同一段正文内容';
+    final source = DocumentTextResult(raw, const [
+      DocumentTextRegion(0, 10, DocumentImageRect(.1, .1, .5, .02)),
+      DocumentTextRegion(11, 20, DocumentImageRect(.1, .13, .5, .02)),
+    ]);
+    String? draft;
+    await open(tester,
+        extract: (_) async => source.toJson(), result: (v) => draft = v);
+    await tap(tester, 'Preview extracted text');
+    expect(
+        tester
+            .widget<SelectableText>(find.byType(SelectableText))
+            .textSpan!
+            .toPlainText(),
+        raw.replaceAll('\n', ''));
+    await tap(tester, 'Extract to AI draft');
+    expect(draft, raw);
   });
   testWidgets(
       'explicit OCR extraction preview bypasses text layer and never sends',
@@ -154,6 +179,19 @@ void main() {
     await tap(tester, 'Original');
     expect(stops, 2);
     expect(find.byType(DocumentRegionSelector), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('PDF preview without narration keeps text and page navigation',
+      (tester) async {
+    await open(tester, extract: (r) async => {'text': 'PDF page ${r['page']}'});
+    await tap(tester, 'Preview extracted text');
+    expect(find.byTooltip('Read aloud'), findsNothing);
+    expect(find.text('PDF page 0'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('PDF page 1'), findsOneWidget);
+    expect(find.byTooltip('Read aloud'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -371,6 +409,7 @@ void main() {
     expect(
         tester
             .widget<SelectableText>(find.byType(SelectableText))
+            .textSpan!
             .style!
             .fontSize,
         28);

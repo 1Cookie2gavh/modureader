@@ -1,15 +1,16 @@
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:flutter/material.dart';
 
-Widget widgetTitle(String title, ReadingSettings? settings) {
-  Widget settingsButton = settings == null
+Widget widgetTitle(String title, ReadingSettings? settings,
+    {VoidCallback? onSettings}) {
+  Widget settingsButton = settings == null && onSettings == null
       ? const SizedBox(
           height: 48,
         )
       : SizedBox(
           height: 48,
           child: IconButton(
-              onPressed: () => showMoreSettings(settings),
+              onPressed: onSettings ?? () => showMoreSettings(settings!),
               icon: const Icon(Icons.settings)),
         );
 

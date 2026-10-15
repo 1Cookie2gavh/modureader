@@ -5,6 +5,12 @@ import 'package:anx_reader/models/bgimg.dart';
 
 ReadTheme readingThemeForDisplay(Prefs prefs,
     {List<ReadTheme> themes = const [], bool isDarkMode = false}) {
+  if (prefs.eInkMode) {
+    return ReadTheme(
+        backgroundColor: 'FFFFFFFF',
+        textColor: 'FF000000',
+        backgroundImagePath: '');
+  }
   if (prefs.readingNightMode) {
     return ReadTheme(
         backgroundColor: 'FF1C1C1E',
@@ -20,7 +26,7 @@ ReadTheme readingThemeForDisplay(Prefs prefs,
 String readingBackgroundForDisplay(Prefs prefs, {required bool isDarkMode}) {
   // A bright image must not cover the night palette. Do not delete it: turning
   // night mode off restores the original image and its day/night selection.
-  if (prefs.readingNightMode) return 'none';
+  if (prefs.eInkMode || prefs.readingNightMode) return 'none';
   return prefs.bgimg.getEffectiveUrl(
       isDarkMode: isDarkMode, autoAdjust: prefs.autoAdjustReadingTheme);
 }

@@ -208,13 +208,13 @@ class ReadingInsightTile extends StatisticsDashboardTileBase {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: eink ? Colors.white : colors.secondaryContainer,
+        color: eink ? colors.surface : colors.secondaryContainer,
         borderRadius: BorderRadius.circular(6),
-        border: eink ? Border.all(color: Colors.black) : null,
+        border: eink ? Border.all(color: colors.onSurface) : null,
       ),
       child: Text(label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: eink ? Colors.black : colors.onSecondaryContainer)),
+              color: eink ? colors.onSurface : colors.onSecondaryContainer)),
     );
   }
 

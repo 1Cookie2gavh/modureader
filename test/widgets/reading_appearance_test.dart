@@ -49,6 +49,36 @@ void main() {
     expect(Prefs().bgimg.type, BgimgType.none);
   });
 
+  test('E-Ink locks pure white/black even with dark and night preferences',
+      () async {
+    final prefs = Prefs();
+    final original = prefs.readTheme.toJson();
+    await prefs.saveThemeModeToPrefs('dark');
+    prefs.readingNightMode = true;
+    prefs.eInkMode = true;
+    expect(prefs.themeMode, ThemeMode.dark);
+    expect(prefs.readingNightMode, true);
+    for (final dark in [false, true]) {
+      final visible = readingThemeForDisplay(prefs,
+          themes: [theme(), theme()], isDarkMode: dark);
+      expect(visible.backgroundColor, 'FFFFFFFF');
+      expect(visible.textColor, 'FF000000');
+      expect(readingBackgroundForDisplay(prefs, isDarkMode: dark), 'none');
+    }
+    prefs.readingNightMode = true;
+    expect(readingThemeForDisplay(prefs).backgroundColor, 'FFFFFFFF');
+    await prefs.saveThemeModeToPrefs('dark');
+    prefs.eInkMode = true;
+    await prefs.initPrefs();
+    expect(prefs.themeMode, ThemeMode.dark);
+    expect(prefs.readingNightMode, true);
+    prefs.eInkMode = false;
+    prefs.readingNightMode = false;
+    prefs.autoAdjustReadingTheme = false;
+    expect(readingThemeForDisplay(prefs).toJson(), original);
+    expect(prefs.bgimg, image);
+  });
+
   test(
       'night override persists but never overwrites the saved reading appearance',
       () async {

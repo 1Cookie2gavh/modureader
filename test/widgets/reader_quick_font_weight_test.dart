@@ -11,6 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:anx_reader/service/ocr/document_text_style.dart';
+import 'package:anx_reader/models/font_model.dart';
+import 'package:anx_reader/widgets/reading_page/widgets/bgimg_selector.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -226,6 +229,76 @@ void main() {
     expect(Prefs().bookStyle.simulateBold, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  for (final size in [
+    const Size(320, 740),
+    const Size(844, 390),
+    const Size(1440, 900)
+  ]) {
+    testWidgets('reflow shares ebook style controls and saves locally at $size',
+        (tester) async {
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      Prefs().useBookStyles = true;
+      Prefs().font =
+          FontModel(label: 'System font', name: 'system', path: 'system');
+      final original = Prefs().bookStyle.toJson();
+      const originalFont = 'system';
+      var style = const DocumentTextStyle();
+      var saves = 0;
+      var advanced = false;
+      Widget? opened;
+      await tester.pumpWidget(MaterialApp(
+          navigatorKey: navigatorKey,
+          localizationsDelegates: L10n.localizationsDelegates,
+          supportedLocales: L10n.supportedLocales,
+          home: Scaffold(
+              body: StatefulBuilder(
+                  builder: (context, update) => StyleWidget(
+                      themes: const [],
+                      documentStyle: style,
+                      saveDocumentStyle: (value) async {
+                        saves++;
+                        update(() => style = value);
+                      },
+                      onDocumentSettings: () => advanced = true,
+                      setCurrentPage: (Widget panel) => opened = panel,
+                      hideAppBarAndBottomBar: (_) {})))));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.format_size), findsOneWidget);
+      expect(find.byIcon(Icons.format_bold), findsOneWidget);
+      expect(find.byIcon(Icons.line_weight), findsOneWidget);
+      expect(find.byIcon(Icons.height), findsOneWidget);
+      expect(find.byKey(const ValueKey('reading-simulated-bold-toggle')),
+          findsNothing);
+      for (final entry in {
+        'size': 28.0,
+        'weight': 1.7,
+        'height': 2.0,
+        'paragraphSpacing': 2.5
+      }.entries) {
+        final slider = tester
+            .widget<Slider>(find.byKey(ValueKey('ocr-style-${entry.key}')));
+        final before = saves;
+        slider.onChanged!(entry.value);
+        await tester.pump();
+        expect(saves, before);
+        slider.onChangeEnd!(entry.value);
+        await tester.pumpAndSettle();
+        expect(saves, before + 1);
+        expect(style.toJson()[entry.key], entry.value);
+      }
+      expect(Prefs().bookStyle.toJson(), original);
+      expect(Prefs().font.path, originalFont);
+      await tester.tap(find.byIcon(Icons.settings));
+      expect(advanced, isTrue);
+      await tester.ensureVisible(find.byIcon(Icons.arrow_forward_ios));
+      await tester.tap(find.byIcon(Icons.arrow_forward_ios));
+      expect(opened, isA<BgimgSelector>());
+      expect((opened as BgimgSelector).onChanged, isNotNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final brightness in Brightness.values) {
     testWidgets('simulation has outlined and selected states in $brightness',

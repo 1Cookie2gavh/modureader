@@ -24,6 +24,8 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/ai_quick_prompt_chip.dart';
 import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/models/book_note.dart';
+import 'package:anx_reader/models/unified_query.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/page/book_detail.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
@@ -61,6 +63,7 @@ import 'package:anx_reader/widgets/reading_page/document_extraction_panel.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/widgets/reading_page/document_reflow_reader.dart';
+import 'package:anx_reader/widgets/reading_page/document_original_note.dart';
 import 'package:anx_reader/widgets/context_menu/context_menu.dart';
 import 'package:anx_reader/dao/book_note.dart';
 import 'package:anx_reader/widgets/reading_page/toc_widget.dart';
@@ -105,6 +108,27 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   bool get isReflowReading => _reflowOcr != null;
 
   Future<void> openReflowAnchor(DocumentReflowAnchor anchor) async {
+    if (anchor.original) {
+      final player = epubPlayerKey.currentState;
+      if (player == null || !mounted || _viewingOriginalNote) return;
+      _viewingOriginalNote = true;
+      reflowReader?.cancelLoading();
+      player.removeOverlay();
+      try {
+        await showDialog<void>(
+            context: context,
+            builder: (_) => DocumentOriginalNote(
+                anchor: anchor,
+                render: (request) => player.renderPdfRegion(
+                    {...request, if (player.isImageEpub) 'source': 'epub'}),
+                cancelRender: () => player.isImageEpub
+                    ? player.cancelEpubImageRender()
+                    : player.cancelPdfRegionRender()));
+      } finally {
+        _viewingOriginalNote = false;
+      }
+      return;
+    }
     if (isReflowReading && reflowReader != null) {
       await reflowReader!.navigate(anchor);
       return;
@@ -113,8 +137,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     await openDocumentExtraction(reflow: true, forceOcr: anchor.ocr);
   }
 
+  bool _viewingOriginalNote = false;
+
   Future<void> closeDocumentReflow() async {
     if (!isReflowReading) return;
+    hideBottomBar();
     reflowReader?.cancelLoading();
     epubPlayerKey.currentState?.removeOverlay();
     await audioHandler.stop();
@@ -123,13 +150,15 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       _reflowOcr = null;
       _reflowAnchor = null;
     });
+    epubPlayerKey.currentState?.refreshReadingTheme();
     _restoreReaderFocusAfterPanel();
   }
 
   Widget _documentBrightness() => BrightnessWidget(
       controller: AppBrightness.instance,
       onNightModeChanged: () {
-        epubPlayerKey.currentState?.refreshReadingTheme();
+        // The visible Flutter document updates from Prefs immediately. Apply
+        // its palette to the hidden original only when returning to it.
         if (mounted) setState(() {});
       });
 
@@ -138,8 +167,41 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     final styles = DocumentTextStyleStore(Prefs().prefs);
     return DocumentReflowReader(
       key: _reflowKey,
+      readerMenuVisible: !bottomBarOffstage,
+      onOpenReaderMenu: showBottomBar,
+      onCloseReaderMenu: hideBottomBar,
+      onOpenReaderPanel: (panel) {
+        showBottomBar();
+        setState(() => _currentPage = panel);
+      },
       brightness: _documentBrightness(),
-      narration: TtsWidget(epubPlayerKey: epubPlayerKey),
+      onExtract: () => openDocumentExtraction(forceOcr: true),
+      onQuery: (text, source, translation) => showReaderPopup(context,
+          enableDrag: false,
+          builder: (_) => UnifiedQuery(
+              text: text,
+              contextText: source,
+              initialSection: translation ? QuerySection.translation : null)),
+      onAiDraft: EnvVar.enableAIFeature
+          ? (text) => showAiChat(
+              draftScreen: 'documentExtraction',
+              content: text,
+              sourceText: text,
+              sendImmediate: false,
+              forcePopup: true)
+          : null,
+      onBookmark: (anchor, text) async {
+        final now = DateTime.now();
+        await bookNoteDao.save(BookNote(
+            bookId: player.book.id,
+            content: text,
+            cfi: anchor.encode(),
+            chapter: reflowReader?.chapter ?? '',
+            type: 'bookmark',
+            color: '000000',
+            createTime: now,
+            updateTime: now));
+      },
       readerActions: [
         IconButton(
             icon: const Icon(Icons.toc),
@@ -153,7 +215,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             tooltip: ModuStrings.text(context, '笔记', 'Notes'),
             onPressed: () {
               reflowReader?.closeMenu();
-              showBottomBar();
               noteHandler();
             }),
       ],
@@ -176,7 +237,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       onClose: closeDocumentReflow,
       clearMenu: player.removeOverlay,
       selectionInvalidated: player.reflowSelectionInvalidated,
-      onPageChanged: player.goToDocumentPage,
+      onPageChanged: (page) async {
+        await audioHandler.stop();
+        await player.goToDocumentPage(page);
+      },
       loadNotes: () => bookNoteDao.selectBookNotesByBookId(player.book.id),
       onSelection: (anchor, text, contextText, rect, ids) async {
         if (!mounted || !isReflowReading) return;
@@ -368,6 +432,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   bool get _canUseNarrationKeys =>
       mounted &&
+      !isReflowReading &&
       !widget.book.isDeleted &&
       _readingRouteVisible &&
       _observedRoute?.isCurrent == true &&
@@ -772,6 +837,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void showBottomBar() {
+    if (isReflowReading) epubPlayerKey.currentState?.removeOverlay();
     setState(() {
       // The bars are painted over the reader in the body Stack. Changing the
       // system UI mode here changes WebView viewport metrics and repaginates
@@ -809,6 +875,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> searchHandler() async {
+    if (isReflowReading) {
+      await reflowReader?.readerAction('search');
+      return;
+    }
     if (_searchDialogOpen || !mounted) return;
     _searchDialogOpen = true;
     hideBottomBar();
@@ -835,7 +905,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   Future<void> styleHandler() async {
     if (isReflowReading) {
-      hideBottomBar();
       reflowReader?.openStyleMenu();
       return;
     }
@@ -856,6 +925,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> ttsHandler() async {
+    if (isReflowReading) return;
     setState(() {
       _currentPage = TtsWidget(
         epubPlayerKey: epubPlayerKey,
@@ -880,6 +950,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> _readAloudFromHere() async {
+    if (isReflowReading) return;
     final player = epubPlayerKey.currentState;
     if (player == null || !player.mounted || player.cfi.isEmpty) return;
     // Freeze the visible destination before stopping speech clears its cursor.
@@ -902,6 +973,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void translationHandler() {
+    if (isReflowReading) {
+      unawaited(reflowReader?.readerAction('translate'));
+      return;
+    }
     setState(() {
       _currentPage = TranslationWidget(
         bookId: _book.id,
@@ -911,6 +986,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   Future<void> _copyChapterContent() async {
+    if (isReflowReading) {
+      await reflowReader?.readerAction('copy');
+      return;
+    }
     try {
       final content = await epubPlayerKey.currentState?.theChapterContent();
       if (!mounted) return;
@@ -1146,8 +1225,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       builder: (_) => Scaffold(
           body: DocumentExtractionPanel(
         brightness: _documentBrightness(),
-        narrationBuilder: (text) =>
-            TtsWidget(epubPlayerKey: epubPlayerKey, extractedText: text),
+        narrationBuilder: player.isPdfDocument
+            ? null
+            : (text) =>
+                TtsWidget(epubPlayerKey: epubPlayerKey, extractedText: text),
         stopNarration: () => audioHandler.stop(),
         initialTextStyle: textStyles.read(bookKey),
         saveTextStyle: (style) => textStyles.save(bookKey, style),
@@ -1168,6 +1249,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       )),
     ));
     if (!mounted || epubPlayerKey.currentState?.cssBookKey != bookKey) return;
+    if (!isReflowReading) player.refreshReadingTheme();
     if (text == null || text.trim().isEmpty) {
       _restoreReaderFocusAfterPanel();
       return;
@@ -1311,6 +1393,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       tooltip: L10n.of(context).aiChat,
       icon: const Icon(Icons.auto_awesome),
       onPressed: () async {
+        if (isReflowReading) {
+          await reflowReader?.readerAction('ai');
+          return;
+        }
         // Determine if should show as split based on display mode
         final displayMode = Prefs().aiChatDisplayMode;
         final screenWidth = MediaQuery.sizeOf(context).width;
@@ -1367,14 +1453,16 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                       },
                     ),
                     actions: [
-                      if (AnxPlatform.isMobile)
+                      if (AnxPlatform.isMobile && !isReflowReading)
                         QuickMarkToggle(
                             enabled: _quickMarkEnabled,
                             onPressed:
                                 _changingQuickMark ? null : _toggleQuickMark),
                       if (EnvVar.enableAIFeature) aiButton,
                       TranslationToolbarAction(
-                        mode: epubPlayerKey.currentState?.translationMode,
+                        mode: isReflowReading
+                            ? null
+                            : epubPlayerKey.currentState?.translationMode,
                         onOpenSettings: translationHandler,
                         onStop: () async {
                           try {
@@ -1395,6 +1483,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                           key: const ValueKey('reader-bookmark-button'),
                           tooltip: L10n.of(context).readingPageBookmark,
                           onPressed: () {
+                            if (isReflowReading) {
+                              unawaited(reflowReader?.readerAction('bookmark'));
+                              return;
+                            }
                             if (bookmarkExists) {
                               epubPlayerKey.currentState!.removeAnnotation(
                                 epubPlayerKey.currentState!.bookmarkCfi,
@@ -1403,7 +1495,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                               epubPlayerKey.currentState!.addBookmarkHere();
                             }
                           },
-                          icon: bookmarkExists
+                          icon: !isReflowReading && bookmarkExists
                               ? const Icon(Icons.bookmark)
                               : const Icon(Icons.bookmark_border)),
                       if (!compactToolbar)
@@ -1447,22 +1539,26 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                 BottomSheet(
                   onClosing: () {},
                   enableDrag: false,
-                  constraints: _currentPage is StyleWidget
+                  constraints: _currentPage is StyleWidget || isReflowReading
                       ? ReaderPopup.constraints(context)
                       : null,
                   builder: (context) => SafeArea(
                     top: false,
                     child: Container(
-                      constraints: _currentPage is StyleWidget
-                          ? ReaderPopup.constraints(context)
-                          : const BoxConstraints(maxWidth: 600),
+                      constraints:
+                          _currentPage is StyleWidget || isReflowReading
+                              ? ReaderPopup.constraints(context)
+                              : const BoxConstraints(maxWidth: 600),
                       padding: EdgeInsets.only(
                         bottom: AnxPlatform.isMobile ? 16 : 0,
                       ),
                       child: Builder(
                         builder: (BuildContext context) {
                           final content = identical(_currentPage, empty)
-                              ? ProgressWidget(epubPlayerKey: epubPlayerKey)
+                              ? (isReflowReading
+                                  ? reflowReader?.progressPanel() ?? empty
+                                  : ProgressWidget(
+                                      epubPlayerKey: epubPlayerKey))
                               : _currentPage;
                           final toolbar = Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1488,17 +1584,21 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                                   setState(() {
                                     _currentPage = BrightnessWidget(
                                       controller: AppBrightness.instance,
-                                      onNightModeChanged: () => epubPlayerKey
-                                          .currentState
-                                          ?.refreshReadingTheme(),
+                                      onNightModeChanged: () {
+                                        if (!isReflowReading) {
+                                          epubPlayerKey.currentState
+                                              ?.refreshReadingTheme();
+                                        }
+                                      },
                                     );
                                   });
                                 },
                               ),
-                              IconButton(
-                                icon: const Icon(EvaIcons.headphones),
-                                onPressed: ttsHandler,
-                              ),
+                              if (!isReflowReading)
+                                IconButton(
+                                  icon: const Icon(EvaIcons.headphones),
+                                  onPressed: ttsHandler,
+                                ),
                               if (epubPlayerKey
                                       .currentState?.supportsDocumentImages ==
                                   true)
@@ -1507,12 +1607,18 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                                       context, '提取', 'Extract'),
                                   icon: const Icon(
                                       Icons.document_scanner_outlined),
-                                  onPressed: () => openDocumentExtraction(),
+                                  onPressed: () {
+                                    if (isReflowReading) {
+                                      reflowReader?.openToolsMenu();
+                                    } else {
+                                      openDocumentExtraction();
+                                    }
+                                  },
                                 ),
                             ],
                           );
                           // Short settings fit their content; long ones scroll.
-                          return content is StyleWidget
+                          return content is StyleWidget || isReflowReading
                               ? ReaderQuickStylePanel(
                                   content: content, toolbar: toolbar)
                               : IntrinsicHeight(
@@ -1586,7 +1692,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                       Expanded(
                         child: MouseRegion(
                           onHover: (PointerHoverEvent detail) {
-                            if (!Prefs().showMenuOnHover) return;
+                            if (!Prefs().showMenuOnHover) {
+                              return;
+                            }
                             var y = detail.position.dy;
                             if (y < 30 ||
                                 y > MediaQuery.sizeOf(context).height - 30) {
@@ -1598,19 +1706,24 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                             onKeyEvent: _handleReaderKeyEvent,
                             child: Stack(
                               children: [
-                                FocusScope(
-                                  node: _readerWebViewFocusScope,
-                                  child: EpubPlayer(
-                                    key: epubPlayerKey,
-                                    book: _book,
-                                    cfi: widget.cfi,
-                                    showOrHideAppBarAndBottomBar:
-                                        showOrHideAppBarAndBottomBar,
-                                    onLoadEnd: onLoadEnd,
-                                    initialThemes: widget.initialThemes,
-                                    updateParent: updateState,
-                                  ),
-                                ),
+                                Visibility(
+                                    visible: !isReflowReading,
+                                    maintainState: true,
+                                    maintainAnimation: true,
+                                    maintainSize: true,
+                                    child: FocusScope(
+                                      node: _readerWebViewFocusScope,
+                                      child: EpubPlayer(
+                                        key: epubPlayerKey,
+                                        book: _book,
+                                        cfi: widget.cfi,
+                                        showOrHideAppBarAndBottomBar:
+                                            showOrHideAppBarAndBottomBar,
+                                        onLoadEnd: onLoadEnd,
+                                        initialThemes: widget.initialThemes,
+                                        updateParent: updateState,
+                                      ),
+                                    )),
                                 if (AnxPlatform.isMobile && _quickMarkEnabled)
                                   Positioned(
                                       top: 8,
@@ -1739,7 +1852,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   controller,
                   // Paint controls above the book without changing WebView
                   // dimensions, pagination or reader margins.
-                  if (bottomBarOffstage && _aiChat == null)
+                  if (!isReflowReading && bottomBarOffstage && _aiChat == null)
                     Positioned(
                       left: 12,
                       right: 12,

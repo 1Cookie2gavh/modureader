@@ -96,10 +96,15 @@ class _BookTypeBadgesState extends State<BookTypeBadges> {
                           alignment: Alignment.centerLeft,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: Prefs().eInkMode ? Colors.white : color,
+                              color: Prefs().eInkMode
+                                  ? Theme.of(context).colorScheme.surface
+                                  : color,
                               borderRadius: BorderRadius.circular(6),
                               border: Prefs().eInkMode
-                                  ? Border.all(color: Colors.black)
+                                  ? Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface)
                                   : null,
                             ),
                             child: Padding(
@@ -108,7 +113,9 @@ class _BookTypeBadgesState extends State<BookTypeBadges> {
                                 child: Text(label,
                                     style: TextStyle(
                                         color: Prefs().eInkMode
-                                            ? Colors.black
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
                                             : Colors.white,
                                         fontSize: 10,
                                         height: 1.1,

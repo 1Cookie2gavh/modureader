@@ -9,6 +9,21 @@ void main() {
   setUp(() async =>
       directory = await Directory.systemTemp.createTemp('modu-reflow-test-'));
   tearDown(() async => directory.delete(recursive: true));
+  test('cached OCR upgrades without recognition and old note revisions survive',
+      () async {
+    final store = DocumentReflowStore('book', directory: directory);
+    final old = DocumentReflowPage(
+        page: 0, ocr: true, layoutVersion: 3, rawText: '同一段第一句。\n同一段第二句。');
+    final anchor = old.anchor(0, 2);
+    await store.save(old, 'ocr');
+    final upgraded = (await store.read(0, 'ocr'))!;
+    expect(upgraded.layoutVersion, 4);
+    expect(upgraded.text, '同一段第一句。同一段第二句。');
+    final original = (await store.readAnchor(anchor))!;
+    expect(original.text, '同一段第一句。\n\n同一段第二句。');
+    expect(original.revision, old.revision);
+    expect((await store.read(0, 'ocr'))!.revision, upgraded.revision);
+  });
   test(
       'cache survives reopening, isolates books/pages/model profiles and preserves note revisions',
       () async {

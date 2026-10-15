@@ -9,6 +9,7 @@ import 'package:anx_reader/models/book_notes_state.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/providers/book_notes.dart';
 import 'package:anx_reader/service/book.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/widgets/book_notes/book_note_tile.dart';
 import 'package:anx_reader/widgets/book_share/excerpt_share_service.dart';
 import 'package:anx_reader/widgets/delete_confirm.dart';
@@ -335,6 +336,18 @@ class BookNotesList extends ConsumerWidget {
     final notifier = ref.read(bookNotesControllerProvider(book).notifier);
     return BookNoteTile(
       note: bookNote,
+      onViewOriginal: state.isSelecting
+          ? null
+          : () {
+              final anchor = DocumentReflowAnchor.parse(bookNote.cfi);
+              if (anchor == null) return;
+              if (reading) {
+                epubPlayerKey.currentState?.goToCfi(anchor.originalReference);
+              } else {
+                pushToReadingPage(ref, context, book,
+                    cfi: anchor.originalReference);
+              }
+            },
       onTap: () {
         if (state.isSelecting) {
           notifier.toggleSelection(bookNote);

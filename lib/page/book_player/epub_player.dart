@@ -280,6 +280,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   final einkRefresh = EinkRefresh();
   bool _einkReaderActive = false;
   bool _lastEinkMotionDisabled = Prefs().eInkMotionDisabled;
+  bool _lastEinkMode = Prefs().eInkMode;
   late final _einkPageRefresh = EinkPageRefreshScheduler(() async {
     await WidgetsBinding.instance.endOfFrame;
     return einkRefresh.refresh(
@@ -292,6 +293,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   });
 
   void _configureEinkPreferences() {
+    if (_lastEinkMode != Prefs().eInkMode) {
+      _lastEinkMode = Prefs().eInkMode;
+      if (mounted && _readerReady) refreshReadingTheme();
+    }
     final disableMotion = Prefs().eInkMotionDisabled;
     if (mounted && _readerReady && _lastEinkMotionDisabled != disableMotion) {
       _lastEinkMotionDisabled = disableMotion;
@@ -566,6 +571,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   void changeTheme(ReadTheme readTheme) {
     if (!mounted) return;
+    if (Prefs().eInkMode) {
+      readTheme = readingThemeForDisplay(Prefs(), isDarkMode: isDarkMode);
+    }
     setState(() {
       textColor = readTheme.textColor;
       backgroundColor = readTheme.backgroundColor;
@@ -578,8 +586,13 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       changeStyle({
         backgroundColor: '#$bc',
         fontColor: '#$tc',
-        readingNightMode: ${Prefs().readingNightMode},
+        readingNightMode: ${!Prefs().eInkMode && Prefs().readingNightMode},
+        eInkMode: ${Prefs().eInkMode},
         verticalPageChrome: ${jsonEncode(_webVerticalChrome)},
+        backgroundImage: ${jsonEncode(readingBackgroundForDisplay(Prefs(), isDarkMode: isDarkMode))},
+        bgimgBlur: ${Prefs().bgimg.blur},
+        bgimgOpacity: ${Prefs().bgimg.opacity},
+        bgimgFit: '${Prefs().bgimgFit.code}',
       })
       ''');
   }
@@ -597,7 +610,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         fontSize: ${style.fontSize},
         eInkMode: ${Prefs().eInkMode},
         eInkDisableAnimations: ${Prefs().eInkDisableAnimations},
-        readingNightMode: ${Prefs().readingNightMode},
+        readingNightMode: ${!Prefs().eInkMode && Prefs().readingNightMode},
         mobileImageFit: ${AnxPlatform.isMobile},
         mobileTouchPaging: ${AnxPlatform.isMobile},
         desktopPageInput: ${AnxPlatform.isDesktop},
@@ -648,7 +661,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       changeStyle({
         backgroundImage: ${jsonEncode(bgimgUrl)},
         bgimgBlur: ${bgimg.blur},
-        readingNightMode: ${Prefs().readingNightMode},
+        readingNightMode: ${!Prefs().eInkMode && Prefs().readingNightMode},
         bgimgOpacity: ${bgimg.opacity},
         bgimgFit: '${Prefs().bgimgFit.code}',
       })
@@ -705,7 +718,22 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   void goToHref(String href) {
     unawaited(() async {
-      await readingPageKey.currentState?.closeDocumentReflow();
+      final reflow = readingPageKey.currentState?.reflowReader;
+      if (reflow != null) {
+        final result = await webViewController.callAsyncJavaScript(
+            functionBody: 'await window.goToHref(href); return true;',
+            arguments: {'href': href});
+        if (!mounted ||
+            result?.error != null ||
+            readingPageKey.currentState?.reflowReader != reflow) {
+          return;
+        }
+        final info = await documentReflowInfo(null);
+        if (mounted && readingPageKey.currentState?.reflowReader == reflow) {
+          await reflow.goToPage((info['page'] as num).toInt());
+        }
+        return;
+      }
       if (mounted) {
         await webViewController.evaluateJavascript(
             source: 'goToHref(${jsonEncode(href)})');
@@ -925,9 +953,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   Future<String> initTts({String? fromCfi}) async {
+    if (readingPageKey.currentState?.isReflowReading == true) return '';
     _ttsMaxCharacters = Prefs().ttsBufferSettings.maxCharacters;
-    final reflow = readingPageKey.currentState?.reflowReader;
-    if (reflow != null) return reflow.speechText(fromCfi);
     final result = await waitForTtsReader(
         'start',
         () => webViewController.callAsyncJavaScript(
@@ -990,8 +1017,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   Future<String> ttsNextSection() => _ttsTextCall('ttsNextSection');
 
   Future<String> ttsPrepare() async {
-    final reflow = readingPageKey.currentState?.reflowReader;
-    if (reflow != null) return reflow.speechText(null);
+    if (readingPageKey.currentState?.isReflowReading == true) return '';
     return await webViewController.evaluateJavascript(source: "ttsPrepare()");
   }
 
@@ -1501,7 +1527,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       textColor: textColor!,
       backgroundImagePath: '',
     ));
-    changeBgimgEffect();
   }
 
   Future<void> setHandler(InAppWebViewController controller) async {
@@ -2083,6 +2108,14 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_readerReady) {
+      final theme = readingThemeForDisplay(Prefs(),
+          themes: widget.initialThemes, isDarkMode: isDarkMode);
+      if (backgroundColor != theme.backgroundColor ||
+          textColor != theme.textColor) {
+        refreshReadingTheme();
+      }
+    }
     // Keep the DOM gutters in sync with rotation/safe areas and UI text scaling.
     final insets = _verticalGeometry.toJson();
     if (!mapEquals(_lastVerticalInsets, insets)) {

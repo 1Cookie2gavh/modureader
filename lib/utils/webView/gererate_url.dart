@@ -27,7 +27,7 @@ String generateUrl(
   String indexHtmlPath =
       "http://127.0.0.1:${Server().port}/foliate-js/index.html";
 
-  ReadTheme readTheme = readingThemeForDisplay(Prefs());
+  ReadTheme readTheme = readingThemeForDisplay(Prefs(), isDarkMode: isDarkMode);
   bookStyle ??= Prefs().bookStyle;
   textColor ??= readTheme.textColor;
   fontName ??= Prefs().font.name;
@@ -86,7 +86,7 @@ String generateUrl(
     'continuousScroll': Prefs().continuousScroll,
     'eInkMode': Prefs().eInkMode,
     'eInkDisableAnimations': Prefs().eInkDisableAnimations,
-    'readingNightMode': Prefs().readingNightMode,
+    'readingNightMode': !Prefs().eInkMode && Prefs().readingNightMode,
     'fontSize': bookStyle.fontSize,
     'fontName': fontName,
     'fontPath': fontPath,

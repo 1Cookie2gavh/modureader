@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/widgets/reading_page/document_reflow_reader.dart';
+import 'package:anx_reader/widgets/reading_page/document_reader_surface.dart';
+import 'package:anx_reader/widgets/reading_page/style_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -62,6 +66,7 @@ void main() {
       DocumentReflowAnchor? anchor,
       Future<String> Function(int)? extract,
       Future<String> Function()? recognize,
+      DocumentTextResult? sourceGeometry,
       ReflowSelection? selection,
       Future<void> Function(int)? navigate,
       VoidCallback? close,
@@ -69,9 +74,17 @@ void main() {
       void Function(Map<String, dynamic>)? extractionRequest,
       void Function(Map<String, dynamic>)? renderRequest,
       VoidCallback? clearMenu,
+      VoidCallback? openReaderMenu,
+      ValueChanged<Widget>? openReaderPanel,
+      VoidCallback? closeReaderMenu,
+      Future<void> Function(String, String, bool)? query,
+      Future<void> Function(String)? draft,
+      Future<void> Function(DocumentReflowAnchor, String)? bookmark,
       double textScale = 1,
       bool settle = true}) async {
     await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: const [L10n.delegate],
+        supportedLocales: L10n.supportedLocales,
         builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -88,6 +101,7 @@ void main() {
                   {'page': page ?? 0, 'total': 3, 'width': 600, 'height': 800},
           extractText: (r) async {
             extractionRequest?.call(r);
+            if (sourceGeometry != null) return sourceGeometry.toJson();
             return {
               'text': await (extract?.call(r['page'] as int) ??
                   Future.value('第${r['page']}页正文。\n\n下一段内容。'))
@@ -100,13 +114,22 @@ void main() {
           cancelRender: () {},
           recognize: (_, cancel, progress) async =>
               await (recognize?.call() ?? Future.value('识别文字。\n\n另一段。')),
+          recognizeWithRegions: sourceGeometry == null
+              ? null
+              : (_, cancel, progress) async => sourceGeometry,
           onClose: close ?? () {},
           onPageChanged: navigate ?? (page) async => pages.add(page),
           clearMenu: clearMenu ?? () {},
+          onOpenReaderMenu: openReaderMenu,
+          onOpenReaderPanel: openReaderPanel,
+          onCloseReaderMenu: closeReaderMenu,
           loadNotes: () async => notes,
           initialStyle: const DocumentTextStyle(),
           saveStyle: (_) async {},
           onSelection: selection ?? (_, text, context, rect, ids) async {},
+          onQuery: query,
+          onAiDraft: draft,
+          onBookmark: bookmark,
         ))));
     if (settle) await tester.pumpAndSettle();
   }
@@ -115,6 +138,198 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  for (final ocr in [false, true]) {
+    testWidgets('reflow has no narration menu: OCR=$ocr', (tester) async {
+      await open(tester, ocr: ocr);
+      expect(
+          tester
+              .widget<DocumentReaderSurface>(find.byType(DocumentReaderSurface))
+              .narration,
+          isNull);
+      expect(find.byTooltip('Read aloud'), findsNothing);
+      expect(find.byKey(const ValueKey('document-style-menu')), findsOneWidget);
+      expect(text(tester), isNotEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+      'embedded reflow delegates menus to ebook host without duplicate chrome',
+      (tester) async {
+    var opened = 0, closed = 0;
+    final panels = <Widget>[];
+    await open(tester,
+        openReaderMenu: () => opened++,
+        openReaderPanel: panels.add,
+        closeReaderMenu: () => closed++);
+    expect(find.byKey(const ValueKey('reflow-original')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reflow-mode')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reflow-more')), findsNothing);
+    expect(find.byKey(const ValueKey('document-reader-toolbar')), findsNothing);
+    expect(find.byIcon(Icons.settings), findsNothing);
+    key.currentState!.openStyleMenu();
+    key.currentState!.openToolsMenu();
+    await key.currentState!.readerAction('search');
+    await tester.pumpAndSettle();
+    expect(panels.length, 3);
+    expect(find.byType(BottomSheet), findsNothing);
+    key.currentState!.closeMenu();
+    expect(closed, 1);
+    await tester.tapAt(
+        tester.getBottomRight(find.byKey(const ValueKey('reflow-text'))) +
+            const Offset(-8, 80));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+  });
+
+  for (final ocr in [false, true]) {
+    testWidgets(
+        'embedded original-page arrows automatically reflow and reuse cache ($ocr)',
+        (tester) async {
+      var extracted = 0, recognized = 0;
+      final rendered = <int>[];
+      await open(tester,
+          ocr: ocr,
+          openReaderMenu: () {},
+          extract: (page) async {
+            extracted++;
+            return 'Text page $page';
+          },
+          renderRequest: (request) => rendered.add(request['page'] as int),
+          recognize: () async => 'OCR page ${recognized++}');
+      final first = text(tester);
+      await tester.tap(find.byKey(const ValueKey('reflow-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(text(tester), isNot(first));
+      await tester.tap(find.byKey(const ValueKey('reflow-previous')));
+      await tester.pumpAndSettle();
+      expect(text(tester), first);
+      expect(find.text('1 / 3'), findsOneWidget);
+      expect(extracted, ocr ? 0 : 2);
+      expect(recognized, ocr ? 2 : 0);
+      expect(rendered, ocr ? [0, 1] : isEmpty);
+      expect(pages, [0, 1, 0]);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('ebook progress arrows also navigate original PDF pages',
+      (tester) async {
+    var extractions = 0;
+    await open(tester, openReaderMenu: () {}, extract: (page) async {
+      extractions++;
+      return List.filled(80, 'Page $page has many reflow lines.').join('\n\n');
+    });
+    final entry = OverlayEntry(
+        builder: (_) => Align(
+            alignment: Alignment.bottomCenter,
+            child: Material(
+                child: SizedBox(
+                    width: 500, child: key.currentState!.progressPanel()))));
+    Overlay.of(key.currentContext!).insert(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reader-next-page')));
+    await tester.pumpAndSettle();
+    expect(pages, [0, 1],
+        reason: 'Advance the source page, not a screen of reflow text');
+    expect(text(tester), startsWith('Page 1'));
+    await tester.tap(find.byKey(const ValueKey('reader-previous-page')));
+    await tester.pumpAndSettle();
+    expect(pages, [0, 1, 0]);
+    expect(extractions, 2);
+    entry.remove();
+    entry.dispose();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('more tools stay in the header, outside ebook bottom buttons',
+      (tester) async {
+    await open(tester);
+    final more = find.byKey(const ValueKey('reflow-more'));
+    final original = find.byKey(const ValueKey('reflow-original'));
+    final toolbar = find.byKey(const ValueKey('document-reader-toolbar'));
+    expect(tester.getCenter(more).dy, tester.getCenter(original).dy);
+    expect(find.descendant(of: toolbar, matching: more), findsNothing);
+    expect(
+        tester.getCenter(more).dx, greaterThan(tester.getCenter(original).dx));
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    expect(find.text('Search this page'), findsOneWidget);
+    expect(find.text('Copy selection / page'), findsOneWidget);
+  });
+
+  testWidgets('reflow menu queries, drafts and bookmarks visible text',
+      (tester) async {
+    final queried = <String>[], drafts = <String>[];
+    DocumentReflowAnchor? saved;
+    await open(tester,
+        query: (text, context, translation) async {
+          queried.add('$translation:$text');
+          expect(context, contains(text));
+        },
+        draft: (text) async => drafts.add(text),
+        bookmark: (anchor, text) async => saved = anchor);
+    Future<void> choose(String label) async {
+      await tester.tap(find.byTooltip('More reading tools'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await choose('Translate');
+    expect(queried, ['true:${text(tester)}']);
+    await choose('AI chat');
+    expect(drafts, [text(tester)]);
+    await choose('Add bookmark');
+    expect(saved!.page, 0);
+    expect(saved!.matches(store.revisions.values.single), true);
+    expect(pages, [0], reason: 'Actions never navigate the hidden PDF');
+  });
+
+  testWidgets('explicit recognition keeps the older annotated revision',
+      (tester) async {
+    var calls = 0;
+    await open(tester,
+        ocr: true, recognize: () async => ++calls == 1 ? '原识别朱熹' : '新识别朱喜');
+    final original = store.revisions.values.single;
+    final anchor = original.anchor(0, 3);
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Recognize this page again'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(text(tester), '新识别朱喜');
+    expect((await store.readAnchor(anchor))!.text, '原识别朱熹');
+    expect(store.revisions.length, 2);
+  });
+
+  testWidgets('jump and page search operate within reflow', (tester) async {
+    await open(tester);
+    await tester.tap(find.byTooltip('Go to original page'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '3');
+    await tester.tap(find.text('Go'));
+    await tester.pumpAndSettle();
+    expect(text(tester), startsWith('第2页'));
+    await tester.tap(find.byTooltip('More reading tools'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Search this page'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('reflow-search')), '下一段');
+    await tester.tap(find.byKey(const ValueKey('reflow-find-next')));
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
+        .controller!;
+    expect(controller.selection.textInside(controller.text), '下一段');
+    expect(pages, [0, 2]);
+  });
 
   testWidgets(
       'bottom style updates reflow without rereading or changing source page',
@@ -128,6 +343,8 @@ void main() {
     final before = tester.widget<TextField>(field).controller;
     await tester.tap(find.byKey(const ValueKey('document-style-menu')));
     await tester.pumpAndSettle();
+    expect(find.byType(StyleWidget), findsOneWidget);
+    expect(find.byKey(const ValueKey('ocr-style-preview')), findsNothing);
     tester
         .widget<Slider>(find.byKey(const ValueKey('ocr-style-size')))
         .onChanged!(28);
@@ -154,6 +371,17 @@ void main() {
     final caret = render.getLocalRectForCaret(TextPosition(offset: offset));
     return render.localToGlobal(caret.center + const Offset(2, 0));
   }
+
+  testWidgets('single text tap opens the shared menu once', (tester) async {
+    var opened = 0;
+    await open(tester, openReaderMenu: () => opened++);
+    await tester.tapAt(textPoint(tester, 1));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+  },
+      variant: TargetPlatformVariant(
+          {TargetPlatform.android, TargetPlatform.macOS}));
 
   testWidgets('macOS mouse drag publishes selection without a secondary click',
       (tester) async {
@@ -220,13 +448,14 @@ void main() {
       'macOS double click uses system word bounds and opens reading menu',
       (tester) async {
     final selected = <String>[];
-    var calls = 0;
+    var calls = 0, readerMenus = 0;
     messenger.setMockMethodCallHandler(wordChannel, (_) async {
       calls++;
       return [0, 2];
     });
     await open(tester,
         ocr: true,
+        openReaderMenu: () => readerMenus++,
         recognize: () async => '中国文化源远流长。',
         selection: (_, value, context, rect, ids) async => selected.add(value));
     final point = textPoint(tester, 0);
@@ -236,6 +465,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(selected.last, '中国');
     expect(calls, 1);
+    expect(readerMenus, 0,
+        reason: 'Selecting text must not also open the bottom menu');
   }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
 
   testWidgets('page change discards pending word bounds and menu',
@@ -549,7 +780,6 @@ void main() {
     expect(selected!.start, 2);
     expect(selected!.end, 8);
     expect(ids, [7]);
-    expect(key.currentState!.speechText(selected!.encode()), 'lected');
     final span = field.controller!.buildTextSpan(
         context: tester.element(find.byType(EditableText)),
         style: const TextStyle(),
@@ -571,6 +801,53 @@ void main() {
             .every((s) => s.style?.backgroundColor == null),
         true);
   });
+  for (final ocr in [true, false]) {
+    testWidgets(
+        'selection saves source geometry and ignores older revision marks (OCR=$ocr)',
+        (tester) async {
+      final old = DocumentReflowPage(page: 0, ocr: ocr, rawText: '旧文字。');
+      notes = [
+        BookNote(
+            id: 9,
+            bookId: 1,
+            content: '旧文字',
+            cfi: old.anchor(0, 3).encode(),
+            chapter: '1',
+            type: 'highlight',
+            color: 'ffff00',
+            updateTime: DateTime.now())
+      ];
+      DocumentReflowAnchor? selected;
+      await open(tester,
+          ocr: ocr,
+          sourceGeometry: DocumentTextResult('朱熹異體。', const [
+            DocumentTextRegion(0, 5, DocumentImageRect(.1, .2, .3, .05))
+          ]),
+          info: (_) async => {
+                'page': 0,
+                'total': 3,
+                'region': {'x': .5, 'y': .1, 'width': .4, 'height': .8}
+              },
+          selection: (a, t, c, r, ids) async {
+            selected = a;
+            expect(ids, isEmpty);
+          });
+      final field =
+          tester.widget<TextField>(find.byKey(const ValueKey('reflow-text')));
+      field.controller!.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 2);
+      field.contextMenuBuilder!(tester.element(find.byType(EditableText)),
+          tester.state<EditableTextState>(find.byType(EditableText)));
+      await tester.pump();
+      expect(selected, isNotNull);
+      final rect = selected!.rects.single;
+      expect(rect.x, closeTo(ocr ? .54 : .1, 1e-9));
+      expect(rect.y, closeTo(ocr ? .26 : .2, 1e-9));
+      expect(notes.single.cfi, old.anchor(0, 3).encode());
+      expect(notes.single.content, '旧文字');
+    });
+  }
+
   testWidgets('saved note opens its cached revision rather than new OCR output',
       (tester) async {
     final page = DocumentReflowPage(

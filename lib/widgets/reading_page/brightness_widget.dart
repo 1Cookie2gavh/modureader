@@ -89,15 +89,17 @@ class BrightnessWidget extends StatelessWidget {
                 IconButton.filledTonal(
                   key: const ValueKey('brightness-night'),
                   tooltip: l10n.readingPageStyleNightMode,
-                  isSelected: Prefs().readingNightMode,
+                  isSelected: !Prefs().eInkMode && Prefs().readingNightMode,
                   constraints:
                       const BoxConstraints(minWidth: 48, minHeight: 48),
                   icon: const Icon(Icons.dark_mode_outlined),
                   selectedIcon: const Icon(Icons.dark_mode),
-                  onPressed: () {
-                    Prefs().readingNightMode = !Prefs().readingNightMode;
-                    onNightModeChanged();
-                  },
+                  onPressed: Prefs().eInkMode
+                      ? null
+                      : () {
+                          Prefs().readingNightMode = !Prefs().readingNightMode;
+                          onNightModeChanged();
+                        },
                 ),
               ],
             ),

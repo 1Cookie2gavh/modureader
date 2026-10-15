@@ -7,6 +7,7 @@ import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/search_note_group.dart';
 import 'package:anx_reader/providers/search.dart';
 import 'package:anx_reader/service/book.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/utils/error_handler.dart';
 import 'package:anx_reader/widgets/book_notes/book_note_tile.dart';
 import 'package:anx_reader/widgets/bookshelf/book_item.dart';
@@ -244,6 +245,13 @@ class _SearchNoteResult extends ConsumerWidget {
                                 Theme.of(context).scaffoldBackgroundColor,
                             note: note,
                             margin: EdgeInsets.zero,
+                            onViewOriginal: () {
+                              final anchor =
+                                  DocumentReflowAnchor.parse(note.cfi);
+                              if (anchor == null) return;
+                              pushToReadingPage(ref, context, item.book,
+                                  cfi: anchor.originalReference);
+                            },
                             onTap: () {
                               pushToReadingPage(ref, context, item.book,
                                   cfi: note.cfi);

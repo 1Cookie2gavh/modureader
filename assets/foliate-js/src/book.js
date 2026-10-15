@@ -698,7 +698,7 @@ const getCSS = ({ fontSize,
     html {
         --modu-align-pages: ${useBookStyles || customCSSEnabled || isPdf ? 0 : 1};
         ${writingModeCSS}
-        color: ${fontColor} !important;
+        color: var(--modu-reader-font-color, ${fontColor}) !important;
         ${backgroundImageCSS}
         background-color: transparent !important;
         ${useBookStyles ? '' : `letter-spacing: ${letterSpacing}px;`}
@@ -744,6 +744,13 @@ const getCSS = ({ fontSize,
 
     ${readerFontWeightCSS({ fontWeight, simulateBold, useBookStyles, pdf: isPdf })}
 
+    /* Publisher spans/headings can override the paragraph's inherited color. */
+    ${useBookStyles || isPdf ? '' : `
+    body :is(h1, h2, h3, h4, h5, h6, span, b, strong, em, i, u, small, cite, q, sup, sub):not(:where(a *, svg *, pre *, code *)) {
+        color: var(--modu-reader-font-color, ${fontColor}) !important;
+    }
+    `}
+
     ${useBookStyles ? '' : `
     h1 { 
         font-size: calc(2em * ${headingFontSize}) !important; 
@@ -772,7 +779,7 @@ const getCSS = ({ fontSize,
     `}
 
     p, li, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span, modu-page-run))), font {
-        color: ${fontColor} !important;
+        color: var(--modu-reader-font-color, ${fontColor}) !important;
         ${useBookStyles ? '' : `line-height: ${spacing} !important;`}
         ${useBookStyles ? '' : `text-align: ${textAlign === 'auto' ? (justify ? 'justify' : 'start') : textAlign};`}
         ${useBookStyles || textIndent < 0 ? '' : 'text-indent: ' + textIndent + 'em !important;'}
@@ -889,6 +896,11 @@ const getCSS = ({ fontSize,
     
     ${customCSSEnabled && customCSS ? customCSS : ''}
     ${eInkMode === true && eInkDisableAnimations !== false ? reducedReaderMotionCSS : ''}
+    ${eInkMode === true && !isPdf ? `
+    body, body *:not(:where(svg, svg *, img, canvas, video)) {
+        color: var(--modu-reader-font-color, ${fontColor}) !important;
+    }
+    ` : ''}
 `}
 
 const fixHeadingColor = (themeColor) => {
@@ -1841,6 +1853,10 @@ const callFlutter = (name, data) => {
 }
 
 const setStyle = (oldStyle) => {
+  const paintKeys = ['backgroundColor', 'fontColor', 'readingNightMode',
+    'backgroundImage', 'bgimgBlur', 'bgimgOpacity', 'bgimgFit', 'verticalPageChrome']
+  const paintOnly = !!oldStyle && Object.keys(style).every(key =>
+    style[key] === oldStyle[key] || paintKeys.includes(key))
   const previousCfi = reader.view.lastLocation?.cfi
   applyReaderMotion(document, style.eInkMode === true && style.eInkDisableAnimations !== false)
   document.documentElement.style.backgroundColor = style.backgroundColor
@@ -1868,32 +1884,33 @@ const setStyle = (oldStyle) => {
   // intermediate frames. Do not overwrite the user's saved page-turn style.
   if (style.eInkMode === true && style.eInkDisableAnimations !== false) turn.animated = false
 
-  reader.view.renderer.setAttribute('mobile-image-fit', style.mobileImageFit === true ? 'true' : 'false')
-  reader.view.renderer.setAttribute('mobile-touch-paging', style.mobileTouchPaging === true ? 'true' : 'false')
-  reader.view.renderer.setAttribute('desktop-page-input', style.desktopPageInput === true ? 'true' : 'false')
-  reader.view.renderer.setAttribute('tap-only-page-turn', style.tapOnlyPageTurn === true ? 'true' : 'false')
-  reader.view.renderer.setAttribute('scroll-page-percent', String(style.scrollPagePercent ?? 80))
-  reader.view.renderer.setAttribute('flow', turn.scroll ? 'scrolled' : 'paginated')
-  // Keep script-enabled / vertical books and note popups on the single-view
-  // renderer: speculative documents must never execute author scripts.
-  reader.view.renderer.setAttribute('continuous-scroll',
-    style.continuousScroll !== false && !style.allowScript &&
-      !style.writingMode?.startsWith('vertical') ? 'true' : 'false')
-  reader.view.renderer.setAttribute('top-margin', `${style.topMargin}px`)
-  reader.view.renderer.setAttribute('bottom-margin', `${style.bottomMargin}px`)
-  reader.view.renderer.setAttribute('gap', `${style.sideMargin}%`)
+  if (!paintOnly) {
+    reader.view.renderer.setAttribute('mobile-image-fit', style.mobileImageFit === true ? 'true' : 'false')
+    reader.view.renderer.setAttribute('mobile-touch-paging', style.mobileTouchPaging === true ? 'true' : 'false')
+    reader.view.renderer.setAttribute('desktop-page-input', style.desktopPageInput === true ? 'true' : 'false')
+    reader.view.renderer.setAttribute('tap-only-page-turn', style.tapOnlyPageTurn === true ? 'true' : 'false')
+    reader.view.renderer.setAttribute('scroll-page-percent', String(style.scrollPagePercent ?? 80))
+    reader.view.renderer.setAttribute('flow', turn.scroll ? 'scrolled' : 'paginated')
+    // Keep script-enabled / vertical books and note popups on the single-view
+    // renderer: speculative documents must never execute author scripts.
+    reader.view.renderer.setAttribute('continuous-scroll',
+      style.continuousScroll !== false && !style.allowScript &&
+        !style.writingMode?.startsWith('vertical') ? 'true' : 'false')
+    reader.view.renderer.setAttribute('top-margin', `${style.topMargin}px`)
+    reader.view.renderer.setAttribute('bottom-margin', `${style.bottomMargin}px`)
+    reader.view.renderer.setAttribute('gap', `${style.sideMargin}%`)
+    reader.view.renderer.setAttribute('max-column-count', style.maxColumnCount)
+    reader.view.renderer.setAttribute('column-threshold', `${style.columnThreshold}px`)
+    turn.animated ? reader.view.renderer.setAttribute('animated', 'true')
+      : reader.view.renderer.removeAttribute('animated')
+  }
   applyVerticalPageChrome(reader.view.renderer, style)
   reader.view.renderer.setAttribute('background-color', style.backgroundColor)
   reader.view.renderer.setPdfNightMode?.(style.readingNightMode === true)
-  reader.view.renderer.setAttribute('max-column-count', style.maxColumnCount)
-  reader.view.renderer.setAttribute('column-threshold', `${style.columnThreshold}px`)
   reader.view.renderer.setAttribute('bgimg-url', style.backgroundImage)
   reader.view.renderer.setAttribute('bgimg-blur', style.bgimgBlur ?? 0)
   reader.view.renderer.setAttribute('bgimg-opacity', style.bgimgOpacity ?? 1)
   reader.view.renderer.setAttribute('bgimg-fit', style.bgimgFit ?? 'cover')
-
-  turn.animated ? reader.view.renderer.setAttribute('animated', 'true')
-    : reader.view.renderer.removeAttribute('animated')
 
   const newStyle = {
     eInkMode: style.eInkMode,
@@ -1922,9 +1939,11 @@ const setStyle = (oldStyle) => {
     useBookStyles: style.useBookStyles,
     headingFontSize: style.headingFontSize
   }
-  reader.view.renderer.setStyles?.(getCSS(newStyle))
-  highlightWarnings.clear()
-  for (const { doc } of reader.view.renderer.getContents?.() ?? []) updateCustomHighlights(doc, true)
+  reader.view.renderer.setStyles?.(getCSS(newStyle), { paintOnly, fontColor: style.fontColor })
+  if (!paintOnly) {
+    highlightWarnings.clear()
+    for (const { doc } of reader.view.renderer.getContents?.() ?? []) updateCustomHighlights(doc, true)
+  }
 
   if (!style.useBookStyles && style.fontColor) {
     fixHeadingColor(style.fontColor)

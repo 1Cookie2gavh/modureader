@@ -17,6 +17,8 @@ void main() {
         weight: 1.7,
         spacing: 2,
         margin: 30,
+        verticalMargin: 26,
+        paragraphSpacing: .5,
         serif: true,
         justify: true);
     await store.save('a', style);
@@ -27,11 +29,24 @@ void main() {
     expect(store.read('a').alignment, TextAlign.justify);
     expect(PdfReadingStateStore(prefs).hasSavedMode('a'), false);
     expect(prefs.getKeys(), {DocumentTextStyleStore.key});
-    final invalid = DocumentTextStyle.fromJson(
-        {'size': 999, 'height': double.nan, 'weight': -3});
+    final invalid = DocumentTextStyle.fromJson({
+      'size': 999,
+      'height': double.nan,
+      'weight': -3,
+      'verticalMargin': -1,
+      'paragraphSpacing': 99,
+      'font': '../bad.ttf'
+    });
     expect(invalid.size, 40);
     expect(invalid.height, 1.6);
     expect(invalid.weight, .5);
+    expect(invalid.verticalMargin, 0);
+    expect(invalid.paragraphSpacing, 3);
+    expect(invalid.font, '');
+    final imported = style.withValue('font', '宋体.ttf');
+    expect(DocumentTextStyle.fromJson(imported.toJson()).textStyle.fontFamily,
+        '宋体.ttf');
+    expect(style.buildTextSpan('第一段\n\n第二段').toPlainText(), '第一段\n\n第二段');
   });
 
   for (final size in [
@@ -65,7 +80,9 @@ void main() {
         'height': 2.0,
         'weight': 1.8,
         'spacing': 2.0,
-        'margin': 30.0
+        'margin': 30.0,
+        'verticalMargin': 26.0,
+        'paragraphSpacing': .5,
       }.entries) {
         tester
             .widget<Slider>(find.byKey(ValueKey('ocr-style-${change.key}')))
@@ -81,13 +98,13 @@ void main() {
       expect(preview.style!.fontSize, 28);
       expect(preview.style!.height, 2);
       expect(preview.style!.fontWeight, FontWeight.w700);
-      expect(saved.length, 5);
+      expect(saved.length, 7);
       expect(saved.last.size, 28);
       expect(saved.last.margin, 30);
       expect(find.text('Apply'), findsNothing);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      expect(saved.length, 5);
+      expect(saved.length, 7);
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       tester

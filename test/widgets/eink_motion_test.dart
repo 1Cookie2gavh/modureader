@@ -90,6 +90,10 @@ void main() {
       await tester.pump();
       await tester.tap(mode);
       await tester.pumpAndSettle();
+      final themeChoice = tester.widget<SegmentedButton<String>>(
+          find.byType(SegmentedButton<String>));
+      expect(themeChoice.selected, {'light'});
+      expect(themeChoice.onSelectionChanged, isNull);
       await tester.ensureVisible(animations);
       await tester.pump();
       expect(tester.widget<Switch>(animations).onChanged, isNotNull);
@@ -112,26 +116,39 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-  testWidgets('animations can resume while the E-Ink palette stays monochrome',
-      (tester) async {
-    Prefs().eInkMode = true;
-    Prefs().eInkDisableAnimations = false;
-    late BuildContext context;
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (c) {
-      context = c;
-      return const SizedBox();
-    })));
-    final theme = colorSchema(Prefs(), context, Brightness.dark);
-    expect(theme.colorScheme.primary, Colors.black);
-    expect(theme.scaffoldBackgroundColor, Colors.white);
-    expect(theme.brightness, Brightness.light);
-    expect(theme.splashFactory, isNot(NoSplash.splashFactory));
-    for (final platform in TargetPlatform.values) {
-      expect(theme.pageTransitionsTheme.builders[platform],
-          isNot(isA<NoMotionPageTransitionsBuilder>()));
-    }
-    expect(AppMotion.style, isNull);
-  });
+  for (final dark in [false, true]) {
+    testWidgets(
+        'E-Ink palette stays pure black/white with animations on: dark=$dark',
+        (tester) async {
+      Prefs().eInkMode = true;
+      Prefs().eInkDisableAnimations = false;
+      await Prefs().saveThemeModeToPrefs(dark ? 'dark' : 'light');
+      late BuildContext context;
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (c) {
+        context = c;
+        return const SizedBox();
+      })));
+      final theme = colorSchema(Prefs(), context, Brightness.dark);
+      const foreground = Colors.black;
+      const background = Colors.white;
+      expect(theme.colorScheme.primary, foreground);
+      expect(theme.colorScheme.onSurface, foreground);
+      expect(theme.colorScheme.onSurfaceVariant, foreground);
+      expect(theme.textTheme.bodyMedium!.color, foreground);
+      expect(theme.scaffoldBackgroundColor, background);
+      expect(theme.colorScheme.surface, background);
+      expect(theme.colorScheme.surfaceContainer, background);
+      expect(theme.dialogTheme.backgroundColor, background);
+      expect(theme.bottomSheetTheme.backgroundColor, background);
+      expect(theme.brightness, Brightness.light);
+      expect(theme.splashFactory, isNot(NoSplash.splashFactory));
+      for (final platform in TargetPlatform.values) {
+        expect(theme.pageTransitionsTheme.builders[platform],
+            isNot(isA<NoMotionPageTransitionsBuilder>()));
+      }
+      expect(AppMotion.style, isNull);
+    });
+  }
   testWidgets(
       'mounted drag controller resumes and stops motion with the switch',
       (tester) async {

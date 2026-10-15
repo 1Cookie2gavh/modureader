@@ -18,7 +18,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 class UnifiedQuery extends StatefulWidget {
   const UnifiedQuery(
-      {super.key, required this.text, this.contextText, this.panelBuilder});
+      {super.key,
+      required this.text,
+      this.contextText,
+      this.panelBuilder,
+      this.initialSection});
+  final QuerySection? initialSection;
   final String text;
   final String? contextText;
   // Allows layout/lifecycle regression tests without contacting real services.
@@ -31,7 +36,7 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
   late final input = TextEditingController(text: widget.text.trim());
   late String query = widget.text.trim();
   late var prefs = UnifiedQueryPreferences.load(Prefs().prefs);
-  QuerySection? tab;
+  late QuerySection? tab = widget.initialSection;
   final panels = <QuerySection, Widget>{};
   int revision = 0;
   String t(String zh, String en) => ModuStrings.text(context, zh, en);
