@@ -33,7 +33,7 @@ keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showB
 showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
 bottomNavigatorShowStatistics bottomNavigatorShowAI syncCompletedToast autoSync readingTimedSync
 isSystemTts showTextUnderIconButton notesExportMergeChapters verticalRedFrame enableJsForEpub
-httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft'''
+httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft'''
             .split(RegExp(r'\s+')))
       key: 'bool',
     for (final key

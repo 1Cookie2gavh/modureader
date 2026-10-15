@@ -8,13 +8,40 @@ const noteSelector = 'sup, sub, [role="doc-noteref"], [epub\\:type~="noteref"], 
 const isNote = el => el.closest(noteSelector)
 const runStyle = 'display:inline!important;position:relative!important;top:0px!important;padding:0!important;margin:0!important;border:0!important;font:inherit!important;'
 
+// Moving glyphs independently separates publisher decorations from their text.
+function publisherBlocks(doc) {
+  const blocks = new Set(doc.body.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+  for (const el of doc.body.querySelectorAll(':not(modu-page-run)')) {
+    if (el.closest(excluded) || isNote(el)) continue
+    const style = doc.defaultView.getComputedStyle(el)
+    const bordered = ['Top', 'Right', 'Bottom', 'Left'].some(side =>
+      parseFloat(style[`border${side}Width`]) > 0 &&
+      !['none', 'hidden', ''].includes(style[`border${side}Style`]))
+    if (!bordered && (!style.cssFloat || style.cssFloat === 'none') &&
+      !['absolute', 'fixed'].includes(style.position)) continue
+    // Include the containing paragraph/title, not just its floating number.
+    let block = el
+    while (block !== doc.body && !block.matches('h1, h2, h3, h4, h5, h6, p, li, blockquote, dd, div'))
+      block = block.parentElement
+    blocks.add(block)
+  }
+  return blocks
+}
+
+function insidePublisherBlock(el, blocks) {
+  for (; el; el = el.parentElement) if (blocks.has(el)) return true
+  return false
+}
+
 export function preparePageRuns(doc) {
   if (documents.has(doc)) return documents.get(doc)
   // ponytail: bound chapter preparation on mobile; complex publisher layouts keep native spacing.
   if (!doc.body || doc.body.textContent.length > 50000 || !globalThis.Intl?.Segmenter) return null
+  const protectedBlocks = publisherBlocks(doc)
   const walker = doc.createTreeWalker(doc.body, 4), nodes = []
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.textContent.trim() || node.parentElement.closest(excluded) || isNote(node.parentElement)) continue
+    if (insidePublisherBlock(node.parentElement, protectedBlocks)) continue
     nodes.push(node)
   }
   const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
@@ -38,10 +65,11 @@ export function preparePageRuns(doc) {
     node.replaceWith(fragment)
   }
   // Move atomic note markers with their text line without changing their font/baseline.
-  const notes = [...doc.body.querySelectorAll(noteSelector)].filter(el => !el.parentElement.closest(noteSelector))
+  const notes = [...doc.body.querySelectorAll(noteSelector)].filter(el =>
+    !el.parentElement.closest(noteSelector) && !insidePublisherBlock(el, protectedBlocks))
   const noteStyles = notes.map(el => [el, ['position', 'top'].map(name =>
     [name, el.style.getPropertyValue(name), el.style.getPropertyPriority(name)])])
-  const state = { runs, notes, noteStyles }
+  const state = { runs, notes, noteStyles, protectedBlocks }
   documents.set(doc, state)
   return state
 }
@@ -79,6 +107,7 @@ export function fittedLineHeight(requested, glyphHeight, viewport) {
 export function fitTextLineSpacing(doc, viewport = 0) {
   if (!doc?.body || doc.defaultView.getComputedStyle(doc.documentElement)
     .getPropertyValue('--modu-align-pages').trim() !== '1') return
+  const protectedBlocks = publisherBlocks(doc)
   const blocks = new Map(), styles = new Map(), range = doc.createRange()
   const styleOf = el => {
     if (!styles.has(el)) styles.set(el, doc.defaultView.getComputedStyle(el))
@@ -87,6 +116,7 @@ export function fitTextLineSpacing(doc, viewport = 0) {
   const walker = doc.createTreeWalker(doc.body, 4)
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.textContent.trim() || node.parentElement.closest(excluded) || isNote(node.parentElement)) continue
+    if (insidePublisherBlock(node.parentElement, protectedBlocks)) continue
     let block = node.parentElement
     while (block !== doc.body && styleOf(block).display === 'inline') block = block.parentElement
     if (!['block', 'list-item'].includes(styleOf(block).display)) continue
@@ -144,7 +174,9 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
       else page.runs.push({ el, r })
     }
   }
-  for (const el of doc.body.querySelectorAll('img, svg, table, pre, ruby, math, video, figure')) {
+  // Recheck styles after resize/settings changes; retain originally unwrapped blocks.
+  const protectedBlocks = new Set([...state.protectedBlocks, ...publisherBlocks(doc)])
+  for (const el of [...doc.body.querySelectorAll('img, svg, table, pre, ruby, math, video, figure'), ...protectedBlocks]) {
     if (isNote(el)) continue
     for (const r of el.getClientRects())
       if (r.width > 0 && r.height > 0) pageAt(pageOf(r)).unsafe = true

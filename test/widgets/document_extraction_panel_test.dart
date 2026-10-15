@@ -27,29 +27,35 @@ Future<void> open(WidgetTester tester,
     FakeStore? store,
     DocumentOcr? ocr,
     bool forceOcr = false,
+    Widget Function(String)? narration,
+    Future<void> Function()? stopNarration,
     ValueChanged<String?>? result}) async {
   await tester.pumpWidget(MaterialApp(
       home: Builder(
           builder: (context) => Scaffold(
               body: TextButton(
                   onPressed: () async {
-                    final value = await showDialog<String>(
-                        context: context,
-                        builder: (_) => DocumentExtractionPanel(
-                            forceOcr: forceOcr,
-                            info: (page) async => {
-                                  'page': page ?? 0,
-                                  'total': 3,
-                                  'width': 600,
-                                  'height': 800
-                                },
-                            render: (_) async => {'dataUrl': fixture.pixel},
-                            cancelRender: () {},
-                            extractText: extract ??
-                                (_) async =>
-                                    {'text': 'First line\nSecond line'},
-                            modelStore: store ?? FakeStore(),
-                            recognize: ocr));
+                    final value = await Navigator.of(context).push<String>(
+                        MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                                body: DocumentExtractionPanel(
+                                    forceOcr: forceOcr,
+                                    narrationBuilder: narration,
+                                    stopNarration: stopNarration,
+                                    info: (page) async => {
+                                          'page': page ?? 0,
+                                          'total': 3,
+                                          'width': 600,
+                                          'height': 800
+                                        },
+                                    render: (_) async =>
+                                        {'dataUrl': fixture.pixel},
+                                    cancelRender: () {},
+                                    extractText: extract ??
+                                        (_) async =>
+                                            {'text': 'First line\nSecond line'},
+                                    modelStore: store ?? FakeStore(),
+                                    recognize: ocr))));
                     result?.call(value);
                   },
                   child: const Text('Open'))))));
@@ -58,6 +64,10 @@ Future<void> open(WidgetTester tester,
 }
 
 Future<void> tap(WidgetTester tester, String text) async {
+  if (find.text(text).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
+  }
   await tester.ensureVisible(find.text(text));
   await tester.tap(find.text(text));
   await tester.pumpAndSettle();
@@ -112,6 +122,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(reads, 0);
     expect(find.text('2 / 3'), findsOneWidget);
+  });
+
+  testWidgets(
+      'narration receives only preview text and stops before changing page',
+      (tester) async {
+    final spoken = <String>[];
+    var stops = 0;
+    await open(tester,
+        extract: (r) async => {'text': 'Recognized page ${r['page']}'},
+        narration: (text) {
+          spoken.add(text);
+          return const Text('Narration controls');
+        },
+        stopNarration: () async {
+          stops++;
+        });
+    expect(find.byTooltip('Read aloud'), findsNothing);
+    await tap(tester, 'Preview extracted text');
+    await tester.tap(find.byTooltip('Read aloud'));
+    await tester.pumpAndSettle();
+    expect(spoken, ['Recognized page 0']);
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(stops, 1);
+    expect(find.text('Recognized page 1'), findsOneWidget);
+    expect(find.text('Narration controls'), findsNothing);
+    await tester.tap(find.byTooltip('Read aloud'));
+    await tester.pumpAndSettle();
+    expect(spoken.last, 'Recognized page 1');
+    await tap(tester, 'Original');
+    expect(stops, 2);
+    expect(find.byType(DocumentRegionSelector), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a failed next preview exposes recovery tools', (tester) async {
+    await open(tester, extract: (r) async {
+      if (r['page'] == 1) throw StateError('failure');
+      return {'text': 'Recognized text'};
+    });
+    await tap(tester, 'Preview extracted text');
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Extraction failed'), findsOneWidget);
+    expect(find.text('Preview extracted text'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
   testWidgets('batch processes blank OCR pages without losing later pages',
       (tester) async {
@@ -310,7 +366,8 @@ void main() {
     await tester.pumpAndSettle();
     slider.onChangeEnd!(28);
     await tester.pumpAndSettle();
-    await tap(tester, 'Close');
+    await tester.tap(find.byTooltip('Hide menu'));
+    await tester.pumpAndSettle();
     expect(
         tester
             .widget<SelectableText>(find.byType(SelectableText))
@@ -332,6 +389,8 @@ void main() {
         result: (v) => draft = v,
         extract: (_) async => {'text': ''},
         ocr: (_, c, p) => done.future);
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Extract to AI draft'));
     await tester.tap(find.text('Extract to AI draft'));
     await tester.pump();

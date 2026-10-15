@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/service/ios_linked_books.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:async';
@@ -34,6 +35,7 @@ import 'package:anx_reader/utils/color_scheme.dart';
 import 'package:anx_reader/utils/error/common.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/utils/get_path/android_storage.dart';
+import 'package:anx_reader/utils/get_path/storage_migration.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/utils/window_position_validator.dart';
 import 'package:anx_reader/providers/sync.dart';
@@ -68,6 +70,7 @@ Future<void> main() async {
   try {
     diagnosticVersion = await getAppVersion();
   } catch (_) {}
+  RuntimeDiagnostics.start(diagnosticVersion);
   await CrashJournal.initialize(version: diagnosticVersion);
   // Record startup failures too; AnxError later installs the normal handlers
   // with the same journal calls once ordinary logging is initialized.
@@ -94,6 +97,28 @@ Future<void> main() async {
     }
   });
   await Prefs().initPrefs();
+  if (AnxPlatform.isWindows) {
+    final prefs = Prefs().prefs;
+    final target = prefs.getString('pendingStorageMigration');
+    if (target != null) {
+      var committed = false;
+      try {
+        // Do not silently fall back to another library if the old drive is absent.
+        final source = prefs.getString('customStoragePath') ??
+            await getDefaultStoragePath();
+        final copied = await performStorageMigration(
+            sourcePath: source, destinationPath: target);
+        committed =
+            copied && await prefs.setString('customStoragePath', target);
+      } catch (_) {
+        debugPrint('Storage migration failed; original library retained');
+      }
+      // SharedPreferences updates its cache even when persistence fails.
+      if (!committed) await prefs.reload();
+      await prefs.remove('pendingStorageMigration');
+      await prefs.setBool('storageMigrationSucceeded', committed);
+    }
+  }
   if (Platform.isIOS) {
     try {
       await IosLinkedBooks.restore();
@@ -301,6 +326,7 @@ class _MyAppState extends ConsumerState<MyApp>
 
   @override
   Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
+    RuntimeDiagnostics.record(RuntimeEvent.lifecycle, state: state.name);
     if (state == AppLifecycleState.detached) CrashJournal.closeSession();
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||

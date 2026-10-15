@@ -99,6 +99,16 @@ void main() {
     }
   });
 
+  test('chapter scrolling choice is applied on first open', () {
+    for (final enabled in [false, true]) {
+      Prefs().continuousScroll = enabled;
+      final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
+          fontName: 'serif', fontPath: ''));
+      expect(jsonDecode(uri.queryParameters['style']!)['continuousScroll'],
+          enabled);
+    }
+  });
+
   test('simulated bold and its weight are supplied on first open', () async {
     for (final enabled in [false, true]) {
       await Prefs().saveBookStyleToPrefs(

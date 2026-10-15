@@ -20,6 +20,7 @@ import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
 import 'reader_settings_scroll_view.dart';
 import 'package:anx_reader/dao/theme.dart';
@@ -94,10 +95,14 @@ class StyleWidgetState extends State<StyleWidget> {
           sliders(),
           const SizedBox(height: 10),
           fontAndPageTurn(),
-          if (Prefs().pageTurnStyle == PageTurn.scroll)
+          if (Prefs().pageTurnStyle == PageTurn.scroll) ...[
+            ContinuousScrollTile(onChanged: (value) {
+              widget.epubPlayerKey.currentState?.changeContinuousScroll(value);
+            }),
             ScrollPagePercentTile(onChanged: (value) {
               widget.epubPlayerKey.currentState?.changeScrollPagePercent(value);
             }),
+          ],
           const SizedBox(height: 10),
           englishFontSelector(),
           const Divider(),

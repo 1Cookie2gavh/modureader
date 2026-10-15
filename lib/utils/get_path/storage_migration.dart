@@ -1,118 +1,87 @@
 import 'dart:io';
 
-import 'package:anx_reader/utils/log/common.dart';
+import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Callback for migration progress updates
 typedef MigrationProgressCallback = void Function(
     String currentItem, int progress, int total);
 
-/// Performs data migration from source path to destination path.
-/// Used for custom storage location feature on Windows/macOS.
-/// Returns true if migration was successful.
+/// Run before databases, logging and background writers open.
+/// Preserve the source as a recovery copy.
 Future<bool> performStorageMigration({
   required String sourcePath,
   required String destinationPath,
   MigrationProgressCallback? onProgress,
 }) async {
-  // Items to migrate: 5 folders + 1 log file = 6 items
-  final dataFolders = ['file', 'cover', 'font', 'bgimg', 'databases'];
-  final successfullyMigrated = <String>[];
-  const int totalItems = 6; // 5 folders + 1 log file
-
+  final source = Directory(sourcePath);
+  final destination = Directory(destinationPath);
+  if (!await source.exists()) return false;
+  final created = <FileSystemEntity>[];
   try {
-    for (int i = 0; i < dataFolders.length; i++) {
-      final folder = dataFolders[i];
-      onProgress?.call(folder, i + 1, totalItems);
-
-      final sourceDir =
-          Directory('$sourcePath${Platform.pathSeparator}$folder');
-      final destDir =
-          Directory('$destinationPath${Platform.pathSeparator}$folder');
-
-      if (!sourceDir.existsSync()) {
-        continue;
-      }
-
-      // Create destination directory if it doesn't exist
-      if (!destDir.existsSync()) {
-        await destDir.create(recursive: true);
-      }
-
-      // Copy all contents
-      await _copyDirectory(sourceDir, destDir);
-      successfullyMigrated.add(folder);
-
-      AnxLog.info('StorageMigration: Copied $folder successfully');
+    await destination.create(recursive: true);
+    final from = await source.resolveSymbolicLinks();
+    final to = await destination.resolveSymbolicLinks();
+    if (p.equals(from, to) ||
+        p.isWithin(from, to) ||
+        p.isWithin(to, from) ||
+        !await isDirectoryEmpty(to)) {
+      return false;
     }
-
-    // Also copy the log file if it exists
-    onProgress?.call('modu.log', 6, totalItems);
-    var sourceLogFile = File('$sourcePath${Platform.pathSeparator}modu.log');
-    if (!sourceLogFile.existsSync()) {
-      // Keep importing the legacy filename when migrating an upstream install.
-      sourceLogFile =
-          File('$sourcePath${Platform.pathSeparator}anx_reader.log');
-    }
-    if (sourceLogFile.existsSync()) {
-      final destLogFile =
-          File('$destinationPath${Platform.pathSeparator}modu.log');
-      await sourceLogFile.copy(destLogFile.path);
-      AnxLog.info('StorageMigration: Copied log file successfully');
-    }
-
-    // All copies successful, now delete old data
-    AnxLog.info(
-        'StorageMigration: All data copied, cleaning up source data...');
-    for (final folder in successfullyMigrated) {
-      final sourceDir =
-          Directory('$sourcePath${Platform.pathSeparator}$folder');
-      if (sourceDir.existsSync()) {
-        await sourceDir.delete(recursive: true);
-        AnxLog.info('StorageMigration: Deleted source $folder');
+    final entries = await source.list(followLinks: false).toList();
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final target = p.join(to, p.basename(entry.path));
+      onProgress?.call(p.basename(entry.path), i + 1, entries.length);
+      if (entry is Directory) {
+        final dir = await Directory(target).create();
+        created.add(dir);
+        await _copyDirectory(entry, dir);
+      } else if (entry is File) {
+        final file = File(target);
+        created.add(file);
+        await _copyFile(entry, file);
+      } else {
+        throw const FileSystemException('Storage migration cannot copy links');
       }
     }
-
-    // Delete source log file
-    if (sourceLogFile.existsSync()) {
-      await sourceLogFile.delete();
-    }
-
-    AnxLog.info('StorageMigration: Completed successfully');
     return true;
-  } catch (e) {
-    AnxLog.severe('StorageMigration failed: $e');
+  } catch (_) {
+    // Remove only outputs from this attempt, never source data.
+    for (final entity in created.reversed) {
+      try {
+        await entity.delete(recursive: true);
+      } catch (_) {}
+    }
     return false;
   }
 }
 
-/// Checks if a directory is empty (contains no files or subdirectories)
 Future<bool> isDirectoryEmpty(String path) async {
   final dir = Directory(path);
-  if (!dir.existsSync()) {
-    return true;
+  return !await dir.exists() || await dir.list().isEmpty;
+}
+
+Future<String> getDefaultStoragePath() async =>
+    (await getApplicationSupportDirectory()).path;
+
+Future<void> _copyFile(File source, File destination) async {
+  await source.copy(destination.path);
+  if (await sha256.bind(source.openRead()).first !=
+      await sha256.bind(destination.openRead()).first) {
+    throw const FileSystemException('Storage migration verification failed');
   }
-  final contents = await dir.list().toList();
-  return contents.isEmpty;
 }
 
-/// Gets the default storage path for Windows/macOS
-Future<String> getDefaultStoragePath() async {
-  return (await getApplicationSupportDirectory()).path;
-}
-
-/// Recursively copies a directory
 Future<void> _copyDirectory(Directory source, Directory destination) async {
-  await for (final entity in source.list(recursive: false)) {
-    final newPath =
-        '${destination.path}${Platform.pathSeparator}${entity.path.split(Platform.pathSeparator).last}';
-
+  await for (final entity in source.list(followLinks: false)) {
+    final target = p.join(destination.path, p.basename(entity.path));
     if (entity is File) {
-      await entity.copy(newPath);
+      await _copyFile(entity, File(target));
     } else if (entity is Directory) {
-      final newDir = Directory(newPath);
-      await newDir.create(recursive: true);
-      await _copyDirectory(entity, newDir);
+      await _copyDirectory(entity, await Directory(target).create());
+    } else {
+      throw const FileSystemException('Storage migration cannot copy links');
     }
   }
 }

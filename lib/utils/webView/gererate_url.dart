@@ -83,6 +83,7 @@ String generateUrl(
     'longPressSelectParagraph': Prefs().longPressSelectParagraph,
     'selectionLocale': Prefs().effectiveLocale.toLanguageTag(),
     'scrollPagePercent': Prefs().scrollPagePercent,
+    'continuousScroll': Prefs().continuousScroll,
     'eInkMode': Prefs().eInkMode,
     'eInkDisableAnimations': Prefs().eInkDisableAnimations,
     'readingNightMode': Prefs().readingNightMode,

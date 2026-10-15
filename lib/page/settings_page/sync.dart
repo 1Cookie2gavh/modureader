@@ -34,7 +34,6 @@ import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:path/path.dart' as path;
@@ -365,9 +364,9 @@ class _SyncSettingState extends ConsumerState<SyncSetting> {
       prefsFile = prefsBackupFile;
       snapshot = File(await DBHelper.prepareUploadSnapshot());
 
-      RootIsolateToken token = RootIsolateToken.instance!;
       final zipPath = await compute(createZipFile, {
-        'token': token,
+        'documentPath': await getAnxDocumentsPath(),
+        'tempPath': (await getAnxTempDir()).path,
         'prefsBackupFilePath': prefsBackupFile.path,
         'snapshotPath': snapshot.path,
       });
@@ -761,14 +760,12 @@ class _AiSyncPasswordDialogState extends State<_AiSyncPasswordDialog> {
 }
 
 Future<String> createZipFile(Map<String, dynamic> params) async {
-  RootIsolateToken token = params['token'];
   final String prefsBackupFilePath = params['prefsBackupFilePath'];
   final File prefsBackupFile = File(prefsBackupFilePath);
-  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
   final date =
       '${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}';
-  final zipPath = '${(await getAnxTempDir()).path}/Modu-Backup-$date.zip';
-  final docPath = await getAnxDocumentsPath();
+  final zipPath = '${params['tempPath']}/Modu-Backup-$date.zip';
+  final docPath = params['documentPath'] as String;
   final directoryList = [
     getFileDir(path: docPath),
     getCoverDir(path: docPath),

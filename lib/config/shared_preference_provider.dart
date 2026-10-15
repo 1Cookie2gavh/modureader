@@ -57,6 +57,8 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'pendingStorageMigration',
+  'storageMigrationSucceeded',
   'pendingAutoSyncRequested',
   'pendingAutoSyncCompleted',
   'aiSkillTemplateDraft',
@@ -86,6 +88,8 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'pendingStorageMigration',
+  'storageMigrationSucceeded',
   'pendingAutoSyncRequested',
   'pendingAutoSyncCompleted',
   'aiSkillTemplateDraft',
@@ -676,6 +680,13 @@ class Prefs extends ChangeNotifier {
   }
 
   bool get tapOnlyPageTurn => prefs.getBool('tapOnlyPageTurn') ?? false;
+
+  bool get continuousScroll => prefs.getBool('continuousScroll') ?? true;
+
+  set continuousScroll(bool value) {
+    prefs.setBool('continuousScroll', value);
+    notifyListeners();
+  }
 
   bool get longPressSelectParagraph =>
       prefs.getBool('longPressSelectParagraph') ?? false;

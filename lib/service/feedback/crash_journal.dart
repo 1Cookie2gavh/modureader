@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'runtime_diagnostics.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
@@ -46,6 +47,7 @@ class CrashJournal {
 
   static void recordError(Object error, StackTrace? stack,
       {bool framework = false}) {
+    RuntimeDiagnostics.record(RuntimeEvent.error);
     final type = error.runtimeType.toString();
     final locations = RegExp(
             r'(?:package:(?:anx_reader|flutter)/[a-zA-Z0-9_/]+\.dart|dart:[a-zA-Z0-9_/]+)(?::\d+){1,2}')
@@ -90,6 +92,7 @@ class CrashJournal {
     // Chapter-level progress already has throttled numeric checkpoints.
     if (_lastReaderStage == stage) return;
     _lastReaderStage = stage;
+    RuntimeDiagnostics.record(RuntimeEvent.reader, state: stage);
     _add('reader_stage', {'stage': stage});
   }
 

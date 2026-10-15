@@ -12,6 +12,7 @@ import 'package:anx_reader/service/sync/sync_client_factory.dart';
 import 'package:anx_reader/service/tts/tts_factory.dart';
 import 'package:anx_reader/service/tts/tts_handler.dart';
 import 'package:anx_reader/utils/save_file_to_download.dart';
+import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/widgets/settings/settings_export_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -66,12 +67,21 @@ class _GlobalSettingsPageState extends ConsumerState<GlobalSettingsPage> {
     });
     try {
       await work();
-    } catch (_) {
+    } catch (error) {
+      // Backup contents and plugin messages can contain credentials.
+      AnxLog.warning('Global settings transfer failed: ${error.runtimeType}');
       if (mounted) {
-        setState(() => _status = ModuStrings.text(
-            context,
-            '操作未完成：请检查文件格式或存储权限；配置过大时请使用文件迁移。',
-            'Operation failed. Check the file or storage permissions; use a file for large configurations.'));
+        setState(() => _status = error is FileSystemException
+            ? t('文件读写失败，请选择可写目录后重试。原设置未删除。',
+                'File access failed. Choose a writable folder and retry. Original settings were not deleted.')
+            : error is PlatformException || error is MissingPluginException
+                ? t('系统文件或剪贴板服务失败，请重试或重启应用。',
+                    'System file or clipboard service failed. Retry or restart the app.')
+                : error is FormatException
+                    ? t('设置格式无效或内容过大，请检查备份文件；长链接请改用文件迁移。',
+                        'Invalid or oversized settings. Check the backup; use a file instead of a long link.')
+                    : t('设置处理失败，并非一定是存储权限问题。请导出日志以便排查。',
+                        'Settings processing failed; this may not be a storage permission issue. Export logs for diagnosis.'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
