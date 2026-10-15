@@ -4,6 +4,18 @@ import 'package:anx_reader/service/feedback/bug_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('runtime logs appear in full preview, never in browser URLs', () {
+    const report = BugReport(
+        title: 'a',
+        description: 'b',
+        steps: 'c',
+        expected: 'd',
+        runtimeLog: 'SAFE_RUNTIME_TEST');
+    expect(report.markdown, contains('SAFE_RUNTIME_TEST'));
+    expect(report.needsClipboard, isTrue);
+    expect(
+        report.prefilledUri.toString(), isNot(contains('SAFE_RUNTIME_TEST')));
+  });
   test(
       'optional crash diagnostics require clipboard and never enter report URL',
       () {

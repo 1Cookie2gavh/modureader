@@ -18,6 +18,7 @@ void main() {
     'showBookIndexBadge': false,
     'pageTurnStyle': 'scroll',
     'scrollPagePercent': 93,
+    'continuousScroll': false,
     'readerShortcuts': '{"next":[{"key":"n","modifiers":1}]}',
     'eInkRefreshPages': 10,
     'longPressSelectParagraph': true,

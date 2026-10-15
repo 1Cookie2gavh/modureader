@@ -33,9 +33,6 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
   // Custom storage location state
   String? _selectedNewPath;
   bool _isMigrating = false;
-  String _migrationCurrentItem = '';
-  int _migrationProgress = 0;
-  int _migrationTotal = 6;
   String? _currentStoragePath;
 
   @override
@@ -50,7 +47,17 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
     if (mounted) {
       setState(() {
         _currentStoragePath = path;
+        _selectedNewPath = Prefs().prefs.getString('pendingStorageMigration');
       });
+      final result = Prefs().prefs.getBool('storageMigrationSucceeded');
+      if (result != null) {
+        await Prefs().prefs.remove('storageMigrationSucceeded');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(result
+                ? L10n.of(context).storageMigrationSuccess
+                : L10n.of(context).storageMigrationFailed)));
+      }
     }
   }
 
@@ -102,59 +109,41 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
   }
 
   Future<void> _startMigration() async {
-    if (_selectedNewPath == null || _currentStoragePath == null) return;
-
-    setState(() {
-      _isMigrating = true;
-      _migrationProgress = 0;
-      _migrationCurrentItem = '';
-    });
-
-    final success = await performStorageMigration(
-      sourcePath: _currentStoragePath!,
-      destinationPath: _selectedNewPath!,
-      onProgress: (currentItem, progress, total) {
-        if (mounted) {
-          setState(() {
-            _migrationCurrentItem = currentItem;
-            _migrationProgress = progress;
-            _migrationTotal = total;
-          });
-        }
-      },
-    );
-
-    if (mounted) {
-      setState(() {
-        _isMigrating = false;
-      });
-
-      if (success) {
-        Prefs().customStoragePath = _selectedNewPath;
-        setState(() {
-          _currentStoragePath = _selectedNewPath;
-          _selectedNewPath = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(L10n.of(context).storageMigrationSuccess),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(L10n.of(context).storageMigrationFailed),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+    if (_selectedNewPath == null ||
+        _currentStoragePath == null ||
+        _isMigrating) {
+      return;
+    }
+    setState(() => _isMigrating = true);
+    try {
+      if (!await isDirectoryEmpty(_selectedNewPath!)) {
+        throw const FileSystemException('Destination is not empty');
       }
+      final saved = await Prefs()
+          .prefs
+          .setString('pendingStorageMigration', _selectedNewPath!);
+      if (!saved) {
+        throw const FileSystemException('Cannot save migration request');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ModuStrings.text(
+              context,
+              '已安排迁移，请完全退出并重新打开默读。校验成功后切换路径，原数据保留。',
+              'Migration scheduled. Close and reopen Modu. Switch paths only after verification; original data is retained.'))));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(L10n.of(context).storageMigrationFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _isMigrating = false);
     }
   }
 
   Future<void> _resetToDefaultPath() async {
     final defaultPath = await getDefaultStoragePath();
     if (_currentStoragePath == defaultPath) return;
-
     setState(() {
       _selectedNewPath = defaultPath;
     });
@@ -313,6 +302,13 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Current storage path
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(ModuStrings.text(
+                        context,
+                        '迁移在下次启动时执行，完成前继续使用当前目录。原目录保留为恢复副本，目标目录须为空。',
+                        'Migration runs on the next launch. The current directory stays active until completion and is retained as a recovery copy. Choose an empty destination.')),
+                  ),
                   ListTile(
                     title: Text(L10n.of(context).storageCurrentPath),
                     subtitle: Text(
@@ -332,7 +328,9 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.close),
-                        onPressed: () {
+                        onPressed: () async {
+                          await Prefs().prefs.remove('pendingStorageMigration');
+                          if (!mounted) return;
                           setState(() {
                             _selectedNewPath = null;
                           });
@@ -377,21 +375,11 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
                         children: [
-                          EinkStaticIndicator(
-                              child: LinearProgressIndicator(
-                            value: _migrationTotal > 0
-                                ? _migrationProgress / _migrationTotal
-                                : null,
-                          )),
+                          const EinkStaticIndicator(
+                              child: LinearProgressIndicator()),
                           const SizedBox(height: 8),
                           Text(
-                            _migrationCurrentItem.isNotEmpty
-                                ? '${L10n.of(context).migrationCurrentItem}: $_migrationCurrentItem'
-                                : L10n.of(context).migrationPreparing,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          Text(
-                            '$_migrationProgress / $_migrationTotal',
+                            L10n.of(context).migrationPreparing,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 16),

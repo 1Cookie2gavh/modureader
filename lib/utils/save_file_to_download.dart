@@ -6,14 +6,41 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:anx_reader/utils/harmony_file_export.dart';
+import 'package:path_provider/path_provider.dart';
 
 Future<String?> saveFileToDownload(
     {Uint8List? bytes,
     String? sourceFilePath,
     required String fileName,
-    String? mimeType}) async {
-  switch (AnxPlatform.type) {
+    String? mimeType,
+    @visibleForTesting AnxPlatformEnum? platform}) async {
+  switch (platform ?? AnxPlatform.type) {
     case AnxPlatformEnum.android:
+      // The plugin's byte-data branch uses Java's default temp directory,
+      // which is not writable on every Android device. Use app-owned cache.
+      if (bytes != null) {
+        final staging =
+            await (await getTemporaryDirectory()).createTemp('modu-export-');
+        try {
+          final file = File('${staging.path}/export');
+          await file.writeAsBytes(bytes, flush: true);
+          return await FlutterFileDialog.saveFile(
+            params: SaveFileDialogParams(
+              sourceFilePath: file.path,
+              fileName: fileName,
+              mimeTypesFilter: [mimeType ?? 'application/zip'],
+            ),
+          );
+        } finally {
+          await staging.delete(recursive: true);
+        }
+      }
+      return FlutterFileDialog.saveFile(
+          params: SaveFileDialogParams(
+        sourceFilePath: sourceFilePath,
+        fileName: fileName,
+        mimeTypesFilter: [mimeType ?? 'application/zip'],
+      ));
     case AnxPlatformEnum.ios:
       SaveFileDialogParams params = SaveFileDialogParams(
         sourceFilePath: sourceFilePath,

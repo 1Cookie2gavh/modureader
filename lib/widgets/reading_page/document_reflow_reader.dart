@@ -15,6 +15,7 @@ import 'package:anx_reader/service/ocr/ocr_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'document_text_style_dialog.dart';
+import 'document_reader_surface.dart';
 
 typedef ReflowSelection = Future<void> Function(DocumentReflowAnchor anchor,
     String text, String contextText, Rect globalRect, List<int> annotationIds);
@@ -40,7 +41,12 @@ class DocumentReflowReader extends StatefulWidget {
       this.forceOcr = false,
       this.anchor,
       this.modelStore,
-      this.recognize});
+      this.recognize,
+      this.brightness,
+      this.narration,
+      this.readerActions = const []});
+  final Widget? brightness, narration;
+  final List<Widget> readerActions;
   final DocumentReflowStore store;
   final Future<Map<String, dynamic>> Function(int?) info;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>) extractText,
@@ -62,6 +68,9 @@ class DocumentReflowReader extends StatefulWidget {
 }
 
 class DocumentReflowReaderState extends State<DocumentReflowReader> {
+  final _surfaceKey = GlobalKey<DocumentReaderSurfaceState>();
+  void closeMenu() => _surfaceKey.currentState?.closeMenu();
+  void openStyleMenu() => _surfaceKey.currentState?.openMenu('style');
   final _controller = _ReflowTextController();
   final _scroll = ScrollController();
   final _focus = FocusNode(debugLabel: 'document_reflow_text');
@@ -402,20 +411,13 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     }
   }
 
-  Future<void> _styleSettings() async {
-    widget.clearMenu();
-    clearSelection();
-    final value = await showDialog<DocumentTextStyle>(
-        animationStyle: AppMotion.style,
-        context: context,
-        builder: (_) => DocumentTextStyleDialog(
-            initial: _style,
-            save: (style) async {
-              await widget.saveStyle(style);
-              if (mounted) setState(() => _style = style);
-            }));
-    if (mounted && value != null) setState(() => _style = value);
-  }
+  Widget stylePanel() => DocumentTextStyleDialog(
+      initial: _style,
+      embedded: true,
+      save: (style) async {
+        await widget.saveStyle(style);
+        if (mounted) setState(() => _style = style);
+      });
 
   void _resetSelectionGesture() {
     _selectionTimer?.cancel();
@@ -608,148 +610,165 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+        listenable: Prefs(), builder: (context, _) => _buildReader(context));
+  }
+
+  Widget _buildReader(BuildContext context) {
     Color parse(String value, Color fallback) =>
         Color(int.tryParse(value.replaceFirst('#', ''), radix: 16) ??
             fallback.toARGB32());
     final theme = Prefs().readTheme;
-    final background = Prefs().eInkMode
-        ? Colors.white
-        : parse(theme.backgroundColor, Theme.of(context).colorScheme.surface);
     final foreground = Prefs().eInkMode
         ? Colors.black
         : parse(theme.textColor, Theme.of(context).colorScheme.onSurface);
-    return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) widget.onClose();
-        },
-        child: Material(
-            color: background,
-            child: SafeArea(
-                child: Column(children: [
-              Row(children: [
-                TextButton.icon(
-                    key: const ValueKey('reflow-original'),
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.arrow_back),
-                    label: Text(t('原页', 'Original'))),
-                Expanded(
-                    child: DropdownButtonHideUnderline(
-                        child: DropdownButton<bool>(
-                            key: const ValueKey('reflow-mode'),
-                            value: _forceOcr,
-                            isExpanded: true,
-                            items: [
-                              DropdownMenuItem(
-                                  value: false,
-                                  child: Text(t('文字重排', 'Reflow text'))),
-                              DropdownMenuItem(
-                                  value: true,
-                                  child: Text(t('OCR 重排', 'OCR reflow')))
-                            ],
-                            onChanged: _busy
-                                ? null
-                                : (value) {
-                                    if (value != null && value != _forceOcr) {
-                                      unawaited(setMode(value));
-                                    }
-                                  }))),
-                IconButton(
-                    tooltip: t('文字样式', 'Text style'),
-                    onPressed: _styleSettings,
-                    icon: const Icon(Icons.settings)),
-              ]),
-              if (_busy)
-                EinkStaticIndicator(
-                    child: LinearProgressIndicator(value: _progress)),
-              Expanded(
-                  child: _page == null
-                      ? Center(
-                          child: _busy
-                              ? const EinkStaticIndicator(
-                                  child: CircularProgressIndicator())
-                              : Text(t('等待本页文字', 'Waiting for page text'),
-                                  style: TextStyle(color: foreground)))
-                      : SingleChildScrollView(
-                          controller: _scroll,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: _style.margin, vertical: 16),
-                          child: Listener(
-                              onPointerDown: _selectionPointerDown,
-                              onPointerMove: _selectionPointerMove,
-                              onPointerUp: _selectionPointerUp,
-                              onPointerCancel: (_) => _resetSelectionGesture(),
-                              child: KeyedSubtree(
-                                  key: _textFieldKey,
-                                  child: TextField(
-                                    key: const ValueKey('reflow-text'),
-                                    controller: _controller,
-                                    focusNode: _focus,
-                                    readOnly: true,
-                                    maxLines: null,
-                                    showCursor: false,
-                                    enableSuggestions: false,
-                                    style: _style.textStyle
-                                        .copyWith(color: foreground),
-                                    textAlign: _style.alignment,
-                                    decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        isCollapsed: true,
-                                        contentPadding: EdgeInsets.zero),
-                                    contextMenuBuilder: _selectionMenu,
-                                    onTapOutside: (_) {},
-                                  ))))),
-              if (_needsModel || _error != null)
-                Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                        _error ??
-                            t('本页需要 OCR，请先在模型设置中下载模型。识别在本机完成。',
-                                'This page needs OCR. Download a model in settings; recognition runs locally.'),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: foreground))),
-              Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    IconButton(
-                        key: const ValueKey('reflow-previous'),
-                        tooltip: t('上一原页', 'Previous original page'),
-                        onPressed: !_busy && (_navigationPage ?? 0) > 0
-                            ? () => turnOriginalPage(-1)
-                            : null,
-                        icon: const Icon(Icons.chevron_left)),
-                    Text('${(_navigationPage ?? 0) + 1} / $_total',
-                        style: TextStyle(color: foreground)),
-                    IconButton(
-                        key: const ValueKey('reflow-next'),
-                        tooltip: t('下一原页', 'Next original page'),
-                        onPressed: !_busy &&
-                                _navigationPage != null &&
-                                _navigationPage! + 1 < _total
-                            ? () => turnOriginalPage(1)
-                            : null,
-                        icon: const Icon(Icons.chevron_right)),
-                    if (_busy)
-                      TextButton(
-                          onPressed: () {
-                            _cancel?.cancel();
-                            widget.cancelRender();
-                          },
-                          child: Text(t('停止', 'Stop'))),
-                    if (_needsModel && !_busy)
-                      TextButton(
-                          onPressed: _settings,
-                          child: Text(t('OCR 模型设置', 'OCR model settings'))),
-                    if (!_busy && (_error != null || _page == null))
-                      TextButton(
-                          onPressed: () => _load(_requestedPage ??
-                              _page?.page ??
-                              widget.anchor?.page),
-                          child: Text(t('重试', 'Retry'))),
-                  ]),
-            ]))));
+    return DocumentReaderSurface(
+      onBack: widget.onClose,
+      key: _surfaceKey,
+      brightness: widget.brightness,
+      narration: widget.narration,
+      style: stylePanel(),
+      actions: widget.readerActions,
+      onMenuOpened: () {
+        widget.clearMenu();
+        clearSelection();
+      },
+      header: Row(children: [
+        TextButton.icon(
+            key: const ValueKey('reflow-original'),
+            onPressed: widget.onClose,
+            icon: const Icon(Icons.arrow_back),
+            label: Text(t('原页', 'Original'))),
+        Expanded(
+            child: DropdownButtonHideUnderline(
+                child: DropdownButton<bool>(
+                    key: const ValueKey('reflow-mode'),
+                    value: _forceOcr,
+                    isExpanded: true,
+                    items: [
+                      DropdownMenuItem(
+                          value: false, child: Text(t('文字重排', 'Reflow text'))),
+                      DropdownMenuItem(
+                          value: true, child: Text(t('OCR 重排', 'OCR reflow')))
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) {
+                            if (value != null && value != _forceOcr) {
+                              unawaited(setMode(value));
+                            }
+                          }))),
+        IconButton(
+            tooltip: t('文字样式', 'Text style'),
+            onPressed: () => _surfaceKey.currentState?.openMenu('style'),
+            icon: const Icon(Icons.settings)),
+      ]),
+      body: Column(children: [
+        if (_busy)
+          EinkStaticIndicator(child: LinearProgressIndicator(value: _progress)),
+        Expanded(
+            child: _page == null
+                ? Center(
+                    child: _busy
+                        ? const EinkStaticIndicator(
+                            child: CircularProgressIndicator())
+                        : Text(t('等待本页文字', 'Waiting for page text'),
+                            style: TextStyle(color: foreground)))
+                : SingleChildScrollView(
+                    controller: _scroll,
+                    padding: EdgeInsets.symmetric(
+                        horizontal: _style.margin, vertical: 16),
+                    child: Listener(
+                        onPointerDown: _selectionPointerDown,
+                        onPointerMove: _selectionPointerMove,
+                        onPointerUp: _selectionPointerUp,
+                        onPointerCancel: (_) => _resetSelectionGesture(),
+                        child: KeyedSubtree(
+                            key: _textFieldKey,
+                            child: TextField(
+                              key: const ValueKey('reflow-text'),
+                              controller: _controller,
+                              focusNode: _focus,
+                              readOnly: true,
+                              maxLines: null,
+                              showCursor: false,
+                              enableSuggestions: false,
+                              style:
+                                  _style.textStyle.copyWith(color: foreground),
+                              textAlign: _style.alignment,
+                              decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  isCollapsed: true,
+                                  contentPadding: EdgeInsets.zero),
+                              contextMenuBuilder: _selectionMenu,
+                              onTapOutside: (_) {},
+                            ))))),
+        if (_needsModel || _error != null)
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                  _error ??
+                      t('本页需要 OCR，请先在模型设置中下载模型。识别在本机完成。',
+                          'This page needs OCR. Download a model in settings; recognition runs locally.'),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: foreground))),
+      ]),
+      tools: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(t('PDF / OCR', 'PDF / OCR'),
+            style: Theme.of(context).textTheme.titleLarge),
+        SwitchListTile(
+            title: Text(t('强制 OCR', 'Force OCR')),
+            value: _forceOcr,
+            onChanged: _busy ? null : (v) => setMode(v)),
+        ListTile(
+            leading: const Icon(Icons.arrow_back),
+            title: Text(t('返回原页', 'Return to original page')),
+            onTap: widget.onClose),
+        ListTile(
+            leading: const Icon(Icons.document_scanner_outlined),
+            title: Text(t('OCR 模型设置', 'OCR model settings')),
+            onTap: _busy ? null : _settings),
+      ]),
+      navigation: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.center,
+          children: [
+            IconButton(
+                key: const ValueKey('reflow-previous'),
+                tooltip: t('上一原页', 'Previous original page'),
+                onPressed: !_busy && (_navigationPage ?? 0) > 0
+                    ? () => turnOriginalPage(-1)
+                    : null,
+                icon: const Icon(Icons.chevron_left)),
+            Text('${(_navigationPage ?? 0) + 1} / $_total'),
+            IconButton(
+                key: const ValueKey('reflow-next'),
+                tooltip: t('下一原页', 'Next original page'),
+                onPressed: !_busy &&
+                        _navigationPage != null &&
+                        _navigationPage! + 1 < _total
+                    ? () => turnOriginalPage(1)
+                    : null,
+                icon: const Icon(Icons.chevron_right)),
+            if (_busy)
+              TextButton(
+                  onPressed: () {
+                    _cancel?.cancel();
+                    widget.cancelRender();
+                  },
+                  child: Text(t('停止', 'Stop'))),
+            if (_needsModel && !_busy)
+              TextButton(
+                  onPressed: _settings,
+                  child: Text(t('OCR 模型设置', 'OCR model settings'))),
+            if (!_busy && (_error != null || _page == null))
+              TextButton(
+                  onPressed: () => _load(
+                      _requestedPage ?? _page?.page ?? widget.anchor?.page),
+                  child: Text(t('重试', 'Retry'))),
+          ]),
+    );
   }
 }
 

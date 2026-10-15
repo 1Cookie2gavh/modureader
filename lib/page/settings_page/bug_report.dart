@@ -2,7 +2,7 @@ import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/service/feedback/bug_report.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/feedback/crash_diagnostics.dart';
-import 'package:anx_reader/widgets/settings/community_links.dart';
+import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,12 +15,14 @@ class BugReportSettings extends StatefulWidget {
       this.openUrl,
       this.loadVersion,
       this.loadCrashLog,
+      this.loadRuntimeLog,
       this.loadEnvironment});
 
   /// Injectable boundaries keep tests offline and never create real issues.
   final Future<bool> Function(Uri)? openUrl;
   final Future<String> Function()? loadVersion;
   final Future<String> Function()? loadCrashLog;
+  final String Function()? loadRuntimeLog;
   final Future<String> Function()? loadEnvironment;
 
   @override
@@ -50,6 +52,8 @@ class _BugReportSettingsState extends State<BugReportSettings> {
   bool _includeCrashLog = false;
   bool _loadingCrashLog = false;
   String? _crashLog;
+  bool _includeRuntimeLog = true;
+  String? _runtimeLog;
   String _deviceEnvironment = '';
   int _logRequest = 0;
 
@@ -61,13 +65,15 @@ class _BugReportSettingsState extends State<BugReportSettings> {
     setState(() {
       _type = type;
       _status = null;
-      // Logs belong only to Bug reports. Invalidate any outstanding read and
-      // require fresh opt-in when returning, without deleting either draft.
+      // Invalidate outstanding reads when leaving Bug reports.
       ++_logRequest;
       _includeCrashLog = false;
       _loadingCrashLog = false;
       _crashLog = null;
+      _includeRuntimeLog = type == FeedbackType.bug;
+      _runtimeLog = type == FeedbackType.bug ? _readRuntimeLog() : null;
     });
+    if (type == FeedbackType.bug) _toggleCrashLog(true);
   }
 
   @override
@@ -75,7 +81,12 @@ class _BugReportSettingsState extends State<BugReportSettings> {
     super.initState();
     _loadVersion();
     _loadDeviceEnvironment();
+    _runtimeLog = _readRuntimeLog();
+    _toggleCrashLog(true);
   }
+
+  String _readRuntimeLog() =>
+      widget.loadRuntimeLog?.call() ?? RuntimeDiagnostics.preview();
 
   Future<void> _loadDeviceEnvironment() async {
     String info;
@@ -159,6 +170,7 @@ class _BugReportSettingsState extends State<BugReportSettings> {
           additional: _additional.text,
           environment: _draft.includeEnvironment ? _environment : null,
           crashLog: _includeCrashLog ? _crashLog : null,
+          runtimeLog: _includeRuntimeLog ? _runtimeLog : null,
         );
 
   Future<void> _copy(String value) async {
@@ -235,8 +247,9 @@ class _BugReportSettingsState extends State<BugReportSettings> {
                     'Attach screenshots or shareable examples on GitHub. Search for duplicates first; keep each report to one bug or idea.')),
                 if (report.needsClipboard) ...[
                   const SizedBox(height: 16),
-                  Text(_tr('报告较长，将复制完整内容到剪贴板，再打开 GitHub。请手动粘贴，不会截断内容。',
-                      'This report is long. Copy the full text to your clipboard and open GitHub, then paste it manually. Nothing will be truncated.')),
+                  Text(_tr(
+                      '报告附带日志或内容较长，确认后复制完整内容并打开 GitHub，请手动粘贴。日志不会写入网址或浏览器历史。',
+                      'This report includes diagnostics or is long. After confirmation, copy it and open GitHub, then paste manually. Diagnostics never enter URLs or browser history.')),
                 ],
               ],
             ),
@@ -307,8 +320,6 @@ class _BugReportSettingsState extends State<BugReportSettings> {
                   '填写问题并预览后，前往默读 GitHub 仓库确认提交（需要 GitHub 账号）。截图可在 GitHub 页面添加。',
                   'Describe and preview your report, then confirm it in the Modu GitHub repository (GitHub account required). Attach screenshots on GitHub.')),
               const SizedBox(height: 12),
-              const CommunityLinks(),
-              const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
                 runSpacing: 8,
@@ -339,8 +350,8 @@ class _BugReportSettingsState extends State<BugReportSettings> {
                       'Describe your use case and the desired feature. Reproduction steps and crash logs are not needed.')),
               if (_type == FeedbackType.bug)
                 Text(_tr(
-                    '各平台在本机保留有限的脱敏异常与操作记录，默认不附带、不上传。勾选后附带可用的系统崩溃诊断，不读取普通日志、AI 配置、密钥或书籍正文。报告提交后公开可见，请预览检查。附带日志时将复制报告，再由你粘贴到 GitHub。',
-                    'All platforms retain a small local journal of sanitized errors and checkpoints, never attached or uploaded by default. Opting in includes available crash diagnostics, not ordinary logs, AI settings, keys or book text. Review before sharing: reports become public. Reports with logs are copied for you to paste into GitHub.')),
+                    'Bug 报告默认附带崩溃诊断与安全运行日志，可分别取消。不会读取普通日志中的原始消息、AI 配置、密钥或书籍正文，不自动上传。提交前预览完整报告；确认后复制，再由你粘贴到 GitHub。提交后公开可见。',
+                    'Bug reports include crash and safe runtime diagnostics by default; each can be unchecked. Raw ordinary logs, AI settings, keys and book text are excluded. Nothing uploads automatically. Preview the full report, then confirm copying and paste into GitHub. Submitted reports are public.')),
               Wrap(
                 spacing: 8,
                 children: [
@@ -417,6 +428,34 @@ class _BugReportSettingsState extends State<BugReportSettings> {
                     Padding(
                         padding: const EdgeInsets.all(12),
                         child: SelectableText(_crashLog!))
+                  ],
+                ),
+              if (_type == FeedbackType.bug)
+                CheckboxListTile(
+                  key: const ValueKey('include-runtime-log'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(_tr(
+                      '附带运行日志（可选）', 'Include runtime diagnostics (optional)')),
+                  subtitle: Text(_tr(
+                      '仅本次运行最近 300 条：版本、平台、操作状态、耗时和内存采样，不含书名、正文、路径、网址或凭据。每次重启自动清空，不清除独立的崩溃诊断。',
+                      'Last 300 events in this session: version, platform, operation states, duration and memory samples. No book titles, text, paths, URLs or credentials. Cleared on every restart; separate crash diagnostics are retained.')),
+                  value: _includeRuntimeLog,
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() {
+                            _includeRuntimeLog = value ?? false;
+                            _runtimeLog =
+                                _includeRuntimeLog ? _readRuntimeLog() : null;
+                          }),
+                ),
+              if (_includeRuntimeLog && _runtimeLog != null)
+                ExpansionTile(
+                  title: Text(_tr(
+                      '查看将附带的运行日志', 'Preview attached runtime diagnostics')),
+                  children: [
+                    Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: SelectableText(_runtimeLog!))
                   ],
                 ),
               const SizedBox(height: 12),

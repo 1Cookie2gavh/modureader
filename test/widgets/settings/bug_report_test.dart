@@ -16,6 +16,7 @@ Future<void> mount(
   Future<String> Function()? version,
   Future<String> Function()? crashLog,
   Future<String> Function()? environment,
+  bool includeDiagnostics = false,
   bool mobile = false,
   bool chinese = false,
   Locale? locale,
@@ -36,11 +37,21 @@ Future<void> mount(
       sections: BugReportSettings(
         openUrl: open ?? (_) async => true,
         loadVersion: version ?? () async => '0.1.0-beta.1+6326',
-        loadCrashLog: crashLog,
+        loadCrashLog: crashLog ?? () async => 'SAFE_CRASH_TEST',
+        loadRuntimeLog: () => 'SAFE_RUNTIME_TEST',
         loadEnvironment: environment ?? () async => '',
       ),
     )),
   ));
+  await tester.pump();
+  // Most legacy form tests exercise the user's explicit no-diagnostics choice.
+  if (!includeDiagnostics) {
+    for (final key in ['include-crash-log', 'include-runtime-log']) {
+      tester
+          .widget<CheckboxListTile>(find.byKey(ValueKey(key)))
+          .onChanged!(false);
+    }
+  }
   await tester.pumpAndSettle();
 }
 
@@ -104,6 +115,32 @@ Future<void> fillFeature(WidgetTester tester,
 }
 
 void main() {
+  testWidgets(
+      'both logs default on, no contacts, preview before external action',
+      (tester) async {
+    final opened = <Uri>[];
+    await mount(tester, includeDiagnostics: true, open: (uri) async {
+      opened.add(uri);
+      return true;
+    });
+    for (final key in ['include-crash-log', 'include-runtime-log']) {
+      expect(tester.widget<CheckboxListTile>(find.byKey(ValueKey(key))).value,
+          isTrue);
+    }
+    expect(find.byKey(const ValueKey('telegram-channel')), findsNothing);
+    expect(find.textContaining('QQ'), findsNothing);
+    await fill(tester);
+    await click(tester, 'Preview and submit');
+    expect(find.textContaining('SAFE_RUNTIME_TEST'), findsWidgets);
+    expect(find.textContaining('SAFE_CRASH_TEST'), findsWidgets);
+    expect(opened, isEmpty);
+    await click(tester, 'Keep editing');
+    await click(tester, 'Include runtime diagnostics (optional)');
+    await click(tester, 'Preview and submit');
+    expect(find.textContaining('SAFE_RUNTIME_TEST'), findsNothing);
+    expect(find.textContaining('SAFE_CRASH_TEST'), findsWidgets);
+    expect(opened, isEmpty);
+  });
   testWidgets(
       'feature needs only title, use case and solution; no automatic submission',
       (tester) async {
@@ -184,7 +221,7 @@ void main() {
   });
 
   testWidgets(
-      'switching to feature cancels diagnostics and requires fresh bug opt-in',
+      'switching to feature cancels pending diagnostics; returning to bug reloads defaults',
       (tester) async {
     final log = Completer<String>();
     String? copied;
@@ -215,8 +252,8 @@ void main() {
     expect(copied, contains('[Feature]: A useful feature'));
     expect(copied, isNot(contains('BUG_ONLY_DIAGNOSTICS')));
     await selectType(tester, FeedbackType.bug);
-    expect(tester.widget<CheckboxListTile>(tile).value, isFalse);
-    expect(find.textContaining('BUG_ONLY_DIAGNOSTICS'), findsNothing);
+    expect(tester.widget<CheckboxListTile>(tile).value, isTrue);
+    expect(find.text('Preview attached crash diagnostics'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -384,8 +421,7 @@ void main() {
     expect(
         opened.single.toString(), isNot(contains('SANITIZED_CRASH_FIXTURE')));
   });
-  testWidgets(
-      'crash checkbox defaults off, previews only after opt-in and opt-out removes it',
+  testWidgets('crash diagnostics can be reselected, previewed and removed',
       (tester) async {
     var reads = 0;
     await mount(tester,
@@ -394,7 +430,7 @@ void main() {
           return 'NATIVE_CRASH fixture';
         },
         environment: () async => 'Android 16 / iQOO Neo8 / ARM64');
-    expect(reads, 0);
+    expect(reads, 1);
     expect(find.textContaining('Android 16 / iQOO'), findsOneWidget);
     expect(
         tester
@@ -404,7 +440,7 @@ void main() {
         isFalse);
     await fill(tester);
     await click(tester, 'Include crash diagnostics (optional)');
-    expect(reads, 1);
+    expect(reads, 2);
     await click(tester, 'Preview and submit');
     expect(find.textContaining('NATIVE_CRASH fixture'), findsWidgets);
     expect(find.text('Copy and open GitHub'), findsOneWidget);
