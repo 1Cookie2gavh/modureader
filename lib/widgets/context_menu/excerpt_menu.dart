@@ -9,6 +9,7 @@ import 'package:anx_reader/models/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/selection_toolbar.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/service/tts/tts_handler.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/book_share/excerpt_share_service.dart';
@@ -85,6 +86,9 @@ class ExcerptMenuState extends State<ExcerptMenu> {
       widget.bookId ?? epubPlayerKey.currentState?.widget.book.id;
   bool get _hasDeletionTarget =>
       noteId != null || widget.annotationIds.isNotEmpty;
+  bool get _canNarrate =>
+      !widget.annoCfi.startsWith(DocumentReflowAnchor.prefix) &&
+      readingPageKey.currentState?.isReflowReading != true;
 
   @override
   initState() {
@@ -413,6 +417,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         }
         break;
       case 'narrate':
+        if (!_canNarrate) return;
         final cfi = widget.annoCfi;
         widget.onClose();
         final player = epubPlayerKey.currentState;
@@ -532,9 +537,12 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                     ? constraints.maxWidth
                     : constraints.maxHeight;
                 final menu = SelectionActionToolbar(
-                  items: config.availableItems(
-                      footnote: widget.footnote,
-                      aiEnabled: EnvVar.enableAIFeature),
+                  items: config
+                      .availableItems(
+                          footnote: widget.footnote,
+                          aiEnabled: EnvVar.enableAIFeature)
+                      .where((item) => item.action != 'narrate' || _canNarrate)
+                      .toList(),
                   visibleCount: config.visibleCount,
                   axis: widget.axis,
                   maxExtent: extent,

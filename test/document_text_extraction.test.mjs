@@ -33,3 +33,23 @@ test('requests exactly one page, not the entire document',async()=>{
     await extractPdfText(source,{page:1})
     assert.equal(calls,1)
 })
+test('source rectangles retain full-page coordinates even for a cropped selection',async()=>{
+    const result=await extractPdfText(pdf([item('甲乙丙丁戊',20,150)]),
+        {page:0,region:{x:.1,y:.1,width:.2,height:.3}})
+    assert.equal(result.text,'甲乙')
+    assert.deepEqual(result.regions[0].start,0)
+    assert.deepEqual(result.regions[0].end,2)
+    const [x,y,w,h]=result.regions[0].rect
+    assert.equal(x,.1)
+    assert.equal(y,.21)
+    assert.equal(w,.5)
+    assert.ok(Math.abs(h-.05)<1e-10)
+})
+test('trim, joined items and surrogate pairs keep UTF16 source offsets',async()=>{
+    const result=await extractPdfText(pdf([
+        item('  朱🌱  ',20,150), item('inter',20,80,40),item('national',70,80,80)
+    ]),{page:0})
+    assert.equal(result.text,'朱🌱\ninter national')
+    assert.deepEqual(result.regions.map(r=>result.text.slice(r.start,r.end)),
+        ['朱🌱','inter','national'])
+})

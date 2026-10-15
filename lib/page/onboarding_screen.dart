@@ -434,9 +434,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     value: prefs.eInkMode,
                     onChanged: (value) {
                       setState(() {
-                        if (value) {
-                          prefs.saveThemeModeToPrefs('light');
-                        }
                         prefs.eInkMode = value;
                       });
                     },

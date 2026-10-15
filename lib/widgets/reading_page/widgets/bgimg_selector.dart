@@ -17,13 +17,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class BgimgSelector extends ConsumerStatefulWidget {
-  const BgimgSelector({super.key});
+  const BgimgSelector({super.key, this.onChanged});
+  final VoidCallback? onChanged;
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() => _BgimgSelectorState();
 }
 
 class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
+  void _apply() {
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+    } else {
+      epubPlayerKey.currentState?.refreshReadingTheme();
+    }
+  }
+
   static const double _itemHeight = 120.0;
   // Diagonal offset: controls the diagonal angle, smaller value implies larger angle (closer to vertical)
   static const double _diagonalOffset = 32.0; // pixel value
@@ -59,8 +68,7 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
 
   void _selectBackground(BgimgModel image) {
     selectReadingBackground(image, prefs: Prefs(), apply: () {
-      epubPlayerKey.currentState?.changeTheme(Prefs().readTheme);
-      epubPlayerKey.currentState?.changeBgimgEffect();
+      _apply();
     });
   }
 
@@ -524,7 +532,7 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
               onSelectionChanged: (value) {
                 final fit = value.first;
                 Prefs().bgimgFit = fit;
-                epubPlayerKey.currentState?.changeBgimgEffect();
+                _apply();
               },
             ),
           ),
@@ -557,7 +565,7 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
                   label: bgimg.blur.toStringAsFixed(1),
                   onChanged: (value) {
                     Prefs().bgimg = Prefs().bgimg.copyWith(blur: value);
-                    epubPlayerKey.currentState?.changeBgimgEffect();
+                    _apply();
                   },
                 ),
               ),
@@ -589,7 +597,7 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
                   label: '${(bgimg.opacity * 100).round()}%',
                   onChanged: (value) {
                     Prefs().bgimg = Prefs().bgimg.copyWith(opacity: value);
-                    epubPlayerKey.currentState?.changeBgimgEffect();
+                    _apply();
                   },
                 ),
               ),

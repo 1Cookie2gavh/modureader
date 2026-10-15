@@ -29,20 +29,33 @@ export async function extractPdfText(pdf, {page, region}) {
         if (text.trim()) entries.push({text,left,right,top,height:bottom-top})
     }
     entries.sort((a,b)=>a.top-b.top)
-    const rows=[]
+    const rows=[], regions=[]
+    let offset=0
     for(let i=0;i<entries.length;){
         const first=entries[i++],row=[first]
         while(i<entries.length && entries[i].top-first.top<Math.min(first.height,entries[i].height)*.45) row.push(entries[i++])
         row.sort((a,b)=>a.left-b.left)
         let line=''
+        const parts=[]
         for(let n=0;n<row.length;n++) {
             const entry=row[n],previous=row[n-1]
             if(previous && entry.left-previous.right > .002 && /[a-zA-Z0-9]$/.test(line) && /^[a-zA-Z0-9]/.test(entry.text)) line+=' '
+            parts.push({start:line.length,end:line.length+entry.text.length,entry})
             line+=entry.text
         }
-        rows.push(line.trim())
+        const trimmed=line.trim(), leading=line.length-line.trimStart().length
+        if(rows.length) offset++
+        for(const {start,end,entry} of parts) {
+            const a=Math.max(0,start-leading), b=Math.min(trimmed.length,end-leading)
+            const left=Math.max(0,entry.left), top=Math.max(0,entry.top)
+            const right=Math.min(1,entry.right), bottom=Math.min(1,entry.top+entry.height)
+            if(b>a && right>left && bottom>top)
+                regions.push({start:offset+a,end:offset+b,rect:[left,top,right-left,bottom-top]})
+        }
+        rows.push(trimmed)
+        offset+=trimmed.length
     }
     const text=rows.join('\n')
     if(text.length>100000) throw new RangeError('Select a smaller area')
-    return {text,page,source:'text-layer'}
+    return {text,page,source:'text-layer',regions}
 }

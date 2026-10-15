@@ -123,7 +123,7 @@ test('unavailable chapter rolls back safely and retry reloads its resource inste
 test('e-ink disables animation for every layout without changing scroll mode', async () => {
   const book = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
   const start = book.indexOf('  const turn = {', book.indexOf('const setStyle ='));
-  const end = book.indexOf("  reader.view.renderer.setAttribute('mobile-image-fit'", start);
+  const end = book.indexOf('  if (!paintOnly) {', start);
   for (const pageTurnStyle of ['slide', 'scroll', 'noAnimation']) {
     for (const eInkMode of [true, false]) {
       for (const eInkDisableAnimations of [undefined, true, false]) {

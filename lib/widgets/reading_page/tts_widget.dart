@@ -18,9 +18,11 @@ import 'package:icons_plus/icons_plus.dart';
 import 'dart:async';
 
 class TtsWidget extends StatefulWidget {
-  const TtsWidget({super.key, required this.epubPlayerKey});
+  const TtsWidget({super.key, required this.epubPlayerKey, this.extractedText});
 
   final GlobalKey<EpubPlayerState> epubPlayerKey;
+  // OCR previews must never read from the underlying original-page WebView.
+  final String? extractedText;
 
   @override
   State<TtsWidget> createState() => _TtsWidgetState();
@@ -52,7 +54,8 @@ class _TtsWidgetState extends State<TtsWidget> {
   void initState() {
     super.initState();
     if (!_unsupportedSystem &&
-        TtsHandler().ttsStateNotifier.value == TtsStateEnum.stopped) {
+        (widget.extractedText != null ||
+            TtsHandler().ttsStateNotifier.value == TtsStateEnum.stopped)) {
       unawaited(_startReading());
     }
   }
@@ -61,7 +64,15 @@ class _TtsWidgetState extends State<TtsWidget> {
     final reader = widget.epubPlayerKey.currentState;
     if (reader == null) return;
     try {
-      await TtsHandler().init(reader.initTts, reader.ttsNext, reader.ttsPrev);
+      final text = widget.extractedText;
+      if (text != null) {
+        await audioHandler.stop();
+        if (!mounted) return;
+        await TtsHandler()
+            .init(() async => text, () async => '', () async => '');
+      } else {
+        await TtsHandler().init(reader.initTts, reader.ttsNext, reader.ttsPrev);
+      }
       if (!mounted ||
           !reader.mounted ||
           widget.epubPlayerKey.currentState != reader) {
@@ -233,16 +244,18 @@ class _TtsWidgetState extends State<TtsWidget> {
         }
 
         Widget buttons() {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          return Wrap(
+            alignment: WrapAlignment.spaceAround,
             children: [
               IconButton(
-                onPressed: () async {
-                  await audioHandler.stop();
-                  final text =
-                      await widget.epubPlayerKey.currentState!.ttsPrevSection();
-                  if (text.isNotEmpty) await audioHandler.play();
-                },
+                onPressed: widget.extractedText != null
+                    ? null
+                    : () async {
+                        await audioHandler.stop();
+                        final text = await widget.epubPlayerKey.currentState!
+                            .ttsPrevSection();
+                        if (text.isNotEmpty) await audioHandler.play();
+                      },
                 icon: const Icon(EvaIcons.arrowhead_left),
               ),
               IconButton(
@@ -276,12 +289,14 @@ class _TtsWidgetState extends State<TtsWidget> {
                 icon: const Icon(EvaIcons.chevron_right),
               ),
               IconButton(
-                onPressed: () async {
-                  await audioHandler.stop();
-                  final text =
-                      await widget.epubPlayerKey.currentState!.ttsNextSection();
-                  if (text.isNotEmpty) await audioHandler.play();
-                },
+                onPressed: widget.extractedText != null
+                    ? null
+                    : () async {
+                        await audioHandler.stop();
+                        final text = await widget.epubPlayerKey.currentState!
+                            .ttsNextSection();
+                        if (text.isNotEmpty) await audioHandler.play();
+                      },
                 icon: const Icon(EvaIcons.arrowhead_right),
               ),
             ],

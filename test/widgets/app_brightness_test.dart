@@ -178,6 +178,16 @@ void main() {
     expect(c.followSystem, isFalse);
     expect(c.level, 0.6);
     expect(refreshes, 2);
+    Prefs().readingNightMode = true;
+    Prefs().eInkMode = true;
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(night).onPressed, isNull);
+    expect(tester.widget<IconButton>(night).isSelected, isFalse);
+    expect(Prefs().readingNightMode, isTrue);
+    Prefs().eInkMode = false;
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(night).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(night).isSelected, isTrue);
     expect(tester.takeException(), isNull);
   });
 

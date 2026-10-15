@@ -3,6 +3,7 @@ import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/custom_css_profile.dart';
 import 'package:anx_reader/service/book_player/document_reading_mode_store.dart';
 import 'package:anx_reader/service/book_player/document_type_store.dart';
+import 'package:anx_reader/utils/color_scheme.dart';
 import 'package:anx_reader/widgets/bookshelf/book_type_badges.dart';
 import 'package:anx_reader/widgets/bookshelf/book_item.dart';
 import 'package:anx_reader/service/knowledge/book_knowledge_index_queue.dart';
@@ -52,6 +53,9 @@ void main() {
     for (final eink in [false, true]) {
       Prefs().eInkMode = eink;
       await tester.pumpWidget(MaterialApp(
+          builder: (context, child) => Theme(
+              data: colorSchema(Prefs(), context, Brightness.light),
+              child: child!),
           home: Scaffold(
               body: Column(children: [
         BookTypeBadges(book: book('epub')),
@@ -156,6 +160,9 @@ void main() {
     for (final eink in [false, true]) {
       Prefs().eInkMode = eink;
       await tester.pumpWidget(MaterialApp(
+          builder: (context, child) => Theme(
+              data: colorSchema(Prefs(), context, Brightness.light),
+              child: child!),
           home: Scaffold(
               body: MediaQuery(
                   data: const MediaQueryData(textScaler: TextScaler.linear(2)),

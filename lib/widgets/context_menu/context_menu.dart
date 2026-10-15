@@ -129,7 +129,7 @@ Future<void> showContextMenu(
 
   final decoration = BoxDecoration(
     color: Prefs().eInkMode
-        ? Colors.white
+        ? Theme.of(context).colorScheme.surface
         : Theme.of(context).colorScheme.secondaryContainer,
     borderRadius: BorderRadius.circular(10),
     boxShadow: [
@@ -141,8 +141,8 @@ Future<void> showContextMenu(
           offset: const Offset(0, 3),
         ),
       if (Prefs().eInkMode)
-        const BoxShadow(
-          color: Colors.black,
+        BoxShadow(
+          color: Theme.of(context).colorScheme.onSurface,
           spreadRadius: 1,
           blurRadius: 0,
         ),

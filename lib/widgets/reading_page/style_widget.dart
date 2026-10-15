@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_style.dart';
+import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/models/font_model.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/page/settings_page/subpage/fonts.dart';
@@ -20,6 +21,7 @@ import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
 import 'reader_settings_scroll_view.dart';
 import 'package:anx_reader/dao/theme.dart';
@@ -50,13 +52,21 @@ class StyleWidget extends StatefulWidget {
   const StyleWidget({
     super.key,
     required this.themes,
-    required this.epubPlayerKey,
+    this.epubPlayerKey,
     required this.setCurrentPage,
     required this.hideAppBarAndBottomBar,
+    this.documentStyle,
+    this.saveDocumentStyle,
+    this.documentSaving = false,
+    this.onDocumentSettings,
   });
 
   final List<ReadTheme> themes;
-  final GlobalKey<EpubPlayerState> epubPlayerKey;
+  final GlobalKey<EpubPlayerState>? epubPlayerKey;
+  final DocumentTextStyle? documentStyle;
+  final Future<void> Function(DocumentTextStyle)? saveDocumentStyle;
+  final bool documentSaving;
+  final VoidCallback? onDocumentSettings;
   final Function setCurrentPage;
   final Function hideAppBarAndBottomBar;
 
@@ -65,12 +75,51 @@ class StyleWidget extends StatefulWidget {
 }
 
 class StyleWidgetState extends State<StyleWidget> {
-  BookStyle bookStyle = Prefs().bookStyle;
+  late BookStyle bookStyle = _initialStyle();
   int? currentThemeId = Prefs().readTheme.id;
+  bool get _document => widget.documentStyle != null;
+  bool get _enabled =>
+      _document ? !widget.documentSaving : !Prefs().useBookStyles;
+
+  BookStyle _initialStyle() {
+    final document = widget.documentStyle;
+    return document == null
+        ? Prefs().bookStyle
+        : BookStyle(
+            fontSize: document.size,
+            fontWeight: document.weight * 400,
+            lineHeight: document.height,
+            paragraphSpacing: document.paragraphSpacing);
+  }
+
+  @override
+  void didUpdateWidget(covariant StyleWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.documentStyle != oldWidget.documentStyle) {
+      bookStyle = _initialStyle();
+    }
+  }
+
+  Future<void> _saveStyle() async {
+    final document = widget.documentStyle;
+    if (document != null) {
+      await widget.saveDocumentStyle?.call(DocumentTextStyle.fromJson({
+        ...document.toJson(),
+        'size': bookStyle.fontSize,
+        'weight': bookStyle.fontWeight / 400,
+        'height': bookStyle.lineHeight,
+        'paragraphSpacing': bookStyle.paragraphSpacing,
+      }));
+    } else {
+      widget.epubPlayerKey?.currentState?.changeStyle(bookStyle);
+      Prefs().saveBookStyleToPrefs(bookStyle);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final player = widget.epubPlayerKey.currentState;
+    if (_document) return _textBookStyle(context);
+    final player = widget.epubPlayerKey?.currentState;
     if (player == null) return _textBookStyle(context);
     return ValueListenableBuilder<DocumentReadingMode>(
       valueListenable: player.documentReadingMode,
@@ -90,16 +139,23 @@ class StyleWidgetState extends State<StyleWidget> {
       child: ReaderSettingsScrollView(
           child: Column(
         children: [
-          widgetTitle(L10n.of(context).readingPageStyle, ReadingSettings.theme),
+          widgetTitle(L10n.of(context).readingPageStyle,
+              _document ? null : ReadingSettings.theme,
+              onSettings: _document ? widget.onDocumentSettings : null),
           sliders(),
           const SizedBox(height: 10),
           fontAndPageTurn(),
-          if (Prefs().pageTurnStyle == PageTurn.scroll)
-            ScrollPagePercentTile(onChanged: (value) {
-              widget.epubPlayerKey.currentState?.changeScrollPagePercent(value);
+          if (!_document && Prefs().pageTurnStyle == PageTurn.scroll) ...[
+            ContinuousScrollTile(onChanged: (value) {
+              widget.epubPlayerKey?.currentState?.changeContinuousScroll(value);
             }),
+            ScrollPagePercentTile(onChanged: (value) {
+              widget.epubPlayerKey?.currentState
+                  ?.changeScrollPagePercent(value);
+            }),
+          ],
           const SizedBox(height: 10),
-          englishFontSelector(),
+          if (!_document) englishFontSelector(),
           const Divider(),
           Row(
             children: [
@@ -109,7 +165,8 @@ class StyleWidgetState extends State<StyleWidget> {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                 ),
                 onPressed: () {
-                  widget.setCurrentPage(const BgimgSelector());
+                  widget.setCurrentPage(
+                      BgimgSelector(onChanged: _document ? () {} : null));
                 },
                 icon: const Icon(Icons.arrow_forward_ios),
                 iconAlignment: IconAlignment.end,
@@ -123,6 +180,26 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   List<FontModel> fonts() {
+    if (_document) {
+      final choices = [
+        FontModel(
+            label: L10n.of(context).systemFont, name: 'system', path: 'system'),
+        FontModel(
+            label: ModuStrings.text(context, '思源宋体', 'Source Han Serif'),
+            name: 'serif',
+            path: 'serif'),
+      ];
+      try {
+        for (final file in getFontDir().listSync().whereType<File>()) {
+          final name = file.uri.pathSegments.last;
+          if (RegExp(r'\.(ttf|otf)$', caseSensitive: false).hasMatch(name)) {
+            choices.add(FontModel(
+                label: getFontNameFromFile(file), name: name, path: name));
+          }
+        }
+      } catch (_) {/* No imported fonts yet. */}
+      return choices;
+    }
     Directory fontDir = getFontDir();
     List<FontModel> fontList = [
       FontModel(
@@ -166,10 +243,22 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   Widget fontAndPageTurn() {
+    final document = widget.documentStyle;
+    final selectedPath = document == null
+        ? Prefs().font.path
+        : document.font.isNotEmpty
+            ? document.font
+            : document.serif
+                ? 'serif'
+                : 'system';
     FontModel? font = fonts().firstWhere(
-        (element) => element.path == Prefs().font.path,
-        orElse: () => FontModel(
-            label: L10n.of(context).followBook, name: 'book', path: 'book'));
+        (element) => element.path == selectedPath,
+        orElse: () => _document
+            ? fonts().first
+            : FontModel(
+                label: L10n.of(context).followBook,
+                name: 'book',
+                path: 'book'));
 
     Widget? leadingIcon(String name) {
       if (name == 'download') {
@@ -182,7 +271,8 @@ class StyleWidgetState extends State<StyleWidget> {
 
     final pageTurn = DropdownMenu<PageTurn>(
       label: Text(L10n.of(context).readingPagePageTurningMethod),
-      initialSelection: Prefs().pageTurnStyle,
+      initialSelection: _document ? PageTurn.scroll : Prefs().pageTurnStyle,
+      enabled: !_document,
       expandedInsets: const EdgeInsets.only(right: 5),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(
@@ -192,7 +282,7 @@ class StyleWidgetState extends State<StyleWidget> {
       onSelected: (PageTurn? value) {
         if (value != null) {
           setState(() => Prefs().pageTurnStyle = value);
-          epubPlayerKey.currentState!.changePageTurnStyle(value);
+          widget.epubPlayerKey?.currentState?.changePageTurnStyle(value);
         }
       },
       dropdownMenuEntries: PageTurn.values
@@ -203,6 +293,8 @@ class StyleWidgetState extends State<StyleWidget> {
           .toList(),
     );
     final bodyFont = DropdownMenu<FontModel>(
+      key: ValueKey('reader-body-font-$selectedPath'),
+      enabled: !_document || _enabled,
       label: Text(ModuStrings.text(context, '中文／正文字体', 'Chinese / body font')),
       expandedInsets: const EdgeInsets.only(left: 5),
       initialSelection: font,
@@ -213,13 +305,20 @@ class StyleWidgetState extends State<StyleWidget> {
       ),
       onSelected: (FontModel? font) async {
         if (font == null) return;
+        if (document != null) {
+          await widget.saveDocumentStyle?.call(document
+              .withValue('serif', font.name == 'serif')
+              .withValue('font',
+                  ['system', 'serif'].contains(font.name) ? '' : font.path));
+          return;
+        }
         if (font.name == 'newFont') {
           // Hiding the toolbar disposes this StyleWidget. Keep the reader
           // key, and apply even when this settings panel is no longer mounted.
           final readerKey = widget.epubPlayerKey;
           widget.hideAppBarAndBottomBar(false);
           await importFont(onApplied: (imported) {
-            readerKey.currentState?.changeFont(imported);
+            readerKey?.currentState?.changeFont(imported);
           });
           if (mounted) setState(() {});
           return;
@@ -231,7 +330,7 @@ class StyleWidgetState extends State<StyleWidget> {
           );
           return;
         } else {
-          epubPlayerKey.currentState!.changeFont(font);
+          widget.epubPlayerKey?.currentState?.changeFont(font);
           Prefs().font = font;
         }
       },
@@ -245,9 +344,10 @@ class StyleWidgetState extends State<StyleWidget> {
     );
     final fontAndConversion = Row(children: [
       Expanded(child: bodyFont),
-      ChineseConversionButton(onChanged: (rules) {
-        widget.epubPlayerKey.currentState?.changeReadingRules(rules);
-      }),
+      if (!_document)
+        ChineseConversionButton(onChanged: (rules) {
+          widget.epubPlayerKey?.currentState?.changeReadingRules(rules);
+        }),
     ]);
     // Keep the font name usable on phones instead of squeezing three controls
     // into the original two-column row.
@@ -295,7 +395,7 @@ class StyleWidgetState extends State<StyleWidget> {
           await importFont(
               target: FontTarget.english,
               onApplied: (imported) {
-                readerKey.currentState?.changeEnglishFont(imported);
+                readerKey?.currentState?.changeEnglishFont(imported);
               });
         } else if (font.name == 'download') {
           widget.hideAppBarAndBottomBar(false);
@@ -304,7 +404,7 @@ class StyleWidgetState extends State<StyleWidget> {
         } else {
           final selected = font.name == 'follow' ? null : font;
           Prefs().englishFont = selected;
-          readerKey.currentState?.changeEnglishFont(selected);
+          readerKey?.currentState?.changeEnglishFont(selected);
         }
         if (mounted) setState(() {});
       },
@@ -326,7 +426,7 @@ class StyleWidgetState extends State<StyleWidget> {
 
   Row fontWeightSlider() {
     final colors = Theme.of(context).colorScheme;
-    final enabled = !Prefs().useBookStyles;
+    final enabled = _enabled;
     final selected = bookStyle.simulateBold;
     return Row(
       children: [
@@ -337,17 +437,18 @@ class StyleWidgetState extends State<StyleWidget> {
         ),
         Expanded(
           child: Slider(
-            key: const ValueKey('reading-font-weight-slider'),
+            key: ValueKey(
+                _document ? 'ocr-style-weight' : 'reading-font-weight-slider'),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             value: (bookStyle.fontWeight / 400).clamp(0.5, 2.0).toDouble(),
-            onChanged: Prefs().useBookStyles
+            onChanged: !enabled
                 ? null
                 : (double value) {
                     setState(() =>
                         bookStyle.fontWeight = (value * 400).roundToDouble());
-                    widget.epubPlayerKey.currentState?.changeStyle(bookStyle);
-                    Prefs().saveBookStyleToPrefs(bookStyle);
+                    if (!_document) _saveStyle();
                   },
+            onChangeEnd: _document && enabled ? (_) => _saveStyle() : null,
             min: 0.5,
             max: 2.0,
             divisions: 15,
@@ -355,81 +456,82 @@ class StyleWidgetState extends State<StyleWidget> {
                 (bookStyle.fontWeight / 400).clamp(0.5, 2.0).toStringAsFixed(1),
           ),
         ),
-        Tooltip(
-          message: ModuStrings.text(
-              context,
-              '用描边附加加粗。1.0 为原样，1.1–2.0 逐档加粗；不能将固定粗体变细。',
-              'Add thickness with a text stroke. 1.0 keeps the original; 1.1–2.0 adds boldness. Fixed bold fonts cannot be made thinner.'),
-          child: Semantics(
-            key: const ValueKey('reading-simulated-bold-toggle'),
-            button: true,
-            toggled: bookStyle.simulateBold,
-            enabled: !Prefs().useBookStyles,
-            child: SizedBox(
-              width: 108,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(48, 48),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  side: BorderSide(
-                    color: !enabled
-                        ? colors.onSurface.withValues(alpha: 0.12)
-                        : selected
-                            ? colors.primary
-                            : colors.outlineVariant,
-                    width: selected && enabled ? 1.5 : 1,
-                  ),
-                  backgroundColor: selected ? colors.primaryContainer : null,
-                  foregroundColor: selected
-                      ? colors.onPrimaryContainer
-                      : colors.onSurfaceVariant,
-                  disabledBackgroundColor:
-                      colors.onSurface.withValues(alpha: 0.04),
-                  disabledForegroundColor:
-                      colors.onSurface.withValues(alpha: 0.38),
-                ),
-                onPressed: Prefs().useBookStyles
-                    ? null
-                    : () {
-                        setState(() =>
-                            bookStyle.simulateBold = !bookStyle.simulateBold);
-                        widget.epubPlayerKey.currentState
-                            ?.changeStyle(bookStyle);
-                        Prefs().saveBookStyleToPrefs(bookStyle);
-                      },
-                child: Row(
-                  children: [
-                    Icon(
-                      selected
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      size: 18,
+        if (!_document)
+          Tooltip(
+            message: ModuStrings.text(
+                context,
+                '用描边附加加粗。1.0 为原样，1.1–2.0 逐档加粗；不能将固定粗体变细。',
+                'Add thickness with a text stroke. 1.0 keeps the original; 1.1–2.0 adds boldness. Fixed bold fonts cannot be made thinner.'),
+            child: Semantics(
+              key: const ValueKey('reading-simulated-bold-toggle'),
+              button: true,
+              toggled: bookStyle.simulateBold,
+              enabled: !Prefs().useBookStyles,
+              child: SizedBox(
+                width: 108,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        ModuStrings.text(context, '模拟加粗', 'Simulated bold'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600),
+                    side: BorderSide(
+                      color: !enabled
+                          ? colors.onSurface.withValues(alpha: 0.12)
+                          : selected
+                              ? colors.primary
+                              : colors.outlineVariant,
+                      width: selected && enabled ? 1.5 : 1,
+                    ),
+                    backgroundColor: selected ? colors.primaryContainer : null,
+                    foregroundColor: selected
+                        ? colors.onPrimaryContainer
+                        : colors.onSurfaceVariant,
+                    disabledBackgroundColor:
+                        colors.onSurface.withValues(alpha: 0.04),
+                    disabledForegroundColor:
+                        colors.onSurface.withValues(alpha: 0.38),
+                  ),
+                  onPressed: Prefs().useBookStyles
+                      ? null
+                      : () {
+                          setState(() =>
+                              bookStyle.simulateBold = !bookStyle.simulateBold);
+                          widget.epubPlayerKey?.currentState
+                              ?.changeStyle(bookStyle);
+                          Prefs().saveBookStyleToPrefs(bookStyle);
+                        },
+                  child: Row(
+                    children: [
+                      Icon(
+                        selected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        size: 18,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          ModuStrings.text(context, '模拟加粗', 'Simulated bold'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
 
   Row lineHeightAndParagraphSpacingSlider() {
-    bool enabled = !Prefs().useBookStyles;
+    bool enabled = _enabled;
     return Row(
       children: [
         IconAndText(
@@ -439,22 +541,26 @@ class StyleWidgetState extends State<StyleWidget> {
         ),
         Expanded(
           child: Slider(
+              key: ValueKey(_document
+                  ? 'ocr-style-height'
+                  : 'reading-line-height-slider'),
               padding: const EdgeInsets.symmetric(horizontal: 8),
               value: bookStyle.lineHeight,
               onChanged: enabled
                   ? (double value) {
                       setState(() {
                         bookStyle.lineHeight = value;
-                        widget.epubPlayerKey.currentState!
-                            .changeStyle(bookStyle);
-                        Prefs().saveBookStyleToPrefs(bookStyle);
+                        if (!_document) _saveStyle();
                       });
                     }
                   : null,
-              min: 0,
-              max: 3,
-              divisions: 10,
-              label: (bookStyle.lineHeight / 3 * 10).round().toString()),
+              onChangeEnd: _document && enabled ? (_) => _saveStyle() : null,
+              min: _document ? 1.2 : 0,
+              max: _document ? 2.4 : 3,
+              divisions: _document ? 12 : 10,
+              label: _document
+                  ? bookStyle.lineHeight.toStringAsFixed(1)
+                  : (bookStyle.lineHeight / 3 * 10).round().toString()),
         ),
         IconAndText(
           flexibleHeight: true,
@@ -463,21 +569,26 @@ class StyleWidgetState extends State<StyleWidget> {
         ),
         Expanded(
           child: Slider(
+            key: ValueKey(_document
+                ? 'ocr-style-paragraphSpacing'
+                : 'reading-paragraph-spacing-slider'),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             value: bookStyle.paragraphSpacing,
             onChanged: enabled
                 ? (double value) {
                     setState(() {
                       bookStyle.paragraphSpacing = value;
-                      widget.epubPlayerKey.currentState!.changeStyle(bookStyle);
-                      Prefs().saveBookStyleToPrefs(bookStyle);
+                      if (!_document) _saveStyle();
                     });
                   }
                 : null,
             min: 0,
-            max: 5,
-            divisions: 10,
-            label: (bookStyle.paragraphSpacing / 5 * 10).round().toString(),
+            onChangeEnd: _document && enabled ? (_) => _saveStyle() : null,
+            max: _document ? 3 : 5,
+            divisions: _document ? 12 : 10,
+            label: _document
+                ? bookStyle.paragraphSpacing.toStringAsFixed(2)
+                : (bookStyle.paragraphSpacing / 5 * 10).round().toString(),
           ),
         ),
       ],
@@ -485,7 +596,7 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   Row fontSizeSlider() {
-    bool enabled = !Prefs().useBookStyles;
+    bool enabled = _enabled;
     return Row(
       children: [
         IconAndText(
@@ -495,19 +606,21 @@ class StyleWidgetState extends State<StyleWidget> {
         ),
         Expanded(
           child: Slider(
+            key: ValueKey(
+                _document ? 'ocr-style-size' : 'reading-font-size-slider'),
             value: bookStyle.fontSize,
             onChanged: enabled
                 ? (double value) {
                     setState(() {
                       bookStyle.fontSize = value;
-                      widget.epubPlayerKey.currentState!.changeStyle(bookStyle);
-                      Prefs().saveBookStyleToPrefs(bookStyle);
+                      if (!_document) _saveStyle();
                     });
                   }
                 : null,
-            min: 0.5,
-            max: 3.0,
-            divisions: 25,
+            onChangeEnd: _document && enabled ? (_) => _saveStyle() : null,
+            min: _document ? 14 : 0.5,
+            max: _document ? 40 : 3.0,
+            divisions: _document ? 26 : 25,
             label: bookStyle.fontSize.toStringAsFixed(2),
           ),
         ),
@@ -546,6 +659,7 @@ class StyleWidgetState extends State<StyleWidget> {
                           textColor: 'ffcccccc',
                           backgroundImagePath: ''));
                       widget.setCurrentPage(ThemeChangeWidget(
+                        applyTheme: _document ? (_) {} : null,
                         readTheme: ReadTheme(
                             id: currId,
                             backgroundColor: 'ff121212',
@@ -582,8 +696,10 @@ class StyleWidgetState extends State<StyleWidget> {
                 onTap: () {
                   selectReadingColorTheme(widget.themes[index], prefs: Prefs(),
                       apply: (theme) {
-                    widget.epubPlayerKey.currentState?.changeTheme(theme);
-                    widget.epubPlayerKey.currentState?.changeBgimgEffect();
+                    if (!_document) {
+                      widget.epubPlayerKey?.currentState?.changeTheme(theme);
+                      widget.epubPlayerKey?.currentState?.changeBgimgEffect();
+                    }
                   });
                   setState(() {
                     currentThemeId = widget.themes[index].id;
@@ -592,6 +708,7 @@ class StyleWidgetState extends State<StyleWidget> {
                 onSecondaryTap: () {
                   setState(() {
                     widget.setCurrentPage(ThemeChangeWidget(
+                      applyTheme: _document ? (_) {} : null,
                       readTheme: widget.themes[index],
                       setCurrentPage: widget.setCurrentPage,
                     ));
@@ -600,6 +717,7 @@ class StyleWidgetState extends State<StyleWidget> {
                 onLongPress: () {
                   setState(() {
                     widget.setCurrentPage(ThemeChangeWidget(
+                      applyTheme: _document ? (_) {} : null,
                       readTheme: widget.themes[index],
                       setCurrentPage: widget.setCurrentPage,
                     ));
@@ -632,12 +750,14 @@ class ThemeChangeWidget extends StatefulWidget {
     required this.setCurrentPage,
     this.saveTheme,
     this.applyTheme,
+    this.allowDelete = true,
   });
 
   final ReadTheme readTheme;
   final Function setCurrentPage;
   final Future<void> Function(ReadTheme)? saveTheme;
   final void Function(ReadTheme)? applyTheme;
+  final bool allowDelete;
 
   @override
   State<ThemeChangeWidget> createState() => _ThemeChangeWidgetState();
@@ -709,17 +829,18 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
       const Expanded(
         child: SizedBox(),
       ),
-      IconButton(
-        onPressed: () {
-          themeDao.deleteTheme(readTheme.id!);
-          widget.setCurrentPage(const SizedBox(height: 1));
-          // setState(() {});
-        },
-        icon: const Icon(
-          Icons.delete,
-          size: 40,
+      if (widget.allowDelete)
+        IconButton(
+          onPressed: () {
+            themeDao.deleteTheme(readTheme.id!);
+            widget.setCurrentPage(const SizedBox(height: 1));
+            // setState(() {});
+          },
+          icon: const Icon(
+            Icons.delete,
+            size: 40,
+          ),
         ),
-      ),
     ]);
   }
 

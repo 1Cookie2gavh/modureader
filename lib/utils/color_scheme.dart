@@ -19,29 +19,50 @@ ThemeData colorSchema(
   Color seedColor = prefsNotifier.themeColor;
   final isDark = brightness == Brightness.dark;
   final isEinkMode = prefsNotifier.eInkMode;
+  const einkBackground = Colors.white;
+  const einkForeground = Colors.black;
   final disableMotion = prefsNotifier.eInkMotionDisabled;
 
   final lightGropedBackground = const Color(0xFFF2F2F7);
   final darkGropedBackground =
       prefsNotifier.trueDarkMode ? Color(0xFF000000) : Color(0xFF1C1C1E);
   final gropedBackgroundColor = isEinkMode
-      ? Colors.white
+      ? einkBackground
       : isDark
           ? darkGropedBackground
           : lightGropedBackground;
 
   final colorScheme = isEinkMode
-      ? const ColorScheme.light(
-          primary: Colors.black,
-          onPrimary: Colors.white,
-          primaryContainer: Colors.grey,
-          onPrimaryContainer: Colors.black,
-          secondary: Colors.grey,
-          onSecondary: Colors.white,
-          secondaryContainer: Colors.black12,
-          onSecondaryContainer: Colors.black,
-          surface: Colors.white,
-          onSurface: Colors.black,
+      ? ColorScheme(
+          brightness: brightness,
+          primary: einkForeground,
+          onPrimary: einkBackground,
+          primaryContainer: einkBackground,
+          onPrimaryContainer: einkForeground,
+          secondary: einkForeground,
+          onSecondary: einkBackground,
+          secondaryContainer: einkBackground,
+          onSecondaryContainer: einkForeground,
+          tertiary: einkForeground,
+          onTertiary: einkBackground,
+          error: einkForeground,
+          onError: einkBackground,
+          surface: einkBackground,
+          onSurface: einkForeground,
+          onSurfaceVariant: einkForeground,
+          surfaceContainer: einkBackground,
+          surfaceContainerLowest: einkBackground,
+          surfaceContainerLow: einkBackground,
+          surfaceContainerHigh: einkBackground,
+          surfaceContainerHighest: einkBackground,
+          surfaceDim: einkBackground,
+          surfaceBright: einkBackground,
+          surfaceTint: Colors.transparent,
+          outline: einkForeground,
+          outlineVariant: einkForeground,
+          inverseSurface: einkForeground,
+          onInverseSurface: einkBackground,
+          inversePrimary: einkBackground,
         )
       : switch (brightness) {
           Brightness.light => ColorScheme.fromSeed(
@@ -58,27 +79,26 @@ ThemeData colorSchema(
             ),
         };
 
-  ThemeData themeData = isEinkMode
-      ? FlexThemeData.light(
-          useMaterial3: true,
-          swapLegacyOnMaterial3: true,
-          colorScheme: colorScheme)
-      : switch (brightness) {
-          Brightness.light => FlexThemeData.light(
-              useMaterial3: true,
-              swapLegacyOnMaterial3: true,
-              colorScheme: colorScheme,
-            ),
-          Brightness.dark => FlexThemeData.dark(
-              useMaterial3: true,
-              swapLegacyOnMaterial3: true,
-              darkIsTrueBlack: prefsNotifier.trueDarkMode,
-              colorScheme: colorScheme,
-            )
-        };
+  ThemeData themeData = switch (brightness) {
+    Brightness.light => FlexThemeData.light(
+        useMaterial3: true,
+        swapLegacyOnMaterial3: true,
+        colorScheme: colorScheme,
+      ),
+    Brightness.dark => FlexThemeData.dark(
+        useMaterial3: true,
+        swapLegacyOnMaterial3: true,
+        darkIsTrueBlack: prefsNotifier.trueDarkMode,
+        colorScheme: colorScheme,
+      )
+  };
 
   return themeData
       .copyWith(
+          textTheme: isEinkMode
+              ? themeData.textTheme.apply(
+                  bodyColor: einkForeground, displayColor: einkForeground)
+              : themeData.textTheme,
           pageTransitionsTheme: disableMotion
               ? PageTransitionsTheme(builders: {
                   for (final platform in TargetPlatform.values)
@@ -103,10 +123,10 @@ ThemeData colorSchema(
             behavior: SnackBarBehavior.floating,
             shape: StadiumBorder(
                 side: isEinkMode
-                    ? const BorderSide(color: Colors.black)
+                    ? BorderSide(color: einkForeground)
                     : BorderSide.none),
             backgroundColor:
-                isEinkMode ? Colors.white : colorScheme.surfaceContainer,
+                isEinkMode ? einkBackground : colorScheme.surfaceContainer,
             contentTextStyle: themeData.textTheme.bodyMedium
                 ?.copyWith(color: colorScheme.onSurface),
             actionTextColor: colorScheme.primary,

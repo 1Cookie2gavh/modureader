@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
+import 'document_text_geometry.dart';
 
 class OcrBox {
   const OcrBox(this.x, this.y, this.width, this.height);
@@ -123,6 +124,14 @@ typedef OcrRun = Future<(List<double>, List<int>)> Function(
     String, Float32List, List<int>);
 
 Future<String> recognizeOcrImage(
+        Uint8List bytes, List<String> alphabet, OcrRun run,
+        {required bool Function() cancelled,
+        void Function(int, int)? progress}) async =>
+    (await recognizeOcrImageWithRegions(bytes, alphabet, run,
+            cancelled: cancelled, progress: progress))
+        .text;
+
+Future<DocumentTextResult> recognizeOcrImageWithRegions(
     Uint8List bytes, List<String> alphabet, OcrRun run,
     {required bool Function() cancelled,
     void Function(int, int)? progress}) async {
@@ -156,6 +165,8 @@ Future<String> recognizeOcrImage(
   final boxes =
       ocrBoxes(det.$1, det.$2[3], det.$2[2], image.width, image.height);
   final lines = <String>[];
+  final regions = <DocumentTextRegion>[];
+  var offset = 0;
   for (var i = 0; i < boxes.length; i++) {
     check();
     final b = boxes[i];
@@ -173,10 +184,19 @@ Future<String> recognizeOcrImage(
         [1, 3, 48, padded]);
     check();
     final text = decodeOcrCtc(rec.$1, rec.$2, alphabet);
-    if (text.isNotEmpty) lines.add(text);
+    if (text.isNotEmpty) {
+      if (lines.isNotEmpty) offset++;
+      regions.add(DocumentTextRegion(
+          offset,
+          offset + text.length,
+          DocumentImageRect(b.x / image.width, b.y / image.height,
+              b.width / image.width, b.height / image.height)));
+      lines.add(text);
+      offset += text.length;
+    }
     progress?.call(i + 1, boxes.length);
     await Future<void>.delayed(Duration.zero);
   }
   check();
-  return lines.join('\n');
+  return DocumentTextResult(lines.join('\n'), regions);
 }

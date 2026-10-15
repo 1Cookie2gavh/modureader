@@ -25,7 +25,10 @@ void main() {
         ['', ...'abcdefghij'.split(''), ' ']);
   });
   test('reflow joins physical wraps without changing paragraph boundaries', () {
-    expect(reflowDocumentText('中文行尾\n接续内容。\n新段。'), '中文行尾接续内容。\n\n新段。');
+    expect(reflowDocumentText('中文行尾\n接续内容。\n同段。'), '中文行尾接续内容。同段。');
+    expect(reflowDocumentText('中文行尾\n接续内容。\n\n新段。'), '中文行尾接续内容。\n\n新段。');
+    expect(reflowDocumentText('First sentence.\nStill the same paragraph.'),
+        'First sentence. Still the same paragraph.');
     expect(reflowDocumentText('A wrapped\nEnglish line.\n\nNext.'),
         'A wrapped English line.\n\nNext.');
     expect(reflowDocumentText('inter-\nnational'), 'international');
@@ -76,6 +79,37 @@ void main() {
         }, cancelled: () => true),
         throwsStateError);
     expect(runs, 0);
+  });
+  test('OCR associates each recognized line with its original detector box',
+      () async {
+    final bytes =
+        Uint8List.fromList(img.encodePng(img.Image(width: 400, height: 400)));
+    final probabilities = List<double>.filled(40 * 40, 0);
+    for (final y in [5, 25]) {
+      for (var dy = 0; dy < 4; dy++) {
+        for (var x = 5; x < 30; x++) {
+          probabilities[(y + dy) * 40 + x] = .9;
+        }
+      }
+    }
+    Future<(List<double>, List<int>)> run(
+            String name, List<double> data, List<int> shape) async =>
+        name == 'det'
+            ? (probabilities, [1, 1, 40, 40])
+            : ([.01, .99], [1, 1, 2]);
+    final result = await recognizeOcrImageWithRegions(bytes, ['', '朱'], run,
+        cancelled: () => false);
+    expect(result.text, '朱\n朱');
+    final boxes = ocrBoxes(probabilities, 40, 40, 400, 400);
+    for (var i = 0; i < boxes.length; i++) {
+      final region = result.regions[i], box = boxes[i];
+      expect([region.start, region.end], [i * 2, i * 2 + 1]);
+      expect(region.rect.toJson(),
+          [box.x / 400, box.y / 400, box.width / 400, box.height / 400]);
+    }
+    expect(
+        await recognizeOcrImage(bytes, ['', '朱'], run, cancelled: () => false),
+        result.text);
   });
   test('model checksum rejects same-size corrupted downloads', () async {
     final dir = await Directory.systemTemp.createTemp('modu-ocr-test-');

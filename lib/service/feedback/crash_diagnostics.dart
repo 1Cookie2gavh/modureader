@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'runtime_diagnostics.dart';
 import 'dart:io';
 import 'dart:ffi';
 import 'package:anx_reader/service/feedback/crash_journal.dart';
@@ -23,6 +24,7 @@ class CrashDiagnostics {
     }
     _lastRecord = now;
     _lastPhase = phase;
+    RuntimeDiagnostics.record(RuntimeEvent.indexCheckpoint);
     CrashJournal.indexState(phase, done, total, model);
     if (!Platform.isAndroid) return;
     try {
