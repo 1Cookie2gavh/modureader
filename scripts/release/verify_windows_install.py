@@ -74,8 +74,10 @@ def verify_installed_version(install):
                '$($v.FileBuildPart).$($v.FilePrivatePart)"')
     native = subprocess.check_output(['powershell', '-NoProfile', '-NonInteractive',
                                       '-Command', command], text=True, timeout=30).strip()
-    if native != expected.replace('+', '.'):
-        raise RuntimeError(f'Native version mismatch: {native}, expected {expected}')
+    # Windows numeric version fields cannot contain a prerelease suffix.
+    expected_native = re.sub(r'-[^+]+(?=\+)', '', expected).replace('+', '.')
+    if native != expected_native:
+        raise RuntimeError(f'Native version mismatch: {native}, expected {expected_native}')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
                                        cwd=source_root, text=True).strip()
     if revision not in (install / 'SOURCE.txt').read_text(encoding='utf-8'):

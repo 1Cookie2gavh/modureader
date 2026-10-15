@@ -25,14 +25,15 @@ Build / 构建：**10128** · GitHub prerelease / 预发行版
 
 ## Downloads / 下载
 
-Only three packages, each with a SHA-256 checksum / 仅发布以下三个安装包及 SHA-256 校验文件：
+Four packages, each with a SHA-256 checksum / 发布以下四个安装包及 SHA-256 校验文件：
 
 - Android ARM64 — APK
 - macOS Apple Silicon (ARM64) — DMG
 - Windows 64-bit (x64) — EXE installer / 安装程序
+- iOS ARM64 — unsigned IPA, requires your own signing / 未签名 IPA，需自行签名安装
 
-Upgrade without uninstalling or clearing the library; back up first. Android retains the project signing key. macOS is ad-hoc signed, not notarized. Windows requires WebView2. This Beta does not replace 1.2.9 as the latest stable release.
+Upgrade without uninstalling or clearing the library; back up first. Android retains the project signing key. macOS is ad-hoc signed, not notarized. Windows requires WebView2. iOS requires your own signing; this is not a TestFlight build. This Beta does not replace 1.2.9 as the latest stable release.
 
-建议先备份，再覆盖升级，不要卸载或清空书库。安卓沿用项目签名；macOS 为临时签名、未公证；Windows 需要 WebView2。本次 Beta 不替代 1.2.9 最新正式版，不发布其他平台或 Gitee 镜像。
+建议先备份，再覆盖升级，不要卸载或清空书库。安卓沿用项目签名；macOS 为临时签名、未公证；Windows 需要 WebView2；iOS 需自行签名，不是 TestFlight 版本。本次 Beta 不替代 1.2.9 最新正式版，不发布其他平台或 Gitee 镜像。
 
 [Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.2.10-beta.1) · [Changes / 变更](https://github.com/sobranie2406/modureader/compare/v1.2.9...v1.2.10-beta.1)
