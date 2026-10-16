@@ -136,6 +136,11 @@ class _DictionaryOriginalState extends State<DictionaryOriginal> {
           verticalScrollBarEnabled: false,
         ),
         onWebViewCreated: (value) => controller = value,
+        onRenderProcessGone: (_, __) {
+          controller = null;
+          timer?.cancel();
+          if (mounted) setState(() => failed = true);
+        },
         onLoadStop: (controller, _) async {
           if (!mounted) return;
           unawaited(installWebScrollbar(controller,

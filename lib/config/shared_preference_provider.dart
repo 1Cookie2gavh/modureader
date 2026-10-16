@@ -339,7 +339,8 @@ class Prefs extends ChangeNotifier {
   }
 
   Future<void> saveThemeModeToPrefs(String themeMode) async {
-    await prefs.setString('themeMode', themeMode);
+    await prefs.setString(
+        'themeMode', themeMode == 'auto' ? 'system' : themeMode);
     notifyListeners();
   }
 

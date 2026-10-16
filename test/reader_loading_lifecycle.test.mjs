@@ -6,7 +6,7 @@ import {runInNewContext} from 'node:vm';
 const fontSource = await readFile(new URL('../assets/foliate-js/src/reader-font-ready.js', import.meta.url), 'utf8');
 const {waitForReaderFonts} = await import(`data:text/javascript;base64,${Buffer.from(fontSource).toString('base64')}`);
 const source = await readFile(new URL('../assets/foliate-js/src/paginator.js', import.meta.url), 'utf8');
-const method = source.slice(source.indexOf('  async load(src,'), source.indexOf('\n  render(layout) {'));
+const method = source.slice(source.indexOf('  async load(src,'), source.indexOf('\n  render(layout, timing) {'));
 
 function inlineStyle() {
   const values = new Map(), priorities = new Map();
@@ -33,7 +33,7 @@ function fixture(ready = Promise.resolve(), waitForFonts = waitForReaderFonts) {
     close() {this.#destroyed = true; this.#cancelLoad?.(); this.#cleanup.forEach(f => f());}
     ${method}
   }; Harness`, {
-    EventTarget, AbortController, waitForReaderFonts: waitForFonts, getDirection: () => ({}),
+    EventTarget, CustomEvent, AbortController, waitForReaderFonts: waitForFonts, getDirection: () => ({}),
     console: {warn(){}},
     setTimeout: (fn, ms) => {timers.set(++id, {fn, ms}); return id;},
     clearTimeout: id => timers.delete(id),
@@ -42,6 +42,96 @@ function fixture(ready = Promise.resolve(), waitForFonts = waitForReaderFonts) {
   doc.fonts = new EventTarget(); doc.fonts.ready = ready;
   return {reader: new Harness(doc), doc, timers};
 }
+
+test('chapter timings separate document, preparation, fonts and layout without recording content', async () => {
+  const {reader} = fixture();
+  const events = [];
+  reader.container = {dispatchEvent: event => events.push(event.detail)};
+  const pending = reader.load('blob:private-book', () => {}, () => ({}));
+  reader.frame.dispatchEvent(new Event('load'));
+  await pending;
+  assert.deepEqual(events.map(e => e.stage),
+    ['chapter_document', 'chapter_prepare', 'chapter_fonts', 'layout_viewport', 'chapter_layout']);
+  for (const event of events) {
+    assert.deepEqual(Object.keys(event).sort(), ['durationMs', 'stage', 'state']);
+    assert.equal(event.state, 'timing');
+    assert.ok(Number.isInteger(event.durationMs) && event.durationMs >= 0);
+  }
+  assert.equal(reader.renders, 1, 'diagnostics do not request additional layout');
+  assert.ok(!JSON.stringify(events).includes('private-book'));
+  reader.close();
+});
+
+test('layout phase diagnostics preserve one synchronous render and are optional on later refits', () => {
+  const calls = [];
+  const methods = source.slice(source.indexOf('  render(layout, timing) {'),
+    source.indexOf('\n  setImageSize() {')).replaceAll('this.#', 'this.');
+  const Harness = runInNewContext(`class Harness {
+    element = {}; document = {documentElement: {}, body: {}};
+    vertical = false; rtl = false;
+    setImageSize() {calls.push('images')}
+    expand() {calls.push('expand')}
+    ${methods}
+  }; Harness`, {
+    calls,
+    resetPageAlignment: () => calls.push('reset'),
+    setStylesImportant() {},
+    fitTextLineSpacing: () => calls.push('spacing'),
+    alignPaginatedText: (_doc, _layout, _vertical, timing) => {
+      calls.push('align');
+      for (const stage of ['layout_runs', 'layout_geometry', 'layout_offsets']) timing?.(stage, Date.now());
+    },
+  });
+  for (const flow of ['paginated', 'scrolled']) {
+    const view = new Harness(), stages = [];
+    calls.length = 0;
+    const layout = {flow, width: 600, height: 800, gap: 20, columnWidth: 580, topMargin: 20, bottomMargin: 20};
+    view.render(layout, (stage, since) => {
+      assert.ok(Number.isFinite(since) && since <= Date.now());
+      stages.push(stage);
+    });
+    const expected = flow === 'paginated'
+      ? ['reset', 'images', 'spacing', 'align', 'expand'] : ['reset', 'images', 'spacing', 'expand'];
+    assert.deepEqual(calls, expected);
+    assert.deepEqual(stages, ['layout_reset', 'layout_styles', 'layout_spacing',
+      ...(flow === 'paginated' ? ['layout_runs', 'layout_geometry', 'layout_offsets'] : []), 'layout_expand']);
+    calls.length = 0;
+    view.render(layout);
+    assert.deepEqual(calls, expected);
+  }
+});
+
+test('expansion reuses only this alignment pass extent; later image/resize updates measure afresh', () => {
+  const methods = source.slice(source.indexOf('  #measureColumnExtent() {'),
+    source.indexOf('\n  set overlayer(')).replaceAll('this.#', 'this.').replace('#measureColumnExtent()', 'measureColumnExtent()');
+  let reads = 0, notified = 0;
+  const doc = {body: {}, documentElement: {style: {}, getBoundingClientRect: () => ({left: 0, right: 600})}};
+  const range = {selectNodeContents() {}, getBoundingClientRect: () => {
+    reads++; return {left: 20, right: 2400, width: 2380, height: 1000};
+  }};
+  const Harness = runInNewContext(`class Harness {
+    destroyed = false; column = true; vertical = false; rtl = false; size = 600;
+    iframe = {style: {}}; element = {style: {}}; document = doc; contentRange = range;
+    onExpand() {notify()}
+    ${methods}
+  }; Harness`, {doc, range, notify: () => notified++});
+  const view = new Harness();
+  view.expand(true, 1800);
+  assert.equal(reads, 0);
+  assert.equal(view.iframe.style.width, '1800px');
+  assert.equal(view.element.style.width, '3000px');
+  view.expand();
+  assert.equal(reads, 1);
+  assert.equal(view.iframe.style.width, '2400px');
+  view.expand(false);
+  assert.equal(reads, 2);
+  assert.equal(notified, 2);
+  view.vertical = true; view.size = 500;
+  view.expand();
+  assert.equal(view.iframe.style.height, '1000px');
+  view.destroyed = true; view.expand();
+  assert.equal(reads, 3, 'destroyed views never read their native document');
+});
 
 test('null or body-less iframe documents fail before chapter hooks and layout run', async () => {
   for (const invalid of [null, {head: null}]) {

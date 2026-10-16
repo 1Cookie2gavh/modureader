@@ -47,6 +47,8 @@ export function preparePageRuns(doc) {
   const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   const words = new Intl.Segmenter(undefined, { granularity: 'word' })
   const runs = []
+  const template = doc.createElementNS('http://www.w3.org/1999/xhtml', 'modu-page-run')
+  template.setAttribute('style', runStyle)
   for (const node of nodes) {
     const fragment = doc.createDocumentFragment()
     // Keep joined scripts/Latin words intact; CJK can break between graphemes.
@@ -54,9 +56,8 @@ export function preparePageRuns(doc) {
       const segments = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(word.segment)
         ? graphemes.segment(word.segment) : [word]
       for (const { segment } of segments) {
-        const run = doc.createElementNS('http://www.w3.org/1999/xhtml', 'modu-page-run')
+        const run = template.cloneNode(false)
         run.__moduPageRun = true
-        run.style.cssText = runStyle
         run.textContent = segment
         fragment.append(run)
         runs.push(run)
@@ -83,7 +84,9 @@ export function resetPageAlignment(doc) {
   spacingStyles.delete(doc)
   const state = documents.get(doc)
   if (!state) return
-  for (const run of state.runs) run.style.setProperty('top', '0px', 'important')
+  for (const run of state.runs)
+    if (run.style.top !== '0px' || run.style.getPropertyPriority('top') !== 'important')
+      run.style.setProperty('top', '0px', 'important')
   for (const [el, styles] of state.noteStyles)
     for (const [name, value, priority] of styles) {
       if (value) el.style.setProperty(name, value, priority)
@@ -118,7 +121,7 @@ export function fitTextLineSpacing(doc, viewport = 0) {
     if (!node.textContent.trim() || node.parentElement.closest(excluded) || isNote(node.parentElement)) continue
     if (insidePublisherBlock(node.parentElement, protectedBlocks)) continue
     let block = node.parentElement
-    while (block !== doc.body && styleOf(block).display === 'inline') block = block.parentElement
+    while (block !== doc.body && (block.__moduPageRun || styleOf(block).display === 'inline')) block = block.parentElement
     if (!['block', 'list-item'].includes(styleOf(block).display)) continue
     range.selectNodeContents(node)
     const rect = [...range.getClientRects()].find(r => r.width > 0 && r.height > 0)
@@ -151,12 +154,15 @@ export function pageLineOffsets(rows, top, bottom, last) {
   return rows.map((_, i) => start + step * i)
 }
 
-export function alignPaginatedText(doc, { height, topMargin, bottomMargin, columnWidth, gap }, vertical) {
+export function alignPaginatedText(doc, { height, topMargin, bottomMargin, columnWidth, gap }, vertical, timing, measureExtent) {
   if (vertical || doc.defaultView.getComputedStyle(doc.documentElement)
     .getPropertyValue('--modu-align-pages').trim() !== '1' ||
     !(height > topMargin + bottomMargin && columnWidth > 0)) return
+  const preparing = Date.now()
   const state = preparePageRuns(doc)
+  timing?.('layout_runs', preparing)
   if (!state) return
+  const measuring = Date.now()
   const stride = columnWidth + gap
   const pageOf = r => Math.max(0, Math.floor((r.left - gap / 2 + 1) / stride))
   const pages = new Map()
@@ -189,9 +195,14 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
   const last = Math.max(...pages.keys())
   const forced = new Set()
   const forcedBreak = value => /^(always|page|column|left|right|recto|verso)$/.test(value)
+  const transformed = style => (style.transform && style.transform !== 'none') ||
+    (style.rotate && style.rotate !== 'none')
+  let stableExtent = !transformed(doc.defaultView.getComputedStyle(doc.documentElement)) &&
+    !transformed(doc.defaultView.getComputedStyle(doc.body))
   // Do not stretch a dedication/heading page before a publisher-forced break.
   for (const el of doc.body.querySelectorAll(':not(modu-page-run)')) {
     const style = doc.defaultView.getComputedStyle(el)
+    if (transformed(style)) stableExtent = false
     if (style.display === 'inline' || style.display === 'none') continue
     const before = forcedBreak(style.breakBefore) || forcedBreak(style.pageBreakBefore)
     const after = forcedBreak(style.breakAfter) || forcedBreak(style.pageBreakAfter)
@@ -201,6 +212,11 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
     if (before) forced.add(pageOf(rects[0]) - 1)
     if (after) forced.add(pageOf(rects.at(-1)))
   }
+  // Vertical offsets do not change horizontal page extent; measure before writes
+  // so expansion can commit offsets and iframe size in the same layout pass.
+  const extent = stableExtent ? measureExtent?.() : undefined
+  timing?.('layout_geometry', measuring)
+  const applying = Date.now()
   for (const [index, page] of pages) {
     if (page.unsafe || forced.has(index) || !page.runs.length) continue
     const rows = []
@@ -221,9 +237,14 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
       el.style.setProperty('position', 'relative', 'important')
       el.style.setProperty('top', `${oldTop + offsets[nearest]}px`, 'important')
     }
-    rows.forEach((row, i) => row.runs.forEach(({ el }) =>
-      el.style.setProperty('top', `${offsets[i]}px`, 'important')))
+    rows.forEach((row, i) => row.runs.forEach(({ el }) => {
+      const top = `${offsets[i]}px`
+      if (el.style.top !== top || el.style.getPropertyPriority('top') !== 'important')
+        el.style.setProperty('top', top, 'important')
+    }))
   }
+  timing?.('layout_offsets', applying)
+  return extent
 }
 
 const interLineStops = (edges, target, min, max, shifts) => {

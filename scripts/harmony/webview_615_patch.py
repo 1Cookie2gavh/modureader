@@ -23,6 +23,12 @@ def replacements():
     def add(path, old, new, count=1):
         edits.append((path, old, new, count))
 
+    # ArkWeb uses the loadData base URL for window.location. Stripping the
+    # reader's query loses the book capability, importing flag and style.
+    add(VIEW, '      let baseUrl = this.buildLoopbackBaseUrl(url);',
+        '''      const baseUrl: string = upper === 'GET' && this.isLoopbackHttpUrl(url)
+        ? url : this.buildLoopbackBaseUrl(url);''')
+
     add(PACKAGES[0] + '/lib/src/in_app_webview/in_app_webview_controller.dart',
         '  Future<void> clearFocus() => platform.clearFocus();',
         '''  Future<void> clearFocus() => platform.clearFocus();

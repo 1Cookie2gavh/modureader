@@ -224,6 +224,55 @@ test('Android mouse and keyboard selections do not acquire touch handles', async
   }
 });
 
+test('Android pen drag retains its exact range and adopts reader handles after moving', async () => {
+  for (const selectBeforeMove of [false, true]) {
+    const f = fixture(undefined, {nativeTouchSelection:true, paragraph:() => true});
+    f.send('pointerdown', {pointerType:'pen'});
+    f.send('touchstart'); // Compatibility event must not overwrite the pen kind.
+    if (selectBeforeMove) f.select(2, 6);
+    f.send('pointermove', {pointerType:'pen', clientX:80});
+    f.select(2, 6);
+    f.send('pointerup', {pointerType:'pen', clientX:80});
+    await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文');
+    assert.equal(f.adjusted.length, 0, 'manual pen selection must not expand to a paragraph');
+    assert.ok(handleAt(f, 'start')); assert.ok(handleAt(f, 'end'));
+    f.close();
+  }
+});
+
+test('finger scrolling and pen multi-touch do not re-enable reader handles', async () => {
+  for (const pointerType of ['touch', 'pen']) {
+    const f = fixture(undefined, {nativeTouchSelection:true});
+    f.send('pointerdown', {pointerType});
+    f.send('pointermove', {pointerType, clientX:80,
+      ...(pointerType === 'pen' ? {touches:[{clientX:80,clientY:10},{}]} : {})});
+    f.select(2, 6);
+    await f.control.beforeSelection();
+    assert.equal(handlesHost(f), null);
+    assert.equal(f.text(), '欢中国文');
+    f.close();
+  }
+});
+
+test('native scroll-to-selection after a pen drag keeps takeover, but navigation cancels it', async () => {
+  for (const navigate of [false, true]) {
+    const f = fixture(undefined, {nativeTouchSelection:true, paragraph:() => true});
+    f.send('pointerdown', {pointerType:'pen'});
+    f.send('pointermove', {pointerType:'pen', clientX:80});
+    f.select(2, 6);
+    f.send('scroll', {}, f.doc);
+    f.control.nativeLongPress();
+    f.send('pointerup', {pointerType:'pen', clientX:80});
+    if (navigate) f.control.cancel();
+    await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文');
+    assert.equal(f.adjusted.length, 0);
+    assert.equal(!!handlesHost(f), !navigate);
+    f.close();
+  }
+});
+
 test('expanded handles drag either endpoint and cross without snapping back to the word', async () => {
   for (const [side, destination, expected] of [
     ['start', 1, '喜欢中国'], ['end', 7, '中国文化'],

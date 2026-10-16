@@ -10,6 +10,27 @@ void main() {
     RuntimeDiagnostics.record(RuntimeEvent.reader,
         state: 'private book /secret?key=SECRET');
     RuntimeDiagnostics.record(RuntimeEvent.syncComplete, durationMs: 125);
+    RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'renderer_gone');
+    expect(RuntimeDiagnostics.preview(), contains('renderer_gone'));
+    for (final stage in [
+      'chapter_resource',
+      'chapter_document',
+      'chapter_prepare',
+      'chapter_fonts',
+      'chapter_layout',
+      'layout_viewport',
+      'layout_reset',
+      'layout_styles',
+      'layout_spacing',
+      'layout_runs',
+      'layout_geometry',
+      'layout_offsets',
+      'layout_expand',
+    ]) {
+      RuntimeDiagnostics.record(RuntimeEvent.reader,
+          state: stage, durationMs: 42);
+      expect(RuntimeDiagnostics.preview(), contains(stage));
+    }
     expect(RuntimeDiagnostics.preview(), contains('125'));
     expect(RuntimeDiagnostics.preview(), isNot(contains('SECRET')));
     for (var i = 0; i < 400; i++) {

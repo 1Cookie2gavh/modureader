@@ -6,6 +6,56 @@ Latest stable: **1.2.10+10129**. Updated 2026-10-15.
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
+## Unreleased
+
+## 1.2.11-beta.1
+
+### English
+
+- Feat(tts): Use icon-only return-to-narration and read-from-here controls; distinguish stop with a larger circled square and a separate background. Keep tooltips, accessibility labels and existing playback actions.
+
+- Perf(reader): Measure horizontal chapter extent in the existing geometry pass before alignment writes, avoiding a second immediate full-chapter layout. Keep fresh measurements for later image/resize updates and transformed content. Twelve synthetic browser comparisons preserve geometry and CFIs; E-Ink timing is pending.
+- Fix(selection): Theme native handles only inside reader WebViews as blue circles from creation, keeping native selection, smart expansion and later custom handle takeover. Device verification of the green-handle transition is pending.
+
+- Perf(reader): Reuse a styled template for page-alignment runs, skip unchanged offsets and redundant generated-node style reads, and split layout diagnostics into content-free substage timings. E-Ink device latency verification is pending.
+
+- Fix(selection): Keep reader handle takeover after Android stylus drag-selection and native scroll-to-selection while preserving the exact manually selected range; finger scrolling and mouse/keyboard selection retain their behavior. Native handles still reproduced on test3; device verification of the follow-up is pending.
+
+- Fix(reader): Handle Android WebView renderer loss in the reader, background import/search, dictionary and web popups; discard dead views and offer explicit reload instead of reusing them. Skip unchanged layout attributes and batch geometry updates into one pagination pass. Record anonymous chapter resource, document, preparation, font and layout timings for device diagnosis. Manual crash recovery was verified remotely; the underlying renderer crash and E-Ink navigation delays remain under investigation.
+
+- Fix(harmony): Preserve reader URL parameters in the HarmonyOS loopback WebView fallback, preventing a missing book address from causing HTTP 500 and import timeouts. Related to the investigation of [#33](https://github.com/sobranie2406/modureader/issues/33); thanks [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) for reporting the HarmonyOS bookshelf/reader failures. API 26 emulator import and shelf checks pass; the original device-only blank shelf is not yet reproduced.
+
+- Feat(sync): Start the existing manual two-way sync directly from the bookshelf sync button, without opening the sync status sheet; retain sync policies and result feedback.
+
+- Fix(settings): Standardize the system theme value as `system`, accepting legacy `auto` preferences and backups so global settings file/link export no longer fails validation.
+
+- Feat(tts): Add a stop button at the trailing end of the floating narration toolbar, retaining the compact layout on narrow screens.
+
+- Fix(settings): Adjust settings sliders only by dragging the thumb; ignore track taps and track-started drags to prevent accidental changes while scrolling. Keep reading progress tap-to-seek ([#40](https://github.com/sobranie2406/modureader/issues/40)). Thanks [@ndd200](https://github.com/ndd200) for the suggestion.
+
+### 简体中文
+
+- Feat(tts): 朗读浮动栏的“回朗读页”和“此页朗读”改用纯图标；停止按钮使用更大的圆圈方块及独立底色，保留长按提示、无障碍标签和原有播放操作。
+
+- Perf(reader): 普通横排在对齐偏移写入前复用本次几何测量获取章节宽度，避免立即再次计算整章布局；后续图片／尺寸变化和旋转内容仍重新测量。12组合成章节浏览器对比的坐标与CFI一致，墨水屏耗时待验证。
+- Fix(selection): 仅阅读器 WebView 从创建时使用蓝色圆点原生手柄，保留原生选择、自动扩词及后续自定义手柄接管；绿色手柄过渡的实机验证待完成。
+
+- Perf(reader): 页面对齐节点复用样式模板，跳过未变化的偏移写入和生成节点的重复样式读取；细分排版耗时诊断，不记录正文。墨水屏实机耗时改善待验证。
+
+- Fix(selection): Android 触控笔滑动选字及系统滚动到选区后保留阅读器自定义手柄接管，保持手动选择的准确范围，不再次扩词；手指滚动与鼠标／键盘选区行为不变。test3 实机仍复现原生手柄，追加修复待实机验证。
+
+- Fix(reader): 阅读器、后台导入／检索、词典和网页弹窗接管 Android WebView 渲染进程退出，移除失效视图并提供手动重载，不再复用崩溃视图。跳过未变化的排版参数，多项布局参数合并为一次分页；记录不含书籍内容的资源、文档、准备、字体与排版分阶段耗时。远端已验证手动重载恢复；底层渲染崩溃及墨水屏跳转延迟仍在排查。
+
+- Fix(harmony): 鸿蒙 WebView 本地页面降级加载保留阅读器网址参数，避免书籍地址丢失导致 HTTP 500 和导入超时。本次排查关联 [#33](https://github.com/sobranie2406/modureader/issues/33)，感谢 [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) 反馈鸿蒙书架及打开书籍异常。API 26 模拟器导入和书架检查通过；原反馈设备的首页空白尚未复现。
+
+- Feat(sync): 点击书架同步按钮直接启动原有手动双向同步，不再弹出同步面板；同步策略和结果提示保持不变。
+
+- Fix(settings): “跟随系统”主题值统一为 `system`，兼容旧版 `auto` 设置及备份，修复全局设置文件／链接导出校验失败。
+
+- Feat(tts): 在朗读浮动栏最右侧增加停止按钮，窄屏保留自适应紧凑布局。
+
+- Fix(settings): 设置滑块仅允许拖动滑块调节，点击轨道或从轨道开始拖动不改值，减少滚动设置页面时的误触；阅读进度条保留点击跳转（[#40](https://github.com/sobranie2406/modureader/issues/40)）。感谢 [@ndd200](https://github.com/ndd200) 提出建议。
+
 ## 1.2.10
 
 ### English

@@ -86,10 +86,12 @@ test('chapter failures report the target and safe reason; cancellation is not lo
     await assert.rejects(r.goTo({index:3}), e => e === error);
     assert.equal(r.events[0].state, 'loading');
     assert.equal(r.events[1].state, state);
+    assert.ok(Number.isInteger(r.events[1].durationMs) && r.events[1].durationMs >= 0);
     assert.equal(r.events[1].index, 3); assert.equal(r.events[1].reason, reason);
     if (state === 'cancelled') assert.equal(warnings.length, count);
     else assert.equal(warnings.at(-1), `Reader chapter load failed: index=3, reason=${reason}`);
     r.error = null; await r.goTo({index:3});
     assert.equal(r.events.at(-1).state, 'ready');
+    assert.ok(Number.isInteger(r.events.at(-1).durationMs) && r.events.at(-1).durationMs >= 0);
   }
 });

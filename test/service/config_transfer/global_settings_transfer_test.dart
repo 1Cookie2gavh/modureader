@@ -8,6 +8,7 @@ import 'package:anx_reader/service/config_transfer/global_settings_transfer.dart
 import 'package:anx_reader/service/config_transfer/config_transfer_codec.dart';
 import 'package:anx_reader/service/config_transfer/tts_config_transfer.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -32,6 +33,53 @@ void main() {
           .toJson(),
     });
     await Prefs().initPrefs();
+  });
+
+  for (final includeSecrets in [false, true]) {
+    test('legacy auto theme exports canonically, secrets=$includeSecrets',
+        () async {
+      await Prefs().prefs.setString('themeMode', 'auto');
+      final file = await GlobalSettingsTransfer.export(Prefs(),
+          includeSecrets: includeSecrets);
+      for (final text in [file, GlobalSettingsTransfer.link(file)]) {
+        final data = await GlobalSettingsTransfer.decode(text);
+        expect(data['themeMode'], {'type': 'string', 'value': 'system'});
+      }
+      expect(Prefs().prefs.getString('themeMode'), 'auto');
+      expect(Prefs().themeMode, ThemeMode.system);
+    });
+  }
+
+  for (final version in [1, 2]) {
+    for (final asLink in [false, true]) {
+      test('imports legacy auto theme v$version, link=$asLink', () async {
+        final file = jsonEncode({
+          'kind': GlobalSettingsTransfer.kind,
+          'version': version,
+          'preferences': {
+            '__prefsBackupVersion': 1,
+            'themeMode': {'type': 'string', 'value': 'auto'},
+          },
+        });
+        final data = await GlobalSettingsTransfer.decode(
+            asLink ? GlobalSettingsTransfer.link(file) : file);
+        await Prefs().saveThemeModeToPrefs('dark');
+        await GlobalSettingsTransfer.apply(Prefs(), data);
+        expect(Prefs().prefs.getString('themeMode'), 'system');
+        expect(Prefs().themeMode, ThemeMode.system);
+        expect(data['themeMode']['value'], 'auto');
+      });
+    }
+  }
+
+  test('theme defaults remain a reset rather than a forced value', () async {
+    final data = await GlobalSettingsTransfer.decode(
+        await GlobalSettingsTransfer.export(Prefs()));
+    expect(data['themeMode'], {'type': 'reset', 'value': null});
+    await Prefs().saveThemeModeToPrefs('dark');
+    await GlobalSettingsTransfer.apply(Prefs(), data);
+    expect(Prefs().prefs.containsKey('themeMode'), false);
+    expect(Prefs().themeMode, ThemeMode.system);
   });
 
   test('default export omits credentials, sync password and local assets',
@@ -177,6 +225,9 @@ void main() {
   });
 
   for (final entry in {
+    'unknown theme mode': {
+      'themeMode': {'type': 'string', 'value': 'invalid-mode'}
+    },
     'unknown field': {
       'customStoragePath': {'type': 'string', 'value': '/wrong'}
     },

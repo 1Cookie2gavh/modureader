@@ -112,9 +112,12 @@ ThemeData colorSchema(
           hoverColor: disableMotion ? Colors.transparent : themeData.hoverColor,
           expansionTileTheme: themeData.expansionTileTheme
               .copyWith(expansionAnimationStyle: AppMotion.style),
-          // Flutter still requires this deprecated opt-in for the 2024 shapes.
-          // ignore: deprecated_member_use
-          sliderTheme: const SliderThemeData(year2023: false),
+          sliderTheme: const SliderThemeData(
+            // Flutter still requires this deprecated opt-in for the 2024 shapes.
+            // ignore: deprecated_member_use
+            year2023: false,
+            allowedInteraction: SliderInteraction.slideThumb,
+          ),
           progressIndicatorTheme:
               // ignore: deprecated_member_use
               const ProgressIndicatorThemeData(year2023: false),

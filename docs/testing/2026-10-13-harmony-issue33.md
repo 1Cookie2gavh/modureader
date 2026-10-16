@@ -39,10 +39,14 @@ checking, native integration tests or proof of device behavior.
 Results on 2026-10-13: 15 native-handler mock tests and 12 Flutter tests passed;
 `flutter analyze --no-pub` reported no issues. `git diff --check` passed.
 
-## Still required
+## Still required (status on 2026-10-13)
 
 No HarmonyOS device or SDK compiler is connected locally. On a device, verify
 open → timeout → exit does not leave screen-on state, export and cancellation
 retain the source log, and collect the earlier Flutter/WebView failure records.
 Do not close #33 or claim the blank shelf / chapter failure has been fixed based
 on these two partial fixes. No HAP/APK build or publication is included.
+
+Follow-up: [2026-10-16 API 26 verification](2026-10-16-harmony-api26-import.md)
+records the later SDK/emulator setup, a verified loopback import repair and the
+remaining device-only bookshelf limitation.

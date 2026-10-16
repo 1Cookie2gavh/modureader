@@ -1868,6 +1868,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                             onNext: () => _moveNarration(forward: true),
                             onPlay: audioHandler.play,
                             onPause: audioHandler.pause,
+                            onStop: audioHandler.stop,
                             onOpenSettings: _openNarrationSettings,
                           ),
                         ),

@@ -313,6 +313,7 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
   let session = null, hadSelection = !!activeRange(doc), excluded = false;
   let disposed = false, touch = null, suppressClickUntil = 0;
   let touchHandlesAllowed = true;
+  let pendingPenSelection = false;
   const listeners = [];
   const handles = installExpandedSelectionHandles(doc, { onDragStart: () => {
     session = null; touch = null; excluded = true; hadSelection = true;
@@ -346,9 +347,11 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
   const cancel = ({ preserveActiveSelection = false } = {}) => {
     const range = activeRange(doc);
     if (preserveActiveSelection && handles.ownsSelection()) return;
+    if (preserveActiveSelection && pendingPenSelection && range) return;
     if (preserveActiveSelection && session && range &&
         (sameRange(session.seed, range) || sameRange(session.normalized, range))) return;
     session = null; touch = null;
+    pendingPenSelection = false;
     touchHandlesAllowed = false;
     handles.hide();
     hadSelection = !!range; excluded = true;
@@ -410,6 +413,7 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
     selection.removeAllRanges();
     selection.addRange(owned);
     handles.show(owned);
+    pendingPenSelection = false;
     doc.dispatchEvent(new doc.defaultView.Event('selectionchange'));
   };
   const nativeLongPress = () => {
@@ -429,14 +433,22 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
     if (touch && now() - touch.at < 50 &&
         Math.hypot(point.clientX - touch.x, point.clientY - touch.y) < 2) return;
     session = null;
+    pendingPenSelection = false;
     touchHandlesAllowed = true;
     hadSelection = !!activeRange(doc); excluded = hadSelection;
-    touch = { x: point.clientX, y: point.clientY, at: now(), handles: hadSelection };
+    touch = { x: point.clientX, y: point.clientY, at: now(), handles: hadSelection,
+      pen: e.pointerType === 'pen' };
     delete doc.__moduInitialSmartSelectionRange;
   };
   const move = e => {
     if (touch && (e.touches?.length > 1 ||
-        Math.hypot((e.touches?.[0] ?? e).clientX - touch.x, (e.touches?.[0] ?? e).clientY - touch.y) > 8)) cancel();
+        Math.hypot((e.touches?.[0] ?? e).clientX - touch.x, (e.touches?.[0] ?? e).clientY - touch.y) > 8)) {
+      // Pen dragging chooses an exact range, not a word/paragraph or a scroll.
+      const penSelection = touch.pen && !(e.touches?.length > 1);
+      cancel();
+      touchHandlesAllowed = penSelection;
+      pendingPenSelection = penSelection;
+    }
   };
   const menu = () => nativeLongPress();
   const click = e => {

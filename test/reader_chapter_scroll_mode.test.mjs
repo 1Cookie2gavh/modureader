@@ -5,6 +5,24 @@ import { runInNewContext } from 'node:vm';
 const book = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
 const setStyle = book.slice(book.indexOf('const setStyle ='), book.indexOf('const onRelocated ='));
 
+test('reader commits geometry as one batch when the paginator supports it', () => {
+  const batches = [], individual = [];
+  runInNewContext(`${setStyle};setStyle()`, {
+    style:{pageTurnStyle:'noAnimation', eInkMode:true, sideMargin:5},
+    reader:{view:{renderer:{
+      setLayoutAttributes: attrs => batches.push(attrs),
+      setAttribute: name => individual.push(name), setStyles(){},
+    }}},
+    document:{documentElement:{style:{}}}, applyReaderMotion(){},
+    applyVerticalPageChrome(){}, getCSS(){}, highlightWarnings:new Set(), updateCustomHighlights(){},
+  });
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].flow, 'paginated');
+  assert.equal(batches[0].animated, null);
+  assert.equal(batches[0].gap, '5%');
+  assert.ok(!individual.includes('flow') && !individual.includes('gap'));
+});
+
 test('ebook night palette bypasses geometry and highlight rescans, but typography never does', () => {
   for (const change of [
     {fontColor:'#ddd',backgroundColor:'#111',readingNightMode:true,backgroundImage:'none',verticalPageChrome:{}},

@@ -86,6 +86,7 @@ class AnxHeadlessWebView {
         onConsoleMessage: onConsoleMessage,
         onReceivedError: _onReceivedError,
         onReceivedHttpError: _onReceivedHttpError,
+        onRenderProcessGone: _onRenderProcessGone,
       );
       try {
         await _headlessWebView?.run();
@@ -107,6 +108,17 @@ class AnxHeadlessWebView {
     if (request.isForMainFrame == false) return;
     onLoadError?.call(controller, request.url, error.type.toNativeValue() ?? -1,
         error.description);
+  }
+
+  void _onRenderProcessGone(
+      InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    if (_disposed) return;
+    // Fail pending import/search immediately; release even if its owner throws.
+    try {
+      onLoadError?.call(controller, null, -1, 'WebView renderer stopped');
+    } finally {
+      unawaited(dispose());
+    }
   }
 
   void _onReceivedHttpError(InAppWebViewController controller,
@@ -136,6 +148,7 @@ class AnxHeadlessWebView {
             onConsoleMessage: onConsoleMessage,
             onReceivedError: _onReceivedError,
             onReceivedHttpError: _onReceivedHttpError,
+            onRenderProcessGone: _onRenderProcessGone,
             onWebViewCreated: (controller) {
               onWebViewCreated?.call(controller);
             },

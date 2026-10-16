@@ -108,6 +108,41 @@ async function call(name, argumentsMap = {}) {
   return response;
 }
 (async () => {
+  // Execute the real loopback fallback; query parameters must reach ArkWeb's
+  // document URL, not merely its history URL. Other fallback policies stay put.
+  let loaded;
+  const local = harness(viewSource, ['loadPrivateHttpUrl'], {
+    http: {
+      RequestMethod: {GET: 'GET', POST: 'POST', HEAD: 'HEAD', PUT: 'PUT'},
+      HttpDataType: {STRING: 'STRING'},
+      createHttp: () => ({
+        request: async () => ({responseCode: 200, result: '<html></html>', header: {}}),
+        destroy() {},
+      }),
+    },
+    InAppWebView: {httpResultToString: value => value},
+    Log: {e: message => {throw Error(message);}, w() {}}, TAG: 'test',
+  });
+  local.getUrl = () => 'http://127.0.0.1/previous';
+  local.isLoopbackHttpUrl = url => new URL(url).hostname === '127.0.0.1';
+  local.buildLoopbackBaseUrl = url => new URL('.', url).href;
+  local.loadDataWithBaseURL = async (...args) => {loaded = args;};
+  local.waitForClientCertPageReadyThenDispatchLoadStop = () => {};
+  const bookUrl = 'http://127.0.0.1:35035/foliate-js/index.html?importing=true&url=%22book%2Ftoken.epub%22&style=%7B%22fontSize%22%3A20%7D';
+  await local.loadPrivateHttpUrl(bookUrl, 'GET', null, null);
+  assert.equal(loaded[0], bookUrl);
+  assert.equal(loaded[4], bookUrl);
+  assert.equal(new URL(loaded[0]).searchParams.get('importing'), 'true');
+  assert.equal(new URL(loaded[0]).searchParams.get('url'), '"book/token.epub"');
+  assert.deepEqual(JSON.parse(new URL(loaded[0]).searchParams.get('style')), {fontSize: 20});
+  assert.equal(new URL('dist/bundle.js', loaded[0]).pathname, '/foliate-js/dist/bundle.js');
+  for (const [url, method] of [[bookUrl, 'POST'], [bookUrl, 'HEAD'],
+    ['http://192.168.1.2/page?query=keep', 'GET']]) {
+    await local.loadPrivateHttpUrl(url, method, null, null);
+    assert.equal(loaded[0], new URL('.', url).href);
+    assert.equal(loaded[4], url);
+  }
+
   const document = {documentElement: {style: {}}};
   let updates = 0;
   channel.webView = {

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ModuReaderSelection" parent="">
+        <item name="android:textSelectHandle">@drawable/modu_selection_handle</item>
+        <item name="android:textSelectHandleLeft">@drawable/modu_selection_handle</item>
+        <item name="android:textSelectHandleRight">@drawable/modu_selection_handle</item>
+    </style>
+</resources>

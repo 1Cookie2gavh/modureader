@@ -4,6 +4,7 @@ import 'package:anx_reader/service/book_player/document_type_store.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'dart:async';
+import 'package:anx_reader/widgets/webview/recoverable_webview.dart';
 import 'package:anx_reader/models/narration_position.dart';
 import 'package:anx_reader/service/eink_refresh.dart';
 import 'package:anx_reader/widgets/reading_page/reading_info_line.dart';
@@ -173,6 +174,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   bool _selectionClearLocked = false;
   bool _selectionClearPending = false;
   bool _readerReady = false;
+  String? _rendererRecoveryCfi;
   bool _readerLoadFailed = false;
   bool _chapterLoading = false;
   bool _chapterLoadFailed = false;
@@ -1568,8 +1570,21 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         callback: (args) {
           if (!mounted || args.isEmpty || args.first is! Map) return;
           final data = args.first as Map;
+          final duration = data['durationMs'];
+          if (data['state'] == 'timing') {
+            RuntimeDiagnostics.record(RuntimeEvent.reader,
+                state: data['stage'] is String ? data['stage'] as String : null,
+                durationMs:
+                    duration is num && duration.isFinite && duration >= 0
+                        ? duration.toInt()
+                        : null);
+            return;
+          }
           RuntimeDiagnostics.record(RuntimeEvent.reader,
-              state: data['state'] is String ? data['state'] as String : null);
+              state: data['state'] is String ? data['state'] as String : null,
+              durationMs: duration is num && duration.isFinite && duration >= 0
+                  ? duration.toInt()
+                  : null);
           setState(() {
             _chapterLoading = data['state'] == 'loading';
             _chapterLoadFailed = data['state'] == 'failed';
@@ -2458,32 +2473,47 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Widget buildWebviewWithIOSWorkaround(
       BuildContext context, String url, String initialCfi) {
-    final webView = InAppWebView(
-      webViewEnvironment: webViewEnvironment,
-      initialUrlRequest: URLRequest(
-        url: WebUri(
-          generateUrl(
-            url,
-            initialCfi,
-            cssBookKey: cssBookKey,
-            backgroundColor: backgroundColor,
-            textColor: textColor,
-            isDarkMode: Theme.of(context).brightness == Brightness.dark,
-            verticalPageInsets: _verticalGeometry.toJson(),
-            verticalPageChrome: _webVerticalChrome,
+    final webView = RecoverableWebView(
+      onGone: () {
+        _rendererRecoveryCfi = _progress.current?.position;
+        _readerReady = false;
+        _chapterLoading = false;
+        _readerLoadFailed = false;
+        _chapterLoadFailed = false;
+        _translationSession.stop();
+        _scrollDebounceTimer?.cancel();
+        if (_hasNarrationSession) unawaited(TtsHandler().pause());
+        RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'renderer_gone');
+        setState(() {});
+      },
+      builder: (onGone) => InAppWebView(
+        onRenderProcessGone: onGone,
+        webViewEnvironment: webViewEnvironment,
+        initialUrlRequest: URLRequest(
+          url: WebUri(
+            generateUrl(
+              url,
+              _rendererRecoveryCfi ?? initialCfi,
+              cssBookKey: cssBookKey,
+              backgroundColor: backgroundColor,
+              textColor: textColor,
+              isDarkMode: Theme.of(context).brightness == Brightness.dark,
+              verticalPageInsets: _verticalGeometry.toJson(),
+              verticalPageChrome: _webVerticalChrome,
+            ),
           ),
         ),
+        initialSettings: initialSettings,
+        contextMenu: contextMenu,
+        onLoadStop: (controller, uri) => onWebViewCreated(controller),
+        onReceivedError: (_, request, __) {
+          if (request.isForMainFrame == true) _showReaderLoadFailure();
+        },
+        onReceivedHttpError: (_, request, __) {
+          if (request.isForMainFrame == true) _showReaderLoadFailure();
+        },
+        onConsoleMessage: webviewConsoleMessage,
       ),
-      initialSettings: initialSettings,
-      contextMenu: contextMenu,
-      onLoadStop: (controller, uri) => onWebViewCreated(controller),
-      onReceivedError: (_, request, __) {
-        if (request.isForMainFrame == true) _showReaderLoadFailure();
-      },
-      onReceivedHttpError: (_, request, __) {
-        if (request.isForMainFrame == true) _showReaderLoadFailure();
-      },
-      onConsoleMessage: webviewConsoleMessage,
     );
 
     if (!AnxPlatform.isIOS) {

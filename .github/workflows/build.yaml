@@ -8,7 +8,7 @@ on:
         default: false
         type: boolean
       targets:
-        description: 'all or comma-separated targets (linux-x64,linux-arm64,windows-x64,windows-arm64,macos-x64,macos-arm64,android,ios)'
+        description: 'all or comma-separated targets (linux-x64,linux-arm64,windows-x64,windows-arm64,macos-x64,macos-arm64,android,ios,harmony)'
         default: all
         type: string
       release_tag:
@@ -45,6 +45,7 @@ jobs:
       has_desktop: ${{ steps.matrix.outputs.has_desktop }}
       android: ${{ steps.matrix.outputs.android }}
       ios: ${{ steps.matrix.outputs.ios }}
+      harmony: ${{ steps.matrix.outputs.harmony }}
     steps:
       - uses: actions/checkout@v4
       - id: matrix
@@ -381,7 +382,8 @@ jobs:
           retention-days: 14
 
   harmony:
-    if: inputs.reader_diagnostic != true && (inputs.targets || 'all') == 'all'
+    needs: targets
+    if: needs.targets.outputs.harmony == 'true'
     uses: ./.github/workflows/harmony-cloud.yml
     with:
       build_hap: true
@@ -396,7 +398,7 @@ jobs:
       (needs.targets.outputs.has_desktop != 'true' || needs.desktop.result == 'success') &&
       (needs.targets.outputs.android != 'true' || needs.android.result == 'success') &&
       (needs.targets.outputs.ios != 'true' || needs.ios.result == 'success') &&
-      ((inputs.targets || 'all') != 'all' || needs.harmony.result == 'success')
+      (needs.targets.outputs.harmony != 'true' || needs.harmony.result == 'success')
     needs: [quality, models, targets, desktop, android, ios, harmony]
     runs-on: ubuntu-24.04
     permissions:

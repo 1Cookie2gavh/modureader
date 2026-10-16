@@ -16,6 +16,7 @@ class TtsQuickToolbar extends StatefulWidget {
     required this.onNext,
     required this.onPlay,
     required this.onPause,
+    required this.onStop,
     required this.onOpenSettings,
   });
 
@@ -26,6 +27,7 @@ class TtsQuickToolbar extends StatefulWidget {
   final AsyncCallback onNext;
   final AsyncCallback onPlay;
   final AsyncCallback onPause;
+  final AsyncCallback onStop;
   final VoidCallback onOpenSettings;
 
   @override
@@ -65,28 +67,7 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
         final l10n = L10n.of(context);
         final returnLabel =
             ModuStrings.text(context, '回朗读页', 'Return to narration');
-        final hereLabel = ModuStrings.text(context, '此页开始', 'Read from here');
-
-        Widget labelButton(String key, String label, AsyncCallback action) =>
-            Expanded(
-              child: Tooltip(
-                message: label,
-                child: TextButton(
-                  key: ValueKey(key),
-                  onPressed: _busy ? null : () => _run(action),
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    foregroundColor: colors.onSurface,
-                  ),
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12)),
-                ),
-              ),
-            );
+        final hereLabel = ModuStrings.text(context, '此页朗读', 'Read from here');
 
         Widget iconButton(String key, String label, IconData icon,
                 AsyncCallback action) =>
@@ -95,10 +76,18 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
               tooltip: label,
               constraints: const BoxConstraints.tightFor(width: 44, height: 44),
               padding: EdgeInsets.zero,
-              iconSize: 22,
-              color: key == 'tts-quick-play-pause'
-                  ? colors.primary
-                  : colors.onSurface,
+              iconSize: key == 'tts-quick-stop' ? 28 : 22,
+              color: key == 'tts-quick-stop'
+                  ? colors.onErrorContainer
+                  : key == 'tts-quick-play-pause'
+                      ? colors.primary
+                      : colors.onSurface,
+              style: IconButton.styleFrom(
+                backgroundColor:
+                    key == 'tts-quick-stop' ? colors.errorContainer : null,
+                minimumSize: const Size(44, 44),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: _busy ? null : () => _run(action),
               icon: Icon(icon),
             );
@@ -120,26 +109,19 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
             ModuStrings.text(context, '下一段', 'Next passage'),
             Icons.chevron_right_rounded,
             widget.onNext);
-        final returnButton = labelButton(
-            'tts-quick-return', returnLabel, widget.onReturnToPosition);
-        final hereButton =
-            labelButton('tts-quick-read-here', hereLabel, widget.onReadHere);
-
-        double labelWidth(String label) {
-          final painter = TextPainter(
-              text: TextSpan(text: label, style: const TextStyle(fontSize: 12)),
-              textDirection: Directionality.of(context),
-              textScaler: MediaQuery.textScalerOf(context))
-            ..layout();
-          final width = painter.width;
-          painter.dispose();
-          return width;
-        }
+        final returnButton = iconButton('tts-quick-return', returnLabel,
+            Icons.my_location_rounded, widget.onReturnToPosition);
+        final hereButton = iconButton('tts-quick-read-here', hereLabel,
+            Icons.play_lesson_outlined, widget.onReadHere);
+        final stop = iconButton(
+            'tts-quick-stop',
+            ModuStrings.text(context, '停止朗读', 'Stop narration'),
+            Icons.stop_circle_outlined,
+            widget.onStop);
 
         return PointerInterceptor(
           child: LayoutBuilder(builder: (context, constraints) {
-            final compact = constraints.maxWidth <
-                4 * 44 + 24 + labelWidth(returnLabel) + labelWidth(hereLabel);
+            final compact = constraints.maxWidth < 7 * 44;
             return SizedBox(
               key: const ValueKey('tts-quick-toolbar'),
               height: compact ? 88 : 44,
@@ -153,7 +135,10 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
                 child: compact
                     ? Column(children: [
                         Expanded(
-                            child: Row(children: [returnButton, hereButton])),
+                            child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [returnButton, hereButton])),
                         Expanded(
                             child: Row(
                                 mainAxisAlignment:
@@ -162,17 +147,21 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
                               settings,
                               previous,
                               playPause,
-                              next
+                              next,
+                              stop,
                             ])),
                       ])
-                    : Row(children: [
-                        settings,
-                        returnButton,
-                        previous,
-                        playPause,
-                        next,
-                        hereButton,
-                      ]),
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                            settings,
+                            returnButton,
+                            previous,
+                            playPause,
+                            next,
+                            hereButton,
+                            stop,
+                          ]),
               ),
             );
           }),

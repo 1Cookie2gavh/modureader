@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'package:anx_reader/widgets/webview/recoverable_webview.dart';
 import 'dart:async';
 import 'package:anx_reader/utils/webView/web_scrollbar.dart';
 
@@ -160,57 +161,61 @@ class _WebTranslationViewState extends State<WebTranslationView> {
               style: TextStyle(color: Theme.of(context).colorScheme.error)),
         SizedBox(
           height: 400,
-          child: InAppWebView(
-            webViewEnvironment: webViewEnvironment,
-            initialUrlRequest: URLRequest(url: WebUri(widget.url)),
-            initialUserScripts: UnmodifiableListView([_layoutScript]),
-            initialSettings: InAppWebViewSettings(
-              userAgent: popupWebUserAgent,
-              preferredContentMode: UserPreferredContentMode.MOBILE,
-              isInspectable: kDebugMode,
-              horizontalScrollBarEnabled: false,
-              verticalScrollBarEnabled: false,
-              disableHorizontalScroll: true,
-              disableVerticalScroll: false,
-              useWideViewPort: false,
-              loadWithOverviewMode: false,
-              javaScriptBridgeEnabled: false,
-              useShouldOverrideUrlLoading: true,
-              allowFileAccess: false,
-              allowContentAccess: false,
-              allowFileAccessFromFileURLs: false,
-              allowUniversalAccessFromFileURLs: false,
-              mediaPlaybackRequiresUserGesture: true,
-              allowsInlineMediaPlayback: true,
+          child: RecoverableWebView(
+            onGone: () => _controller = null,
+            builder: (onGone) => InAppWebView(
+              onRenderProcessGone: onGone,
+              webViewEnvironment: webViewEnvironment,
+              initialUrlRequest: URLRequest(url: WebUri(widget.url)),
+              initialUserScripts: UnmodifiableListView([_layoutScript]),
+              initialSettings: InAppWebViewSettings(
+                userAgent: popupWebUserAgent,
+                preferredContentMode: UserPreferredContentMode.MOBILE,
+                isInspectable: kDebugMode,
+                horizontalScrollBarEnabled: false,
+                verticalScrollBarEnabled: false,
+                disableHorizontalScroll: true,
+                disableVerticalScroll: false,
+                useWideViewPort: false,
+                loadWithOverviewMode: false,
+                javaScriptBridgeEnabled: false,
+                useShouldOverrideUrlLoading: true,
+                allowFileAccess: false,
+                allowContentAccess: false,
+                allowFileAccessFromFileURLs: false,
+                allowUniversalAccessFromFileURLs: false,
+                mediaPlaybackRequiresUserGesture: true,
+                allowsInlineMediaPlayback: true,
+              ),
+              onWebViewCreated: (controller) => _controller = controller,
+              shouldOverrideUrlLoading: (_, action) async {
+                final uri = Uri.tryParse(action.request.url?.toString() ?? '');
+                return uri != null &&
+                        (uri.scheme == 'https' || uri.scheme == 'http')
+                    ? NavigationActionPolicy.ALLOW
+                    : NavigationActionPolicy.CANCEL;
+              },
+              onPermissionRequest: (_, request) async => PermissionResponse(
+                  resources: request.resources,
+                  action: PermissionResponseAction.DENY),
+              onLoadStop: (controller, _) async {
+                if (!mounted) return;
+                unawaited(installWebScrollbar(controller,
+                    reducedMotion: MediaQuery.disableAnimationsOf(context)));
+                await _applyZoom();
+                if (!mounted || controller != _controller) return;
+                final script = widget.prefill;
+                if (script != null) {
+                  try {
+                    await controller.evaluateJavascript(source: script);
+                  } catch (_) {/* The visible copy button remains usable. */}
+                }
+              },
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<OneSequenceGestureRecognizer>(
+                    () => EagerGestureRecognizer()),
+              },
             ),
-            onWebViewCreated: (controller) => _controller = controller,
-            shouldOverrideUrlLoading: (_, action) async {
-              final uri = Uri.tryParse(action.request.url?.toString() ?? '');
-              return uri != null &&
-                      (uri.scheme == 'https' || uri.scheme == 'http')
-                  ? NavigationActionPolicy.ALLOW
-                  : NavigationActionPolicy.CANCEL;
-            },
-            onPermissionRequest: (_, request) async => PermissionResponse(
-                resources: request.resources,
-                action: PermissionResponseAction.DENY),
-            onLoadStop: (controller, _) async {
-              if (!mounted) return;
-              unawaited(installWebScrollbar(controller,
-                  reducedMotion: MediaQuery.disableAnimationsOf(context)));
-              await _applyZoom();
-              if (!mounted || controller != _controller) return;
-              final script = widget.prefill;
-              if (script != null) {
-                try {
-                  await controller.evaluateJavascript(source: script);
-                } catch (_) {/* The visible copy button remains usable. */}
-              }
-            },
-            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-              Factory<OneSequenceGestureRecognizer>(
-                  () => EagerGestureRecognizer()),
-            },
           ),
         ),
       ]);

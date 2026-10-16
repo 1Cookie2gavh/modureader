@@ -22,6 +22,9 @@ const position = ReaderProgress(
     ]);
 
 Widget app(Widget body, {double scale = 1}) => MaterialApp(
+      theme: ThemeData(
+          sliderTheme: const SliderThemeData(
+              allowedInteraction: SliderInteraction.slideThumb)),
       locale: const Locale('zh'),
       supportedLocales: L10n.supportedLocales,
       localizationsDelegates: const [
@@ -79,6 +82,16 @@ void main() {
     expect(find.byTooltip('向前翻页'), findsOneWidget);
     expect(find.byTooltip('向后翻页'), findsOneWidget);
     expect(find.byTooltip('下一章'), findsOneWidget);
+  });
+  testWidgets('progress track tap still seeks with thumb-only settings theme',
+      (tester) async {
+    await mount(tester, controls(position));
+    final rect = tester.getRect(key('reader-progress-slider'));
+    await tester.tapAt(Offset(rect.right - 30, rect.center.dy));
+    await tester.pumpAndSettle();
+    expect(seeks, hasLength(1));
+    expect(seeks.single, greaterThan(.9));
+    expect(tester.takeException(), isNull);
   });
   testWidgets('drag previews chapter title without navigating until release',
       (tester) async {

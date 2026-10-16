@@ -71,6 +71,10 @@ void main() {
                     actions.add('pause');
                     state.value = TtsStateEnum.paused;
                   },
+                  onStop: () async {
+                    actions.add('stop');
+                    state.value = TtsStateEnum.stopped;
+                  },
                   onOpenSettings: () => actions.add('settings'),
                 ),
               ),
@@ -87,8 +91,14 @@ void main() {
         (tester) async {
       state.value = playing ? TtsStateEnum.playing : TtsStateEnum.paused;
       await mount(tester);
-      expect(find.text('回朗读页'), findsOneWidget);
-      expect(find.text('此页开始'), findsOneWidget);
+      expect(find.text('回朗读页'), findsNothing);
+      expect(find.text('此页朗读'), findsNothing);
+      expect(find.byTooltip('回朗读页'), findsOneWidget);
+      expect(find.byTooltip('此页朗读'), findsOneWidget);
+      expect(find.byIcon(Icons.my_location_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.play_lesson_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
+      expect(tester.widget<IconButton>(key('stop')).iconSize, 28);
       await tester.tap(key('return'));
       await tester.pumpAndSettle();
       await tester.tap(key('read-here'));
@@ -105,6 +115,14 @@ void main() {
       expect(find.text('上一段'), findsNothing);
       expect(find.text('下一段'), findsNothing);
       expect(state.value, playing ? TtsStateEnum.playing : TtsStateEnum.paused);
+      expect(find.byTooltip('停止朗读'), findsOneWidget);
+      expect(tester.getRect(key('stop')).left,
+          greaterThanOrEqualTo(tester.getRect(key('read-here')).right));
+      await tester.tap(key('stop'));
+      await tester.pumpAndSettle();
+      expect(actions.last, 'stop');
+      expect(state.value, TtsStateEnum.stopped);
+      expect(key('toolbar'), findsNothing);
     });
   }
 
@@ -140,6 +158,32 @@ void main() {
     expect(key('toolbar'), findsNothing);
   });
 
+  testWidgets('360px phone fits one icon row with 44px touch targets',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await mount(tester, scale: 2);
+    expect(tester.getSize(key('toolbar')).height, 44);
+    for (final name in [
+      'settings',
+      'return',
+      'previous',
+      'play-pause',
+      'next',
+      'read-here',
+      'stop'
+    ]) {
+      expect(tester.getSize(key(name)), const Size(44, 44));
+      expect(key(name).hitTestable(), findsOneWidget);
+    }
+    await tester.longPress(key('stop'));
+    await tester.pumpAndSettle();
+    expect(find.text('停止朗读'), findsOneWidget);
+    expect(actions, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('only the compact bar intercepts taps; the book never reflows',
       (tester) async {
     await mount(tester);
@@ -171,7 +215,8 @@ void main() {
         'previous',
         'next',
         'play-pause',
-        'settings'
+        'settings',
+        'stop',
       ]) {
         expect(key(name).hitTestable(), findsOneWidget,
             reason:
@@ -195,7 +240,8 @@ void main() {
       'previous',
       'play-pause',
       'next',
-      'read-here'
+      'read-here',
+      'stop',
     ];
     for (var i = 1; i < names.length; i++) {
       expect(tester.getRect(key(names[i])).left,
@@ -213,6 +259,11 @@ void main() {
     for (final name in names) {
       expect(key(name).hitTestable(), findsOneWidget);
     }
+    expect(tester.getRect(key('stop')).left,
+        greaterThanOrEqualTo(tester.getRect(key('next')).right));
+    await tester.tap(key('stop'));
+    await tester.pumpAndSettle();
+    expect(actions, ['stop']);
     state.value = TtsStateEnum.stopped;
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byKey(const ValueKey('reader-viewport'))).size,
@@ -232,7 +283,7 @@ void main() {
     await tester.pump();
     await tester.tap(key('next'));
     expect(actions, ['previous']);
-    for (final name in ['previous', 'next', 'play-pause', 'settings']) {
+    for (final name in ['previous', 'next', 'play-pause', 'settings', 'stop']) {
       expect(tester.widget<IconButton>(key(name)).onPressed, isNull);
     }
     pending.complete();
@@ -250,16 +301,16 @@ void main() {
     await tester.pump();
     await tester.tap(key('read-here'));
     expect(actions, ['here']);
-    expect(tester.widget<TextButton>(key('return')).onPressed, isNull);
+    expect(tester.widget<IconButton>(key('return')).onPressed, isNull);
     // Stopping/starting the engine mid-operation preserves the busy guard.
     state.value = TtsStateEnum.stopped;
     await tester.pump();
     state.value = TtsStateEnum.playing;
     await tester.pump();
-    expect(tester.widget<TextButton>(key('read-here')).onPressed, isNull);
+    expect(tester.widget<IconButton>(key('read-here')).onPressed, isNull);
     pending.complete();
     await tester.pumpAndSettle();
-    expect(tester.widget<TextButton>(key('read-here')).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(key('read-here')).onPressed, isNotNull);
   });
 
   testWidgets('errors are reported and controls remain usable', (tester) async {
@@ -267,7 +318,7 @@ void main() {
     await tester.tap(key('read-here'));
     await tester.pumpAndSettle();
     expect(find.text('朗读操作失败，请重试'), findsOneWidget);
-    expect(tester.widget<TextButton>(key('read-here')).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(key('read-here')).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
 

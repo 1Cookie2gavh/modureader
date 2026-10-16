@@ -156,6 +156,10 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
         'value': jsonEncode(profiles)
       };
     }
+    // Normalize only the export snapshot; leave existing preferences intact.
+    if (values['themeMode']?['value'] == 'auto') {
+      values['themeMode'] = {'type': 'string', 'value': 'system'};
+    }
     validate(values);
     final envelope = {
       'kind': kind,
@@ -437,6 +441,9 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
         throw const FormatException('无效设置 / Invalid setting');
       }
       Object value = entry.value['value'];
+      if (entry.key == 'themeMode' && value == 'auto') {
+        value = 'system';
+      }
       if (entry.key == 'bgimg') {
         value = jsonEncode({
           ...prefs.bgimg.toJson(),
