@@ -1853,25 +1853,18 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   // Paint controls above the book without changing WebView
                   // dimensions, pagination or reader margins.
                   if (!isReflowReading && bottomBarOffstage && _aiChat == null)
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 24 + MediaQuery.viewPaddingOf(context).bottom,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 440),
-                          child: TtsQuickToolbar(
-                            stateListenable: TtsHandler().ttsStateNotifier,
-                            onReturnToPosition: _returnToNarration,
-                            onReadHere: _readAloudFromHere,
-                            onPrevious: () => _moveNarration(forward: false),
-                            onNext: () => _moveNarration(forward: true),
-                            onPlay: audioHandler.play,
-                            onPause: audioHandler.pause,
-                            onStop: audioHandler.stop,
-                            onOpenSettings: _openNarrationSettings,
-                          ),
-                        ),
+                    Positioned.fill(
+                      child: TtsQuickToolbar(
+                        floating: true,
+                        stateListenable: TtsHandler().ttsStateNotifier,
+                        onReturnToPosition: _returnToNarration,
+                        onReadHere: _readAloudFromHere,
+                        onPrevious: () => _moveNarration(forward: false),
+                        onNext: () => _moveNarration(forward: true),
+                        onPlay: audioHandler.play,
+                        onPause: audioHandler.pause,
+                        onStop: audioHandler.stop,
+                        onOpenSettings: _openNarrationSettings,
                       ),
                     ),
                 ],

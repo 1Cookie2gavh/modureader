@@ -29,6 +29,7 @@ void main() {
   Future<void> mount(WidgetTester tester,
       {Locale locale = const Locale('zh'),
       double scale = 1,
+      bool floating = false,
       Future<void> Function()? previous,
       Future<void> Function()? readHere}) async {
     await tester.pumpWidget(MaterialApp(
@@ -51,13 +52,16 @@ void main() {
             child: const SizedBox(key: ValueKey('reader-viewport')),
           )),
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: 24,
+            left: floating ? 0 : 12,
+            right: floating ? 0 : 12,
+            top: floating ? 0 : null,
+            bottom: floating ? 0 : 24,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints:
+                    BoxConstraints(maxWidth: floating ? double.infinity : 440),
                 child: TtsQuickToolbar(
+                  floating: floating,
                   stateListenable: state,
                   onReturnToPosition: () async => actions.add('return'),
                   onReadHere: readHere ?? () async => actions.add('here'),
@@ -196,6 +200,76 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byKey(const ValueKey('reader-viewport'))),
         viewport);
+  });
+
+  testWidgets('floating background is 80% transparent but icons stay opaque',
+      (tester) async {
+    await mount(tester, floating: true);
+    final material = tester.widget<Material>(find
+        .descendant(of: key('toolbar'), matching: find.byType(Material))
+        .first);
+    expect(material.color!.a, closeTo(0.2, 0.005));
+    for (final name in ['return', 'read-here', 'stop', 'play-pause']) {
+      expect(tester.widget<IconButton>(key(name)).color!.a, 1);
+    }
+  });
+
+  testWidgets(
+      'dragging moves only the bar, never invokes a button or blocks the book',
+      (tester) async {
+    await mount(tester, floating: true);
+    final viewport =
+        tester.getRect(find.byKey(const ValueKey('reader-viewport')));
+    final before = tester.getRect(key('toolbar'));
+    await tester.drag(key('return'), const Offset(100, -180));
+    await tester.pumpAndSettle();
+    final moved = tester.getRect(key('toolbar'));
+    expect(moved.left, greaterThan(before.left));
+    expect(moved.top, lessThan(before.top - 100));
+    expect(actions, isEmpty);
+    expect(tester.getRect(find.byKey(const ValueKey('reader-viewport'))),
+        viewport);
+    await tester.tapAt(before.center);
+    expect(actions, ['body']);
+    await tester.tap(key('play-pause'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(key('toolbar')), moved);
+    expect(actions.last, 'pause');
+    await tester.tap(key('stop'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(moved.center);
+    expect(actions.last, 'body');
+    expect(key('toolbar'), findsNothing);
+  });
+
+  testWidgets('drag and resize keep all controls inside the screen',
+      (tester) async {
+    await mount(tester, floating: true);
+    await tester.drag(key('return'), const Offset(-2000, -2000));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(key('toolbar')).topLeft, const Offset(12, 12));
+    await tester.drag(key('return'), const Offset(4000, 4000));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(key('toolbar')).bottomRight, const Offset(788, 576));
+    tester.view.physicalSize = const Size(280, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(key('toolbar'));
+    expect(rect.right, lessThanOrEqualTo(268));
+    expect(rect.bottom, lessThanOrEqualTo(476));
+    for (final name in [
+      'settings',
+      'return',
+      'previous',
+      'play-pause',
+      'next',
+      'read-here',
+      'stop'
+    ]) {
+      expect(key(name).hitTestable(), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
   });
 
   for (final locale in [

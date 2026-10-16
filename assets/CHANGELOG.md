@@ -10,7 +10,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### English
 
-- Feat(tts): Use icon-only return-to-narration and read-from-here controls; distinguish stop with a larger circled square and a separate background. Keep tooltips, accessibility labels and existing playback actions.
+- Feat(tts): Use icon-only narration controls with a larger circled-square stop button. Make the floating background 80% transparent and draggable within the screen, without changing the reading viewport or playback actions. Keep opaque icons, tooltips and accessibility labels.
 
 - Perf(reader): Measure horizontal chapter extent in the existing geometry pass before alignment writes, avoiding a second immediate full-chapter layout. Keep fresh measurements for later image/resize updates and transformed content. Twelve synthetic browser comparisons preserve geometry and CFIs; E-Ink timing is pending.
 - Fix(selection): Theme native handles only inside reader WebViews as blue circles from creation, keeping native selection, smart expansion and later custom handle takeover. Device verification of the green-handle transition is pending.
@@ -33,7 +33,7 @@ Older sections retain their original version scope; they are not current accepta
 
 ### 简体中文
 
-- Feat(tts): 朗读浮动栏的“回朗读页”和“此页朗读”改用纯图标；停止按钮使用更大的圆圈方块及独立底色，保留长按提示、无障碍标签和原有播放操作。
+- Feat(tts): 朗读浮动栏改用纯图标及更大的圆圈方块停止按钮；背景80%透明，可在屏幕内拖动，不改变正文视口和播放操作。图标保持清晰，保留长按提示及无障碍标签。
 
 - Perf(reader): 普通横排在对齐偏移写入前复用本次几何测量获取章节宽度，避免立即再次计算整章布局；后续图片／尺寸变化和旋转内容仍重新测量。12组合成章节浏览器对比的坐标与CFI一致，墨水屏耗时待验证。
 - Fix(selection): 仅阅读器 WebView 从创建时使用蓝色圆点原生手柄，保留原生选择、自动扩词及后续自定义手柄接管；绿色手柄过渡的实机验证待完成。

@@ -4,7 +4,7 @@ Build / 构建：**10130** · Pre-release / 测试版
 
 ### English
 
-- Icon-only narration toolbar: return to narration and read from the current page; larger circled-square stop control with a distinct background. Tooltips and playback behavior remain unchanged.
+- Icon-only narration toolbar with a larger circled-square stop control; 80% transparent background and screen-bounded dragging. Icons stay opaque; tooltips, reading layout and playback behavior remain unchanged.
 - Start manual bookshelf sync directly without the status dialog.
 - Export settings saved with the legacy `auto` system theme value.
 - Drag-only settings sliders; reading progress retains tap-to-seek ([#40](https://github.com/sobranie2406/modureader/issues/40)). Thanks [@ndd200](https://github.com/ndd200).
@@ -15,7 +15,7 @@ Packages: Android ARM64 APK and HarmonyOS ARM64 HAP, with SHA-256 files. The HAP
 
 ### 简体中文
 
-- 朗读浮动栏改用纯图标：返回朗读位置、从当前页朗读；停止按钮改为更大的圆圈方块及独立底色。保留长按提示和原有播放行为。
+- 朗读浮动栏改用纯图标及更大的圆圈方块停止按钮；背景80%透明，可在屏幕内拖动，能看到下方正文。图标保持清晰，保留长按提示，不改变阅读排版和原有播放行为。
 - 点击书架同步按钮直接开始同步，不再弹出同步面板。
 - 修复旧版“跟随系统”主题值导致全局设置导出失败。
 - 设置滑块仅拖动调节，阅读进度条保留点击跳转（[#40](https://github.com/sobranie2406/modureader/issues/40)）。感谢 [@ndd200](https://github.com/ndd200)。

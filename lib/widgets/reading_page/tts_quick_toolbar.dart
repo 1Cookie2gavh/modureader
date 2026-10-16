@@ -4,6 +4,7 @@ import 'package:anx_reader/service/tts/base_tts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+import 'dart:math' as math;
 
 /// A small overlay, never an inset that changes the reader's viewport.
 class TtsQuickToolbar extends StatefulWidget {
@@ -18,6 +19,7 @@ class TtsQuickToolbar extends StatefulWidget {
     required this.onPause,
     required this.onStop,
     required this.onOpenSettings,
+    this.floating = false,
   });
 
   final ValueListenable<TtsStateEnum> stateListenable;
@@ -29,6 +31,7 @@ class TtsQuickToolbar extends StatefulWidget {
   final AsyncCallback onPause;
   final AsyncCallback onStop;
   final VoidCallback onOpenSettings;
+  final bool floating;
 
   @override
   State<TtsQuickToolbar> createState() => _TtsQuickToolbarState();
@@ -36,6 +39,7 @@ class TtsQuickToolbar extends StatefulWidget {
 
 class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
   bool _busy = false;
+  Offset? _position;
 
   Future<void> _run(AsyncCallback action) async {
     if (_busy) return;
@@ -83,8 +87,9 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
                       ? colors.primary
                       : colors.onSurface,
               style: IconButton.styleFrom(
-                backgroundColor:
-                    key == 'tts-quick-stop' ? colors.errorContainer : null,
+                backgroundColor: key == 'tts-quick-stop'
+                    ? colors.errorContainer.withValues(alpha: 0.2)
+                    : null,
                 minimumSize: const Size(44, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -119,53 +124,80 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
             Icons.stop_circle_outlined,
             widget.onStop);
 
-        return PointerInterceptor(
-          child: LayoutBuilder(builder: (context, constraints) {
-            final compact = constraints.maxWidth < 7 * 44;
-            return SizedBox(
-              key: const ValueKey('tts-quick-toolbar'),
-              height: compact ? 88 : 44,
-              child: Material(
-                color: colors.surfaceContainer.withValues(alpha: 0.96),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    side: BorderSide(
-                        color: colors.outlineVariant.withValues(alpha: 0.5))),
-                clipBehavior: Clip.antiAlias,
-                child: compact
-                    ? Column(children: [
-                        Expanded(
-                            child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [returnButton, hereButton])),
-                        Expanded(
-                            child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                              settings,
-                              previous,
-                              playPause,
-                              next,
-                              stop,
-                            ])),
-                      ])
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                            settings,
-                            returnButton,
-                            previous,
-                            playPause,
-                            next,
-                            hereButton,
-                            stop,
-                          ]),
-              ),
-            );
-          }),
-        );
+        return LayoutBuilder(builder: (context, constraints) {
+          final width = widget.floating
+              ? math.min(440.0, math.max(0.0, constraints.maxWidth - 24))
+              : constraints.maxWidth;
+          final compact = width < 7 * 44;
+          final height = compact ? 88.0 : 44.0;
+          final padding = MediaQuery.viewPaddingOf(context);
+          final minY = math.min(
+              padding.top + 12, math.max(0.0, constraints.maxHeight - height));
+          final maxX = math.max(12.0, constraints.maxWidth - width - 12);
+          final maxY = math.max(
+              minY, constraints.maxHeight - height - padding.bottom - 24);
+          Offset clampPosition(Offset offset) => Offset(
+              offset.dx.clamp(12.0, maxX).toDouble(),
+              offset.dy.clamp(minY, maxY).toDouble());
+          final position = clampPosition(
+              _position ?? Offset((constraints.maxWidth - width) / 2, maxY));
+          final bar = PointerInterceptor(
+              child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanUpdate: widget.floating
+                      ? (details) => setState(() => _position = clampPosition(
+                          clampPosition(_position ?? position) + details.delta))
+                      : null,
+                  child: SizedBox(
+                    key: const ValueKey('tts-quick-toolbar'),
+                    width: width,
+                    height: height,
+                    child: Material(
+                      color: colors.surfaceContainer.withValues(alpha: 0.2),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          side: BorderSide(
+                              color: colors.outlineVariant
+                                  .withValues(alpha: 0.5))),
+                      clipBehavior: Clip.antiAlias,
+                      child: compact
+                          ? Column(children: [
+                              Expanded(
+                                  child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [returnButton, hereButton])),
+                              Expanded(
+                                  child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
+                                      children: [
+                                    settings,
+                                    previous,
+                                    playPause,
+                                    next,
+                                    stop,
+                                  ])),
+                            ])
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                  settings,
+                                  returnButton,
+                                  previous,
+                                  playPause,
+                                  next,
+                                  hereButton,
+                                  stop,
+                                ]),
+                    ),
+                  )));
+          if (!widget.floating) return bar;
+          return Stack(children: [
+            Positioned(
+                left: position.dx, top: position.dy, width: width, child: bar),
+          ]);
+        });
       },
     );
   }
