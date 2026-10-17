@@ -15,14 +15,17 @@ import 'document_reader_surface.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/service/ocr/document_text_reflow.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'document_saved_text_actions.dart';
 import 'document_text_style_dialog.dart';
+import '../common/app_scroll_behavior.dart';
 
 typedef DocumentRequest = Future<Map<String, dynamic>> Function(
     Map<String, dynamic>);
 typedef DocumentOcr = Future<String> Function(
     Uint8List, OcrCancellation, void Function(int, int));
 
-/// A transient, explicitly requested page operation. Nothing is queued on disk.
+/// Extraction runs on demand; whole-page results can be saved for later reading.
 /// The returned text is a draft, never an instruction to send an AI request.
 class DocumentExtractionPanel extends StatefulWidget {
   const DocumentExtractionPanel(
@@ -32,6 +35,7 @@ class DocumentExtractionPanel extends StatefulWidget {
       required this.extractText,
       required this.cancelRender,
       this.modelStore,
+      this.reflowStore,
       this.recognize,
       this.initialTextStyle = const DocumentTextStyle(),
       this.saveTextStyle,
@@ -46,6 +50,7 @@ class DocumentExtractionPanel extends StatefulWidget {
   final DocumentRequest render, extractText;
   final VoidCallback cancelRender;
   final OcrModelStore? modelStore;
+  final DocumentReflowStore? reflowStore;
   final DocumentOcr? recognize;
   final bool forceOcr;
   final DocumentTextStyle initialTextStyle;
@@ -65,6 +70,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   final _pageRange = TextEditingController();
   final _results = <int, String>{};
   final _formatted = <int, String>{};
+  final _savedPages = <int, DocumentReflowPage>{};
   List<int> _batchPages = [];
   bool _multiple = false;
   int? _activePage;
@@ -175,6 +181,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   void _clearResults() {
     _results.clear();
     _formatted.clear();
+    _savedPages.clear();
     _batchPages = [];
     _result = null;
     _error = null;
@@ -290,7 +297,10 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
     }
   }
 
-  Future<void> _extract({required bool toAi, required List<int> pages}) async {
+  Future<void> _extract(
+      {required bool toAi,
+      required List<int> pages,
+      bool refresh = false}) async {
     if (!mounted || _busy || _preview == null) return;
     final cancel = OcrCancellation();
     _ocr = cancel;
@@ -306,7 +316,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
       for (var index = 0; index < pages.length; index++) {
         final page = pages[index];
         cancel.check();
-        if (_results.containsKey(page)) continue;
+        if (!refresh && _results.containsKey(page)) continue;
         setState(() {
           _activePage = page;
           _progress = index / pages.length;
@@ -320,13 +330,29 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
             'height': r.height
           }
         };
+        final persistent =
+            (_wholePage || _multiple) ? widget.reflowStore : null;
+        final cached = !refresh ? await persistent?.read(page, '') : null;
+        cancel.check();
+        if (!mounted) return;
+        if (cached != null) {
+          setState(() {
+            _savedPages[page] = cached;
+            _results[page] = cached.text;
+            _formatted[page] = cached.text;
+            _result = _results[_page];
+          });
+          continue;
+        }
         var result = DocumentTextResult('');
+        var usedOcr = false;
         if (!_forceOcr) {
           final reply = await widget.extractText(request);
           result = DocumentTextResult.decode(reply);
         }
         cancel.check();
         if (result.text.trim().isEmpty) {
+          usedOcr = true;
           if (!await _store.available()) {
             if (mounted && !cancel.cancelled) {
               setState(() => _needsModel = true);
@@ -359,7 +385,19 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
               'No text found. Select a single upright column and retry.'));
           return;
         }
+        DocumentReflowPage? saved;
+        if (persistent != null && text.trim().isNotEmpty) {
+          saved = DocumentReflowPage(
+              page: page,
+              ocr: usedOcr,
+              rawText: text,
+              rawRegions: result.regions);
+          await persistent.save(saved, '');
+          cancel.check();
+          if (!mounted) return;
+        }
         setState(() {
+          if (saved != null) _savedPages[page] = saved;
           _results[page] = text;
           _formatted[page] = reflowDocumentText(text, regions: result.regions);
           _result = _results[_page];
@@ -391,6 +429,25 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         });
       }
     }
+  }
+
+  Future<void> _editSavedPage() async {
+    final page = _savedPages[_page], store = widget.reflowStore;
+    if (_busy || page == null || store == null) return;
+    final edited = await editSavedDocumentPage(context, store, page);
+    if (!mounted || edited == null) return;
+    setState(() {
+      _savedPages[edited.page] = edited;
+      _results[edited.page] = edited.text;
+      _formatted[edited.page] = edited.text;
+      _result = _results[_page];
+    });
+  }
+
+  Future<void> _recognizeSavedPage() async {
+    if (_busy || !await confirmDocumentRecognition(context) || !mounted) return;
+    setState(() => _forceOcr = true);
+    await _extract(toAi: false, pages: [_page], refresh: true);
   }
 
   @override
@@ -428,16 +485,25 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
         body: Column(children: [
           Expanded(
               child: _reflow && _result != null
-                  ? SingleChildScrollView(
-                      controller: _textScroll,
-                      padding: EdgeInsets.symmetric(
-                          vertical: _textStyle.verticalMargin,
-                          horizontal: _textStyle.margin),
-                      child: SelectableText.rich(
-                          _textStyle.buildTextSpan(_result!.trim().isEmpty
-                              ? t('此页未识别到文字', 'No text found on this page')
-                              : _formatted[_page] ?? _result!),
-                          textAlign: _textStyle.alignment))
+                  ? ScrollConfiguration(
+                      // EditableText re-enables scrollbars; do not inherit app gutters.
+                      behavior: const MaterialScrollBehavior()
+                          .copyWith(scrollbars: false),
+                      child: AppScrollbar(
+                          controller: _textScroll,
+                          child: SingleChildScrollView(
+                              controller: _textScroll,
+                              padding: _textStyle.padding,
+                              child: SizedBox(
+                                  // Align against the reading area, not the shortest text box.
+                                  width: double.infinity,
+                                  child: SelectableText.rich(
+                                      _textStyle.buildTextSpan(
+                                          _result!.trim().isEmpty
+                                              ? t('此页未识别到文字',
+                                                  'No text found on this page')
+                                              : _formatted[_page] ?? _result!),
+                                      textAlign: _textStyle.alignment)))))
                   : _preview == null
                       ? Center(
                           child: _busy
@@ -493,6 +559,28 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                         : t('提取结果', 'Extracted text'))),
             ]),
         tools: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (widget.reflowStore != null) ...[
+            if (_savedPages.containsKey(_page)) ...[
+              ListTile(
+                  key: const ValueKey('edit-extracted-page'),
+                  title: Text(t('编辑本页文字', 'Edit saved page')),
+                  leading: const Icon(Icons.edit_note),
+                  onTap: _busy ? null : _editSavedPage),
+              ListTile(
+                  title: Text(t('重新识别本页', 'Recognize this page again')),
+                  subtitle: Text(t('确认后替换本页识别及编辑结果',
+                      'Confirm replacement of this page’s recognition and edits')),
+                  leading: const Icon(Icons.refresh),
+                  onTap: _busy ? null : _recognizeSavedPage),
+            ],
+            ListTile(
+                title: Text(t('导出本书已保存文字 TXT', 'Export saved pages as TXT')),
+                leading: const Icon(Icons.file_download_outlined),
+                onTap: _busy
+                    ? null
+                    : () =>
+                        exportSavedDocumentText(context, widget.reflowStore!)),
+          ],
           Text(t('文字识别', 'Text recognition'),
               style: Theme.of(context).textTheme.titleLarge),
           if (_multiple && _batchPages.isNotEmpty)

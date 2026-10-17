@@ -1224,6 +1224,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     final text = await Navigator.of(context).push<String>(MaterialPageRoute(
       builder: (_) => Scaffold(
           body: DocumentExtractionPanel(
+        reflowStore: DocumentReflowStore(bookKey),
         brightness: _documentBrightness(),
         narrationBuilder: player.isPdfDocument
             ? null

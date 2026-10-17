@@ -6,6 +6,22 @@ Latest stable: **1.2.10+10129**. Updated 2026-10-15.
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
+## 1.2.11-beta.3
+
+### English
+
+- Feat(reader): Share ebook layout settings with OCR reflow, disable inapplicable settings, and apply horizontal text alignment with symmetric reading margins. Refine PDF style controls and nested reading panels; clarify header top and footer bottom margins.
+- Fix(selection): Cache paragraph word boundaries for initial long-press selection, including direct presses on characters. Keep round draggable handles without re-expanding manually adjusted ranges; suppress the competing Android selection toolbar and exclude line spacing from highlight geometry.
+- Style(tts): Match the circled-square stop icon to the other narration toolbar controls, without a separate background.
+- Feat(ocr): Save recognition and corrected text in one book file indexed by original page; reuse saved pages across reflow modes and model changes, recognize missing pages automatically, and export saved pages as paginated TXT. Confirm page re-recognition before replacing recognition and edits; preserve historical notes and source positions. ([#42](https://github.com/sobranie2406/modureader/issues/42)). Thanks [@seightday](https://github.com/seightday) for the suggestion.
+
+### 简体中文
+
+- Feat(reader): OCR 重排复用普通电子书排版设置，不适用项置灰；修正左右对齐及阅读边距，整理 PDF 样式和多级阅读菜单，页眉、页脚边距明确标为上边距、下边距。
+- Fix(selection): 提前缓存段落词边界，长按文字直接选中完整词；保留圆点拖动手柄，手动调整不再自动扩词，抑制安卓重复原生浮窗，选区高亮不再包含行间距。
+- Style(tts): 朗读停止按钮使用与其他按钮一致的圆圈方块图标，不再单独添加背景。
+- Feat(ocr): 按原始页码将识别结果及校对稿保存到每本书一个文件；重排模式或模型改变时仍优先读取已有结果，无缓存时自动识别，支持按页导出 TXT。重新识别前确认替换本页识别及编辑结果，保留旧笔记和原图位置。（[#42](https://github.com/sobranie2406/modureader/issues/42)）。感谢 [@seightday](https://github.com/seightday) 提出建议。
+
 ## 1.2.11-beta.1
 
 ### English

@@ -28,7 +28,7 @@ class _ReaderSettingsScrollViewState extends State<ReaderSettingsScrollView> {
           child: SingleChildScrollView(
             controller: _controller,
             primary: false,
-            padding: const EdgeInsets.only(right: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: widget.child,
           ),
         ),

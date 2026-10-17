@@ -296,7 +296,7 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: SingleChildScrollView(
               controller: _controlsScroll,
-              padding: const EdgeInsets.fromLTRB(12, 12, 26, 12),
+              padding: const EdgeInsets.fromLTRB(26, 12, 26, 12),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

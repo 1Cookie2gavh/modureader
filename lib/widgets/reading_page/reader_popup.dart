@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 
 /// Shared geometry for reader query and settings panels.
 class ReaderPopup extends StatelessWidget {
@@ -38,8 +39,10 @@ class ReaderPopup extends StatelessWidget {
             context: context,
             removeBottom: true,
             child: RepaintBoundary(
-              child:
-                  Padding(padding: const EdgeInsets.only(top: 8), child: child),
+              child: ScrollConfiguration(
+                  behavior: const AppScrollBehavior(symmetricGutter: true),
+                  child: Padding(
+                      padding: const EdgeInsets.only(top: 8), child: child)),
             ),
           ),
         ),
@@ -57,13 +60,15 @@ class ReaderQuickStylePanel extends StatelessWidget {
   final Widget toolbar;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
+  Widget build(BuildContext context) => ScrollConfiguration(
+      behavior: const AppScrollBehavior(symmetricGutter: true),
+      child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: ReaderPopup.height(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [Flexible(child: content), toolbar],
         ),
-      );
+      ));
 }
 
 Future<void> showReaderPopup(BuildContext context,

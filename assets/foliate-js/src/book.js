@@ -252,8 +252,11 @@ const setSelectionHandler = (view, doc, index) => {
     paragraph: () => style.longPressSelectParagraph === true,
     locale: () => style.selectionLocale,
     nativeTouchSelection: navigator.userAgent.includes('Android'),
+    textSelectionHighlight: !view.isFixedLayout,
     segmentWord: navigator.userAgent.includes('Android')
       ? request => callFlutter('onReaderWordBounds', request) : undefined,
+    segmentParagraph: navigator.userAgent.includes('Android')
+      ? request => callFlutter('onReaderParagraphWords', request) : undefined,
     onAdjusted: () => stopAutoPageSession(view),
   }));
   let hasActiveSelection = false;

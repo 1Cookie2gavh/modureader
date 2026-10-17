@@ -37,6 +37,23 @@ test('renderer loss is marked in both Android clients and destroys without navig
   }
 });
 
+test('Android reader clears menus inside creation and refresh callbacks before showing UI', () => {
+  const patch = read('android/modu_reader_selection.gradle');
+  assert.match(patch, /super.startActionMode\(moduReaderActionCallback\(callback\)\)/);
+  assert.match(patch, /super.startActionMode\(moduReaderActionCallback\(callback\), type\)/);
+  const callback = patch.slice(patch.indexOf('private ActionMode.Callback moduReaderActionCallback'),
+    patch.indexOf('private static Context moduReaderContext'));
+  assert.match(callback, /disableContextMenu \|\| contextMenu == null\) return callback/);
+  assert.match(callback, /EDIT_TEXT_TYPE\) return callback/);
+  assert.match(callback, /hideDefaultSystemContextMenuItems/);
+  assert.match(callback, /boolean created = callback.onCreateActionMode\(mode, menu\);[\s\S]*?menu.clear\(\);\s+return created;/);
+  assert.match(callback, /boolean changed = callback.onPrepareActionMode\(mode, menu\);\s+boolean hadItems = menu.size\(\) > 0;\s+menu.clear\(\);\s+return changed \|\| hadItems;/);
+  assert.match(callback, /callback.onActionItemClicked\(mode, item\)/);
+  assert.match(callback, /callback.onDestroyActionMode\(mode\)/);
+  assert.match(callback, /callback\).onGetContentRect\(mode, view, rect\)/);
+  assert.doesNotMatch(callback, /\.finish\(|\.hide\(|removeAllRanges/);
+});
+
 test('only reader WebViews receive blue native handles before selection begins', () => {
   const patch = read('android/modu_reader_selection.gradle');
   assert.match(patch, /super\(moduReaderContext\(context, customSettings, contextMenu\), containerView/);

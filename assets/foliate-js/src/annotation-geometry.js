@@ -33,9 +33,9 @@ export const annotationRect = (rect, map, zoom = 1) => {
 
 // Inline page runs and their text return duplicate native rects. Paint text
 // fragments only, merging neighbours so highlights/underlines stay continuous.
-export const annotationRangeRects = range => {
+export const annotationRangeRects = (range, textOnly = false) => {
     const doc = range.startContainer?.ownerDocument
-    if (!doc?.querySelector('modu-page-run')?.__moduPageRun)
+    if (!textOnly && !doc?.querySelector('modu-page-run')?.__moduPageRun)
         return Array.from(range.getClientRects())
     const root = range.commonAncestorContainer
     const walker = doc.createTreeWalker(root, 4 | 8)

@@ -16,9 +16,14 @@ import 'package:anx_reader/widgets/reading_page/more_settings/long_press_selecti
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
 import 'package:flutter/material.dart';
+import 'reader_setting_availability.dart';
 
 class OtherSettings extends StatefulWidget {
-  const OtherSettings({super.key, this.showKeyboardShortcuts = false});
+  const OtherSettings(
+      {super.key,
+      this.showKeyboardShortcuts = false,
+      this.documentMode = false});
+  final bool documentMode;
 
   final bool showKeyboardShortcuts;
 
@@ -29,6 +34,8 @@ class OtherSettings extends StatefulWidget {
 class _OtherSettingsState extends State<OtherSettings> {
   @override
   Widget build(BuildContext context) {
+    Widget ebookOnly(Widget child) =>
+        ReaderSettingAvailability(enabled: !widget.documentMode, child: child);
     Widget screenTimeout() {
       return ListTile(
         contentPadding: EdgeInsets.zero,
@@ -313,20 +320,22 @@ class _OtherSettingsState extends State<OtherSettings> {
           if (AnxPlatform.isAndroid) keyboardTurnPage(),
           // if (PageTurnMode.fromCode(Prefs().pageTurnMode) ==
           //     PageTurnMode.simple)
-          swapPageTurnArea(),
-          showMenuOnHover(),
+          ebookOnly(swapPageTurnArea()),
+          ebookOnly(showMenuOnHover()),
           autoAdjustReadingTheme(),
-          autoTranslateSelection(),
-          autoMarkSelection(),
+          ebookOnly(autoTranslateSelection()),
+          ebookOnly(autoMarkSelection()),
           LongPressSelectionTile(
             value: Prefs().longPressSelectParagraph,
             onChanged: (value) {
               setState(() => Prefs().longPressSelectParagraph = value);
-              epubPlayerKey.currentState?.changeStyle(null);
+              if (!widget.documentMode) {
+                epubPlayerKey.currentState?.changeStyle(null);
+              }
             },
           ),
           screenTimeout(),
-          pageTurningControl(),
+          ebookOnly(pageTurningControl()),
           if (widget.showKeyboardShortcuts)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -338,19 +347,19 @@ class _OtherSettingsState extends State<OtherSettings> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const ReaderShortcutsSettings())),
             ),
-          ContinuousScrollTile(onChanged: (value) {
+          ebookOnly(ContinuousScrollTile(onChanged: (value) {
             epubPlayerKey.currentState?.changeContinuousScroll(value);
-          }),
-          ScrollPagePercentTile(onChanged: (value) {
+          })),
+          ebookOnly(ScrollPagePercentTile(onChanged: (value) {
             epubPlayerKey.currentState?.changeScrollPagePercent(value);
-          }),
-          TapOnlyPageTurnTile(
+          })),
+          ebookOnly(TapOnlyPageTurnTile(
             value: Prefs().tapOnlyPageTurn,
             onChanged: (value) {
               setState(() => Prefs().tapOnlyPageTurn = value);
               epubPlayerKey.currentState?.changeStyle(null);
             },
-          ),
+          )),
         ],
       ),
     );

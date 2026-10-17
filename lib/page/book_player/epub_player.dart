@@ -1560,6 +1560,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           };
         });
     controller.addJavaScriptHandler(
+        handlerName: 'onReaderParagraphWords',
+        callback: (args) {
+          if (!mounted || !AnxPlatform.isAndroid || args.isEmpty) return null;
+          return ReaderWordSelection.paragraphBounds(args.first);
+        });
+    controller.addJavaScriptHandler(
         handlerName: 'onReaderWordBounds',
         callback: (args) {
           if (!mounted || !AnxPlatform.isAndroid || args.isEmpty) return null;

@@ -8,6 +8,8 @@ import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dar
 import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/custom_css_editor.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/service/ocr/document_text_style.dart';
+import 'reader_setting_availability.dart';
 import '../reader_settings_scroll_view.dart';
 
 enum ReadingSettings { theme, style }
@@ -20,16 +22,41 @@ void showMoreSettings(ReadingSettings settings) {
       builder: (_) => ReaderMoreSettings(settings: settings));
 }
 
-class ReaderMoreSettings extends StatelessWidget {
-  const ReaderMoreSettings({super.key, required this.settings});
+class ReaderMoreSettings extends StatefulWidget {
+  const ReaderMoreSettings(
+      {super.key,
+      required this.settings,
+      this.documentStyle,
+      this.saveDocumentStyle});
   final ReadingSettings settings;
+  final DocumentTextStyle? documentStyle;
+  final Future<void> Function(DocumentTextStyle)? saveDocumentStyle;
+
+  @override
+  State<ReaderMoreSettings> createState() => _ReaderMoreSettingsState();
+}
+
+class _ReaderMoreSettingsState extends State<ReaderMoreSettings> {
+  late DocumentTextStyle? _documentStyle = widget.documentStyle;
+  bool get _document => _documentStyle != null;
+  bool _saving = false;
+
+  Future<void> _save(DocumentTextStyle value) async {
+    setState(() => _saving = true);
+    try {
+      await widget.saveDocumentStyle?.call(value);
+      if (mounted) _documentStyle = value;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bookKey = epubPlayerKey.currentState?.cssBookKey;
+    final bookKey = _document ? null : epubPlayerKey.currentState?.cssBookKey;
     return DefaultTabController(
       length: 4,
-      initialIndex: settings == ReadingSettings.theme ? 0 : 1,
+      initialIndex: widget.settings == ReadingSettings.theme ? 0 : 1,
       animationDuration: AppMotion.duration(const Duration(milliseconds: 300)),
       child: Column(children: [
         Row(children: [
@@ -44,16 +71,26 @@ class ReaderMoreSettings extends StatelessWidget {
         ]),
         const Divider(height: 0),
         Expanded(
-            child: TabBarView(children: [
-          const ReaderSettingsScrollView(child: ReadingMoreSettings()),
-          const ReaderSettingsScrollView(child: StyleSettings()),
-          ReaderSettingsScrollView(
-              child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: CustomCSSEditor(key: ValueKey(bookKey), bookKey: bookKey),
-          )),
-          const ReaderSettingsScrollView(child: OtherSettings()),
-        ])),
+            child: AbsorbPointer(
+                absorbing: _saving,
+                child: TabBarView(children: [
+                  ReaderSettingsScrollView(
+                      child: ReadingMoreSettings(documentMode: _document)),
+                  ReaderSettingsScrollView(
+                      child: StyleSettings(
+                          documentStyle: _documentStyle,
+                          saveDocumentStyle: _save)),
+                  ReaderSettingsScrollView(
+                      child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: ReaderSettingAvailability(
+                        enabled: !_document,
+                        child: CustomCSSEditor(
+                            key: ValueKey(bookKey), bookKey: bookKey)),
+                  )),
+                  ReaderSettingsScrollView(
+                      child: OtherSettings(documentMode: _document)),
+                ]))),
       ]),
     );
   }

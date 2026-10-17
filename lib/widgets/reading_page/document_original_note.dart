@@ -97,8 +97,8 @@ class _DocumentOriginalNoteState extends State<DocumentOriginalNote> {
                         icon: const Icon(Icons.close))
                   ]),
                   Text(widget.anchor.rects.isEmpty
-                      ? t('旧笔记未保存图像位置，仅显示原页，不自动匹配文字。',
-                          'This older note has no image position. Only the source page is shown; text is not rematched.')
+                      ? t('该笔记没有可靠的图像位置，仅显示原页，不自动匹配文字。',
+                          'This note has no reliable image position. Only the source page is shown; text is not rematched.')
                       : t('框线为保存时的原图行／文字块位置，不随重新识别改变。可缩放核对。',
                           'Boxes show the original saved lines/text blocks, unchanged by OCR. Pinch to inspect.')),
                   const SizedBox(height: 8),

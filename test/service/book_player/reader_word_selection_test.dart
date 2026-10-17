@@ -24,6 +24,96 @@ void main() {
   });
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
+  test('paragraph bridge returns all ordered UTF-16 word boundaries', () async {
+    response = [
+      [0, 1],
+      [1, 3],
+      [3, 5],
+      [5, 7]
+    ];
+    expect(
+        await ReaderWordSelection.paragraphBounds(
+            {'text': '我喜欢中国文化。', 'locale': 'zh-CN'}),
+        response);
+    expect(calls.single.method, 'paragraphBounds');
+    expect(calls.single.arguments, {'text': '我喜欢中国文化。', 'locale': 'zh-CN'});
+    response = [
+      [3, 5]
+    ];
+    expect(await ReaderWordSelection.paragraphBounds({'text': '😀 中国。'}), [
+      [3, 5]
+    ]);
+    response = [];
+    expect(await ReaderWordSelection.paragraphBounds({'text': '。'}), isEmpty);
+  });
+
+  test(
+      'paragraph bridge rejects invalid input and malformed or overlapping output',
+      () async {
+    for (final invalid in [
+      null,
+      [],
+      {},
+      {'text': ''},
+      {'text': '中' * 65537},
+      {'text': '中国', 'locale': []},
+      {'text': '中国', 'locale': 'z' * 129}
+    ]) {
+      expect(await ReaderWordSelection.paragraphBounds(invalid), isNull);
+    }
+    expect(calls, isEmpty);
+    for (final invalid in [
+      null,
+      {},
+      [3, 5],
+      [
+        [3]
+      ],
+      [
+        [-1, 5]
+      ],
+      [
+        [3, 99]
+      ],
+      [
+        [3, 3]
+      ],
+      [
+        [3.0, 5]
+      ],
+      [
+        [3, 5],
+        [4, 7]
+      ],
+      [
+        [5, 7],
+        [3, 5]
+      ]
+    ]) {
+      response = invalid;
+      expect(await ReaderWordSelection.paragraphBounds({'text': '我喜欢中国文化。'}),
+          isNull);
+    }
+  });
+
+  test(
+      'paragraph cache failure is non-fatal for missing plugins, platform errors and timeouts',
+      () async {
+    messenger.setMockMethodCallHandler(channel, null);
+    expect(await ReaderWordSelection.paragraphBounds({'text': '中国'}), isNull);
+    messenger.setMockMethodCallHandler(
+        channel, (_) async => throw PlatformException(code: 'unavailable'));
+    expect(await ReaderWordSelection.paragraphBounds({'text': '中国'}), isNull);
+    messenger.setMockMethodCallHandler(
+        channel,
+        (_) => Future<Object?>.delayed(
+            const Duration(milliseconds: 500),
+            () => [
+                  [0, 2]
+                ]));
+    expect(await ReaderWordSelection.paragraphBounds({'text': '中国'}), isNull);
+  });
+
   test(
       'system bridge receives a bounded paragraph and returns UTF-16 word positions',
       () async {
@@ -100,15 +190,20 @@ void main() {
     expect(source,
         contains('iterator.getRuleStatus() < BreakIterator.WORD_NONE_LIMIT'));
     expect(source, contains('iterator.previous()'));
+    expect(source, contains('iterator.next()'));
+    expect(source,
+        contains('iterator.getRuleStatus() >= BreakIterator.WORD_NONE_LIMIT'));
     expect(source, contains('text.length() > 65536'));
     final activity =
         File('android/app/src/main/kotlin/com/modu/reader/MainActivity.kt')
             .readAsStringSync();
     expect(activity, contains('com.modu.reader/word_selection'));
     expect(activity, contains('ReaderWordSelection.bounds('));
+    expect(activity, contains('ReaderWordSelection.paragraphBounds('));
     final reader =
         File('lib/page/book_player/epub_player.dart').readAsStringSync();
     expect(reader, contains("handlerName: 'onReaderWordBounds'"));
+    expect(reader, contains("handlerName: 'onReaderParagraphWords'"));
     expect(
         reader, contains('!mounted || !AnxPlatform.isAndroid || args.isEmpty'));
   });

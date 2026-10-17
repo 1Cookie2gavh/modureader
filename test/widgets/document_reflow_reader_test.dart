@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
+import 'package:anx_reader/enums/text_alignment.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
@@ -9,6 +11,8 @@ import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/widgets/reading_page/document_reflow_reader.dart';
 import 'package:anx_reader/widgets/reading_page/document_reader_surface.dart';
 import 'package:anx_reader/widgets/reading_page/style_widget.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -22,14 +26,28 @@ class MemoryStore extends DocumentReflowStore {
       revisions = <String, DocumentReflowPage>{};
   @override
   Future<DocumentReflowPage?> read(int page, String profile) async =>
-      latest['$page:$profile'];
+      latest['$page'];
   @override
   Future<DocumentReflowPage?> readAnchor(DocumentReflowAnchor anchor) async =>
       revisions[anchor.revision];
   @override
   Future<void> save(DocumentReflowPage value, String profile) async {
-    latest['${value.page}:$profile'] = value;
+    latest['${value.page}'] = value;
     revisions[value.revision] = value;
+  }
+
+  @override
+  Future<DocumentReflowPage> saveEdit(
+      DocumentReflowPage original, String text) async {
+    if (text.trim().isEmpty) throw const FormatException('Empty edit');
+    final edited = DocumentReflowPage(
+        page: original.page,
+        ocr: original.ocr,
+        rawText: original.rawText,
+        rawRegions: original.rawRegions,
+        editedText: text);
+    await save(edited, '');
+    return edited;
   }
 }
 
@@ -81,8 +99,10 @@ void main() {
       Future<void> Function(String)? draft,
       Future<void> Function(DocumentReflowAnchor, String)? bookmark,
       double textScale = 1,
+      DocumentTextStyle initialStyle = const DocumentTextStyle(),
       bool settle = true}) async {
     await tester.pumpWidget(MaterialApp(
+        scrollBehavior: const AppScrollBehavior(),
         localizationsDelegates: const [L10n.delegate],
         supportedLocales: L10n.supportedLocales,
         builder: (context, child) => MediaQuery(
@@ -124,7 +144,7 @@ void main() {
           onOpenReaderPanel: openReaderPanel,
           onCloseReaderMenu: closeReaderMenu,
           loadNotes: () async => notes,
-          initialStyle: const DocumentTextStyle(),
+          initialStyle: initialStyle,
           saveStyle: (_) async {},
           onSelection: selection ?? (_, text, context, rect, ids) async {},
           onQuery: query,
@@ -138,6 +158,78 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  test('reflow defaults to justification and preserves explicit left alignment',
+      () {
+    expect(const DocumentTextStyle().alignment, TextAlign.justify);
+    expect(DocumentTextStyle.fromJson({}).alignment, TextAlign.justify);
+    expect(
+        DocumentTextStyle.fromJson({'size': 30}).alignment, TextAlign.justify);
+    expect(DocumentTextStyle.fromJson({'justify': false}).alignment,
+        TextAlign.start);
+  });
+
+  for (final (width, size, margin) in [
+    (360.0, 20.0, 20.0),
+    (360.0, 32.0, 20.0),
+    (800.0, 32.0, 20.0),
+    (390.0, 28.0, 0.0),
+    (600.0, 24.0, 40.0),
+  ]) {
+    testWidgets(
+        'Chinese reflow justification fills available width: $width/$size',
+        (tester) async {
+      final loader = FontLoader('SourceHanSerif')
+        ..addFont(rootBundle.load('assets/fonts/SourceHanSerifSC-Regular.otf'));
+      await loader.load();
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await open(tester,
+          ocr: true,
+          recognize: () async =>
+              '${List.filled(8, '有机结合起来，坚持把国家层面民主制度同基层民主制度有机结合起来。').join()}\n\n　　段末自然收尾。',
+          initialStyle:
+              DocumentTextStyle(size: size, serif: true, margin: margin));
+      final editable = tester
+          .state<EditableTextState>(find.descendant(
+              of: find.byKey(const ValueKey('reflow-text')),
+              matching: find.byType(EditableText)))
+          .renderEditable;
+      final boxes = editable.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: text(tester).length));
+      final left = editable.localToGlobal(Offset(boxes.first.left, 0)).dx;
+      final right = editable.localToGlobal(Offset(boxes.first.right, 0)).dx;
+      expect(left, closeTo(margin, 1));
+      expect(width - right, closeTo(margin, 3));
+      expect(editable.size.width - boxes.first.right, lessThanOrEqualTo(3));
+    });
+    testWidgets(
+        'reflow uses symmetric margins and fills wrapped lines: $width/$size',
+        (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final content =
+          '${List.filled(12, '有机结合起来，坚持把国家层面民主制度同基层民主制度有机结合起来。').join()}\n\n　　段末自然收尾。';
+      await open(tester,
+          extract: (_) async => content,
+          initialStyle: DocumentTextStyle(size: size, margin: margin));
+      final field = find.byKey(const ValueKey('reflow-text'));
+      final bounds = tester.getRect(field);
+      expect(bounds.left, closeTo(margin, .01));
+      expect(width - bounds.right, closeTo(margin, .01));
+      final editable = tester
+          .state<EditableTextState>(
+              find.descendant(of: field, matching: find.byType(EditableText)))
+          .renderEditable;
+      final boxes = editable.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: text(tester).length));
+      expect(boxes.length, greaterThan(2));
+      expect(boxes.first.left, closeTo(0, .01));
+      // EditableText reserves a small cursor gap even for read-only text.
+      expect(editable.size.width - boxes.first.right, lessThanOrEqualTo(3));
+      expect(text(tester), endsWith('　　段末自然收尾。'));
+    });
+  }
 
   for (final ocr in [false, true]) {
     testWidgets('reflow has no narration menu: OCR=$ocr', (tester) async {
@@ -300,10 +392,95 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Recognize this page again'));
     await tester.pumpAndSettle();
+    expect(calls, 1);
+    await tester.tap(find.byKey(const ValueKey('confirm-page-recognition')));
+    await tester.pumpAndSettle();
     expect(calls, 2);
     expect(text(tester), '新识别朱喜');
     expect((await store.readAnchor(anchor))!.text, '原识别朱熹');
     expect(store.revisions.length, 2);
+  });
+
+  testWidgets(
+      'editing saves literal paragraphs and survives reopening and mode changes',
+      (tester) async {
+    var calls = 0;
+    await open(tester, ocr: true, recognize: () async {
+      calls++;
+      return '原文';
+    });
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('edit-saved-page')));
+    await tester.pumpAndSettle();
+    const correction = '校对异体字𠀀\n\n保留手动分段';
+    await tester.enterText(
+        find.byKey(const ValueKey('saved-page-editor')), correction);
+    await tester.tap(find.byKey(const ValueKey('save-page-edit')));
+    await tester.pumpAndSettle();
+    expect(text(tester), correction);
+    expect(calls, 1);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    model.ready = false;
+    await open(tester,
+        extract: (_) async => throw StateError('must use saved text'));
+    expect(text(tester), correction);
+    expect(store.revisions.length, 2);
+  });
+
+  testWidgets('cancel and failed re-recognition preserve the edited page',
+      (tester) async {
+    final original = DocumentReflowPage(page: 0, ocr: true, rawText: '原文');
+    await store.save(original, '');
+    final edited = await store.saveEdit(original, '校对稿');
+    var calls = 0;
+    await open(tester, ocr: true, recognize: () async {
+      calls++;
+      throw StateError('recognition failed');
+    });
+    Future<void> confirm() async {
+      if (find.text('Recognize this page again').evaluate().isEmpty) {
+        await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Recognize this page again'));
+      await tester.pumpAndSettle();
+    }
+
+    await confirm();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(calls, 0);
+    expect(text(tester), '校对稿');
+    await confirm();
+    await tester.tap(find.byKey(const ValueKey('confirm-page-recognition')));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(store.latest['0']!.revision, edited.revision);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    await open(tester, ocr: true);
+    expect(text(tester), '校对稿');
+  });
+
+  testWidgets('empty edits remain in the editor without replacing saved text',
+      (tester) async {
+    await open(tester);
+    final original = text(tester);
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('edit-saved-page')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('saved-page-editor')), '  ');
+    await tester.tap(find.byKey(const ValueKey('save-page-edit')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('saved-page-editor')), findsOneWidget);
+    expect(store.latest['0']!.text, original);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(text(tester), original);
   });
 
   testWidgets('jump and page search operate within reflow', (tester) async {
@@ -361,6 +538,87 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reflow-original')).hitTestable(),
         findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('OCR style gear uses ebook settings and updates only reflow',
+      (tester) async {
+    var reads = 0;
+    await open(tester, ocr: true, recognize: () async {
+      reads++;
+      return '第一段正文。\n\n　　第二段正文。';
+    });
+    final field = find.byKey(const ValueKey('reflow-text'));
+    final controller = tester.widget<TextField>(field).controller;
+    final original = controller!.text;
+    final ebookMargin = Prefs().bookStyle.sideMargin;
+    await tester.tap(find.byKey(const ValueKey('document-style-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReaderMoreSettings), findsOneWidget);
+    expect(find.byType(Tab), findsNWidgets(4));
+    expect(find.byKey(const ValueKey('ocr-style-preview')), findsNothing);
+    await tester.tap(find.byType(Tab).at(1));
+    await tester.pumpAndSettle();
+    final sliders = find.descendant(
+        of: find.byType(StyleSettings), matching: find.byType(Slider));
+    expect(tester.widget<Slider>(sliders.at(0)).onChanged, isNull);
+    expect(tester.widget<Slider>(sliders.at(5)).onChanged, isNull);
+    for (final change in {1: 10.0, 2: 40.0, 3: 80.0, 4: -2.0}.entries) {
+      tester.widget<Slider>(sliders.at(change.key)).onChanged!(change.value);
+      await tester.pump();
+      tester.widget<Slider>(sliders.at(change.key)).onChangeEnd!(change.value);
+      await tester.pumpAndSettle();
+    }
+    final scroll = tester.widget<SingleChildScrollView>(find
+        .ancestor(of: field, matching: find.byType(SingleChildScrollView))
+        .first);
+    final width = MediaQuery.sizeOf(tester.element(field)).width;
+    expect(scroll.padding, EdgeInsets.fromLTRB(width * .1, 40, width * .1, 80));
+    expect(tester.widget<TextField>(field).style!.letterSpacing, -2);
+    for (final alignment in [
+      TextAlignmentEnum.right,
+      TextAlignmentEnum.center,
+      TextAlignmentEnum.left,
+      TextAlignmentEnum.justify
+    ]) {
+      final dropdown = find.byType(DropdownMenu<TextAlignmentEnum>);
+      final label = tester
+          .widget<DropdownMenu<TextAlignmentEnum>>(dropdown)
+          .dropdownMenuEntries
+          .firstWhere((entry) => entry.value == alignment)
+          .label;
+      await tester.ensureVisible(dropdown);
+      await tester
+          .tap(find.descendant(of: dropdown, matching: find.byType(TextField)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).textAlign,
+          DocumentTextStyle(textAlignment: alignment.code).alignment);
+      final editable = tester
+          .state<EditableTextState>(
+              find.descendant(of: field, matching: find.byType(EditableText)))
+          .renderEditable;
+      final box = editable
+          .getBoxesForSelection(
+              const TextSelection(baseOffset: 0, extentOffset: 1))
+          .first;
+      expect(
+          box.left,
+          alignment == TextAlignmentEnum.left ||
+                  alignment == TextAlignmentEnum.justify
+              ? closeTo(-1, .01)
+              : greaterThan(50));
+    }
+    expect(Prefs().bookStyle.sideMargin, ebookMargin);
+    await tester.tap(find.byType(CloseButton).last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller, same(controller));
+    expect(controller.text, original);
+    expect(reads, 1);
+    expect(pages, [0]);
     expect(tester.takeException(), isNull);
   });
 
@@ -537,7 +795,7 @@ void main() {
         const TextSelection(baseOffset: 1, extentOffset: 5));
   });
   testWidgets(
-      'cropped whole-page bounds feed text and OCR and invalidate cached output',
+      'crop and mode changes keep the saved page until explicit recognition',
       (tester) async {
     var crop = <String, num>{'x': .1, 'y': .2, 'width': .8, 'height': .6};
     final extracted = <Map<String, dynamic>>[],
@@ -549,7 +807,7 @@ void main() {
     expect(extracted.single['region'], crop);
     await key.currentState!.setMode(true);
     await tester.pumpAndSettle();
-    expect(rendered.single['region'], crop);
+    expect(rendered, isEmpty);
     expect(find.byType(Dialog), findsNothing);
     expect(find.text('Selected area'), findsNothing);
     await key.currentState!.setMode(false);
@@ -558,7 +816,7 @@ void main() {
     await key.currentState!.turnOriginalPage(1);
     await key.currentState!.turnOriginalPage(-1);
     await tester.pumpAndSettle();
-    expect(extracted.length, 3);
+    expect(extracted.length, 2);
     expect(extracted.last['region'], crop);
   });
   testWidgets(
@@ -585,7 +843,7 @@ void main() {
     expect(pages, [0, 1, 0]);
   });
   testWidgets(
-      'OCR mode bypasses embedded text, and mode switch uses separate caches',
+      'OCR mode bypasses embedded text only on a cache miss; mode switches reuse saved text',
       (tester) async {
     var extracted = 0, ocr = 0;
     await open(tester, ocr: true, extract: (_) async {
@@ -599,7 +857,8 @@ void main() {
     expect(extracted, 0);
     await key.currentState!.setMode(false);
     await tester.pumpAndSettle();
-    expect(text(tester), 'Text layer');
+    expect(text(tester), 'OCR words');
+    expect(extracted, 0);
     await key.currentState!.setMode(true);
     await tester.pumpAndSettle();
     expect(text(tester), 'OCR words');

@@ -80,16 +80,11 @@ class _TtsQuickToolbarState extends State<TtsQuickToolbar> {
               tooltip: label,
               constraints: const BoxConstraints.tightFor(width: 44, height: 44),
               padding: EdgeInsets.zero,
-              iconSize: key == 'tts-quick-stop' ? 28 : 22,
-              color: key == 'tts-quick-stop'
-                  ? colors.onErrorContainer
-                  : key == 'tts-quick-play-pause'
-                      ? colors.primary
-                      : colors.onSurface,
+              iconSize: 22,
+              color: key == 'tts-quick-play-pause'
+                  ? colors.primary
+                  : colors.onSurface,
               style: IconButton.styleFrom(
-                backgroundColor: key == 'tts-quick-stop'
-                    ? colors.errorContainer.withValues(alpha: 0.2)
-                    : null,
                 minimumSize: const Size(44, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

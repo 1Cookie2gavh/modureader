@@ -102,7 +102,12 @@ void main() {
       expect(find.byIcon(Icons.my_location_rounded), findsOneWidget);
       expect(find.byIcon(Icons.play_lesson_outlined), findsOneWidget);
       expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
-      expect(tester.widget<IconButton>(key('stop')).iconSize, 28);
+      final stopButton = tester.widget<IconButton>(key('stop'));
+      final previousButton = tester.widget<IconButton>(key('previous'));
+      expect(stopButton.iconSize, previousButton.iconSize);
+      expect(stopButton.color, previousButton.color);
+      expect(stopButton.style?.backgroundColor?.resolve({}),
+          previousButton.style?.backgroundColor?.resolve({}));
       await tester.tap(key('return'));
       await tester.pumpAndSettle();
       await tester.tap(key('read-here'));

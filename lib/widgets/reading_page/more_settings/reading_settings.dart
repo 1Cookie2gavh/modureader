@@ -12,9 +12,11 @@ import 'package:anx_reader/page/settings_page/subpage/fonts.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
+import 'reader_setting_availability.dart';
 
 class ReadingMoreSettings extends StatefulWidget {
-  const ReadingMoreSettings({super.key});
+  const ReadingMoreSettings({super.key, this.documentMode = false});
+  final bool documentMode;
 
   @override
   State<ReadingMoreSettings> createState() => _ReadingMoreSettingsState();
@@ -423,6 +425,7 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
 
           Widget buildSectionSettings({
             required String title,
+            required String verticalMarginLabel,
             required ReadingInfoSectionModel section,
             required ValueChanged<ReadingInfoSectionModel> onChanged,
           }) {
@@ -477,7 +480,7 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
                   ],
                 ),
                 buildSettingSlider(
-                  label: L10n.of(context).readingSettingsMargin,
+                  label: verticalMarginLabel,
                   value: section.verticalMargin,
                   min: 0,
                   max: 80,
@@ -524,6 +527,7 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
             children: [
               buildSectionSettings(
                 title: L10n.of(context).readingPageHeaderSettings,
+                verticalMarginLabel: L10n.of(context).readingPageTopMargin,
                 section: readingInfo.header,
                 onChanged: (section) {
                   updateReadingInfo(readingInfo.copyWith(header: section));
@@ -532,6 +536,7 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
               const Divider(),
               buildSectionSettings(
                 title: L10n.of(context).readingPageFooterSettings,
+                verticalMarginLabel: L10n.of(context).readingPageBottomMargin,
                 section: readingInfo.footer,
                 onChanged: (section) {
                   updateReadingInfo(readingInfo.copyWith(footer: section));
@@ -702,15 +707,19 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
         children: [
           downloadFonts(),
           const Divider(height: 20),
-          writingMode(),
-          translationMode(),
-          columnCount(),
-          columnThreshold(),
-          convertChinese(),
-          const Divider(height: 15),
-          codeHighlightTheme(),
-          const Divider(height: 15),
-          readingInfo(),
+          ReaderSettingAvailability(
+              enabled: !widget.documentMode,
+              child: Column(children: [
+                writingMode(),
+                translationMode(),
+                columnCount(),
+                columnThreshold(),
+                convertChinese(),
+                const Divider(height: 15),
+                codeHighlightTheme(),
+                const Divider(height: 15),
+                readingInfo(),
+              ])),
           // const Divider(height: 8),
           // bionicReading(),
         ],

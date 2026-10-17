@@ -14,10 +14,13 @@ class DocumentTextStyle {
       this.spacing = 0,
       this.margin = 20,
       this.verticalMargin = 16,
+      this.topMargin,
+      this.bottomMargin,
+      this.textAlignment,
       this.paragraphSpacing = 1,
       this.font = '',
       this.serif = false,
-      this.justify = false});
+      this.justify = true});
   final double size,
       height,
       weight,
@@ -26,6 +29,10 @@ class DocumentTextStyle {
       verticalMargin,
       paragraphSpacing;
   final String font;
+  final double? topMargin, bottomMargin;
+  final String? textAlignment;
+  EdgeInsets get padding => EdgeInsets.fromLTRB(margin,
+      topMargin ?? verticalMargin, margin, bottomMargin ?? verticalMargin);
   static final _fonts = <String, Future<void>>{};
   Future<void> loadFont() async {
     if (font.isEmpty) return;
@@ -50,7 +57,13 @@ class DocumentTextStyle {
       fontFamily: font.isNotEmpty ? font : (serif ? 'SourceHanSerif' : null),
       fontWeight:
           FontWeight.values[((weight * 400 / 100).round() - 1).clamp(0, 8)]);
-  TextAlign get alignment => justify ? TextAlign.justify : TextAlign.start;
+  TextAlign get alignment => switch (textAlignment) {
+        'left' => TextAlign.left,
+        'center' => TextAlign.center,
+        'right' => TextAlign.right,
+        'justify' => TextAlign.justify,
+        _ => justify ? TextAlign.justify : TextAlign.start,
+      };
   TextSpan buildTextSpan(String text) {
     final children = <InlineSpan>[];
     var start = 0;
@@ -73,6 +86,9 @@ class DocumentTextStyle {
         'spacing': spacing,
         'margin': margin,
         'verticalMargin': verticalMargin,
+        if (topMargin != null) 'topMargin': topMargin,
+        if (bottomMargin != null) 'bottomMargin': bottomMargin,
+        if (textAlignment != null) 'textAlignment': textAlignment,
         'paragraphSpacing': paragraphSpacing,
         'font': font,
         'serif': serif,
@@ -89,9 +105,18 @@ class DocumentTextStyle {
         size: number('size', 20, 14, 40),
         height: number('height', 1.6, 1.2, 2.4),
         weight: number('weight', 1, .5, 2),
-        spacing: number('spacing', 0, 0, 6),
-        margin: number('margin', 20, 0, 60),
+        spacing: number('spacing', 0, -3, 7),
+        margin: number('margin', 20, 0, 2000),
         verticalMargin: number('verticalMargin', 16, 0, 80),
+        topMargin:
+            v['topMargin'] == null ? null : number('topMargin', 16, 0, 200),
+        bottomMargin: v['bottomMargin'] == null
+            ? null
+            : number('bottomMargin', 16, 0, 200),
+        textAlignment: ['auto', 'left', 'center', 'right', 'justify']
+                .contains(v['textAlignment'])
+            ? v['textAlignment'] as String
+            : null,
         paragraphSpacing: number('paragraphSpacing', 1, 0, 3),
         font: v['font'] is String &&
                 RegExp(r'^[^/\\]+\.(ttf|otf)$', caseSensitive: false)
@@ -99,10 +124,17 @@ class DocumentTextStyle {
             ? v['font']
             : '',
         serif: v['serif'] == true,
-        justify: v['justify'] == true);
+        justify: v['justify'] is bool ? v['justify'] as bool : true);
   }
-  DocumentTextStyle withValue(String key, Object value) =>
-      DocumentTextStyle.fromJson({...toJson(), key: value});
+  DocumentTextStyle withValue(String key, Object value) {
+    final values = {...toJson(), key: value};
+    if (key == 'justify') values.remove('textAlignment');
+    if (key == 'verticalMargin') {
+      values.remove('topMargin');
+      values.remove('bottomMargin');
+    }
+    return DocumentTextStyle.fromJson(values);
+  }
 }
 
 class DocumentTextStyleStore {

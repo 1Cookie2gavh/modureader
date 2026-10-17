@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'document_text_style_dialog.dart';
+import 'document_saved_text_actions.dart';
+import '../common/app_scroll_behavior.dart';
 import 'document_reader_surface.dart';
 import 'progress_widget.dart';
 import 'reader_settings_scroll_view.dart';
@@ -610,6 +612,26 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     }
   }
 
+  Future<void> _editPage() async {
+    final page = _page;
+    if (_busy || page == null) return;
+    closeMenu();
+    widget.clearMenu();
+    clearSelection();
+    final edited = await editSavedDocumentPage(context, widget.store, page);
+    if (!mounted || edited == null) return;
+    await _load(edited.page);
+  }
+
+  Future<void> _recognizeAgain() async {
+    final page = _navigationPage;
+    if (_busy || page == null) return;
+    if (!await confirmDocumentRecognition(context) || !mounted) return;
+    _forceOcr = true;
+    closeMenu();
+    await _load(page, refresh: true);
+  }
+
   Widget _readerPanel(String menu) => switch (menu) {
         'style' => stylePanel(),
         'search' => Column(mainAxisSize: MainAxisSize.min, children: [
@@ -630,15 +652,33 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                 style: Theme.of(context).textTheme.titleLarge),
             SwitchListTile(
                 title: Text(t('强制 OCR', 'Force OCR')),
+                subtitle: Text(t('仅在本页无缓存时生效；已有文字不会自动覆盖',
+                    'Only used when this page has no saved text; existing results are not overwritten')),
                 value: _forceOcr,
                 onChanged: _busy ? null : (v) => setMode(v)),
             ListTile(
+                key: const ValueKey('edit-saved-page'),
+                leading: const Icon(Icons.edit_note),
+                title: Text(t('编辑本页文字', 'Edit saved page')),
+                subtitle: Text(_page?.editedText != null
+                    ? t('已校对', 'Edited')
+                    : t('校对后自动保存到本书', 'Save corrections with this book')),
+                onTap: _busy || _page == null ? null : _editPage),
+            ListTile(
+                key: const ValueKey('export-saved-txt'),
+                leading: const Icon(Icons.file_download_outlined),
+                title: Text(t('导出本书已保存文字 TXT', 'Export saved pages as TXT')),
+                subtitle: Text(t('按原始页码排列，优先导出编辑结果',
+                    'Original page order; edited text takes priority')),
+                onTap: _busy
+                    ? null
+                    : () => exportSavedDocumentText(context, widget.store)),
+            ListTile(
                 leading: const Icon(Icons.refresh),
                 title: Text(t('重新识别本页', 'Recognize this page again')),
-                subtitle: Text(t('保留旧版本及其划线笔记',
-                    'Keep older versions and their annotations')),
-                onTap:
-                    _busy ? null : () => _load(_navigationPage, refresh: true)),
+                subtitle: Text(t('确认后替换本页识别及编辑结果，保留旧笔记',
+                    'Confirm replacement of this page’s recognition and edits; keep older notes')),
+                onTap: _busy ? null : _recognizeAgain),
             if (widget.onExtract != null)
               ListTile(
                   leading: const Icon(Icons.crop),
@@ -971,36 +1011,41 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                               child: CircularProgressIndicator())
                           : Text(t('等待本页文字', 'Waiting for page text'),
                               style: TextStyle(color: foreground)))
-                  : SingleChildScrollView(
-                      controller: _scroll,
-                      padding: EdgeInsets.symmetric(
-                          horizontal: _style.margin,
-                          vertical: _style.verticalMargin),
-                      child: Listener(
-                          onPointerDown: _selectionPointerDown,
-                          onPointerMove: _selectionPointerMove,
-                          onPointerUp: _selectionPointerUp,
-                          onPointerCancel: (_) => _resetSelectionGesture(),
-                          child: KeyedSubtree(
-                              key: _textFieldKey,
-                              child: TextField(
-                                key: const ValueKey('reflow-text'),
-                                controller: _controller,
-                                focusNode: _focus,
-                                readOnly: true,
-                                maxLines: null,
-                                showCursor: false,
-                                enableSuggestions: false,
-                                style: _style.textStyle
-                                    .copyWith(color: foreground),
-                                textAlign: _style.alignment,
-                                decoration: const InputDecoration(
-                                    border: InputBorder.none,
-                                    isCollapsed: true,
-                                    contentPadding: EdgeInsets.zero),
-                                contextMenuBuilder: _selectionMenu,
-                                onTapOutside: (_) {},
-                              ))))),
+                  : ScrollConfiguration(
+                      // EditableText re-enables scrollbars; do not inherit app gutters.
+                      behavior: const MaterialScrollBehavior()
+                          .copyWith(scrollbars: false),
+                      child: AppScrollbar(
+                          controller: _scroll,
+                          child: SingleChildScrollView(
+                              controller: _scroll,
+                              padding: _style.padding,
+                              child: Listener(
+                                  onPointerDown: _selectionPointerDown,
+                                  onPointerMove: _selectionPointerMove,
+                                  onPointerUp: _selectionPointerUp,
+                                  onPointerCancel: (_) =>
+                                      _resetSelectionGesture(),
+                                  child: KeyedSubtree(
+                                      key: _textFieldKey,
+                                      child: TextField(
+                                        key: const ValueKey('reflow-text'),
+                                        controller: _controller,
+                                        focusNode: _focus,
+                                        readOnly: true,
+                                        maxLines: null,
+                                        showCursor: false,
+                                        enableSuggestions: false,
+                                        style: _style.textStyle
+                                            .copyWith(color: foreground),
+                                        textAlign: _style.alignment,
+                                        decoration: const InputDecoration(
+                                            border: InputBorder.none,
+                                            isCollapsed: true,
+                                            contentPadding: EdgeInsets.zero),
+                                        contextMenuBuilder: _selectionMenu,
+                                        onTapOutside: (_) {},
+                                      ))))))),
           if (_needsModel || _error != null)
             Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),

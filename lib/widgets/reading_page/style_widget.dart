@@ -29,6 +29,7 @@ import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/widgets/reading_page/widgets/bgimg_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 enum PageTurn {
@@ -851,33 +852,37 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
       animationStyle: AppMotion.style,
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          content: SingleChildScrollView(
-            child: ColorPicker(
-              hexInputBar: true,
-              pickerColor: pickedColor,
-              onColorChanged: (Color color) {
-                pickedColor = color;
-              },
-              pickerAreaHeightPercent: 0.8,
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop(
-                    pickedColor.toARGB32().toRadixString(16).padLeft(8, '0'));
-              },
-            ),
-          ],
-        );
+        return ScrollConfiguration(
+            behavior: const AppScrollBehavior(symmetricGutter: true),
+            child: AlertDialog(
+              content: SingleChildScrollView(
+                child: ColorPicker(
+                  hexInputBar: true,
+                  pickerColor: pickedColor,
+                  onColorChanged: (Color color) {
+                    pickedColor = color;
+                  },
+                  pickerAreaHeightPercent: 0.8,
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop(pickedColor
+                        .toARGB32()
+                        .toRadixString(16)
+                        .padLeft(8, '0'));
+                  },
+                ),
+              ],
+            ));
       },
     );
   }

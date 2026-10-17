@@ -98,15 +98,20 @@ class MainActivity : AudioServiceActivity() {
         readerKeysActive = false
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "com.modu.reader/word_selection").setMethodCallHandler { call, result ->
-            if (call.method != "bounds") {
+            if (call.method != "bounds" && call.method != "paragraphBounds") {
                 result.notImplemented()
             } else {
                 try {
-                    result.success(ReaderWordSelection.bounds(
-                        call.argument<String>("text"),
-                        call.argument<Number>("offset")?.toInt(),
-                        call.argument<String>("locale"),
-                    ))
+                    result.success(
+                        if (call.method == "paragraphBounds") ReaderWordSelection.paragraphBounds(
+                            call.argument<String>("text"),
+                            call.argument<String>("locale"),
+                        ) else ReaderWordSelection.bounds(
+                            call.argument<String>("text"),
+                            call.argument<Number>("offset")?.toInt(),
+                            call.argument<String>("locale"),
+                        )
+                    )
                 } catch (_: RuntimeException) {
                     // Never log book text or interrupt reading on a platform failure.
                     result.success(null)

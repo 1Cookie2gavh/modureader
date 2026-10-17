@@ -9,13 +9,56 @@ project(':flutter_inappwebview_android').afterEvaluate { webviewProject ->
     def anchor = 'Menu actionMenu = actionMode.getMenu();'
     def generated = webviewProject.layout.buildDirectory.dir('generated/moduReaderSelection/java')
     def patchTask = webviewProject.tasks.register('prepareModuReaderSelection', Sync) {
-        inputs.property('moduSelectionHandlesPolicy', 4)
+        inputs.property('moduSelectionHandlesPolicy', 5)
         from(upstream) {
             filesMatching('**/webview/in_app_webview/InAppWebView.java') {
                 filter { String line ->
                     if (line.startsWith('final public class InAppWebView extends ')) {
                         return line + '''
   public boolean moduRendererGone = false;
+
+  private ActionMode.Callback moduReaderActionCallback(final ActionMode.Callback callback) {
+    if (customSettings.disableContextMenu || contextMenu == null) return callback;
+    Object options = contextMenu.get("settings");
+    Object items = contextMenu.get("menuItems");
+    WebView.HitTestResult hit = getHitTestResult();
+    if (hit != null && hit.getType() == WebView.HitTestResult.EDIT_TEXT_TYPE) return callback;
+    if (!(options instanceof Map) ||
+        !Boolean.TRUE.equals(((Map<?, ?>) options).get("hideDefaultSystemContextMenuItems")) ||
+        !(items == null || (items instanceof List && ((List<?>) items).isEmpty()))) return callback;
+    return new ActionMode.Callback2() {
+      @Override
+      public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+        boolean created = callback.onCreateActionMode(mode, menu);
+        // Clear before Android can lay out the floating toolbar, not after super returns.
+        menu.clear();
+        return created;
+      }
+      @Override
+      public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+        boolean changed = callback.onPrepareActionMode(mode, menu);
+        boolean hadItems = menu.size() > 0;
+        menu.clear();
+        return changed || hadItems;
+      }
+      @Override
+      public boolean onActionItemClicked(ActionMode mode, android.view.MenuItem item) {
+        return callback.onActionItemClicked(mode, item);
+      }
+      @Override
+      public void onDestroyActionMode(ActionMode mode) {
+        callback.onDestroyActionMode(mode);
+      }
+      @Override
+      public void onGetContentRect(ActionMode mode, View view, android.graphics.Rect rect) {
+        if (callback instanceof ActionMode.Callback2) {
+          ((ActionMode.Callback2) callback).onGetContentRect(mode, view, rect);
+        } else {
+          super.onGetContentRect(mode, view, rect);
+        }
+      }
+    };
+  }
 
   private static Context moduReaderContext(Context context, InAppWebViewSettings settings,
                                           Map<String, Object> menu) {
@@ -33,6 +76,12 @@ project(':flutter_inappwebview_android').afterEvaluate { webviewProject ->
                     }
                     if (line.trim() == 'super(context, containerView, customSettings.useHybridComposition);') {
                         return '    super(moduReaderContext(context, customSettings, contextMenu), containerView, customSettings.useHybridComposition);'
+                    }
+                    if (line.trim() == 'return rebuildActionMode(super.startActionMode(callback), callback);') {
+                        return '    return rebuildActionMode(super.startActionMode(moduReaderActionCallback(callback)), callback);'
+                    }
+                    if (line.trim() == 'return rebuildActionMode(super.startActionMode(callback, type), callback);') {
+                        return '    return rebuildActionMode(super.startActionMode(moduReaderActionCallback(callback), type), callback);'
                     }
                     if (line.trim() == 'loadUrl("about:blank");') {
                         return '''    // A crashed renderer cannot finish an about:blank navigation.
@@ -84,6 +133,8 @@ project(':flutter_inappwebview_android').afterEvaluate { webviewProject ->
                 }
             }
             if (source.readLines().count { it.trim() == anchor } != 1 ||
+                    source.readLines().count { it.trim() == 'return rebuildActionMode(super.startActionMode(callback), callback);' } != 1 ||
+                    source.readLines().count { it.trim() == 'return rebuildActionMode(super.startActionMode(callback, type), callback);' } != 1 ||
                     !source.contains('actionMenu.clear();\n    actionMode.finish();')) {
                 throw new GradleException('WebView ActionMode changed; review Modu selection handles before building')
             }

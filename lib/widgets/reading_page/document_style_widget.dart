@@ -103,6 +103,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
   @override
   Widget build(BuildContext context) {
     final layoutControls = SwitchListTile(
+      contentPadding: EdgeInsets.zero,
       title: Text(ModuStrings.text(context, '按裁边与分格阅读', 'Read cropped panels')),
       subtitle: Text(ModuStrings.text(context, '按已保存的顺序翻区域，再翻原页；关闭恢复原版',
           'Follow saved panels before turning the original page; turn off for the original layout')),
@@ -125,27 +126,28 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
               }
             },
     );
-    final cropControls = Wrap(spacing: 8, runSpacing: 4, children: [
-      OutlinedButton.icon(
-        icon: const Icon(Icons.crop),
-        onPressed: widget.player.isImageEpub
-            ? () => _openEpubImages(editLayout: true)
-            : () => _openPdfPreview(editLayout: true),
-        label: Text(ModuStrings.text(
-            context,
-            widget.player.isImageEpub ? '扫描图片裁边与分格' : 'PDF 裁边与分格',
-            widget.player.isImageEpub
-                ? 'Scanned image crop and panels'
-                : 'PDF crop and panels')),
-      ),
-      Text(ModuStrings.text(context, '自动裁边、留白、漫画与论文分栏在独立预览中调整',
+    final cropControls = ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.crop),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: widget.player.isImageEpub
+          ? () => _openEpubImages(editLayout: true)
+          : () => _openPdfPreview(editLayout: true),
+      title: Text(ModuStrings.text(
+          context,
+          widget.player.isImageEpub ? '扫描图片裁边与分格' : 'PDF 裁边与分格',
+          widget.player.isImageEpub
+              ? 'Scanned image crop and panels'
+              : 'PDF crop and panels')),
+      subtitle: Text(ModuStrings.text(context, '自动裁边、留白、漫画与论文分栏在独立预览中调整',
           'Auto crop, margins, comics and columns are adjusted in the separate preview')),
-    ]);
+    );
     return DocumentPanelTheme(
         child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ReaderSettingsScrollView(
-        child: Column(children: [
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
                 child: Text(
@@ -181,19 +183,24 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
           ),
           DocumentControlRow(
             label: ModuStrings.text(context, '文字模式', 'Text mode'),
-            child: Wrap(spacing: 8, runSpacing: 4, children: [
-              Chip(label: Text(ModuStrings.text(context, '原版', 'Original'))),
-              OutlinedButton(
-                  onPressed: widget.openReflow == null
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              ChoiceChip(
+                  selected: true,
+                  onSelected: (_) {},
+                  label: Text(ModuStrings.text(context, '原版', 'Original'))),
+              ChoiceChip(
+                  selected: false,
+                  onSelected: widget.openReflow == null
                       ? null
-                      : () => widget.openReflow!(false),
-                  child:
+                      : (_) => widget.openReflow!(false),
+                  label:
                       Text(ModuStrings.text(context, '文字重排', 'Reflow text'))),
-              OutlinedButton(
-                  onPressed: widget.openReflow == null
+              ChoiceChip(
+                  selected: false,
+                  onSelected: widget.openReflow == null
                       ? null
-                      : () => widget.openReflow!(true),
-                  child:
+                      : (_) => widget.openReflow!(true),
+                  label:
                       Text(ModuStrings.text(context, 'OCR 重排', 'OCR reflow'))),
             ]),
           ),
@@ -233,6 +240,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
             ),
           if (widget.player.supportsDocumentImages == true)
             ListTile(
+              contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.document_scanner_outlined),
               title: Text(ModuStrings.text(
                   context, '文档类型检测', 'Document type inspection')),

@@ -12,6 +12,9 @@ import 'package:anx_reader/widgets/reading_page/eink_refresh_controls.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_reading_controls.dart';
 import 'package:anx_reader/widgets/reading_page/style_widget.dart';
 import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
+import 'package:anx_reader/widgets/reading_page/document_enhancement_panel.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
+import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,9 +79,58 @@ class _PlayerKey extends GlobalObjectKey<EpubPlayerState> {
 }
 
 void main() {
+  setUpAll(() async {
+    await L10n.delegate.load(const Locale('en'));
+    await L10n.delegate.load(const Locale('zh'));
+  });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+  testWidgets(
+      'PDF phone style uses aligned sections and a single enhancement entry',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final player = _Player(DocumentReadingMode.pdf);
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('zh'),
+      localizationsDelegates: L10n.localizationsDelegates,
+      supportedLocales: L10n.supportedLocales,
+      scrollBehavior: const AppScrollBehavior(),
+      theme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+          body: Align(
+              alignment: Alignment.bottomCenter,
+              child: ReaderQuickStylePanel(
+                content:
+                    DocumentStyleWidget(player: player, openReflow: (_) {}),
+                toolbar: const SizedBox(height: 48),
+              ))),
+    ));
+    await tester.pumpAndSettle();
+    final panel = tester.getRect(find.byType(DocumentStyleWidget));
+    final row = tester.getRect(find.byType(DocumentControlRow).first);
+    expect(row.left - panel.left, closeTo(panel.right - row.right, .01));
+    final rows = tester
+        .widgetList<DocumentControlRow>(find.byType(DocumentControlRow))
+        .take(8);
+    for (final item in rows) {
+      expect(tester.getRect(find.byWidget(item)).left, closeTo(row.left, .01));
+    }
+    expect(find.text('调整图像效果'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '文字加黑 0'), findsNothing);
+    await tester.ensureVisible(find.text('调整图像效果'));
+    await tester.tap(find.text('调整图像效果'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DocumentEnhancementPanel), findsOneWidget);
+    await tester.tap(find.byTooltip('返回版式'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DocumentEnhancementPanel), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    player.documentReadingMode.dispose();
   });
   for (final mode in [DocumentReadingMode.pdf, DocumentReadingMode.imageEpub]) {
     testWidgets(
@@ -221,10 +273,11 @@ void main() {
           .widgetList<DocumentControlRow>(find.byType(DocumentControlRow))
           .map((row) => row.label)
           .toList();
-      expect(rows.take(7), [
+      expect(rows.take(8), [
         'Text mode',
         'Original page zoom',
-        'Mode',
+        'Page turning',
+        'Page fit',
         'Crop',
         'Layout',
         'Image enhancement',
