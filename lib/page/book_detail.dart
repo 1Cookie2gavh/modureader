@@ -26,6 +26,7 @@ import 'package:anx_reader/widgets/common/color_picker_sheet.dart';
 import 'package:anx_reader/widgets/common/tag_chip.dart';
 import 'package:anx_reader/widgets/highlight_digit.dart';
 import 'package:anx_reader/widgets/hint/hint_banner.dart';
+import 'package:anx_reader/widgets/book_review/book_review_card.dart';
 import 'package:anx_reader/widgets/reading_round/reading_rounds_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -842,6 +843,10 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                                       book: _book,
                                       onRoundFinished: _handleRoundFinished,
                                     ),
+                                    BookReviewCard(
+                                      bookId: _book.id,
+                                      bookTitle: _book.title,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -867,6 +872,10 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                               ReadingRoundsCard(
                                 book: _book,
                                 onRoundFinished: _handleRoundFinished,
+                              ),
+                              BookReviewCard(
+                                bookId: _book.id,
+                                bookTitle: _book.title,
                               ),
                               const SizedBox(height: 15),
                               buildMoreDetail(),
