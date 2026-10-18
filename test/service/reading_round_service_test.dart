@@ -77,6 +77,12 @@ void main() {
             .map((row) => row['name']),
         contains('end_position'));
     // Reconstruct the v9 schema by removing exactly the v10 additions.
+    // v10 sync triggers reference `round`; a real v9 database has neither
+    // those triggers nor the column.
+    for (final suffix in ['insert', 'update', 'delete']) {
+      await db.execute('DROP TRIGGER IF EXISTS modu_time_$suffix');
+      await db.execute('DROP TRIGGER IF EXISTS modu_round_$suffix');
+    }
     await db.execute('DROP TABLE tb_reading_rounds');
     await db.execute('ALTER TABLE tb_books DROP COLUMN current_round');
     await db.execute('ALTER TABLE tb_reading_time DROP COLUMN round');

@@ -145,7 +145,7 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
       id = root(id);
     } else {
       final field = switch (record.kind) {
-        'note' || 'time' => 'book_id',
+        'note' || 'time' || 'round' => 'book_id',
         'tag_link' => 'line_height',
         _ => null,
       };

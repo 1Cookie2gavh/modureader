@@ -163,9 +163,17 @@ class ReadingRoundService {
       );
       final totalTime = await _sumReadingTime(txn, book.id, previousRound);
 
-      // 删除新轮记录（同一轮次号可能有多条异常数据，一并清掉）
-      await txn.delete(
+      // 撤销：把新轮标记为 cancelled（软取消），而不是 DELETE。
+      // 删除会生成同步墓碑；同一轮次号之后可能被再次使用（再次完成上一轮），
+      // 保留行 + 状态位可以让它安全复活，也能让同步端稳定合并。
+      await txn.update(
         _roundTable,
+        {
+          'status': ReadingRound.statusCancelled,
+          'end_time': now,
+          'total_reading_time': 0,
+          'update_time': now,
+        },
         where: 'book_id = ? AND round_number = ?',
         whereArgs: [book.id, currentRound],
       );
