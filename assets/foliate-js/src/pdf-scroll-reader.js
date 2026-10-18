@@ -2,6 +2,7 @@ import { adjacentPanel, readingRegions, layoutSignature, resolveReadingRegions }
 import { scrollPagePlan, scrollVisibleRegion, scrollSourcePoint } from './pdf-scroll-layout.js'
 import { PdfRenderBudget } from './pdf-render-budget.js'
 import './transient-scrollbar.js'
+import { attachPdfZoomInput } from './pdf-zoom-input.js'
 
 const GAP = 16, MAX_FRAMES = 7
 
@@ -20,8 +21,9 @@ export class PdfScrollReader {
     baseController = new AbortController()
     direction = 1
     lastTop = 0
-    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate = () => true, canPrepare = () => true }) {
-        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate, canPrepare })
+    constructor({ book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate = () => true, canPrepare = () => true,
+        setZoom = () => {}, boxMode = () => false, pageViews = {} }) {
+        Object.assign(this, { book, layout, view, createFrame, bounds, onLoad, onRelocate, onState, canAnimate, canPrepare, setZoom, boxMode, pageViews })
         Object.assign(this.element.style, { width: '100%', height: '100%', overflow: 'auto',
             position: 'relative', boxSizing: 'border-box', overflowAnchor: 'none',
             overscrollBehavior: 'contain', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' })
@@ -48,6 +50,7 @@ export class PdfScrollReader {
         if (!e) return null
         const rect = e.element.getBoundingClientRect(), viewport = this.viewport
         return { page: e.index, panel: e.panel,
+            zoom: e.zoom ?? this.view.zoom,
             total: e.fallback ? 1 : readingRegions(this.layout, e.index).length,
             signature: e.fallback ? 'original-target' : layoutSignature(this.layout, e.index),
             center: scrollSourcePoint(e.plan, e.crop,
@@ -173,8 +176,11 @@ export class PdfScrollReader {
     }
     layoutEntry(e) {
         const bounds = this.bounds()
+        const saved = this.pageViews[`${e.index}:${e.panel}`]
+        e.zoom ??= saved?.signature === layoutSignature(this.layout, e.index) &&
+            Number.isFinite(saved.zoom) && saved.zoom >= 1 && saved.zoom <= 15 ? saved.zoom : this.view.zoom
         e.plan = scrollPagePlan({ pageWidth: e.width, pageHeight: e.height,
-            width: Math.max(1, (this.element.clientWidth || bounds.width) - 12), height: Math.max(1, bounds.height), crop: e.crop, view: this.view })
+            width: Math.max(1, (this.element.clientWidth || bounds.width) - 12), height: Math.max(1, bounds.height), crop: e.crop, view: {...this.view,zoom:e.zoom} })
         Object.assign(e.element.style, { position: 'relative', visibility: '',
             width: `${e.plan.width}px`, height: `${e.plan.height}px`, margin: `0 auto ${this.view.display?.separators === false ? 0 : GAP}px`,
             outline: this.view.display?.border ? '1px solid #888' : '',
@@ -216,10 +222,24 @@ export class PdfScrollReader {
         // source anchor on scroll, not from the already-resized viewport here.
         const location = this.savedLocation ?? this.location
         const e = this.entries.find(e => e.index === location?.page && e.panel === location?.panel) ?? this.current
+        if (e && view.zoom !== this.view.zoom) {
+            e.zoom = view.zoom
+            // Prepared neighbours are not visited pages: inherit the new zoom
+            // unless this book already has an explicit viewport for that page.
+            for (const item of this.entries) {
+                const saved = this.pageViews[`${item.index}:${item.panel}`]
+                if (item !== e && saved?.signature !== layoutSignature(this.layout, item.index))
+                    item.zoom = view.zoom
+            }
+        }
         this.view = view
         for (const item of this.entries) this.layoutEntry(item)
         if (e) this.restore(e, location?.center)
         this.changed(false)
+    }
+    resetPosition() {
+        if (this.current) this.restore(this.current, null)
+        this.changed(true)
     }
     pan(dx, dy) {
         if (!this.active || this.destroyed || ![dx, dy].every(Number.isFinite)) return false
@@ -263,6 +283,20 @@ export class PdfScrollReader {
         this.momentumFrame = host.requestAnimationFrame(tick)
     }
     attachInput(doc) {
+        attachPdfZoomInput(doc, {
+            active: () => this.active && !this.destroyed,
+            zoom: () => this.current?.zoom ?? this.view.zoom,
+            setZoom: this.setZoom, pan: (x,y) => this.pan(x,y), boxMode: this.boxMode,
+            onGesture: () => this.stopMomentum(),
+            box: rect => {
+                const e = this.entries.find(e => e.iframe.contentDocument === doc)
+                if (!e) return
+                this.setZoom((e.zoom ?? this.view.zoom) * Math.min(this.viewport.width/(rect.width*e.plan.scale),
+                    this.viewport.height/(rect.height*e.plan.scale)))
+                this.restore(e, {x:(rect.x+rect.width/2)/e.width,y:(rect.y+rect.height/2)/e.height})
+                this.changed(true)
+            },
+        })
         doc.addEventListener('wheel', e => this.wheel(e), { capture: true, passive: false })
         let start, last, dragging = false, suppressClick = 0, vx = 0, vy = 0, movedAt = 0
         const point = event => {
@@ -390,6 +424,11 @@ export class PdfScrollReader {
             this.direction = this.element.scrollTop > this.lastTop ? 1 : -1
         this.lastTop = this.element.scrollTop
         this.savedLocation = this.location
+        if (this.savedLocation) {
+            const l = this.savedLocation
+            this.view = {...this.view, zoom:l.zoom}
+            this.pageViews[`${l.page}:${l.panel}`] = {...l}
+        }
         this.recordPending ||= record
         // Load neighbours during a gesture; only expensive raster refinement
         // and persistence wait for the short idle window.

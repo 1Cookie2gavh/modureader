@@ -5,6 +5,7 @@ import { normalizePdfView, pdfViewport, panPdfViewport } from './pdf-reading-vie
 import { normalizeDocumentDisplay, attachDocumentGestures } from './document-reading-options.js'
 import { PdfScrollReader } from './pdf-scroll-reader.js'
 import { PdfRenderBudget } from './pdf-render-budget.js'
+import { attachPdfZoomInput } from './pdf-zoom-input.js'
 
 const parseViewport = str => str
     ?.split(/[,;\s]/) // NOTE: technically, only the comma is valid
@@ -62,6 +63,20 @@ export class FixedLayout extends HTMLElement {
     #pdfView = normalizePdfView()
     #pdfCenter
     #pdfPlan
+    #pdfPageViews = {}
+    #pdfBoxZoom = false
+    #pdfViewportDirty = false
+    setPdfPageViews(value) { this.#pdfPageViews = value && typeof value === 'object' ? value : {} }
+    setPdfBoxZoom(value) { this.#pdfBoxZoom = value === true; return true }
+    zoomPdfView(zoom, reset = false) {
+        if (!Number.isFinite(zoom) || !this.#pdfEnabled || this.#pdfBusy) return false
+        this.#pdfView = { ...this.#pdfView, zoom: Math.max(1, Math.min(4, zoom)) }
+        if (reset) this.#pdfCenter = null
+        this.#render()
+        if (reset && this.#pdfScroll) this.#pdfScroll.resetPosition()
+        this.#schedulePdfDetail(true)
+        return true
+    }
     #pdfDetailGeneration = 0
     #pdfDetailTimer
     #pdfDetailUrl
@@ -131,6 +146,7 @@ export class FixedLayout extends HTMLElement {
         return { page: this.#pdfPage, panel: this.#pdfPanel,
             total: this.#pdfFallback ? 1 : readingRegions(this.#pdfLayout, this.#pdfPage).length,
             signature: this.#pdfFallback ? 'original-target' : layoutSignature(this.#pdfLayout, this.#pdfPage),
+            zoom: this.#pdfView.zoom,
             center: this.#pdfCenter ? { ...this.#pdfCenter } : null }
     }
     async setPdfLayout(config, enabled, resume) {
@@ -227,6 +243,7 @@ export class FixedLayout extends HTMLElement {
         }, this.#pdfBudget.delay)
     }
     #schedulePdfDetail(record = false) {
+        this.#pdfViewportDirty ||= record
         this.#cancelPdfDetail()
         if (this.#pdfScroll) { this.#pdfScroll.changed(record); return }
         if (!this.#pdfEnabled || !this.#center?.crop || this.#destroyed || this.#pdfBusy) return
@@ -287,6 +304,20 @@ export class FixedLayout extends HTMLElement {
         }
     }
     #attachPdfPan(doc) {
+        attachPdfZoomInput(doc, {
+            active: () => this.#pdfEnabled && !this.#pdfBusy && this.readerActive,
+            zoom: () => this.#pdfView.zoom,
+            setZoom: value => this.zoomPdfView(value),
+            pan: (x,y) => this.panPdfView(x,y),
+            boxMode: () => this.#pdfBoxZoom,
+            box: rect => {
+                const frame = this.#center, plan = this.#pdfPlan, bounds = this.getBoundingClientRect()
+                if (!frame || !plan) return
+                this.#pdfCenter = {x:(rect.x+rect.width/2)/frame.width,y:(rect.y+rect.height/2)/frame.height}
+                this.zoomPdfView(this.#pdfView.zoom * Math.min(bounds.width/(rect.width*plan.scale),
+                    bounds.height/(rect.height*plan.scale)))
+            },
+        })
         doc.addEventListener('wheel', event => {
             if (!this.#pdfEnabled || event.ctrlKey || event.metaKey) return
             if (doc.getSelection()?.type === 'Range') return
@@ -297,42 +328,25 @@ export class FixedLayout extends HTMLElement {
                 event.stopImmediatePropagation()
             }
         }, { passive: false, capture: true })
-        // Two fingers pan; one finger remains available for text selection and
-        // the existing page gestures. Do not bring back automatic selection flips.
-        let last, panning = false, suppressClickUntil = 0
-        const point = event => event.touches.length === 2
-            ? { x: (event.touches[0].screenX + event.touches[1].screenX) / 2,
-                y: (event.touches[0].screenY + event.touches[1].screenY) / 2 } : null
-        doc.addEventListener('touchstart', event => {
-            last = point(event)
-            panning ||= !!last
-            if (panning) { event.preventDefault(); event.stopImmediatePropagation() }
-        }, { passive: false, capture: true })
-        doc.addEventListener('touchmove', event => {
-            const p = point(event)
-            if (last && p) {
-                this.panPdfView(last.x - p.x, last.y - p.y)
-            }
-            if (panning) { event.preventDefault(); event.stopImmediatePropagation() }
-            last = p
-        }, { passive: false, capture: true })
-        for (const type of ['touchend', 'touchcancel']) doc.addEventListener(type, event => {
-            if (panning) {
-                event.preventDefault(); event.stopImmediatePropagation()
-                suppressClickUntil = Date.now() + 400
-            }
-            last = point(event)
-            if (!event.touches.length || type === 'touchcancel') panning = false
-        }, { passive: false, capture: true })
-        doc.addEventListener('click', event => {
-            if (Date.now() < suppressClickUntil) {
-                event.preventDefault(); event.stopImmediatePropagation()
-            }
-        }, { capture: true })
     }
     async #showPdfPanel(page, panel, reason, anchor, center) {
         if (this.#destroyed || page < 0 || page >= this.book.sections.length) return false
-        if (this.#pdfView.mode === 'scroll') return this.#showPdfScroll(page, panel, reason, anchor, center)
+        if (reason !== 'layout' && this.#pdfViewportDirty && this.pdfRegionLocation && !this.#pdfBusy)
+            this.#reportLocation('viewport')
+        const previousView = this.#pdfView
+        if (reason !== 'layout' && typeof anchor !== 'function') {
+            const saved = this.#pdfPageViews[`${page}:${panel}`]
+            if (saved?.signature === layoutSignature(this.#pdfLayout, page) &&
+                Number.isFinite(saved.zoom) && saved.zoom >= 1 && saved.zoom <= 15) {
+                this.#pdfView = { ...this.#pdfView, zoom: saved.zoom }
+                center ??= saved.center
+            } else center ??= this.pdfRegionLocation?.center
+        }
+        if (this.#pdfView.mode === 'scroll') {
+            const ok = await this.#showPdfScroll(page, panel, reason, anchor, center)
+            if (!ok) this.#pdfView = previousView
+            return ok
+        }
         let regions = readingRegions(this.#pdfLayout, page)
         let crop = regions[panel], fallback = false
         if (!crop) return false
@@ -342,7 +356,7 @@ export class FixedLayout extends HTMLElement {
         this.#pdfBusy = true
         this.#pdfRetry = () => this.#showPdfPanel(page, panel, reason, anchor, center)
         this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'loading' } }))
-        let frame, url
+        let frame, url, committed = false
         const active = () => !this.#destroyed && generation === this.#pdfGeneration
         try {
             const section = this.book.sections[page]
@@ -428,6 +442,7 @@ export class FixedLayout extends HTMLElement {
                 () => this.dispatchEvent(new CustomEvent('document-menu')))
             this.dispatchEvent(new CustomEvent('load', { detail: { doc: frame.iframe.contentDocument, index: page } }))
             frame = null // committed; failures/cancellation must not remove it
+            committed = true
             this.#reportLocation(reason)
             this.#pdfRetry = null
             this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'ready' } }))
@@ -441,6 +456,7 @@ export class FixedLayout extends HTMLElement {
         } finally {
             frame?.element.remove()
             if (url) URL.revokeObjectURL(url)
+            if (active() && !committed) this.#pdfView = previousView
             if (active()) { this.#pdfBusy = false; this.#schedulePdfDetail() }
         }
     }
@@ -455,6 +471,9 @@ export class FixedLayout extends HTMLElement {
         const flow = new PdfScrollReader({ book: this.book, layout: this.#pdfLayout, view: this.#pdfView,
             canAnimate: () => this.readerActive && this.hasAttribute('animated'),
             canPrepare: () => this.readerActive,
+            setZoom: value => this.zoomPdfView(value),
+            boxMode: () => this.#pdfBoxZoom,
+            pageViews: this.#pdfPageViews,
             bounds: () => this.getBoundingClientRect(),
             createFrame: (index, src, parent, before) => this.#createFrame('center', { index, src }, true, parent, before),
             onLoad: (doc, index) => this.dispatchEvent(new CustomEvent('load', { detail: { doc, index } })),
@@ -742,7 +761,11 @@ export class FixedLayout extends HTMLElement {
         return this.book.sections.indexOf(section)
     }
     #reportLocation(reason) {
+        this.#pdfViewportDirty = false
         const region = this.pdfRegionLocation
+        if (region?.zoom) this.#pdfView = {...this.#pdfView, zoom:region.zoom}
+        if (region && region.signature !== 'original-target')
+            this.#pdfPageViews[`${region.page}:${region.panel}`] = { ...region }
         this.dispatchEvent(new CustomEvent('relocate', { detail:
             { reason, range: null, index: this.index,
                 fraction: region ? region.panel / region.total : 0,

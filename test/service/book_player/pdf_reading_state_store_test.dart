@@ -9,6 +9,38 @@ void main() {
   const position = {'page': 2, 'panel': 3, 'signature': '[[0,0,0.5,0.5]]'};
   setUp(() => SharedPreferences.setMockInitialValues({}));
   test(
+      'page zoom memories are independent and concurrent writes retain all pages',
+      () async {
+    final store = PdfReadingStateStore(await SharedPreferences.getInstance());
+    await store.setEnabled('book', true);
+    await Future.wait([
+      store.savePosition('book', 'cfi-a', {
+        ...position,
+        'zoom': 2,
+        'center': {'x': .3, 'y': .4}
+      }),
+      store.savePosition('book', 'cfi-b', {
+        ...position,
+        'page': 3,
+        'zoom': 3,
+        'center': {'x': .6, 'y': .7}
+      }),
+    ]);
+    final reopened =
+        PdfReadingStateStore(await SharedPreferences.getInstance());
+    final pages = reopened.read('book')['pageViews'] as Map;
+    expect(pages['2:3']['zoom'], 2);
+    expect(pages['3:3']['center'], {'x': .6, 'y': .7});
+    expect(reopened.read('other')['pageViews'], isNull);
+    for (final zoom in [0, 16, double.nan, '2']) {
+      expect(
+          () => store.savePosition('book', 'cfi', {...position, 'zoom': zoom}),
+          throwsFormatException);
+    }
+    await store.savePosition('book', 'cfi-reset', {...position, 'zoom': 1});
+    expect((store.read('book')['pageViews'] as Map)['3:3']['zoom'], 3);
+  });
+  test(
       'first interaction preserves automatic document mode without an opening write',
       () async {
     final store = PdfReadingStateStore(await SharedPreferences.getInstance());

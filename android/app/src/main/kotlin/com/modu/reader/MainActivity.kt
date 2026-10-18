@@ -154,6 +154,9 @@ class MainActivity : AudioServiceActivity() {
         if (!flutterEngine.plugins.has(CrashDiagnosticsPlugin::class.java)) {
             flutterEngine.plugins.add(CrashDiagnosticsPlugin())
         }
+        if (!flutterEngine.plugins.has(MediaDiagnosticsPlugin::class.java)) {
+            flutterEngine.plugins.add(MediaDiagnosticsPlugin())
+        }
         if (!flutterEngine.plugins.has(LocalEmbeddingPlugin::class.java)) {
             flutterEngine.plugins.add(LocalEmbeddingPlugin())
         }

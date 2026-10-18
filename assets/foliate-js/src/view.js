@@ -170,6 +170,7 @@ export class View extends HTMLElement {
     if (this.#switchingRenderer || !(this.book.resources || this.book.imageDocumentSource)) return false
     if (enabled === this.imageReading) {
       if (enabled) {
+        if (settings.pageViews) this.renderer.setPdfPageViews?.(settings.pageViews)
         if (settings.view) await this.renderer.setPdfView(settings.view)
         return this.renderer.setPdfLayout(settings.layout, true, settings.position)
       }
@@ -195,6 +196,7 @@ export class View extends HTMLElement {
       this.renderer.style.visibility = 'hidden'
       configure()
       if (enabled) {
+        if (settings.pageViews) this.renderer.setPdfPageViews?.(settings.pageViews)
         if (settings.view) await this.renderer.setPdfView(settings.view)
         await this.renderer.setPdfLayout(settings.layout, true, settings.position)
       }

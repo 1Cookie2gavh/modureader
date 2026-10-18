@@ -17,7 +17,6 @@ import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/service/ocr/document_text_reflow.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'document_saved_text_actions.dart';
-import 'document_text_style_dialog.dart';
 import '../common/app_scroll_behavior.dart';
 
 typedef DocumentRequest = Future<Map<String, dynamic>> Function(
@@ -78,9 +77,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   MemoryImage? _image;
   int _page = 0, _total = 0, _generation = 0;
   double _aspect = 1;
-  late DocumentTextStyle _textStyle = widget.initialTextStyle;
-
-  void _editTextStyle() => _surfaceKey.currentState?.openMenu('style');
+  late final DocumentTextStyle _textStyle = widget.initialTextStyle;
 
   Rect _region = const Rect.fromLTWH(.1, .1, .8, .8);
   bool _wholePage = false, _forceOcr = false, _busy = false;
@@ -453,7 +450,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
   @override
   Widget build(BuildContext context) => DocumentReaderSurface(
         key: _surfaceKey,
-        brightness: widget.brightness,
+        inlineTools: true,
         narration: _reflow &&
                 _result?.trim().isNotEmpty == true &&
                 widget.narrationBuilder != null
@@ -470,18 +467,8 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
           Expanded(
               child: Text(t('提取文字', 'Extract text'),
                   style: const TextStyle(fontSize: 22))),
-          IconButton(
-              tooltip: t('OCR 文字样式', 'OCR text style'),
-              onPressed: _editTextStyle,
-              icon: const Icon(Icons.settings)),
         ]),
-        style: DocumentTextStyleDialog(
-            initial: _textStyle,
-            embedded: true,
-            save: (style) async {
-              await widget.saveTextStyle?.call(style);
-              if (mounted) setState(() => _textStyle = style);
-            }),
+        style: const SizedBox.shrink(),
         body: Column(children: [
           Expanded(
               child: _reflow && _result != null

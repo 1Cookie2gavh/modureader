@@ -16,6 +16,7 @@ const scrollLayout=uri((await source('pdf-scroll-layout')).replace("'./pdf-readi
 const {scrollPagePlan,scrollVisibleRegion,scrollSourcePoint}=await import(scrollLayout);
 const {PdfRenderBudget}=await import(uri(await source('pdf-render-budget')));
 const {PdfScrollReader}=await import(uri((await source('pdf-scroll-reader'))
+    .replace("'./pdf-zoom-input.js'", JSON.stringify(uri(await source('pdf-zoom-input'))))
     .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'",JSON.stringify(layout)).replace("'./pdf-scroll-layout.js'",JSON.stringify(scrollLayout))));
@@ -66,6 +67,25 @@ test('prepending and recycling preserve source viewport; frames stay bounded in 
         assert.ok(h.loaded.length<60);
     }finally{h.close()}
 });
+test('continuous pages restore independent zooms without unbounded frames',async()=>{
+    const h=harness();
+    try {
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        const signature=h.flow.location.signature;
+        const next=h.flow.entries.find(e=>e.index===1);
+        h.flow.resize({...h.flow.view,zoom:2});
+        assert.equal(next.zoom,2,'unvisited prepared pages inherit zoom');
+        h.flow.pageViews['1:0']={signature,zoom:3};
+        next.zoom=undefined;h.flow.layoutEntry(next);
+        h.flow.resize({...h.flow.view,zoom:2.5});
+        assert.equal(h.flow.entries[0].zoom,2.5);
+        assert.equal(next.zoom,3);
+        assert.ok(h.flow.entries.length<=7);
+        h.flow.resetPosition();
+        assert.equal(h.flow.location.zoom,2.5);
+    } finally {h.close()}
+});
+
 test('neighbor failure retains current content, blocks repeated retries, and explicit retry recovers',async()=>{
     const h=harness();try{
         await h.flow.open(0,0);h.flow.activate();const doc=h.flow.getContents()[0].doc;
@@ -295,7 +315,7 @@ test('processed base reuse invalidates on enhancement/crop changes; zoom request
         assert.equal(rendered.length,2);assert.notEqual(e.baseUrl,first);
         e.crop={x:.1,y:.1,width:.8,height:.8};await h.flow.prepareBase(e);
         assert.equal(rendered.length,3);assert.deepEqual(rendered.at(-1).region,e.crop);
-        h.flow.view.zoom=15;h.flow.layoutEntry(e);await h.flow.refreshDetail();
+        h.flow.resize({...h.flow.view,zoom:15});await h.flow.refreshDetail();
         assert.equal(details.length,1);assert.ok(details[0].region.height<.1);
         assert.ok(details[0].region.width<.1);assert.equal(rendered.length,3);
     }finally{h.close()}

@@ -51,6 +51,9 @@ void validateSettingsValue(String key, dynamic value) {
       (value is! int || value < 0 || value > 100)) {
     throw const FormatException('Invalid E-Ink refresh interval');
   }
+  if (key == 'ocrPrecachePages' && (value is! int || value < 1 || value > 5)) {
+    throw const FormatException('Invalid OCR prefetch window');
+  }
   if (key == 'scrollPagePercent' && (value < 80 || value > 100)) {
     throw const FormatException('Invalid scroll page percentage');
   }

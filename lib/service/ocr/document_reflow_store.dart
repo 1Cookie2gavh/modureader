@@ -272,10 +272,22 @@ class DocumentReflowStore {
     return data;
   }
 
-  void _put(Map<String, dynamic> data, DocumentReflowPage page) {
+  void _put(Map<String, dynamic> data, DocumentReflowPage page,
+      {bool explicit = false}) {
     final key = '${page.page}-${page.revision}';
     (data['revisions'] as Map)[key] = page.toJson();
     (data['pages'] as Map)['${page.page}'] = key;
+    final heads = data.putIfAbsent('heads', () => <String, dynamic>{}) as Map;
+    var clock = 0;
+    for (final head in heads.values) {
+      if ((head['clock'] as int) > clock) clock = head['clock'] as int;
+    }
+    heads['${page.page}'] = {
+      'clock': clock + 1,
+      'explicit': explicit ||
+          page.editedText != null ||
+          heads['${page.page}']?['explicit'] == true,
+    };
   }
 
   DocumentReflowPage? _page(Map<String, dynamic> data, int number) {
@@ -308,6 +320,17 @@ class DocumentReflowStore {
   }
 
   // Profiles are deliberately ignored: mode/model/crop changes never discard a user's saved page.
+  Future<Set<int>> cachedPages(int start, int count) => _locked((root) async {
+        if (start < 0 || count < 0 || count > 5) {
+          throw ArgumentError('Invalid prefetch window');
+        }
+        final data = await _book(root);
+        return {
+          for (var page = start; page < start + count; page++)
+            if (_page(data, page) != null) page
+        };
+      });
+
   Future<DocumentReflowPage?> read(int page, String profile) =>
       _locked((root) async {
         final data = await _book(root);
@@ -335,7 +358,8 @@ class DocumentReflowStore {
         return result != null && anchor.matches(result) ? result : null;
       });
 
-  Future<void> save(DocumentReflowPage value, String profile) =>
+  Future<void> save(DocumentReflowPage value, String profile,
+          {bool onlyIfAbsent = false}) =>
       _locked((root) async {
         if (bookKey.isEmpty ||
             value.text.trim().isEmpty ||
@@ -346,7 +370,8 @@ class DocumentReflowStore {
           throw const FormatException('Invalid reflow page');
         }
         final data = await _book(root);
-        _put(data, value);
+        if (onlyIfAbsent && _page(data, value.page) != null) return;
+        _put(data, value, explicit: !onlyIfAbsent);
         await _write(root, data);
       });
 
@@ -367,9 +392,20 @@ class DocumentReflowStore {
             rawRegions: original.rawRegions,
             layoutVersion: original.layoutVersion,
             editedText: text);
-        _put(data, edited);
+        _put(data, edited, explicit: true);
         await _write(root, data);
         return edited;
+      });
+
+  /// Snapshot under the same lock as OCR/edit writes; local numeric IDs never travel.
+  Future<Map<String, dynamic>> syncSnapshot() => _locked(
+      (root) async => DocumentReflowSyncData.normalize(await _book(root)));
+
+  Future<void> mergeSynced(Map<String, dynamic> incoming) =>
+      _locked((root) async {
+        final local = await _book(root);
+        final merged = DocumentReflowSyncData.merge(local, incoming);
+        if (jsonEncode(local) != jsonEncode(merged)) await _write(root, merged);
       });
 
   Future<String> exportTxt() => _locked((root) async {
@@ -385,4 +421,100 @@ class DocumentReflowStore {
                 '第${number + 1}页\n$separator\n${_page(data, number)!.text}\n$separator')
             .join('\n\n');
       });
+}
+
+/// A per-page logical clock makes merges independent of device/server wall time.
+/// Explicit edits/re-OCR beat passive prefetch; all immutable note revisions survive.
+abstract final class DocumentReflowSyncData {
+  static const maxBytes = 256 * 1024 * 1024;
+
+  static Map<String, dynamic> normalize(Map<String, dynamic> data) {
+    if (data['version'] != 1 ||
+        data['pages'] is! Map ||
+        data['revisions'] is! Map ||
+        (data['heads'] != null && data['heads'] is! Map)) {
+      throw const FormatException('Invalid OCR sync data');
+    }
+    final pages = data['pages'] as Map;
+    final revisions = data['revisions'] as Map;
+    final heads = data['heads'] as Map? ?? {};
+    if (pages.length > 100000 || revisions.length > 200000) {
+      throw const FormatException('OCR sync data exceeds limits');
+    }
+    final cleanRevisions = <String, dynamic>{};
+    for (final key in revisions.keys.toList()..sort()) {
+      final page = DocumentReflowPage.decode(revisions[key]);
+      if (page == null ||
+          page.page > 1000000 ||
+          key != '${page.page}-${page.revision}') {
+        throw const FormatException('Invalid OCR sync revision');
+      }
+      cleanRevisions[key as String] = page.toJson();
+    }
+    final cleanPages = <String, dynamic>{}, cleanHeads = <String, dynamic>{};
+    for (final key in pages.keys.toList()..sort()) {
+      final number = key is String ? int.tryParse(key) : null;
+      final revision = pages[key];
+      final page = cleanRevisions[revision];
+      if (number == null ||
+          '$number' != key ||
+          page == null ||
+          page['page'] != number) {
+        throw const FormatException('Invalid OCR sync page');
+      }
+      final head =
+          heads[key] ?? {'clock': 0, 'explicit': page['editedText'] != null};
+      if (head is! Map ||
+          head['clock'] is! int ||
+          head['clock'] < 0 ||
+          head['clock'] > 9007199254740000 ||
+          head['explicit'] is! bool) {
+        throw const FormatException('Invalid OCR sync clock');
+      }
+      cleanPages[key as String] = revision;
+      cleanHeads[key] = {'clock': head['clock'], 'explicit': head['explicit']};
+    }
+    return {
+      'version': 1,
+      'pages': cleanPages,
+      'revisions': cleanRevisions,
+      'heads': cleanHeads
+    };
+  }
+
+  static Map<String, dynamic> merge(
+      Map<String, dynamic> a, Map<String, dynamic> b) {
+    a = normalize(a);
+    b = normalize(b);
+    final revisions = a['revisions'] as Map<String, dynamic>;
+    for (final entry in (b['revisions'] as Map<String, dynamic>).entries) {
+      final old = revisions[entry.key];
+      // Legacy revisions hash displayed text/geometry, not raw OCR metadata.
+      if (old == null ||
+          jsonEncode(entry.value).compareTo(jsonEncode(old)) > 0) {
+        revisions[entry.key] = entry.value;
+      }
+    }
+    final pages = a['pages'] as Map<String, dynamic>;
+    final heads = a['heads'] as Map<String, dynamic>;
+    for (final entry in (b['pages'] as Map<String, dynamic>).entries) {
+      final old = heads[entry.key];
+      final next = b['heads'][entry.key];
+      var order = old == null
+          ? 1
+          : (next['explicit'] == true ? 1 : 0)
+              .compareTo(old['explicit'] == true ? 1 : 0);
+      if (old != null && order == 0) {
+        order = (next['clock'] as int).compareTo(old['clock'] as int);
+        if (order == 0) {
+          order = (entry.value as String).compareTo(pages[entry.key] as String);
+        }
+      }
+      if (order > 0) {
+        pages[entry.key] = entry.value;
+        heads[entry.key] = next;
+      }
+    }
+    return normalize(a);
+  }
 }

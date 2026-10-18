@@ -1,8 +1,13 @@
+import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
+import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:anx_reader/service/ocr/local_ocr_service.dart';
+import 'package:anx_reader/service/ocr/ocr_model_store.dart';
+import 'package:anx_reader/service/ocr/ocr_models.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/service/book_player/document_type_store.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
-import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'dart:async';
 import 'package:anx_reader/widgets/webview/recoverable_webview.dart';
 import 'package:anx_reader/models/narration_position.dart';
@@ -276,6 +281,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   bool get isPdfDocument => widget.book.filePath.toLowerCase().endsWith('.pdf');
   final documentReadingMode = ValueNotifier(DocumentReadingMode.standard);
+  final pdfZoom = ValueNotifier<double>(1);
   bool get isImageEpub =>
       documentReadingMode.value == DocumentReadingMode.imageEpub;
   bool get supportsDocumentImages => documentReadingMode.value.hasDocumentMenu;
@@ -351,17 +357,91 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         store.read(cssBookKey)['enabled'] == true;
   }
 
-  PdfReadingView get pdfReadingView =>
-      PdfReadingStateStore(Prefs().prefs).readView(cssBookKey);
+  PdfReadingView get pdfReadingView {
+    final view = PdfReadingStateStore(Prefs().prefs).readView(cssBookKey);
+    return view.copyWith(
+        display: view.display
+            .change('grayscale', false)
+            .change('swipeMenu', false)
+            .change('autoSeconds', 0)
+            .change('tapPan', false));
+  }
+
+  int _ocrPrecachePage = -1;
+  int? _ocrPrecacheTotal;
+  DocumentOcrPrecache get ocrPrecache => _ocrPrecache;
+  late final DocumentOcrPrecache _ocrPrecache = DocumentOcrPrecache(
+      cachedPages: (start, count) =>
+          DocumentReflowStore(cssBookKey).cachedPages(start, count),
+      canRun: () =>
+          mounted &&
+          _readerReady &&
+          supportsDocumentImages &&
+          (WidgetsBinding.instance.lifecycleState == null ||
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed) &&
+          ModalRoute.of(context)?.isCurrent == true,
+      load: (page, cancel) async {
+        final store = DocumentReflowStore(cssBookKey);
+        if (await store.read(page, '') != null) return;
+        cancel.check();
+        final info = await documentReflowInfo(page);
+        cancel.check();
+        if (info['page'] != page ||
+            info['total'] is! num ||
+            page >= (info['total'] as num)) {
+          throw const FormatException('Invalid precache page');
+        }
+        final model = OcrModelStore(model: OcrModels.byId(Prefs().ocrModelId));
+        try {
+          await loadDocumentReflowPage(
+              info: info,
+              store: store,
+              model: model,
+              cancel: cancel,
+              progress: (done, total) =>
+                  _ocrPrecache.reportProgress(done, total),
+              extract: extractDocumentText,
+              render: (request) => renderPdfRegion(
+                  {...request, if (isImageEpub) 'source': 'epub'}),
+              recognize: (bytes, token, progress) => LocalOcrService()
+                  .recognizeWithRegions(bytes, model, token,
+                      progress: progress));
+        } finally {
+          model.close();
+        }
+      });
+  Future<void> pauseDocumentOcrCache({bool cancelRunning = true}) =>
+      _ocrPrecache.pause(cancelRunning: cancelRunning);
+  void resumeDocumentOcrCache() {
+    _configureOcrPrecache();
+    _ocrPrecache.resume();
+  }
+
+  void updateDocumentOcrCachePage(int page, int total) {
+    _ocrPrecachePage = page;
+    _ocrPrecacheTotal = total;
+    _configureOcrPrecache();
+  }
+
+  void _configureOcrPrecache() {
+    _ocrPrecache.update(
+        _ocrPrecachePage,
+        supportsDocumentImages && Prefs().ocrPrecacheEnabled
+            ? Prefs().ocrPrecachePages
+            : 0,
+        totalPages: _ocrPrecacheTotal);
+  }
 
   Future<void> setPdfReadingView(PdfReadingView view) async {
     if (!_readerReady || !mounted) throw StateError('Reader is not ready');
     final previous = pdfReadingView;
     Future<void> apply(PdfReadingView value) async {
-      if (isImageEpub && !pdfPanelReading) return;
       final result = await webViewController.callAsyncJavaScript(
           functionBody: 'return await window.setPdfReadingView(value);',
-          arguments: {'value': value.toJson()});
+          arguments: {
+            'value': {...value.toJson(), 'rotation': 0}
+          });
       if (result?.error != null || result?.value != true) {
         throw StateError('PDF viewport could not be applied');
       }
@@ -369,11 +449,35 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
     await apply(view);
     try {
+      await readingPageKey.currentState?.setDocumentRotation(view.rotation);
       await PdfReadingStateStore(Prefs().prefs)
           .saveView(cssBookKey, view, enabled: pdfPanelReading);
+      pdfZoom.value = view.zoom;
     } catch (_) {
       await apply(previous);
+      await readingPageKey.currentState?.setDocumentRotation(previous.rotation);
       rethrow;
+    }
+  }
+
+  Future<void> zoomPdfReadingView(double zoom, bool reset) async {
+    if (!_readerReady || !mounted) throw StateError('Reader is not ready');
+    final result = await webViewController.callAsyncJavaScript(
+        functionBody: 'return window.zoomPdfReadingView(zoom, reset);',
+        arguments: {'zoom': zoom, 'reset': reset});
+    if (result?.error != null || result?.value != true) {
+      throw StateError('PDF zoom failed');
+    }
+    pdfZoom.value = zoom;
+  }
+
+  Future<void> setPdfBoxZoom(bool enabled) async {
+    if (!_readerReady || !mounted) throw StateError('Reader is not ready');
+    final result = await webViewController.callAsyncJavaScript(
+        functionBody: 'return window.setPdfBoxZoom(enabled);',
+        arguments: {'enabled': enabled});
+    if (result?.error != null || result?.value != true) {
+      throw StateError('PDF rectangle zoom failed');
     }
   }
 
@@ -423,7 +527,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         arguments: {
           'config': config.toJson(),
           'enabled': enabled,
-          'view': pdfReadingView.toJson()
+          'view': {...pdfReadingView.toJson(), 'rotation': 0}
         });
     if (result?.error != null || result?.value != true) {
       throw StateError('PDF reading layout could not be applied');
@@ -1541,7 +1645,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         });
     controller.addJavaScriptHandler(
         handlerName: 'onPdfReadingSettings',
-        callback: (_) {
+        callback: (_) async {
           if (!mounted) return null;
           documentReadingMode.value =
               DocumentReadingModeStore(Prefs().prefs).read(widget.book);
@@ -1549,8 +1653,19 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           if (!supportsDocumentImages) return {'mode': 'standard'};
           final store = PdfReadingStateStore(Prefs().prefs);
           final state = store.read(cssBookKey);
+          final view = pdfReadingView;
+          pdfZoom.value = view.zoom;
+          try {
+            await readingPageKey.currentState
+                ?.setDocumentRotation(view.rotation);
+          } catch (error) {
+            // A platform refusing orientation must not prevent opening the book.
+            AnxLog.warning(
+                'Reader rotation restore failed: ${error.runtimeType}');
+          }
           return {
             ...state,
+            'view': {...view.toJson(), 'rotation': 0},
             'mode': documentReadingMode.value.storageValue,
             'enabled': pdfPanelReading,
             // Explicit note/link navigation must not restore an unrelated panel.
@@ -1611,6 +1726,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             _readerLoadFailed = false;
           });
           _configureEinkPreferences();
+          _configureOcrPrecache();
           readingPageKey.currentState?.refreshDocumentReaderActivity();
           // Android can hide system bars while the chapter is still loading.
           // The Flutter frame already uses the new safe area; replay the DOM
@@ -1642,6 +1758,21 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           Map<String, dynamic> location = args[0];
           if (!mounted) return;
           _observeEinkPage(location);
+          final region = location['pdfRegion'];
+          if (supportsDocumentImages &&
+              readingPageKey.currentState?.isReflowReading != true) {
+            _ocrPrecachePage = documentOcrPage(location);
+            final total = location['totalChapters'];
+            _ocrPrecacheTotal =
+                total is num && total > 0 ? total.toInt() : null;
+            _configureOcrPrecache();
+          }
+          if (supportsDocumentImages &&
+              region is Map &&
+              region['zoom'] is num) {
+            final zoom = (region['zoom'] as num).toDouble();
+            if (zoom.isFinite && zoom >= 1 && zoom <= 15) pdfZoom.value = zoom;
+          }
           if (cfi == location['cfi'] &&
               writingMode.code == location['writingMode'] &&
               chapterCurrentPage == location['chapterCurrentPage'] &&
@@ -2163,6 +2294,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     documentReadingMode.value =
         DocumentReadingModeStore(Prefs().prefs).read(widget.book);
     Prefs().addListener(_configureEinkPreferences);
+    Prefs().addListener(_configureOcrPrecache);
     getThemeColor();
 
     contextMenu = ContextMenu(
@@ -2216,9 +2348,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     RuntimeDiagnostics.record(RuntimeEvent.reader, state: 'dispose_pending');
     detachNarration();
     Prefs().removeListener(_configureEinkPreferences);
+    Prefs().removeListener(_configureOcrPrecache);
+    _ocrPrecache.dispose();
     _einkPageRefresh.dispose();
     _translationSession.stop();
     documentReadingMode.dispose();
+    pdfZoom.dispose();
     translationMode.dispose();
     readingProgress.dispose();
     _syncRefreshRetry?.cancel();
@@ -2554,9 +2689,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             : widget.cfi ?? widget.book.lastReadPosition;
 
     return Listener(
-      onPointerSignal: (event) {
-        _handlePointerEvents(event);
-      },
+      onPointerSignal: _handlePointerEvents,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         body: Stack(

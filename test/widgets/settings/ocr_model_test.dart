@@ -136,14 +136,16 @@ void main() {
       expect(stores.every((store) => store.downloads == 0), isTrue);
       expect(find.byType(Card), findsNWidgets(4));
       await tester
-          .ensureVisible(find.byKey(const ValueKey('ocr-source-upstream')));
-      await tester.tap(find.byKey(const ValueKey('ocr-source-upstream')));
-      await tester.pumpAndSettle();
-      await tester.tap(find
-          .text(locale.languageCode == 'zh' ? 'Gitee 镜像' : 'Gitee mirror')
-          .last);
+          .ensureVisible(find.byKey(const ValueKey('ocr-source-gitee')));
+      await tester.tap(find.byKey(const ValueKey('ocr-source-gitee')));
       await tester.pumpAndSettle();
       expect(Prefs().ocrModelDownloadSource, 'gitee');
+      expect(
+          tester
+              .widget<ChoiceChip>(
+                  find.byKey(const ValueKey('ocr-source-gitee')))
+              .selected,
+          true);
       final download =
           find.byKey(const ValueKey('ocr-download-ppocr-v5-mobile-1'));
       await tester.ensureVisible(download);
@@ -170,6 +172,11 @@ void main() {
     await tester.tap(download);
     await tester.pump();
     expect(store.token?.isCancelled, isFalse);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('ocr-source-gitee')))
+            .onSelected,
+        isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
     expect(store.token?.isCancelled, isTrue);
@@ -235,6 +242,7 @@ void main() {
     final model = OcrModels.all[1], store = stores[OcrModels.all[1].id]!;
     final use = find.byKey(ValueKey('ocr-use-${model.id}'));
     await tester.ensureVisible(use);
+    await tester.pumpAndSettle();
     await tester.tap(use);
     await tester.pumpAndSettle();
     expect(Prefs().ocrModelId, model.id);
@@ -259,6 +267,7 @@ void main() {
     final selected = Prefs().ocrModelId,
         download = find.byKey(ValueKey('ocr-download-${store.model.id}'));
     await tester.ensureVisible(download);
+    await tester.pumpAndSettle();
     await tester.tap(download);
     await tester.pump();
     final cancel = find.byKey(ValueKey('ocr-cancel-${store.model.id}'));
@@ -287,8 +296,9 @@ void main() {
       await show(tester, (m) => FakeOcrStore(m)..ready = true,
           locale: const Locale('en'), scale: 1.5);
       for (final model in OcrModels.all) {
-        await tester
-            .ensureVisible(find.byKey(ValueKey('ocr-delete-${model.id}')));
+        await tester.scrollUntilVisible(
+            find.byKey(ValueKey('ocr-delete-${model.id}')), 200,
+            scrollable: find.byType(Scrollable).first);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }

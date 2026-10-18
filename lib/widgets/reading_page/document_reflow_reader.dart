@@ -1,6 +1,8 @@
+import 'ocr_precache_settings.dart';
+import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
-import 'dart:convert';
+import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/book_note.dart';
@@ -33,6 +35,8 @@ class DocumentReflowReader extends StatefulWidget {
   const DocumentReflowReader(
       {super.key,
       required this.store,
+      this.precache,
+      this.onSourcePageChanged,
       required this.info,
       required this.extractText,
       required this.render,
@@ -70,6 +74,8 @@ class DocumentReflowReader extends StatefulWidget {
   final Widget? brightness;
   final List<Widget> readerActions;
   final DocumentReflowStore store;
+  final DocumentOcrPrecache? precache;
+  final void Function(int page, int total)? onSourcePageChanged;
   final Future<Map<String, dynamic>> Function(int?) info;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>) extractText,
       render;
@@ -168,6 +174,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   int? get _navigationPage => _requestedPage ?? _page?.page;
   Future<void>? _pendingLoad;
   bool _busy = false, _needsModel = false;
+  bool _ownsRenderer = false;
   String? _error, _shownSelection;
   TextSelection _observedSelection = const TextSelection.collapsed(offset: -1);
   Timer? _selectionTimer;
@@ -202,8 +209,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _selectionTimer?.cancel();
     _mouseLongPressTimer?.cancel();
     _menuTapTimer?.cancel();
-    _cancel?.cancel();
-    widget.cancelRender();
+    cancelLoading();
     _controller.dispose();
     _search.dispose();
     _scroll.dispose();
@@ -251,8 +257,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   Future<void> navigate(DocumentReflowAnchor anchor) async {
     if (_busy) {
-      _cancel?.cancel();
-      widget.cancelRender();
+      cancelLoading();
     }
     _forceOcr = anchor.ocr;
     await _load(anchor.page, anchor: anchor);
@@ -295,7 +300,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   void cancelLoading() {
     _cancel?.cancel();
-    widget.cancelRender();
+    if (_ownsRenderer) widget.cancelRender();
+  }
+
+  Future<void> stopLoading() async {
+    cancelLoading();
+    await _pendingLoad;
   }
 
   Future<void> turnOriginalPage(int direction) async {
@@ -471,101 +481,54 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       }
       _requestedPage = page;
       _total = total;
-      // Bounds are original-page coordinates resolved by the same crop logic
-      // as the PDF/image reader. No region picker for either reflow command.
-      final sourceRegion = info['region'] as Map? ??
-          const {'x': 0, 'y': 0, 'width': 1, 'height': 1};
-      final region = <String, double>{};
-      for (final name in ['x', 'y', 'width', 'height']) {
-        final value = sourceRegion[name];
-        if (value is! num || !value.isFinite) {
-          throw const FormatException('Invalid reflow bounds');
+      Future<DocumentReflowPage> load() async {
+        check();
+        _ownsRenderer = true;
+        try {
+          return await loadDocumentReflowPage(
+              info: info,
+              store: widget.store,
+              model: model,
+              cancel: cancel,
+              anchor: anchor,
+              forceOcr: _forceOcr,
+              refresh: refresh,
+              extract: widget.extractText,
+              render: widget.render,
+              recognize: (bytes, token, progress) =>
+                  widget.recognizeWithRegions?.call(bytes, token, progress) ??
+                  (widget.recognize != null
+                      ? widget.recognize!(bytes, token, progress)
+                          .then(DocumentTextResult.new)
+                      : LocalOcrService().recognizeWithRegions(
+                          bytes, model, token,
+                          progress: progress)),
+              progress: (n, total) {
+                if (active()) {
+                  setState(() => _progress = total > 0 ? n / total : null);
+                }
+              });
+        } finally {
+          _ownsRenderer = false;
         }
-        region[name] = value.toDouble();
       }
-      if (region['x']! < 0 ||
-          region['y']! < 0 ||
-          region['width']! <= 0 ||
-          region['height']! <= 0 ||
-          region['x']! + region['width']! > 1 + 1e-9 ||
-          region['y']! + region['height']! > 1 + 1e-9) {
-        throw const FormatException('Invalid reflow bounds');
-      }
-      final hideWatermarks = info['hideWatermarks'] == true;
-      final profile =
-          'reflow-v4:${_forceOcr ? 'ocr' : 'text'}:${model.model.id}:${model.model.revision}:${jsonEncode(region)}:$hideWatermarks';
-      var result = refresh
+
+      final cached = refresh
           ? null
           : anchor == null
-              ? await widget.store.read(page, profile)
+              ? await widget.store.read(page, '')
               : await widget.store.readAnchor(anchor);
       check();
-      if (result == null) {
-        var text = '', usedOcr = false;
-        var geometry = <DocumentTextRegion>[];
-        final request = <String, dynamic>{
-          'page': page,
-          'region': region,
-          'hideWatermarks': hideWatermarks,
-        };
-        if (!_forceOcr) {
-          final result =
-              DocumentTextResult.decode(await widget.extractText(request));
-          text = result.text;
-          geometry = result.regions;
-          check();
-        }
-        if (text.trim().isEmpty) {
-          if (!await model.available()) {
-            check();
-            setState(() => _needsModel = true);
-            return;
-          }
-          check();
-          usedOcr = true;
-          final image = await widget.render(
-              {...request, 'width': 2048, 'height': 2048, 'rotation': 0});
-          check();
-          const prefix = 'data:image/png;base64,';
-          final data = image['dataUrl'];
-          if (data is! String ||
-              !data.startsWith(prefix) ||
-              data.length > 16000000) {
-            throw const FormatException('Invalid page image');
-          }
-          void progress(int n, int total) {
-            if (active()) {
-              setState(() => _progress = total > 0 ? n / total : null);
-            }
-          }
-
-          final bytes = base64Decode(data.substring(prefix.length));
-          final recognized = await (widget.recognizeWithRegions
-                  ?.call(bytes, cancel, progress) ??
-              (widget.recognize != null
-                  ? widget.recognize!(bytes, cancel, progress)
-                      .then(DocumentTextResult.new)
-                  : LocalOcrService().recognizeWithRegions(bytes, model, cancel,
-                      progress: progress)));
-          final result = recognized.within(DocumentImageRect(
-              region['x']!, region['y']!, region['width']!, region['height']!));
-          text = result.text;
-          geometry = result.regions;
-          check();
-        }
-        if (text.trim().isEmpty || text.length > 1000000) {
-          throw const FormatException('No usable text');
-        }
-        result = DocumentReflowPage(
-            page: page, ocr: usedOcr, rawText: text, rawRegions: geometry);
-        await widget.store.save(result, profile);
-        check();
-      }
+      final result = cached ??
+          await (widget.precache?.runForeground<DocumentReflowPage>(load) ??
+              load());
+      check();
       final notes = await widget.loadNotes();
       check();
       // Commit page and reader progress together only after successful loading.
       await widget.onPageChanged(page);
       check();
+      widget.onSourcePageChanged?.call(page, total);
       _page = result;
       _notes = notes;
       _controller.text = result.text;
@@ -573,7 +536,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       _controller.paragraphSpacing = _style.paragraphSpacing;
       _shownSelection = null;
       setState(() {
-        if (anchor != null && !anchor.matches(result!)) {
+        if (anchor != null && !anchor.matches(result)) {
           _error = t('已返回原书页码，但重排文字版本不同，未强行定位标注。',
               'Returned to the source page. Text has changed; the annotation was not applied to a different passage.');
         }
@@ -581,12 +544,14 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!active()) return;
         if (_scroll.hasClients) _scroll.jumpTo(0);
-        if (anchor != null && anchor.matches(result!)) {
+        if (anchor != null && anchor.matches(result)) {
           _controller.selection =
               TextSelection(baseOffset: anchor.start, extentOffset: anchor.end);
           _textState?.bringIntoView(TextPosition(offset: anchor.start));
         }
       });
+    } on ReflowModelUnavailable {
+      if (active()) setState(() => _needsModel = true);
     } catch (_) {
       if (active()) {
         setState(() => _error = t('本页重排失败，已保留原阅读位置。请重试、用左右箭头切换页面或返回原页。',
@@ -630,6 +595,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _forceOcr = true;
     closeMenu();
     await _load(page, refresh: true);
+    _forceOcr = false;
   }
 
   Widget _readerPanel(String menu) => switch (menu) {
@@ -650,12 +616,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         _ => Column(mainAxisSize: MainAxisSize.min, children: [
             Text(t('PDF / OCR', 'PDF / OCR'),
                 style: Theme.of(context).textTheme.titleLarge),
-            SwitchListTile(
-                title: Text(t('强制 OCR', 'Force OCR')),
-                subtitle: Text(t('仅在本页无缓存时生效；已有文字不会自动覆盖',
-                    'Only used when this page has no saved text; existing results are not overwritten')),
-                value: _forceOcr,
-                onChanged: _busy ? null : (v) => setMode(v)),
+            OcrPrecacheSettings(cache: widget.precache),
             ListTile(
                 key: const ValueKey('edit-saved-page'),
                 leading: const Icon(Icons.edit_note),
@@ -947,28 +908,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
             icon: const Icon(Icons.arrow_back),
             label: Text(t('原页', 'Original'))),
         Expanded(
-            child: DropdownButtonHideUnderline(
-                child: DropdownButton<bool>(
-                    key: const ValueKey('reflow-mode'),
-                    value: _forceOcr,
-                    isExpanded: true,
-                    items: [
-                      DropdownMenuItem(
-                          value: false,
-                          child: Text(t('文字重排', 'Reflow text'),
-                              maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      DropdownMenuItem(
-                          value: true,
-                          child: Text(t('OCR 重排', 'OCR reflow'),
-                              maxLines: 1, overflow: TextOverflow.ellipsis))
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (value) {
-                            if (value != null && value != _forceOcr) {
-                              unawaited(setMode(value));
-                            }
-                          }))),
+            child: Text(t('文字重排', 'Reflow text'),
+                key: const ValueKey('reflow-mode'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis)),
         if (widget.onOpenReaderMenu == null)
           PopupMenuButton<String>(
             key: const ValueKey('reflow-more'),
@@ -1065,6 +1008,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
           children: [
             IconButton(
                 key: const ValueKey('reflow-previous'),
+                iconSize: 36,
+                constraints:
+                    const BoxConstraints.tightFor(width: 56, height: 56),
+                visualDensity: VisualDensity.standard,
                 tooltip: t('上一原页', 'Previous original page'),
                 onPressed: !_busy && (_navigationPage ?? 0) > 0
                     ? () => turnOriginalPage(-1)
@@ -1077,6 +1024,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                     child: Text('${(_navigationPage ?? 0) + 1} / $_total'))),
             IconButton(
                 key: const ValueKey('reflow-next'),
+                iconSize: 36,
+                constraints:
+                    const BoxConstraints.tightFor(width: 56, height: 56),
+                visualDensity: VisualDensity.standard,
                 tooltip: t('下一原页', 'Next original page'),
                 onPressed: !_busy &&
                         _navigationPage != null &&
@@ -1086,11 +1037,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                 icon: const Icon(Icons.chevron_right)),
             if (_busy)
               TextButton(
-                  onPressed: () {
-                    _cancel?.cancel();
-                    widget.cancelRender();
-                  },
-                  child: Text(t('停止', 'Stop'))),
+                  onPressed: cancelLoading, child: Text(t('停止', 'Stop'))),
             if (_needsModel && !_busy)
               TextButton(
                   onPressed: _settings,

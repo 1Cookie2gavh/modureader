@@ -45,11 +45,10 @@ void main() {
   }
 
   Future<void> choose(WidgetTester tester, String id, String text) async {
-    final picker = find.byKey(ValueKey(id));
+    final picker = find.descendant(
+        of: find.byKey(ValueKey(id)), matching: find.text(text));
     await tester.ensureVisible(picker);
     await tester.tap(picker);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(text).last);
     await tester.pumpAndSettle();
   }
 
@@ -65,11 +64,11 @@ void main() {
     await show(tester, c);
     expect(
         tester
-            .widget<DropdownButton<UpdateSource>>(
-                find.byKey(const ValueKey('update-source')))
-            .value,
-        UpdateSource.github);
-    expect(find.byType(DropdownButton<UpdateSource>), findsOneWidget);
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('update-source-github')))
+            .selected,
+        true);
+    expect(find.byType(DropdownButton<UpdateSource>), findsNothing);
     await choose(tester, 'update-source', 'Gitee');
     await tester.ensureVisible(find.text('Check for updates'));
     await tester.tap(find.text('Check for updates'));
@@ -77,11 +76,11 @@ void main() {
     expect(t.checkRequests, [UpdateSource.gitee]);
     expect(
         tester
-            .widget<DropdownButton<UpdateSource>>(
-                find.byKey(const ValueKey('update-source')))
-            .value,
-        UpdateSource.gitee);
-    expect(find.byType(DropdownButton<UpdateSource>), findsOneWidget);
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('update-source-gitee')))
+            .selected,
+        true);
+    expect(find.byType(DropdownButton<UpdateSource>), findsNothing);
     expect(find.byKey(const ValueKey('update-download-source')), findsNothing);
     expect(c.source, UpdateSource.gitee);
     t.gate = Completer<UpdateRelease>();
@@ -89,9 +88,9 @@ void main() {
     await tester.pump();
     expect(
         tester
-            .widget<DropdownButton<UpdateSource>>(
-                find.byKey(const ValueKey('update-source')))
-            .onChanged,
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('update-source-gitee')))
+            .onSelected,
         isNull);
     t.gate!.complete(t.value);
     await pending;
@@ -100,7 +99,7 @@ void main() {
   });
 
   testWidgets(
-      'macOS dropdown sends chosen Gitee URL to browser on narrow screens',
+      'macOS source choice sends chosen Gitee URL to browser on narrow screens',
       (tester) async {
     final t = FakeTransport()
       ..value = const UpdateRelease(
@@ -174,10 +173,10 @@ void main() {
     expect(c.source, UpdateSource.gitee);
     expect(
         tester
-            .widget<DropdownButton<UpdateSource>>(
-                find.byKey(const ValueKey('update-source')))
-            .value,
-        UpdateSource.gitee);
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('update-source-gitee')))
+            .selected,
+        true);
     expect(find.text('Download update'), findsOneWidget);
     expect(find.text('Install update'), findsNothing);
   });

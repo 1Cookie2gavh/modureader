@@ -1177,6 +1177,23 @@ class Prefs extends ChangeNotifier {
 
   String get ocrModelId =>
       OcrModels.byId(prefs.getString('ocrModelId') ?? '').id;
+  bool get ocrPrecacheEnabled => prefs.getBool('ocrPrecacheEnabled') ?? false;
+  int get ocrPrecachePages =>
+      (prefs.getInt('ocrPrecachePages') ?? 3).clamp(1, 5);
+  Future<void> saveOcrPrecache({bool? enabled, int? pages}) async {
+    if (pages != null && (pages < 1 || pages > 5)) {
+      throw ArgumentError.value(pages);
+    }
+    if (enabled != null &&
+        !await prefs.setBool('ocrPrecacheEnabled', enabled)) {
+      throw StateError('Could not save OCR prefetch');
+    }
+    if (pages != null && !await prefs.setInt('ocrPrecachePages', pages)) {
+      throw StateError('Could not save OCR prefetch');
+    }
+    notifyListeners();
+  }
+
   String get ocrModelDownloadSource =>
       prefs.getString('ocrModelDownloadSource') == 'gitee'
           ? 'gitee'

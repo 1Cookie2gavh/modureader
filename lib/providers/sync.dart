@@ -32,6 +32,7 @@ import 'package:anx_reader/service/sync/replaced_book_files.dart';
 import 'package:anx_reader/service/sync/local_book_download.dart';
 import 'package:anx_reader/service/sync/converted_book_checksum.dart';
 import 'package:anx_reader/service/sync/book_file_sync.dart';
+import 'package:anx_reader/service/sync/document_reflow_sync.dart';
 import 'package:anx_reader/service/sync/sync_asset_listing.dart';
 import 'package:anx_reader/service/sync/sync_maintenance_schedule.dart';
 import 'package:anx_reader/utils/get_path/get_cache_dir.dart';
@@ -268,12 +269,14 @@ class Sync extends _$Sync {
       RuntimeDiagnostics.record(
           completed ? RuntimeEvent.syncComplete : RuntimeEvent.syncPending,
           durationMs: diagnosticTimer.elapsedMilliseconds);
-    } catch (e) {
+    } catch (e, stack) {
       RuntimeDiagnostics.record(RuntimeEvent.syncFailed,
           durationMs: diagnosticTimer.elapsedMilliseconds);
       // Avoid logging DioException.toString(): it can contain private URLs.
       AnxLog.warning(
-          'Sync incomplete: ${syncFailureDiagnostic(e)}, automatic=$automatic');
+          'Sync incomplete: ${syncFailureDiagnostic(e)}, automatic=$automatic',
+          null,
+          stack);
       // Intentional pause/cancellation is not a failed synchronization. Final
       // automatic network failures are reported only after preflight retries.
       if (automatic && (!_autoSyncAllowed || !(shouldStart?.call() ?? true))) {
@@ -392,6 +395,11 @@ class Sync extends _$Sync {
       if (hasPendingChanges) await _pendingSync.request();
 
       await syncFiles(assetListing: assetListing);
+      await DocumentReflowSync(
+        client: client,
+        cache: await getAnxCacheDir(),
+        durableDirectory: await getAnxDataBasesDir(),
+      ).sync(await bookDao.selectNotDeleteBooks());
       await this
           .ref
           .read(syncStatusProvider.notifier)
@@ -675,6 +683,14 @@ class Sync extends _$Sync {
     final syncStatus = await ref.read(syncStatusProvider.future);
 
     Future<void> deleteLocalBook() async {
+      final client = _syncClient;
+      if (client != null) {
+        await DocumentReflowSync(
+          client: client,
+          cache: await getAnxCacheDir(),
+          durableDirectory: await getAnxDataBasesDir(),
+        ).sync([book]);
+      }
       await io.File(getBasePath(book.filePath)).delete();
     }
 
@@ -758,6 +774,26 @@ class Sync extends _$Sync {
       final remotePath = SyncPaths.data(book.filePath);
       final localPath = getBasePath(book.filePath);
       await downloadFile(remotePath, localPath, expectedMd5: book.md5);
+      try {
+        final client = _syncClient;
+        if (client != null) {
+          await DocumentReflowSync(
+            client: client,
+            cache: await getAnxCacheDir(),
+            durableDirectory: await getAnxDataBasesDir(),
+          ).sync([book]);
+        }
+      } catch (error) {
+        // Keep a successful original download; retry only its optional OCR data.
+        await _pendingSync.request();
+        _retryPendingSyncLater();
+        AnxLog.warning(
+            'Downloaded book OCR cache deferred: ${error.runtimeType}');
+        AnxToast.show(ModuStrings.text(
+            navigatorKey.currentContext!,
+            '书籍已下载，OCR 缓存同步失败，将在下次同步重试。',
+            'Book downloaded. OCR cache transfer will retry on the next sync.'));
+      }
       if (DocumentReadingMode.supportsImageBook(book.filePath)) {
         try {
           await getBookMetadata(io.File(localPath),

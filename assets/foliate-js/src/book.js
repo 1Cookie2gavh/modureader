@@ -1153,14 +1153,17 @@ class Reader {
     const documentMode = resolveDocumentReadingMode(this.view.book, settings?.mode)
     this.view.scannedImageDocument = documentMode === 'image-epub'
     if (documentMode === 'image-epub') {
-      if (settings?.enabled) await this.view.setImageReading(true, {...settings,cfi}, () => setStyle())
+      await this.view.setImageReading(true, {...settings,cfi,
+        layout:settings?.enabled ? settings.layout : {version:1,pages:{}}}, () => setStyle())
     }
     if (documentMode === 'pdf') {
+      this.view.renderer.setPdfPageViews?.(settings?.pageViews)
       if (settings?.view) {
         try { this.view.renderer.setPdfView(settings.view) } catch (_) { /* ignore invalid saved view */ }
       }
-      if (settings?.layout) await this.view.renderer.setPdfLayout(settings.layout,
-        settings.enabled, settings.cfi === cfi ? settings.position : null)
+      if (settings?.layout) await this.view.renderer.setPdfLayout(
+        settings.enabled ? settings.layout : {version:1,pages:{}},
+        true, settings.cfi === cfi ? settings.position : null)
     }
     // init owns initial navigation. A second, unawaited next() can skip the
     // first spread (and race with the first iframe load) in fixed-layout books.
@@ -2054,12 +2057,16 @@ window.setDocumentReaderActive = active => {
 }
 window.setPdfReadingView = value => reader?.view?.renderer?.setPdfView?.(value) ?? false
 window.panPdfReadingView = (dx, dy) => reader?.view?.renderer?.panPdfView?.(dx, dy) ?? false
+window.zoomPdfReadingView = (zoom, reset) => reader?.view?.renderer?.zoomPdfView?.(zoom, reset) ?? false
+window.setPdfBoxZoom = enabled => reader?.view?.renderer?.setPdfBoxZoom?.(enabled) ?? false
 window.setPdfReadingLayout = async (config, enabled, view) => {
-  if (reader?.view?.book?.resources || reader?.view?.book?.imageDocumentSource) return reader.view.setImageReading(enabled,
-    {layout:config,view}, () => setStyle())
+  // Disabling crop keeps zoom available without silently re-enabling saved crops.
+  const layout = enabled ? config : {version:1,pages:{}}
+  if (reader?.view?.book?.resources || reader?.view?.book?.imageDocumentSource) return reader.view.setImageReading(true,
+    {layout,view}, () => setStyle())
   const renderer = reader?.view?.renderer
   if (!renderer?.setPdfLayout) return false
-  return renderer.setPdfLayout(config, enabled)
+  return renderer.setPdfLayout(layout, true)
 }
 // Explicit preview session: no edits to sections, source files, CFIs or the
 // main reader's position. Closing invalidates pending bridge encodings too.

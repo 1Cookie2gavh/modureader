@@ -24,6 +24,7 @@ class DocumentReaderSurface extends StatefulWidget {
       this.brightness,
       this.narration,
       this.readerContentOnly = false,
+      this.inlineTools = false,
       this.hideHeader = false,
       this.onMenuOpened,
       this.onBack});
@@ -31,7 +32,7 @@ class DocumentReaderSurface extends StatefulWidget {
   final List<Widget> actions;
   final Map<String, Widget> extraMenus;
   final Widget? brightness, narration;
-  final bool readerContentOnly;
+  final bool readerContentOnly, inlineTools;
   final bool hideHeader;
   final VoidCallback? onMenuOpened, onBack;
 
@@ -47,6 +48,7 @@ class DocumentReaderSurfaceState extends State<DocumentReaderSurface> {
   }
 
   void openMenu(String menu, {bool toggle = true}) {
+    if (widget.inlineTools && menu != 'narration') return;
     widget.onMenuOpened?.call();
     setState(() => _menu = toggle && _menu == menu ? null : menu);
   }
@@ -90,6 +92,34 @@ class DocumentReaderSurfaceState extends State<DocumentReaderSurface> {
         String label(String menu, String zh, String en) => _menu == menu
             ? ModuStrings.text(context, '收起菜单', 'Hide menu')
             : ModuStrings.text(context, zh, en);
+        if (widget.inlineTools) {
+          return Material(
+              color: background,
+              child: SafeArea(
+                  child: Column(children: [
+                readingColors(widget.header),
+                Expanded(flex: 5, child: readingColors(widget.body)),
+                widget.navigation,
+                Expanded(
+                    flex: 4,
+                    child: ScrollConfiguration(
+                        behavior: const MaterialScrollBehavior()
+                            .copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(children: [
+                              if (widget.narration != null) ...[
+                                IconButton(
+                                    tooltip:
+                                        label('narration', '朗读', 'Read aloud'),
+                                    icon: const Icon(EvaIcons.headphones),
+                                    onPressed: () => openMenu('narration')),
+                                if (_menu == 'narration') widget.narration!,
+                              ],
+                              widget.tools,
+                            ])))),
+              ])));
+        }
         final toolbar = ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
             child: Row(

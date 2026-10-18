@@ -1,4 +1,7 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/service/document_reader_rotation.dart';
+import 'package:anx_reader/widgets/reading_page/document_style_widget.dart';
+import 'package:anx_reader/widgets/reading_page/pdf_zoom_toolbar.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:async';
 import 'package:anx_reader/models/reader_shortcuts.dart';
@@ -102,6 +105,8 @@ final epubPlayerKey = GlobalKey<EpubPlayerState>();
 class ReadingPageState extends ConsumerState<ReadingPage>
     with WidgetsBindingObserver, TickerProviderStateMixin, RouteAware {
   final _reflowKey = GlobalKey<DocumentReflowReaderState>();
+  final _documentRotation = DocumentReaderRotation();
+  Future<void> setDocumentRotation(int angle) => _documentRotation.set(angle);
   bool? _reflowOcr;
   DocumentReflowAnchor? _reflowAnchor;
   DocumentReflowReaderState? get reflowReader => _reflowKey.currentState;
@@ -115,6 +120,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       reflowReader?.cancelLoading();
       player.removeOverlay();
       try {
+        await player.pauseDocumentOcrCache();
+        await reflowReader?.stopLoading();
+        if (!mounted) return;
         await showDialog<void>(
             context: context,
             builder: (_) => DocumentOriginalNote(
@@ -126,6 +134,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                     : player.cancelPdfRegionRender()));
       } finally {
         _viewingOriginalNote = false;
+        player.resumeDocumentOcrCache();
       }
       return;
     }
@@ -151,6 +160,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       _reflowAnchor = null;
     });
     epubPlayerKey.currentState?.refreshReadingTheme();
+    epubPlayerKey.currentState?.resumeDocumentOcrCache();
     _restoreReaderFocusAfterPanel();
   }
 
@@ -219,6 +229,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             }),
       ],
       store: DocumentReflowStore(player.cssBookKey),
+      precache: player.ocrPrecache,
+      onSourcePageChanged: player.updateDocumentOcrCachePage,
       forceOcr: _reflowOcr!,
       anchor: _reflowAnchor,
       initialStyle: styles.read(player.cssBookKey),
@@ -486,8 +498,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
-  // late final VolumeKeyBoard _volumeKeyBoard;
-  // bool _volumeKeyListenerAttached = false;
 
   @override
   void initState() {
@@ -535,11 +545,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
     _book = widget.book;
     heroTag = widget.heroTag ?? 'preventHeroWhenStart';
-    // _volumeKeyBoard = VolumeKeyBoard.instance;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _requestReaderFocus();
-        // _attachVolumeKeyListener();
       }
     });
     // delay 1000ms to prevent hero animation
@@ -557,6 +565,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   @override
   void dispose() {
+    unawaited(_documentRotation.close().catchError((Object error) {
+      AnxLog.warning('Reader rotation restore failed: ${error.runtimeType}');
+    }));
     epubPlayerKey.currentState?.detachNarration();
     FocusManager.instance.removeListener(_updatePageKeys);
     _pageKeys.dispose();
@@ -578,9 +589,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     );
     _sessionStart = null;
     audioHandler.stop();
-    // if (_volumeKeyListenerAttached) {
-    //   unawaited(_volumeKeyBoard.removeListener());
-    // }
     _readerFocusNode.dispose();
     _readerWebViewFocusScope.dispose();
     super.dispose();
@@ -640,32 +648,6 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       _readerFocusNode.unfocus();
     }
   }
-
-  // Future<void> _attachVolumeKeyListener() async {
-  //   if (defaultTargetPlatform != TargetPlatform.iOS ||
-  //       _volumeKeyListenerAttached) {
-  //     return;
-  //   }
-
-  //   try {
-  //     await _volumeKeyBoard.addListener(_handleVolumeKeyEvent);
-  //     _volumeKeyListenerAttached = true;
-  //   } catch (error) {
-  //     debugPrint('Failed to attach volume key listener: $error');
-  //   }
-  // }
-
-  // void _handleVolumeKeyEvent(VolumeKey key) {
-  //   if (!Prefs().volumeKeyTurnPage || !_readerFocusNode.hasFocus) {
-  //     return;
-  //   }
-
-  //   if (key == VolumeKey.up) {
-  //     epubPlayerKey.currentState?.prevPage();
-  //   } else if (key == VolumeKey.down) {
-  //     epubPlayerKey.currentState?.nextPage();
-  //   }
-  // }
 
   KeyEventResult _handleReaderKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
@@ -783,6 +765,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     final reader = epubPlayerKey.currentState;
     if (reader != null) {
       unawaited(reader.setTtsBackground(state != AppLifecycleState.resumed));
+      if (state == AppLifecycleState.resumed) {
+        reader.resumeDocumentOcrCache();
+      } else {
+        unawaited(reader.pauseDocumentOcrCache());
+      }
     }
     _updateReadingSync();
     switch (state) {
@@ -922,6 +909,22 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         hideAppBarAndBottomBar: showOrHideAppBarAndBottomBar,
       );
     });
+  }
+
+  Future<void> _documentPanel({required bool textOnly}) async {
+    if (!mounted) return;
+    if (!textOnly && isReflowReading) await closeDocumentReflow();
+    final player = epubPlayerKey.currentState;
+    if (!mounted || player == null) return;
+    showBottomBar();
+    setState(() => _currentPage = DocumentStyleWidget(
+          key: ValueKey('document-$textOnly'),
+          player: player,
+          textOnly: textOnly,
+          openReflow: (ocr) =>
+              openDocumentExtraction(reflow: true, forceOcr: ocr),
+          openExtraction: () => openDocumentExtraction(),
+        ));
   }
 
   Future<void> ttsHandler() async {
@@ -1207,6 +1210,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     if (player == null || !player.supportsDocumentImages) return;
     final bookKey = player.cssBookKey;
     hideBottomBar();
+    if (!reflow) {
+      await player.pauseDocumentOcrCache();
+      await reflowReader?.stopLoading();
+    }
+    if (!mounted) return;
     if (reflow) {
       await audioHandler.stop();
       if (!mounted || epubPlayerKey.currentState?.cssBookKey != bookKey) return;
@@ -1250,6 +1258,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       )),
     ));
     if (!mounted || epubPlayerKey.currentState?.cssBookKey != bookKey) return;
+    player.resumeDocumentOcrCache();
     if (!isReflowReading) player.refreshReadingTheme();
     if (text == null || text.trim().isEmpty) {
       _restoreReaderFocusAfterPanel();
@@ -1386,6 +1395,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
 
   @override
   Widget build(BuildContext context) {
+    final documentPlayer = epubPlayerKey.currentState;
+    final documentMenu =
+        !isReflowReading && documentPlayer?.supportsDocumentImages == true;
+    final documentSettings = _currentPage is DocumentStyleWidget;
     // Route changes (including dialogs), AI panels and settings must release
     // native keys; none of these depend on the WebView's Flutter focus node.
     _updatePageKeys();
@@ -1540,16 +1553,19 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                 BottomSheet(
                   onClosing: () {},
                   enableDrag: false,
-                  constraints: _currentPage is StyleWidget || isReflowReading
+                  constraints: _currentPage is StyleWidget ||
+                          isReflowReading ||
+                          documentSettings
                       ? ReaderPopup.constraints(context)
                       : null,
                   builder: (context) => SafeArea(
                     top: false,
                     child: Container(
-                      constraints:
-                          _currentPage is StyleWidget || isReflowReading
-                              ? ReaderPopup.constraints(context)
-                              : const BoxConstraints(maxWidth: 600),
+                      constraints: _currentPage is StyleWidget ||
+                              isReflowReading ||
+                              documentSettings
+                          ? ReaderPopup.constraints(context)
+                          : const BoxConstraints(maxWidth: 600),
                       padding: EdgeInsets.only(
                         bottom: AnxPlatform.isMobile ? 16 : 0,
                       ),
@@ -1566,18 +1582,37 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.toc),
+                                tooltip:
+                                    ModuStrings.text(context, '目录', 'Contents'),
                                 onPressed: tocHandler,
                               ),
                               IconButton(
                                 icon: const Icon(EvaIcons.edit),
+                                tooltip:
+                                    ModuStrings.text(context, '笔记', 'Notes'),
                                 onPressed: noteHandler,
                               ),
                               IconButton(
-                                icon: const Icon(Icons.color_lens),
+                                icon: Icon(documentMenu
+                                    ? Icons.text_fields
+                                    : Icons.color_lens),
+                                tooltip: documentMenu
+                                    ? ModuStrings.text(context, '文字', 'Text')
+                                    : null,
                                 onPressed: () {
-                                  styleHandler();
+                                  documentMenu
+                                      ? _documentPanel(textOnly: true)
+                                      : styleHandler();
                                 },
                               ),
+                              if (documentMenu)
+                                IconButton(
+                                  tooltip:
+                                      ModuStrings.text(context, '页面', 'Page'),
+                                  icon: const Icon(Icons.crop_rotate),
+                                  onPressed: () =>
+                                      _documentPanel(textOnly: false),
+                                ),
                               IconButton(
                                 tooltip: L10n.of(context).readingBrightness,
                                 icon: const Icon(Icons.brightness_6_outlined),
@@ -1595,31 +1630,26 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                                   });
                                 },
                               ),
-                              if (!isReflowReading)
+                              if (!isReflowReading && !documentMenu)
                                 IconButton(
                                   icon: const Icon(EvaIcons.headphones),
                                   onPressed: ttsHandler,
                                 ),
-                              if (epubPlayerKey
-                                      .currentState?.supportsDocumentImages ==
-                                  true)
+                              if (isReflowReading)
                                 IconButton(
-                                  tooltip: ModuStrings.text(
-                                      context, '提取', 'Extract'),
+                                  tooltip: ModuStrings.text(context, '识别 / 原页',
+                                      'Recognition / original page'),
                                   icon: const Icon(
                                       Icons.document_scanner_outlined),
-                                  onPressed: () {
-                                    if (isReflowReading) {
-                                      reflowReader?.openToolsMenu();
-                                    } else {
-                                      openDocumentExtraction();
-                                    }
-                                  },
+                                  onPressed: () =>
+                                      reflowReader?.openToolsMenu(),
                                 ),
                             ],
                           );
                           // Short settings fit their content; long ones scroll.
-                          return content is StyleWidget || isReflowReading
+                          return content is StyleWidget ||
+                                  isReflowReading ||
+                                  documentSettings
                               ? ReaderQuickStylePanel(
                                   content: content, toolbar: toolbar)
                               : IntrinsicHeight(
@@ -1851,9 +1881,24 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                     ],
                   ),
                   controller,
+                  if (documentMenu &&
+                      !isReflowReading &&
+                      bottomBarOffstage &&
+                      _aiChat == null)
+                    Positioned.fill(
+                        child: PdfZoomToolbar(
+                      zoom: documentPlayer!.pdfZoom,
+                      change: documentPlayer.zoomPdfReadingView,
+                      boxZoom: AnxPlatform.isDesktop
+                          ? documentPlayer.setPdfBoxZoom
+                          : null,
+                    )),
                   // Paint controls above the book without changing WebView
                   // dimensions, pagination or reader margins.
-                  if (!isReflowReading && bottomBarOffstage && _aiChat == null)
+                  if (!documentMenu &&
+                      !isReflowReading &&
+                      bottomBarOffstage &&
+                      _aiChat == null)
                     Positioned.fill(
                       child: TtsQuickToolbar(
                         floating: true,

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- audio_service resolves this notification icon by name at runtime. -->
+<!-- audio_service resolves notification and transport icons by name at runtime.
+     Dart string references are invisible to the Android resource shrinker. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_read_aloud,@drawable/ic_stat_tts_exit" />
+    tools:keep="@drawable/ic_stat_read_aloud,@drawable/ic_stat_tts_exit,@drawable/audio_service_pause,@drawable/audio_service_play_arrow,@drawable/audio_service_skip_next,@drawable/audio_service_skip_previous" />

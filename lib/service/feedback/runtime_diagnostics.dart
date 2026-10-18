@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'detailed_runtime_log.dart';
 
 /// Current-process diagnostics only. No free-form messages or persisted history.
 enum RuntimeEvent {
@@ -58,6 +59,7 @@ class RuntimeDiagnostics {
   };
 
   static void start(String version) {
+    DetailedRuntimeLog.clear();
     _events.clear();
     _clock
       ..reset()
@@ -87,5 +89,5 @@ class RuntimeDiagnostics {
       'Modu: $_version\nPlatform: ${Platform.operatingSystem}\n'
       'Current session only; last 300 events. Cleared on every app restart.\n'
       'Elapsed time, operation states, duration and sampled RSS; no content, paths, URLs or credentials.\n'
-      '${_events.map(jsonEncode).join('\n')}';
+      '${_events.map(jsonEncode).join('\n')}\n${DetailedRuntimeLog.preview()}';
 }

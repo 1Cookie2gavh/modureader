@@ -275,6 +275,12 @@ class _OtherSettingsState extends State<OtherSettings> {
       return ListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(L10n.of(context).readingPageVolumeKeyTurnPage),
+        subtitle: AnxPlatform.isIOS
+            ? Text(ModuStrings.text(
+                context,
+                'iOS 兼容监听：音量加翻上一页，音量减翻下一页。仍会调节系统音量；音量到顶／到底时可能不触发。监听的是音量变化，外部音量调整也可能翻页，部分系统需音频会话活跃。',
+                'iOS compatibility mode: volume up goes back, volume down goes forward. System volume still changes; presses at its limits may not turn pages. Other volume changes can also turn pages, and some systems require an active audio session.'))
+            : null,
         trailing: Switch(
           value: Prefs().volumeKeyTurnPage,
           onChanged: (bool value) => setState(() {
@@ -317,7 +323,7 @@ class _OtherSettingsState extends State<OtherSettings> {
       child: Column(
         children: [
           fullScreen(),
-          if (AnxPlatform.isAndroid) keyboardTurnPage(),
+          if (AnxPlatform.isAndroid || AnxPlatform.isIOS) keyboardTurnPage(),
           // if (PageTurnMode.fromCode(Prefs().pageTurnMode) ==
           //     PageTurnMode.simple)
           ebookOnly(swapPageTurnArea()),

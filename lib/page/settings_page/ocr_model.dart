@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/ocr_precache_settings.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -255,6 +256,9 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
   @override
   Widget build(BuildContext context) => settingsSections(sections: [
         SettingsSection(title: Text(t('OCR 模型', 'OCR model')), tiles: [
+          const CustomSettingsTile(
+              child: Padding(
+                  padding: EdgeInsets.all(16), child: OcrPrecacheSettings())),
           CustomSettingsTile(
               child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -268,27 +272,24 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
               CustomSettingsTile(
                   child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey(
-                            'ocr-source-${Prefs().ocrModelDownloadSource}'),
-                        initialValue: Prefs().ocrModelDownloadSource,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                            labelText: t('模型下载源', 'Model download source')),
-                        items: [
-                          DropdownMenuItem(
-                              value: 'upstream',
-                              child:
-                                  Text(t('上游（按模型）', 'Upstream (per model)'))),
-                          DropdownMenuItem(
-                              value: 'gitee',
-                              child: Text(t('Gitee 镜像', 'Gitee mirror'))),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(t('模型下载源', 'Model download source')),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            for (final source in ['upstream', 'gitee'])
+                              ChoiceChip(
+                                key: ValueKey('ocr-source-$source'),
+                                selected:
+                                    Prefs().ocrModelDownloadSource == source,
+                                label: Text(source == 'upstream'
+                                    ? t('上游（按模型）', 'Upstream (per model)')
+                                    : t('Gitee 镜像', 'Gitee mirror')),
+                                onSelected:
+                                    _busy ? null : (_) => _save(source: source),
+                              ),
+                          ]),
                         ],
-                        onChanged: _busy
-                            ? null
-                            : (value) {
-                                if (value != null) _save(source: value);
-                              },
                       ))),
               CustomSettingsTile(
                   child: Padding(

@@ -16,6 +16,8 @@ Future<void> mount(
   Future<String> Function()? version,
   Future<String> Function()? crashLog,
   Future<String> Function()? environment,
+  String Function()? runtimeLog,
+  Future<String?> Function(String)? exportRuntimeLog,
   bool includeDiagnostics = false,
   bool mobile = false,
   bool chinese = false,
@@ -38,7 +40,8 @@ Future<void> mount(
         openUrl: open ?? (_) async => true,
         loadVersion: version ?? () async => '0.1.0-beta.1+6326',
         loadCrashLog: crashLog ?? () async => 'SAFE_CRASH_TEST',
-        loadRuntimeLog: () => 'SAFE_RUNTIME_TEST',
+        loadRuntimeLog: runtimeLog ?? () => 'SAFE_RUNTIME_TEST',
+        exportRuntimeLog: exportRuntimeLog,
         loadEnvironment: environment ?? () async => '',
       ),
     )),
@@ -115,6 +118,61 @@ Future<void> fillFeature(WidgetTester tester,
 }
 
 void main() {
+  testWidgets('long logs export the previewed snapshot only on explicit action',
+      (tester) async {
+    var log = 'OLD_LOG';
+    String? exported;
+    final opened = <Uri>[];
+    await mount(tester,
+        includeDiagnostics: true,
+        runtimeLog: () => log,
+        exportRuntimeLog: (value) async {
+          exported = value;
+          return 'saved.txt';
+        },
+        open: (uri) async {
+          opened.add(uri);
+          return true;
+        });
+    await fill(tester);
+    log = 'FRESH_SAFE_LOG\n' * 1000;
+    final snapshot = log;
+    await click(tester, 'Preview and submit');
+    expect(exported, isNull);
+    expect(opened, isEmpty);
+    expect(find.textContaining('Copying the report does not attach'),
+        findsOneWidget);
+    log = 'LATER_NOT_REVIEWED';
+    await click(tester, 'Export sanitized runtime log TXT');
+    expect(exported, snapshot);
+    expect(opened, isEmpty);
+    expect(find.textContaining('Log exported.'), findsWidgets);
+    await click(tester, 'Keep editing');
+    await click(tester, 'Include runtime diagnostics (optional)');
+    await click(tester, 'Preview and submit');
+    expect(find.byKey(const ValueKey('export-feedback-log')), findsNothing);
+  });
+
+  for (final fail in [false, true]) {
+    testWidgets(
+        'log export ${fail ? 'failure' : 'cancellation'} retains preview',
+        (tester) async {
+      await mount(tester, includeDiagnostics: true,
+          exportRuntimeLog: (_) async {
+        if (fail) throw StateError('private path and key');
+        return null;
+      });
+      await fill(tester);
+      await click(tester, 'Preview and submit');
+      await click(tester, 'Export sanitized runtime log TXT');
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+          find.textContaining(
+              fail ? 'Log export failed.' : 'Export cancelled.'),
+          findsWidgets);
+      expect(find.textContaining('private path and key'), findsNothing);
+    });
+  }
   testWidgets(
       'both logs default on, no contacts, preview before external action',
       (tester) async {

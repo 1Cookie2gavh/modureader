@@ -5,6 +5,7 @@ import 'package:anx_reader/enums/text_alignment.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
@@ -31,7 +32,8 @@ class MemoryStore extends DocumentReflowStore {
   Future<DocumentReflowPage?> readAnchor(DocumentReflowAnchor anchor) async =>
       revisions[anchor.revision];
   @override
-  Future<void> save(DocumentReflowPage value, String profile) async {
+  Future<void> save(DocumentReflowPage value, String profile,
+      {bool onlyIfAbsent = false}) async {
     latest['${value.page}'] = value;
     revisions[value.revision] = value;
   }
@@ -88,6 +90,9 @@ void main() {
       ReflowSelection? selection,
       Future<void> Function(int)? navigate,
       VoidCallback? close,
+      VoidCallback? cancelRender,
+      DocumentOcrPrecache? precache,
+      void Function(int, int)? sourcePageChanged,
       Future<Map<String, dynamic>> Function(int?)? info,
       void Function(Map<String, dynamic>)? extractionRequest,
       void Function(Map<String, dynamic>)? renderRequest,
@@ -113,6 +118,8 @@ void main() {
             body: DocumentReflowReader(
           key: key,
           store: store,
+          precache: precache,
+          onSourcePageChanged: sourcePageChanged,
           modelStore: model,
           forceOcr: ocr,
           anchor: anchor,
@@ -131,7 +138,7 @@ void main() {
             renderRequest?.call(r);
             return {'dataUrl': fixture.pixel};
           },
-          cancelRender: () {},
+          cancelRender: cancelRender ?? () {},
           recognize: (_, cancel, progress) async =>
               await (recognize?.call() ?? Future.value('识别文字。\n\n另一段。')),
           recognizeWithRegions: sourceGeometry == null
@@ -158,6 +165,72 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  testWidgets(
+      'reflow keeps prefetch alive by original page and reuses in-flight OCR',
+      (tester) async {
+    final first = DocumentReflowPage(
+        page: 0,
+        ocr: true,
+        rawText: List.filled(160, '很长的原书第一页正文。').join('\n\n'));
+    await store.save(first, '');
+    final finish = Completer<void>();
+    final loaded = <int>[];
+    var extracted = 0, cancelled = 0;
+    final cache = DocumentOcrPrecache(
+        canRun: () => true,
+        cachedPages: (start, count) async => {
+              for (var p = start; p < start + count; p++)
+                if (store.latest.containsKey('$p')) p
+            },
+        load: (page, cancel) async {
+          loaded.add(page);
+          if (page == 1) await finish.future;
+          cancel.check();
+          await store.save(
+              DocumentReflowPage(
+                  page: page, ocr: true, rawText: '后台识别第${page + 1}页'),
+              '',
+              onlyIfAbsent: true);
+        });
+    cache.update(0, 3, totalPages: 3);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(loaded, [1]);
+    await open(tester,
+        precache: cache,
+        cancelRender: () => cancelled++,
+        extract: (_) async {
+          extracted++;
+          return '不应重复识别';
+        },
+        sourcePageChanged: (page, total) =>
+            cache.update(page, 3, totalPages: total));
+    expect(text(tester), first.text);
+    expect(cache.running, isTrue);
+    final scroll = key.currentState!.turn(1);
+    await tester.pumpAndSettle();
+    await scroll;
+    expect(cache.startPage, 0); // One reflow screen is not one source page.
+    final next = key.currentState!.turnOriginalPage(1);
+    await tester.pump();
+    expect(loaded, [1]);
+    expect(extracted, 0);
+    finish.complete();
+    await tester.pumpAndSettle();
+    await next;
+    expect(text(tester), '后台识别第2页');
+    expect(cache.startPage, 1);
+    expect(cache.total, 2);
+    expect(extracted, 0);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(loaded, [1, 2]);
+    expect(cache.completed, 2);
+    await tester.pumpWidget(const SizedBox());
+    expect(cancelled,
+        0); // Leaving cached text must not cancel background rendering.
+    cache.dispose();
+  });
 
   test('reflow defaults to justification and preserves explicit left alignment',
       () {
@@ -819,6 +892,32 @@ void main() {
     expect(extracted.length, 2);
     expect(extracted.last['region'], crop);
   });
+  for (final width in [320.0, 800.0]) {
+    for (final ocr in [false, true]) {
+      testWidgets('larger reflow page buttons remain usable ($width, OCR=$ocr)',
+          (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await open(tester, ocr: ocr, textScale: 1.5);
+        final previous = find.byKey(const ValueKey('reflow-previous'));
+        final next = find.byKey(const ValueKey('reflow-next'));
+        for (final button in [previous, next]) {
+          expect(tester.getSize(button), const Size(56, 56));
+          expect(tester.widget<IconButton>(button).iconSize, 36);
+        }
+        expect(tester.widget<IconButton>(previous).onPressed, isNull);
+        // The enlarged outer hit area must work, not just the arrow itself.
+        await tester.tapAt(tester.getCenter(next) + const Offset(24, 0));
+        await tester.pumpAndSettle();
+        expect(find.text('2 / 3'), findsOneWidget);
+        await tester.tapAt(tester.getCenter(previous) - const Offset(24, 0));
+        await tester.pumpAndSettle();
+        expect(find.text('1 / 3'), findsOneWidget);
+        expect(pages, [0, 1, 0]);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
   testWidgets(
       'reflow is inline, turns original pages and reuses cached text without OCR',
       (tester) async {
@@ -957,9 +1056,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reflow-next')));
     await tester.pumpAndSettle();
     expect(pages, [0]);
-    final dropdown = tester.widget<DropdownButton<bool>>(
-        find.byKey(const ValueKey('reflow-mode')));
-    dropdown.onChanged!(true);
+    expect(find.byType(DropdownButton<bool>), findsNothing);
+    await key.currentState!.setMode(true);
     await tester.pumpAndSettle();
     expect(rendered, [1]);
     expect(pages, [0, 1]);

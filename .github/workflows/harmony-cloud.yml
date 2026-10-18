@@ -136,6 +136,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/harmony/patch_webview.py 2>&1 | tee build/harmony-diagnostics/webview.log
+      - name: Add native database snapshots in the isolated OHOS adapter
+        if: github.event_name == 'push' || inputs.build_hap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/harmony/patch_sqflite.py 2>&1 | tee build/harmony-diagnostics/sqflite.log
       - name: Adapt audited UI packages to the native OHOS platform
         if: github.event_name == 'push' || inputs.build_hap
         shell: bash

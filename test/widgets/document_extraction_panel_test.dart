@@ -78,10 +78,6 @@ Future<void> open(WidgetTester tester,
 }
 
 Future<void> tap(WidgetTester tester, String text) async {
-  if (find.text(text).evaluate().isEmpty) {
-    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
-    await tester.pumpAndSettle();
-  }
   await tester.ensureVisible(find.text(text));
   await tester.tap(find.text(text));
   await tester.pumpAndSettle();
@@ -412,7 +408,7 @@ void main() {
     final handle = find
         .descendant(of: selector, matching: find.byType(GestureDetector))
         .at(1);
-    await tester.drag(handle, Offset(box.width * .08, box.height * .06));
+    await tester.drag(handle, Offset(box.width * .16, box.height * .12));
     await tester.pumpAndSettle();
     final after = tester.widget<DocumentRegionSelector>(selector).region;
     expect(after.left, greaterThan(before.left));
@@ -471,23 +467,9 @@ void main() {
     await tap(tester, 'Preview extracted text');
     expect(find.byType(SelectableText), findsOneWidget);
     expect(draft, isNull);
-    await tester.tap(find.byTooltip('OCR text style'));
-    await tester.pumpAndSettle();
-    final slider =
-        tester.widget<Slider>(find.byKey(const ValueKey('ocr-style-size')));
-    slider.onChanged!(28);
-    await tester.pumpAndSettle();
-    slider.onChangeEnd!(28);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Hide menu'));
-    await tester.pumpAndSettle();
-    expect(
-        tester
-            .widget<SelectableText>(find.byType(SelectableText))
-            .textSpan!
-            .style!
-            .fontSize,
-        28);
+    expect(find.byTooltip('OCR text style'), findsNothing);
+    expect(find.byKey(const ValueKey('document-style-menu')), findsNothing);
+    expect(find.byTooltip('Brightness / colors'), findsNothing);
     await tap(tester, 'Original');
     expect(find.byType(DocumentRegionSelector), findsOneWidget);
     await tap(tester, 'Extracted text');
@@ -503,8 +485,6 @@ void main() {
         result: (v) => draft = v,
         extract: (_) async => {'text': ''},
         ocr: (_, c, p) => done.future);
-    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
-    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Extract to AI draft'));
     await tester.tap(find.text('Extract to AI draft'));
     await tester.pump();
