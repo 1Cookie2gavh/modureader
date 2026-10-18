@@ -148,6 +148,23 @@ class BookDao extends BaseDao {
     });
   }
 
+  /// 多刷功能专用：重置阅读进度与位置（完成一轮后从开头开始下一刷）。
+  ///
+  /// 只写 tb_books 的 position 字段；position 同步触发器会把这次变化
+  /// 记成一次同步事件，因此不需要额外触碰 modu_sync_records。
+  Future<void> resetReadingPosition(int bookId, {double percentage = 0}) {
+    return update(
+      table,
+      {
+        'last_read_position': '',
+        'reading_percentage': normalizeReadingProgress(percentage),
+        'update_time': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
+
   Future<void> setDeleted(int bookId, bool deleted) async {
     await update(
         table,
@@ -258,6 +275,21 @@ class BookDao extends BaseDao {
       mapper: Book.fromDb,
       where: "is_deleted = 0 AND (file_md5 IS NULL OR file_md5 = '')",
       orderBy: 'update_time DESC',
+    );
+  }
+
+  /// 仅更新轮次号（多刷功能专用）。
+  /// 单独维护可避免其他代码路径用较早加载的 Book 实例整行覆盖，
+  /// 导致轮次号被回退。
+  Future<void> updateCurrentRound(int bookId, int round) {
+    return update(
+      table,
+      {
+        'current_round': round,
+        'update_time': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [bookId],
     );
   }
 }

@@ -14,6 +14,7 @@ class Book {
   double rating;
   int groupId;
   String? md5;
+  int currentRound;
   DateTime createTime;
   DateTime updateTime;
 
@@ -30,6 +31,7 @@ class Book {
       required this.rating,
       this.groupId = 0,
       this.md5,
+      this.currentRound = 1,
       required this.createTime,
       required this.updateTime});
 
@@ -70,6 +72,7 @@ class Book {
       'rating': rating,
       'group_id': groupId,
       'file_md5': md5,
+      // 注意：不写入 current_round，避免旧实例回写覆盖轮次号
       'create_time': createTime.toIso8601String(),
       'update_time': updateTime.toIso8601String(),
     };
@@ -88,6 +91,7 @@ class Book {
     double? rating,
     int? groupId,
     String? md5,
+    int? currentRound,
     DateTime? createTime,
     DateTime? updateTime,
   }) {
@@ -104,6 +108,7 @@ class Book {
       rating: rating ?? this.rating,
       groupId: groupId ?? this.groupId,
       md5: md5 ?? this.md5,
+      currentRound: currentRound ?? this.currentRound,
       createTime: createTime ?? this.createTime,
       updateTime: updateTime ?? this.updateTime,
     );
@@ -123,6 +128,7 @@ class Book {
       rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
       groupId: map['group_id'] as int? ?? 0,
       md5: map['file_md5'] as String?,
+      currentRound: map['current_round'] as int? ?? 1,
       createTime: DateTime.parse(map['create_time'] as String),
       updateTime: DateTime.parse(map['update_time'] as String),
     );
