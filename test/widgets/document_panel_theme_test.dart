@@ -33,8 +33,7 @@ void main() {
                             child: SingleChildScrollView(
                                 child: PdfReadingControls(
                                     initial: const PdfReadingView(),
-                                    save: (_) async {},
-                                    pan: (_, __) async {})))));
+                                    save: (_) async {})))));
               });
         })));
         await tester.pumpAndSettle();
