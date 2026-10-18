@@ -99,6 +99,7 @@ CREATE TABLE tb_reading_rounds (
   end_time TEXT,
   start_percentage REAL NOT NULL DEFAULT 0,
   end_percentage REAL NOT NULL DEFAULT 0,
+  end_position TEXT,
   total_reading_time INTEGER NOT NULL DEFAULT 0,
   create_time TEXT,
   update_time TEXT

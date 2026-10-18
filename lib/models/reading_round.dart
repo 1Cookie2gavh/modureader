@@ -11,6 +11,9 @@ class ReadingRound {
   String? endTime;
   double startPercentage;
   double endPercentage;
+
+  /// 完成本轮时的阅读位置（用于撤销时精确恢复；可为空）
+  String? endPosition;
   int totalReadingTime;
   DateTime createTime;
   DateTime updateTime;
@@ -24,6 +27,7 @@ class ReadingRound {
     this.endTime,
     required this.startPercentage,
     required this.endPercentage,
+    this.endPosition,
     required this.totalReadingTime,
     required this.createTime,
     required this.updateTime,
@@ -43,6 +47,7 @@ class ReadingRound {
       'end_time': endTime,
       'start_percentage': startPercentage,
       'end_percentage': endPercentage,
+      'end_position': endPosition,
       'total_reading_time': totalReadingTime,
       'create_time': createTime.toIso8601String(),
       'update_time': updateTime.toIso8601String(),
@@ -59,6 +64,7 @@ class ReadingRound {
       endTime: map['end_time'] as String?,
       startPercentage: (map['start_percentage'] as num?)?.toDouble() ?? 0.0,
       endPercentage: (map['end_percentage'] as num?)?.toDouble() ?? 0.0,
+      endPosition: map['end_position'] as String?,
       totalReadingTime: map['total_reading_time'] as int? ?? 0,
       createTime: DateTime.parse(map['create_time'] as String),
       updateTime: DateTime.parse(map['update_time'] as String),
@@ -74,6 +80,7 @@ class ReadingRound {
     String? endTime,
     double? startPercentage,
     double? endPercentage,
+    String? endPosition,
     int? totalReadingTime,
     DateTime? createTime,
     DateTime? updateTime,
@@ -87,6 +94,7 @@ class ReadingRound {
       endTime: endTime ?? this.endTime,
       startPercentage: startPercentage ?? this.startPercentage,
       endPercentage: endPercentage ?? this.endPercentage,
+      endPosition: endPosition ?? this.endPosition,
       totalReadingTime: totalReadingTime ?? this.totalReadingTime,
       createTime: createTime ?? this.createTime,
       updateTime: updateTime ?? this.updateTime,
