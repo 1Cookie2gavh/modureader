@@ -206,9 +206,8 @@ void main() {
     await tester.tap(find.byTooltip('Crop and panels'));
     await ready(tester);
     tester
-        .widget<DropdownButton<String>>(
-            find.byKey(const ValueKey('layout-grid')))
-        .onChanged!('four');
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-grid-four')))
+        .onSelected!(true);
     await tester.pump();
     await tester.tap(find.text('Cancel'));
     await ready(tester);
@@ -217,9 +216,8 @@ void main() {
     await tester.tap(find.byTooltip('Crop and panels'));
     await ready(tester);
     tester
-        .widget<DropdownButton<String>>(
-            find.byKey(const ValueKey('layout-grid')))
-        .onChanged!('four');
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-grid-four')))
+        .onSelected!(true);
     await tester.pump();
     await tester.tap(find.text('Confirm'));
     await ready(tester);

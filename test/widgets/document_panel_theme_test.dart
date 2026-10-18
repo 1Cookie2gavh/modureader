@@ -37,6 +37,9 @@ void main() {
               });
         })));
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Page turning and options'));
+        await tester.tap(find.text('Page turning and options'));
+        await tester.pumpAndSettle();
         void verifyInherited() {
           final theme =
               Theme.of(tester.element(find.byType(PdfReadingControls)));
