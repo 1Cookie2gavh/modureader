@@ -252,8 +252,11 @@ const setSelectionHandler = (view, doc, index) => {
     paragraph: () => style.longPressSelectParagraph === true,
     locale: () => style.selectionLocale,
     nativeTouchSelection: navigator.userAgent.includes('Android'),
+    textSelectionHighlight: !view.isFixedLayout,
     segmentWord: navigator.userAgent.includes('Android')
       ? request => callFlutter('onReaderWordBounds', request) : undefined,
+    segmentParagraph: navigator.userAgent.includes('Android')
+      ? request => callFlutter('onReaderParagraphWords', request) : undefined,
     onAdjusted: () => stopAutoPageSession(view),
   }));
   let hasActiveSelection = false;
@@ -1150,14 +1153,17 @@ class Reader {
     const documentMode = resolveDocumentReadingMode(this.view.book, settings?.mode)
     this.view.scannedImageDocument = documentMode === 'image-epub'
     if (documentMode === 'image-epub') {
-      if (settings?.enabled) await this.view.setImageReading(true, {...settings,cfi}, () => setStyle())
+      await this.view.setImageReading(true, {...settings,cfi,
+        layout:settings?.enabled ? settings.layout : {version:1,pages:{}}}, () => setStyle())
     }
     if (documentMode === 'pdf') {
+      this.view.renderer.setPdfPageViews?.(settings?.pageViews)
       if (settings?.view) {
         try { this.view.renderer.setPdfView(settings.view) } catch (_) { /* ignore invalid saved view */ }
       }
-      if (settings?.layout) await this.view.renderer.setPdfLayout(settings.layout,
-        settings.enabled, settings.cfi === cfi ? settings.position : null)
+      if (settings?.layout) await this.view.renderer.setPdfLayout(
+        settings.enabled ? settings.layout : {version:1,pages:{}},
+        true, settings.cfi === cfi ? settings.position : null)
     }
     // init owns initial navigation. A second, unawaited next() can skip the
     // first spread (and race with the first iframe load) in fixed-layout books.
@@ -1885,24 +1891,30 @@ const setStyle = (oldStyle) => {
   if (style.eInkMode === true && style.eInkDisableAnimations !== false) turn.animated = false
 
   if (!paintOnly) {
-    reader.view.renderer.setAttribute('mobile-image-fit', style.mobileImageFit === true ? 'true' : 'false')
-    reader.view.renderer.setAttribute('mobile-touch-paging', style.mobileTouchPaging === true ? 'true' : 'false')
-    reader.view.renderer.setAttribute('desktop-page-input', style.desktopPageInput === true ? 'true' : 'false')
-    reader.view.renderer.setAttribute('tap-only-page-turn', style.tapOnlyPageTurn === true ? 'true' : 'false')
-    reader.view.renderer.setAttribute('scroll-page-percent', String(style.scrollPagePercent ?? 80))
-    reader.view.renderer.setAttribute('flow', turn.scroll ? 'scrolled' : 'paginated')
-    // Keep script-enabled / vertical books and note popups on the single-view
-    // renderer: speculative documents must never execute author scripts.
-    reader.view.renderer.setAttribute('continuous-scroll',
-      style.continuousScroll !== false && !style.allowScript &&
-        !style.writingMode?.startsWith('vertical') ? 'true' : 'false')
-    reader.view.renderer.setAttribute('top-margin', `${style.topMargin}px`)
-    reader.view.renderer.setAttribute('bottom-margin', `${style.bottomMargin}px`)
-    reader.view.renderer.setAttribute('gap', `${style.sideMargin}%`)
-    reader.view.renderer.setAttribute('max-column-count', style.maxColumnCount)
-    reader.view.renderer.setAttribute('column-threshold', `${style.columnThreshold}px`)
-    turn.animated ? reader.view.renderer.setAttribute('animated', 'true')
-      : reader.view.renderer.removeAttribute('animated')
+    const renderer = reader.view.renderer
+    const attributes = {
+      'mobile-image-fit': String(style.mobileImageFit === true),
+      'mobile-touch-paging': String(style.mobileTouchPaging === true),
+      'desktop-page-input': String(style.desktopPageInput === true),
+      'tap-only-page-turn': String(style.tapOnlyPageTurn === true),
+      'scroll-page-percent': String(style.scrollPagePercent ?? 80),
+      'flow': turn.scroll ? 'scrolled' : 'paginated',
+      // Speculative documents must never execute author scripts.
+      'continuous-scroll': String(style.continuousScroll !== false && !style.allowScript &&
+        !style.writingMode?.startsWith('vertical')),
+      'top-margin': `${style.topMargin}px`,
+      'bottom-margin': `${style.bottomMargin}px`,
+      'gap': `${style.sideMargin}%`,
+      'max-column-count': style.maxColumnCount,
+      'column-threshold': `${style.columnThreshold}px`,
+      'animated': turn.animated ? 'true' : null,
+    }
+    // Commit one coherent layout instead of paginating after every margin/flow change.
+    if (renderer.setLayoutAttributes) renderer.setLayoutAttributes(attributes)
+    else for (const [name, value] of Object.entries(attributes)) {
+      if (value === null) renderer.removeAttribute(name)
+      else renderer.setAttribute(name, value)
+    }
   }
   applyVerticalPageChrome(reader.view.renderer, style)
   reader.view.renderer.setAttribute('background-color', style.backgroundColor)
@@ -2045,12 +2057,16 @@ window.setDocumentReaderActive = active => {
 }
 window.setPdfReadingView = value => reader?.view?.renderer?.setPdfView?.(value) ?? false
 window.panPdfReadingView = (dx, dy) => reader?.view?.renderer?.panPdfView?.(dx, dy) ?? false
+window.zoomPdfReadingView = (zoom, reset) => reader?.view?.renderer?.zoomPdfView?.(zoom, reset) ?? false
+window.setPdfBoxZoom = enabled => reader?.view?.renderer?.setPdfBoxZoom?.(enabled) ?? false
 window.setPdfReadingLayout = async (config, enabled, view) => {
-  if (reader?.view?.book?.resources || reader?.view?.book?.imageDocumentSource) return reader.view.setImageReading(enabled,
-    {layout:config,view}, () => setStyle())
+  // Disabling crop keeps zoom available without silently re-enabling saved crops.
+  const layout = enabled ? config : {version:1,pages:{}}
+  if (reader?.view?.book?.resources || reader?.view?.book?.imageDocumentSource) return reader.view.setImageReading(true,
+    {layout,view}, () => setStyle())
   const renderer = reader?.view?.renderer
   if (!renderer?.setPdfLayout) return false
-  return renderer.setPdfLayout(config, enabled)
+  return renderer.setPdfLayout(layout, true)
 }
 // Explicit preview session: no edits to sections, source files, CFIs or the
 // main reader's position. Closing invalidates pending bridge encodings too.

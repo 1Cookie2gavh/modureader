@@ -17,8 +17,12 @@ class DocumentLayoutEditor extends StatefulWidget {
       required this.info,
       required this.render,
       required this.cancelRender,
-      required this.save});
+      required this.save,
+      this.panelReading,
+      this.setPanelReading});
   final DocumentLayoutConfig initial;
+  final bool? panelReading;
+  final Future<void> Function(bool)? setPanelReading;
   final int page, total;
   final Future<Map<String, dynamic>> Function(int?) info;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>) render;
@@ -31,6 +35,8 @@ class DocumentLayoutEditor extends StatefulWidget {
 
 class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
   late final Map<DocumentLayoutScope, DocumentPageLayout> _draft;
+  late bool _panelReading = widget.panelReading ?? true;
+  bool _changingPanelReading = false;
   final _dirty = <DocumentLayoutScope>{};
   bool _paired = false,
       _busy = true,
@@ -296,10 +302,38 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: SingleChildScrollView(
               controller: _controlsScroll,
-              padding: const EdgeInsets.fromLTRB(12, 12, 26, 12),
+              padding: const EdgeInsets.fromLTRB(26, 12, 26, 12),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.setPanelReading != null)
+                      SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(tr('按裁边与分格阅读', 'Read cropped panels')),
+                          value: _panelReading,
+                          onChanged: _saving || _changingPanelReading
+                              ? null
+                              : (value) async {
+                                  setState(() => _changingPanelReading = true);
+                                  try {
+                                    await widget.setPanelReading!(value);
+                                    if (mounted) {
+                                      setState(() => _panelReading = value);
+                                    }
+                                  } catch (_) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(tr('版式切换失败，请重试',
+                                                  'Could not change layout. Please retry.'))));
+                                    }
+                                  } finally {
+                                    if (mounted) {
+                                      setState(
+                                          () => _changingPanelReading = false);
+                                    }
+                                  }
+                                }),
                     Wrap(spacing: 8, children: [
                       ChoiceChip(
                           label: Text(tr('常规', 'General')),
@@ -322,11 +356,11 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
                                       : DocumentLayoutScope.even);
                                 }),
                     ]),
-                    DropdownButton<DocumentLayoutScope>(
+                    Wrap(
                         key: const ValueKey('layout-scope'),
-                        isExpanded: true,
-                        value: _scope,
-                        items: (_paired
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: (_paired
                                 ? [
                                     DocumentLayoutScope.odd,
                                     DocumentLayoutScope.even
@@ -335,11 +369,15 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
                                     DocumentLayoutScope.current,
                                     DocumentLayoutScope.all
                                   ])
-                            .map((scope) => DropdownMenuItem(
-                                value: scope,
-                                enabled: scope != DocumentLayoutScope.even ||
-                                    widget.total > 1,
-                                child: Text(switch (scope) {
+                            .map((scope) => ChoiceChip(
+                                key: ValueKey('layout-scope-${scope.name}'),
+                                selected: _scope == scope,
+                                onSelected: _saving ||
+                                        (scope == DocumentLayoutScope.even &&
+                                            widget.total <= 1)
+                                    ? null
+                                    : (_) => _switchScope(scope),
+                                label: Text(switch (scope) {
                                   DocumentLayoutScope.current =>
                                     tr('仅当前原页', 'Current original page'),
                                   DocumentLayoutScope.all =>
@@ -349,12 +387,7 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
                                   DocumentLayoutScope.even =>
                                     tr('偶数页', 'Even pages'),
                                 })))
-                            .toList(),
-                        onChanged: _saving
-                            ? null
-                            : (scope) {
-                                if (scope != null) _switchScope(scope);
-                              }),
+                            .toList()),
                     SwitchListTile.adaptive(
                         key: const ValueKey('auto-crop-enabled'),
                         contentPadding: EdgeInsets.zero,
@@ -444,32 +477,63 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
                                   preset: 'horizontal2', order: 'column-ltr'))),
                     ]),
                     Text(tr('分格数量', 'Grid layout')),
-                    DropdownButton<String>(
+                    Wrap(
                         key: const ValueKey('layout-grid'),
-                        isExpanded: true,
-                        value: _layout.preset,
-                        items: DocumentPageLayout.grids.keys
-                            .map((preset) => DropdownMenuItem(
-                                value: preset,
-                                child: Text(switch (preset) {
-                                  'horizontal2' => tr('水平双格', 'Two columns'),
-                                  'vertical2' => tr('垂直双格', 'Two rows'),
-                                  'four' => tr('四格', 'Four panels'),
-                                  'horizontal6' =>
-                                    tr('水平六格', 'Six panels · 3 columns'),
-                                  'vertical6' =>
-                                    tr('垂直六格', 'Six panels · 2 columns'),
-                                  'nine' => tr('九格', 'Nine panels'),
-                                  _ => tr('单页', 'Single page'),
-                                })))
-                            .toList(),
-                        onChanged: _saving || _detecting
-                            ? null
-                            : (value) {
-                                if (value != null) {
-                                  _change(_layout.copyWith(preset: value));
-                                }
-                              }),
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: DocumentPageLayout.grids.entries.map((entry) {
+                          final preset = entry.key;
+                          final (columns, rows) = entry.value;
+                          final label = switch (preset) {
+                            'horizontal2' => tr('水平双格', 'Two columns'),
+                            'vertical2' => tr('垂直双格', 'Two rows'),
+                            'four' => tr('四格', 'Four panels'),
+                            'horizontal6' =>
+                              tr('水平六格', 'Six panels · 3 columns'),
+                            'vertical6' => tr('垂直六格', 'Six panels · 2 columns'),
+                            'nine' => tr('九格', 'Nine panels'),
+                            _ => tr('单页', 'Single page'),
+                          };
+                          return ChoiceChip(
+                            key: ValueKey('layout-grid-$preset'),
+                            selected: _layout.preset == preset,
+                            showCheckmark: false,
+                            label: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ExcludeSemantics(
+                                      child: SizedBox(
+                                          width: 64,
+                                          height: 72,
+                                          child: Column(children: [
+                                            for (var row = 0; row < rows; row++)
+                                              Expanded(
+                                                  child: Row(children: [
+                                                for (var col = 0;
+                                                    col < columns;
+                                                    col++)
+                                                  Expanded(
+                                                      child: Container(
+                                                    margin:
+                                                        const EdgeInsets.all(1),
+                                                    decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                            color: Theme.of(
+                                                                    context)
+                                                                .colorScheme
+                                                                .onSurface)),
+                                                  )),
+                                              ])),
+                                          ]))),
+                                  const SizedBox(height: 4),
+                                  Text(label),
+                                ]),
+                            onSelected: _saving || _detecting
+                                ? null
+                                : (_) =>
+                                    _change(_layout.copyWith(preset: preset)),
+                          );
+                        }).toList()),
                     Text(tr('阅读顺序（图中数字）', 'Reading order (numbers on page)')),
                     DropdownButton<String>(
                         key: const ValueKey('layout-order'),
@@ -610,18 +674,17 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
           Text(
               '${tr('预览原页', 'Original preview page')} ${(_busy ? _targetPage : _previewPage) + 1} / ${widget.total}'),
           Expanded(child: LayoutBuilder(builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 720;
-            return Flex(
-                direction: wide ? Axis.horizontal : Axis.vertical,
+            return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Expanded(
+                      child: KeyedSubtree(
+                          key: const ValueKey('crop-preview'),
+                          child: _canvas())),
                   SizedBox(
-                      width: wide ? 300 : null,
-                      height: wide
-                          ? null
-                          : math.min(220, constraints.maxHeight * .45),
+                      key: const ValueKey('crop-options'),
+                      height: math.min(320, constraints.maxHeight * .45),
                       child: _controls()),
-                  Expanded(child: _canvas()),
                 ]);
           })),
           if (_saveFailed)
@@ -630,8 +693,8 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
           Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                  tr('保存到本书；在样式中开启“按裁边与分格阅读”后应用于正文。不会修改源文件。',
-                      'Saved for this book. Enable “Read cropped panels” in Style to apply it to reading. The source file is unchanged.'),
+                  tr('保存到本书；开启“按裁边与分格阅读”后应用于正文。不会修改源文件。',
+                      'Saved for this book. Enable “Read cropped panels” here to apply it to reading. The source file is unchanged.'),
                   style: Theme.of(context).textTheme.bodySmall)),
           OverflowBar(alignment: MainAxisAlignment.end, children: [
             TextButton(

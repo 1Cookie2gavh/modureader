@@ -15,6 +15,7 @@ import 'package:anx_reader/utils/save_file_to_download.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 
 class CustomCSSEditor extends StatefulWidget {
   const CustomCSSEditor(
@@ -250,7 +251,9 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         final template = await showDialog<CustomCssProfile>(
             animationStyle: AppMotion.style,
             context: context,
-            builder: (context) => SimpleDialog(
+            builder: (context) => ScrollConfiguration(
+                behavior: const AppScrollBehavior(symmetricGutter: true),
+                child: SimpleDialog(
                   title: Text(ModuStrings.text(
                       context, '添加预设模板', 'Add a preset template')),
                   children: [
@@ -260,7 +263,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                         child: Text(p.name),
                       )
                   ],
-                ));
+                )));
         if (template != null) await _append([template]);
       });
 

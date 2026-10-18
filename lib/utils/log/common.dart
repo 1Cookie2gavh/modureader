@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:anx_reader/service/feedback/detailed_runtime_log.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/utils/log/string_to_level.dart';
@@ -40,6 +41,11 @@ class AnxLog {
 
     Logger.root.level = Level.ALL;
     Logger.root.onRecord.listen((record) {
+      try {
+        DetailedRuntimeLog.record(record);
+      } catch (_) {
+        // Diagnostic extraction must not interrupt ordinary logging/app work.
+      }
       if (kDebugMode) {
         String colorCode = '';
         if (record.level == Level.SEVERE) {
@@ -71,6 +77,7 @@ class AnxLog {
 
   static void clear() {
     logFile!.writeAsStringSync('');
+    DetailedRuntimeLog.clear();
   }
 
   static info(String message, [Object? error, StackTrace? stackTrace]) {

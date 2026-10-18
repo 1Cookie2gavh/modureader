@@ -32,7 +32,8 @@ void validateSettingsValue(String key, dynamic value) {
     'syncProtocol': ['webdav', 's3'],
     'pageTurnStyle': ['noAnimation', 'slide', 'scroll'],
     'pageTurnMode': ['simple', 'custom'],
-    'themeMode': ['system', 'light', 'dark'],
+    // Older versions saved the system theme as "auto".
+    'themeMode': ['system', 'light', 'dark', 'auto'],
     'vectorModelMode': ['builtin', 'remote'],
     'vectorModelDownloadSource': ['huggingFace', 'gitee'],
     'ocrModelDownloadSource': ['upstream', 'gitee'],
@@ -49,6 +50,9 @@ void validateSettingsValue(String key, dynamic value) {
   if (key == 'eInkRefreshPages' &&
       (value is! int || value < 0 || value > 100)) {
     throw const FormatException('Invalid E-Ink refresh interval');
+  }
+  if (key == 'ocrPrecachePages' && (value is! int || value < 1 || value > 5)) {
+    throw const FormatException('Invalid OCR prefetch window');
   }
   if (key == 'scrollPagePercent' && (value < 80 || value > 100)) {
     throw const FormatException('Invalid scroll page percentage');

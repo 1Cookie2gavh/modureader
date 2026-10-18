@@ -10,11 +10,11 @@ export const desktops = [
 ];
 
 export function selectTargets(value) {
-  const names = [...desktops.map(t => `${t.platform}-${t.arch}`), 'android', 'ios'];
+  const names = [...desktops.map(t => `${t.platform}-${t.arch}`), 'android', 'ios', 'harmony'];
   const requested = value === 'all' ? names : value.split(',').map(s => s.trim());
   if (!requested.length || requested.some(t => !names.includes(t))) throw Error('Invalid release targets');
   const desktop = desktops.filter(t => requested.includes(`${t.platform}-${t.arch}`));
-  return {desktop, has_desktop: desktop.length > 0, android: requested.includes('android'), ios: requested.includes('ios')};
+  return {desktop, has_desktop: desktop.length > 0, android: requested.includes('android'), ios: requested.includes('ios'), harmony: requested.includes('harmony')};
 }
 
 if (process.env.GITHUB_OUTPUT) {

@@ -30,6 +30,7 @@ import 'package:anx_reader/page/migration_page.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
 import 'package:anx_reader/service/network/http_proxy_overrides.dart';
 import 'package:anx_reader/service/tts/tts_handler.dart';
+import 'package:anx_reader/service/tts/media_diagnostics.dart';
 import 'package:anx_reader/utils/get_path/macos_migration.dart';
 import 'package:anx_reader/utils/color_scheme.dart';
 import 'package:anx_reader/utils/error/common.dart';
@@ -184,6 +185,10 @@ Future<void> _startConfiguredApp() async {
       androidStopForegroundOnPause: false,
     ),
   );
+
+  if (MediaDiagnostics.enabled && AnxPlatform.isAndroid) {
+    unawaited(MediaDiagnostics.start(audioHandler));
+  }
 
   SmartDialog.config.custom = SmartConfigCustom(
     maskColor: Colors.black.withAlpha(35),

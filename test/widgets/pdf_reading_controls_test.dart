@@ -36,10 +36,9 @@ void main() {
             body: SingleChildScrollView(
                 child: PdfReadingControls(
                     initial: const PdfReadingView(),
-                    save: (v) async => saved.add(v),
-                    pan: (_, __) async {})))));
-    await tester.ensureVisible(find.text('More original-page settings'));
-    await tester.tap(find.text('More original-page settings'));
+                    save: (v) async => saved.add(v))))));
+    await tester.ensureVisible(find.text('Page turning and options'));
+    await tester.tap(find.text('Page turning and options'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Page border'));
     await tester.tap(find.text('Page border'));
@@ -47,10 +46,14 @@ void main() {
     expect(saved.last.display.border, isTrue);
     expect(
         find.text('Hide named watermark layers (display only)'), findsNothing);
-    await tester.ensureVisible(find.text('Automatic page turning'));
-    await tester.tap(find.text('Automatic page turning'));
+    expect(find.text('Automatic page turning'), findsNothing);
+    expect(find.text('Move viewport'), findsNothing);
+    expect(find.text('Swipe up for menu'), findsNothing);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    await tester.ensureVisible(find.text('Vertical'));
+    await tester.tap(find.text('Vertical'));
     await tester.pumpAndSettle();
-    expect(saved.last.display.autoSeconds, 30);
+    expect(saved.last.display.swipe, 'vertical');
     expect(tester.takeException(), isNull);
   });
   testWidgets('zoom, fit, rotation, pan and reset operate at mobile width',
@@ -60,14 +63,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final saved = <PdfReadingView>[];
-    final pans = <Offset>[];
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: SingleChildScrollView(
                 child: PdfReadingControls(
                     initial: const PdfReadingView(),
-                    save: (value) async => saved.add(value),
-                    pan: (x, y) async => pans.add(Offset(x, y)))))));
+                    save: (value) async => saved.add(value))))));
+    await tester.tap(find.text('Zoom and fit'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Zoom in'));
     await tester.pumpAndSettle();
     expect(saved.last.zoom, 1.25);
@@ -75,22 +78,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved.last.fit, 'width');
     expect(saved.last.zoom, 1);
+    await tester.ensureVisible(find.text('Rotation').first);
+    await tester.tap(find.text('Rotation').first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Rotate left'));
     await tester.tap(find.byTooltip('Rotate left'));
     await tester.pumpAndSettle();
     expect(saved.last.rotation, 270);
-    await tester.ensureVisible(find.text('More original-page settings'));
-    await tester.tap(find.text('More original-page settings'));
+    await tester.ensureVisible(find.text('Page turning and options'));
+    await tester.tap(find.text('Page turning and options'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byTooltip('Move down'));
-    await tester.tap(find.byTooltip('Move down'));
-    await tester.pumpAndSettle();
-    expect(pans, [const Offset(0, 160)]);
+    expect(find.byTooltip('Move down'), findsNothing);
     final slider = tester.widget<Slider>(find.byType(Slider));
-    slider.onChanged!(15);
-    slider.onChangeEnd!(15);
+    slider.onChanged!(4);
+    slider.onChangeEnd!(4);
     await tester.pumpAndSettle();
-    expect(saved.last.zoom, 15);
-    expect(find.text('1500%'), findsOneWidget);
+    expect(saved.last.zoom, 4);
+    expect(find.text('400%'), findsOneWidget);
     await tester.ensureVisible(find.text('Reset view'));
     await tester.tap(find.text('Reset view'));
     await tester.pumpAndSettle();
@@ -115,10 +119,12 @@ void main() {
     final pending = Completer<void>();
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-            body: PdfReadingControls(
-                initial: const PdfReadingView(),
-                save: (_) => pending.future,
-                pan: (_, __) async {}))));
+            body: SingleChildScrollView(
+                child: PdfReadingControls(
+                    initial: const PdfReadingView(),
+                    save: (_) => pending.future)))));
+    await tester.tap(find.text('Zoom and fit'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Zoom in'));
     await tester.pump();
     expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);

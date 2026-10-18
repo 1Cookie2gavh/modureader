@@ -61,7 +61,7 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.2.10** — unifies PDF/OCR reflow with ebook menus and styles, improves paragraphs and preserves note locations on source images; fixes Edge narration, night colors, backup and migration, improves safe feedback logs, and locks E-Ink to black text on white.
+**Latest release: 1.2.11** — adds PDF/scanned-page zoom, panning and per-page viewport memory; saves, edits, exports and syncs OCR text with its original book, with background prefetch; refines reflow menus, text selection and narration controls, and improves HarmonyOS sync and feedback diagnostics.
 
 Reader shortcut settings are restored and hardware-keyboard playback controls are improved. iOS adds optional in-place book access; HarmonyOS gains a reader wakelock bridge and corrected log-export path validation. See the [release notes](docs/RELEASE_NOTES.md) for device-validation scope, limitations and installation requirements.
 

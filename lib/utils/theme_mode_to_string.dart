@@ -7,6 +7,6 @@ String themeModeToString(ThemeMode themeMode) {
     case ThemeMode.light:
       return 'light';
     case ThemeMode.system:
-      return 'auto';
+      return 'system';
   }
 }

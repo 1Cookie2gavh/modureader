@@ -1,10 +1,124 @@
 # Modu changelog
 
-Latest stable: **1.2.10+10129**. Updated 2026-10-15.
+Latest stable: **1.2.11+10149**. Updated 2026-10-18.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
 Older sections retain their original version scope; they are not current acceptance reports.
+
+## 1.2.11
+
+### English
+
+- Feat(settings): Use direct choices for crop scope, vector/OCR model download sources and the update source. Expose TXT export directly in the document Text menu; keep page editing in reflow/extraction tools, preserving cached corrections and existing source behavior.
+
+- Fix(ocr): Keep source-page prefetch running in text/OCR reflow, update its window only when the original page changes, and reuse in-flight recognition before starting foreground work. Show cache progress in reflow tools without cancelling background rendering when leaving cached text.
+
+- Feat(ocr): Sync saved page text, corrections and immutable annotation revisions with downloaded original books over the configured book-sync service. Remote-only books do not fetch OCR caches; downloading the original also retrieves its cache. Match by source-file checksum rather than local book ID or title, merge page results, retain conflicting revisions, and verify uploads before compacting older snapshots.
+
+- Feat(ocr): Use a 1–5 page minus/plus cache control and count saved OCR and corrections as processed pages in cache progress.
+
+- Fix(ocr): Scan saved OCR/corrections before scheduling and process missing pages only. Let an in-flight page finish across touches, scrolling and page turns instead of repeatedly cancelling it; keep foreground OCR, backgrounding and exit cancellation. Shorten the idle scheduling delay and display current-page recognition progress.
+
+- Fix(pdf): Keep the crop preview pinned above independently scrolling options, with illustrated grid choices instead of a dropdown. Start OCR prefetch for original-page reading without crop metadata; bound the queue at the last page, retry transient failures and show cached-page counts or missing-model errors.
+
+- Feat(ios): Add opt-in volume-change paging through the existing reader key bridge, with route, dialog and foreground guards. Keep system volume and TTS audio-session ownership unchanged. This compatibility listener cannot distinguish physical keys from other volume changes or detect repeated presses at volume limits; real-device verification is pending.
+
+- Feat(pdf): Add opt-in, serial background text/OCR prefetch for the current page and up to four following pages, preserving saved corrections. Merge automatic text/OCR reflow and restore ebook reflow controls. Move extraction tools below the preview and crop-reading controls into the crop editor; simplify page options. Make the 80%-transparent zoom bar draggable with a five-second idle timeout, and allow taps on enlarged pages without treating them as drags.
+
+- Feat(pdf): Group the reader menu into Contents, Notes, Text, Page and the existing Brightness panel. Retain region extraction, continuous OCR, cached edits and TXT export; group crop, fit, rotation, page turning and image enhancement under Page. Add 1–4× pinch zoom, desktop rectangle zoom, panning and per-page viewport memory using bounded image rendering. Screen rotation updates the reader viewport and fit width together.
+
+- Fix(harmony): Use the native database backup API on the existing OHOS database worker before merging sync data, instead of unsupported VACUUM/checkpoint SQL. Abort the merge on failed or incomplete snapshots; other platforms keep their existing backup path. ([#41](https://github.com/sobranie2406/modureader/issues/41)). Thanks [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) for reporting and testing.
+
+- Feat(feedback): Include current-session sanitized diagnostic fields from Advanced Logs by default, including recognized failure causes, HTTP/database codes and code frames. Preview before sharing; export long logs as TXT for manual GitHub attachment. Reset the bounded diagnostic buffer on restart without changing sync behavior.
+
+### 简体中文
+
+- Feat(settings): 裁边应用范围、向量／OCR 模型下载源及更新源改为直接点选；文字一级菜单直接提供已保存文字 TXT 导出，本页文字编辑保留在重排／提取工具中，保留缓存校对稿及原有来源逻辑。
+
+- Fix(ocr): 文字／OCR 重排界面继续按原书页码后台缓存，重排内滚动不改变窗口，切换原书页时才更新；前台需要识别时先等在途页面完成并复用结果，重排工具面板显示缓存进度，离开已缓存文字不误取消后台渲染。
+
+- Feat(ocr): 已保存的页面文字、校对稿和笔记引用版本随已下载原书通过现有书籍同步服务同步；未下载原书不拉取缓存，下载原书时一并获取缓存。按原文件校验值关联，不依赖本机编号或书名；逐页合并、保留冲突版本，上传校验成功后再合并清理旧快照。
+
+- Feat(ocr): 缓存页数改用 1–5 页的减号／数字／加号控件；缓存进度将已有识别结果和校对稿计入已处理页数。
+
+- Fix(ocr): 预缓存先检查已有识别与校对稿，只处理缺失页；触摸、滚动和翻页不再反复取消正在处理的页面，手动识别、切后台和退出仍可取消让出资源。缩短空闲调度等待，显示当前页识别进度。
+
+- Fix(pdf): 裁边预览固定在顶部，下面的选项独立滚动，分格改为可点击示意图。修复原页模式无裁边信息时不启动预缓存的问题，缓存范围不越过末页；增加有限重试及已缓存页数、缺少模型等状态提示。
+
+- Feat(ios): 通过现有翻页通道接入可选音量变化监听，仅在前台阅读且无菜单／弹窗遮挡时翻页，不接管系统音量和朗读音频会话。兼容监听无法区分实体键与其他音量变化，音量极值处重复按键可能无效，尚待实机验证。
+
+- Feat(pdf): 新增可选后台文字／OCR 预缓存，按当前页起共 1–5 页串行处理，保留已保存的校对稿。合并自动文字／OCR 重排并恢复电子书重排菜单；提取工具移至预览下方，裁边阅读开关移入裁边编辑器，精简页面选项。缩放条支持拖动、80% 透明和闲置 5 秒隐藏，修复放大后普通点击被误判为拖动。
+
+- Feat(pdf): PDF／扫描书底栏整合为目录、笔记、文字、页面和原有亮度；保留框选提取、连续识别、缓存编辑与 TXT 导出，页面中归拢裁边、适配、旋屏、翻页和图像增强。新增 1–4 倍双指缩放、桌面框选放大、拖动及逐页视口记忆，沿用有上限的图片渲染；旋屏同步调整阅读窗口与适应屏宽。
+
+- Fix(harmony): 鸿蒙同步合并前在现有数据库工作线程调用原生备份接口，不再执行不兼容的 VACUUM／checkpoint SQL；备份失败或不完整时仍停止合并，其他平台备份逻辑不变。（[#41](https://github.com/sobranie2406/modureader/issues/41)）。感谢 [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) 反馈与测试。
+
+- Feat(feedback): 问题反馈默认附带本次启动的高级日志脱敏诊断字段，包含已识别的错误原因、HTTP／数据库错误码及代码堆栈；提交前可预览，长日志可导出 TXT 后手动附加到 GitHub。诊断缓存限量保存并在重启后清空，不改变同步逻辑。
+
+## 1.2.11-beta.3
+
+### English
+
+- Feat(reader): Share ebook layout settings with OCR reflow, disable inapplicable settings, and apply horizontal text alignment with symmetric reading margins. Refine PDF style controls and nested reading panels; clarify header top and footer bottom margins.
+- Fix(selection): Cache paragraph word boundaries for initial long-press selection, including direct presses on characters. Keep round draggable handles without re-expanding manually adjusted ranges; suppress the competing Android selection toolbar and exclude line spacing from highlight geometry.
+- Style(tts): Match the circled-square stop icon to the other narration toolbar controls, without a separate background.
+- Feat(ocr): Save recognition and corrected text in one book file indexed by original page; reuse saved pages across reflow modes and model changes, recognize missing pages automatically, and export saved pages as paginated TXT. Confirm page re-recognition before replacing recognition and edits; preserve historical notes and source positions. ([#42](https://github.com/sobranie2406/modureader/issues/42)). Thanks [@seightday](https://github.com/seightday) for the suggestion.
+
+### 简体中文
+
+- Feat(reader): OCR 重排复用普通电子书排版设置，不适用项置灰；修正左右对齐及阅读边距，整理 PDF 样式和多级阅读菜单，页眉、页脚边距明确标为上边距、下边距。
+- Fix(selection): 提前缓存段落词边界，长按文字直接选中完整词；保留圆点拖动手柄，手动调整不再自动扩词，抑制安卓重复原生浮窗，选区高亮不再包含行间距。
+- Style(tts): 朗读停止按钮使用与其他按钮一致的圆圈方块图标，不再单独添加背景。
+- Feat(ocr): 按原始页码将识别结果及校对稿保存到每本书一个文件；重排模式或模型改变时仍优先读取已有结果，无缓存时自动识别，支持按页导出 TXT。重新识别前确认替换本页识别及编辑结果，保留旧笔记和原图位置。（[#42](https://github.com/sobranie2406/modureader/issues/42)）。感谢 [@seightday](https://github.com/seightday) 提出建议。
+
+## 1.2.11-beta.1
+
+### English
+
+- Feat(tts): Use icon-only narration controls with a larger circled-square stop button. Make the floating background 80% transparent and draggable within the screen, without changing the reading viewport or playback actions. Keep opaque icons, tooltips and accessibility labels.
+
+- Perf(reader): Measure horizontal chapter extent in the existing geometry pass before alignment writes, avoiding a second immediate full-chapter layout. Keep fresh measurements for later image/resize updates and transformed content. Twelve synthetic browser comparisons preserve geometry and CFIs; E-Ink timing is pending.
+- Fix(selection): Theme native handles only inside reader WebViews as blue circles from creation, keeping native selection, smart expansion and later custom handle takeover. Device verification of the green-handle transition is pending.
+
+- Perf(reader): Reuse a styled template for page-alignment runs, skip unchanged offsets and redundant generated-node style reads, and split layout diagnostics into content-free substage timings. E-Ink device latency verification is pending.
+
+- Fix(selection): Keep reader handle takeover after Android stylus drag-selection and native scroll-to-selection while preserving the exact manually selected range; finger scrolling and mouse/keyboard selection retain their behavior. Native handles still reproduced on test3; device verification of the follow-up is pending.
+
+- Fix(reader): Handle Android WebView renderer loss in the reader, background import/search, dictionary and web popups; discard dead views and offer explicit reload instead of reusing them. Skip unchanged layout attributes and batch geometry updates into one pagination pass. Record anonymous chapter resource, document, preparation, font and layout timings for device diagnosis. Manual crash recovery was verified remotely; the underlying renderer crash and E-Ink navigation delays remain under investigation.
+
+- Fix(harmony): Preserve reader URL parameters in the HarmonyOS loopback WebView fallback, preventing a missing book address from causing HTTP 500 and import timeouts. Related to the investigation of [#33](https://github.com/sobranie2406/modureader/issues/33); thanks [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) for reporting the HarmonyOS bookshelf/reader failures. API 26 emulator import and shelf checks pass; the original device-only blank shelf is not yet reproduced.
+
+- Feat(sync): Start the existing manual two-way sync directly from the bookshelf sync button, without opening the sync status sheet; retain sync policies and result feedback.
+
+- Fix(settings): Standardize the system theme value as `system`, accepting legacy `auto` preferences and backups so global settings file/link export no longer fails validation.
+
+- Feat(tts): Add a stop button at the trailing end of the floating narration toolbar, retaining the compact layout on narrow screens.
+
+- Fix(settings): Adjust settings sliders only by dragging the thumb; ignore track taps and track-started drags to prevent accidental changes while scrolling. Keep reading progress tap-to-seek ([#40](https://github.com/sobranie2406/modureader/issues/40)). Thanks [@ndd200](https://github.com/ndd200) for the suggestion.
+
+### 简体中文
+
+- Feat(tts): 朗读浮动栏改用纯图标及更大的圆圈方块停止按钮；背景80%透明，可在屏幕内拖动，不改变正文视口和播放操作。图标保持清晰，保留长按提示及无障碍标签。
+
+- Perf(reader): 普通横排在对齐偏移写入前复用本次几何测量获取章节宽度，避免立即再次计算整章布局；后续图片／尺寸变化和旋转内容仍重新测量。12组合成章节浏览器对比的坐标与CFI一致，墨水屏耗时待验证。
+- Fix(selection): 仅阅读器 WebView 从创建时使用蓝色圆点原生手柄，保留原生选择、自动扩词及后续自定义手柄接管；绿色手柄过渡的实机验证待完成。
+
+- Perf(reader): 页面对齐节点复用样式模板，跳过未变化的偏移写入和生成节点的重复样式读取；细分排版耗时诊断，不记录正文。墨水屏实机耗时改善待验证。
+
+- Fix(selection): Android 触控笔滑动选字及系统滚动到选区后保留阅读器自定义手柄接管，保持手动选择的准确范围，不再次扩词；手指滚动与鼠标／键盘选区行为不变。test3 实机仍复现原生手柄，追加修复待实机验证。
+
+- Fix(reader): 阅读器、后台导入／检索、词典和网页弹窗接管 Android WebView 渲染进程退出，移除失效视图并提供手动重载，不再复用崩溃视图。跳过未变化的排版参数，多项布局参数合并为一次分页；记录不含书籍内容的资源、文档、准备、字体与排版分阶段耗时。远端已验证手动重载恢复；底层渲染崩溃及墨水屏跳转延迟仍在排查。
+
+- Fix(harmony): 鸿蒙 WebView 本地页面降级加载保留阅读器网址参数，避免书籍地址丢失导致 HTTP 500 和导入超时。本次排查关联 [#33](https://github.com/sobranie2406/modureader/issues/33)，感谢 [@xuezeyang123-hub](https://github.com/xuezeyang123-hub) 反馈鸿蒙书架及打开书籍异常。API 26 模拟器导入和书架检查通过；原反馈设备的首页空白尚未复现。
+
+- Feat(sync): 点击书架同步按钮直接启动原有手动双向同步，不再弹出同步面板；同步策略和结果提示保持不变。
+
+- Fix(settings): “跟随系统”主题值统一为 `system`，兼容旧版 `auto` 设置及备份，修复全局设置文件／链接导出校验失败。
+
+- Feat(tts): 在朗读浮动栏最右侧增加停止按钮，窄屏保留自适应紧凑布局。
+
+- Fix(settings): 设置滑块仅允许拖动滑块调节，点击轨道或从轨道开始拖动不改值，减少滚动设置页面时的误触；阅读进度条保留点击跳转（[#40](https://github.com/sobranie2406/modureader/issues/40)）。感谢 [@ndd200](https://github.com/ndd200) 提出建议。
 
 ## 1.2.10
 

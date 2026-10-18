@@ -118,6 +118,106 @@ function fixture({enabled='1', unsafe=false, long=false}={}) {
   return {dom,doc};
 }
 const layout={height:450,topMargin:20,bottomMargin:20,columnWidth:300,gap:20};
+test('run preparation clones one styled template and preserves text and namespace', () => {
+  const {doc, dom} = fixture();
+  const original = doc.body.textContent;
+  const create = doc.createElementNS.bind(doc);
+  let templates = 0;
+  doc.createElementNS = (namespace, name) => {
+    if (name === 'modu-page-run') templates++;
+    return create(namespace, name);
+  };
+  const {runs} = preparePageRuns(doc);
+  assert.equal(templates, 1);
+  assert.equal(runs.length, 22);
+  assert.equal(doc.body.textContent, original);
+  for (const run of runs) {
+    assert.equal(run.namespaceURI, 'http://www.w3.org/1999/xhtml');
+    assert.equal(run.__moduPageRun, true);
+    assert.equal(run.style.display, 'inline');
+    assert.equal(run.style.getPropertyPriority('font'), 'important');
+    assert.equal(run.style.top, '0px');
+  }
+  assert.equal(preparePageRuns(doc).runs, runs);
+  assert.equal(templates, 1, 'prepared chapters retain their stable nodes');
+  dom.window.close();
+});
+
+test('alignment timings are content-free and reset does not rewrite unchanged offsets', () => {
+  const {doc, dom} = fixture();
+  const events = [];
+  alignPaginatedText(doc, layout, false, (stage, since) => {
+    assert.ok(Number.isFinite(since) && since <= Date.now());
+    events.push(stage);
+  });
+  assert.deepEqual(events, ['layout_runs', 'layout_geometry', 'layout_offsets']);
+  resetPageAlignment(doc);
+  let writes = 0;
+  for (const run of preparePageRuns(doc).runs) {
+    const set = run.style.setProperty.bind(run.style);
+    run.style.setProperty = (...args) => { writes++; return set(...args); };
+  }
+  resetPageAlignment(doc);
+  assert.equal(writes, 0);
+  alignPaginatedText(doc, layout, false);
+  assert.ok(writes > 0, 'real alignment changes still apply');
+  assert.equal(preparePageRuns(doc).runs[0].getClientRects()[0].top, 20);
+  dom.window.close();
+});
+
+test('page extent is measured before offset writes and is not cached across reflows', () => {
+  const {doc, dom} = fixture();
+  const {runs} = preparePageRuns(doc);
+  let writes = 0, measurements = 0;
+  for (const run of runs) {
+    const set = run.style.setProperty.bind(run.style);
+    run.style.setProperty = (...args) => { writes++; return set(...args); };
+  }
+  for (const height of [450, 500]) {
+    resetPageAlignment(doc); writes = 0;
+    const extent = alignPaginatedText(doc, {...layout, height}, false, undefined, () => {
+      assert.equal(writes, 0, 'measurement must share the read-only geometry pass');
+      return ++measurements * 1000;
+    });
+    assert.equal(extent, measurements * 1000);
+    assert.ok(writes > 0);
+  }
+  assert.equal(measurements, 2);
+  dom.window.close();
+});
+
+test('transformed publisher content retains post-alignment extent measurement', () => {
+  for (const selector of ['html', 'body', 'p']) for (const property of ['transform', 'rotate']) {
+    const {doc, dom} = fixture();
+    doc.querySelector(selector).style.setProperty(property, property === 'transform' ? 'rotate(2deg)' : '2deg');
+    let measured = false;
+    const extent = alignPaginatedText(doc, layout, false, undefined, () => { measured = true; return 1000; });
+    assert.equal(measured, false);
+    assert.equal(extent, undefined);
+    dom.window.close();
+  }
+});
+
+test('line fitting skips generated inline style reads without skipping glyph measurements', () => {
+  const {doc, dom} = fixture();
+  const {runs} = preparePageRuns(doc);
+  const computed = dom.window.getComputedStyle.bind(dom.window);
+  let generatedReads = 0, glyphReads = 0;
+  dom.window.getComputedStyle = el => {
+    if (el.__moduPageRun) generatedReads++;
+    return computed(el);
+  };
+  dom.window.Range.prototype.getClientRects = () => {
+    glyphReads++;
+    return [{width: 20, height: 28}];
+  };
+  fitTextLineSpacing(doc, 759);
+  assert.equal(generatedReads, 0);
+  assert.equal(glyphReads, runs.length);
+  for (const p of doc.querySelectorAll('p')) assert.ok(parseFloat(p.style.lineHeight) >= 30);
+  dom.window.close();
+});
+
 test('publisher numbered headings keep text, floating border and CFI together', () => {
   const { doc, dom } = fixture();
   const heading = doc.createElement('h4');
@@ -397,7 +497,8 @@ test('visible range searches only page boundaries, preserving the exhaustive tra
 test('prepare before display, never reflow after a page turn; settle changes only scroll offset',async()=>{
   const paginator=await readFile(new URL('../assets/foliate-js/src/paginator.js',import.meta.url),'utf8');
   assert.equal(paginator.match(/alignPaginatedText\(doc,/g)?.length,1);
-  assert.ok(paginator.indexOf('this.render(layout)')<paginator.indexOf("this.#iframe.style.visibility = ''"));
+  const render = paginator.indexOf('this.render(layout, timing)');
+  assert.ok(render >= 0 && render < paginator.indexOf("this.#iframe.style.visibility = ''"));
   assert.match(paginator,/reason === 'page' && !this.#vertical/);
   assert.doesNotMatch(source,/requestAnimationFrame|setTimeout|innerHTML/);
 });

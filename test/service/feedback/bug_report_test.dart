@@ -4,6 +4,23 @@ import 'package:anx_reader/service/feedback/bug_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+      'oversized logs keep full snapshot for TXT and explicit attachment notice',
+      () {
+    final log = 'SAFE_LOG\n' * 2000;
+    final report = BugReport(
+        title: 'a',
+        description: 'b',
+        steps: 'c',
+        expected: 'd',
+        runtimeLog: log);
+    expect(report.runtimeLog, log);
+    expect(report.runtimeLogNeedsAttachment, isTrue);
+    expect(report.markdown, contains('需附加 TXT'));
+    expect(report.markdown, isNot(contains('SAFE_LOG')));
+    expect(report.prefilledUri.toString(), isNot(contains('SAFE_LOG')));
+    expect(report.needsClipboard, isTrue);
+  });
   test('runtime logs appear in full preview, never in browser URLs', () {
     const report = BugReport(
         title: 'a',

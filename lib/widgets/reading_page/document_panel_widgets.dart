@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 
 /// Inherit the app theme, including its monochrome e-ink palette. Fixed-page
 /// menus must not force black/white when the application uses a colored theme.
@@ -6,8 +7,10 @@ class DocumentPanelTheme extends StatelessWidget {
   const DocumentPanelTheme({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) =>
-      Material(color: Theme.of(context).colorScheme.surface, child: child);
+  Widget build(BuildContext context) => ScrollConfiguration(
+      behavior: const AppScrollBehavior(symmetricGutter: true),
+      child:
+          Material(color: Theme.of(context).colorScheme.surface, child: child));
 }
 
 /// Aligned label column on tablets/desktops; stacked at phone widths or large
@@ -19,17 +22,17 @@ class DocumentControlRow extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: LayoutBuilder(builder: (context, constraints) {
           final title =
               Text(label, style: Theme.of(context).textTheme.titleSmall);
           if (constraints.maxWidth < 540 ||
               MediaQuery.textScalerOf(context).scale(14) > 20) {
             return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   title,
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   child,
                 ]);
           }

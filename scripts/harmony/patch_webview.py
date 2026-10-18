@@ -50,17 +50,17 @@ def assert_runner(root):
     return Path(sdk).resolve() / 'bin/flutter'
 
 
-def verified_files(package_root, package, description):
-    if (description.get('resolved-ref') != PIN or description.get('ref') != PIN or
-            description.get('url') != REPOSITORY or description.get('path') != package):
-        raise ValueError(f'{package}: lockfile must resolve the exact approved repository/path/pin {PIN}')
+def verified_files(package_root, package, description, *, pin=PIN, repository=REPOSITORY):
+    if (description.get('resolved-ref') != pin or description.get('ref') != pin or
+            description.get('url') != repository or description.get('path') != package):
+        raise ValueError(f'{package}: lockfile must resolve the exact approved repository/path/pin {pin}')
     repo = Path(git(package_root, 'rev-parse', '--show-toplevel')).resolve()
-    if package_root != repo / package or git(repo, 'rev-parse', 'HEAD') != PIN:
+    if package_root != repo / package or git(repo, 'rev-parse', 'HEAD') != pin:
         raise ValueError(f'{package}: package_config and Git checkout do not match the pin')
     files = {}
     # Read the COMMIT tree, not the index. Reject modified tracked source and
     # symlinks; ignore generated/cache/untracked files rather than copying them.
-    tree = git(repo, 'ls-tree', '-r', PIN, '--', package)
+    tree = git(repo, 'ls-tree', '-r', pin, '--', package)
     for entry in tree.splitlines():
         metadata, name = entry.split('\t', 1)
         mode, kind, oid = metadata.split()

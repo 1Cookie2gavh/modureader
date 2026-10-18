@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Use each scrollable's own controller, including nested lists and dialogs.
 class AppScrollBehavior extends MaterialScrollBehavior {
-  const AppScrollBehavior();
+  const AppScrollBehavior({this.symmetricGutter = false});
+  final bool symmetricGutter;
 
   @override
   Widget buildScrollbar(
@@ -12,7 +13,9 @@ class AppScrollBehavior extends MaterialScrollBehavior {
     return _ScrollableScrollbar(
       child: Padding(
         // Keep the drag lane off sliders, checkboxes and text selection.
-        padding: const EdgeInsets.only(right: 14),
+        padding: symmetricGutter
+            ? const EdgeInsets.symmetric(horizontal: 14)
+            : const EdgeInsets.only(right: 14),
         child: child,
       ),
     );

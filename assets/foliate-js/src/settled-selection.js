@@ -2,20 +2,25 @@
 // native long-press handles take ownership. Observe the selection itself.
 export function installSettledSelection(doc, { getRange, onSelection, beforeSelection, delay = 200 }) {
   let timer, generation = 0, disposed = false;
-  let previous;
+  let previous, pending;
   const same = (a, b) => a && b && a.startContainer === b.startContainer &&
     a.startOffset === b.startOffset && a.endContainer === b.endContainer &&
     a.endOffset === b.endOffset;
-  const cancel = () => { generation++; clearTimeout(timer); timer = undefined; };
+  const cancel = () => { generation++; clearTimeout(timer); timer = undefined; pending = undefined; };
   const schedule = () => {
+    const next = getRange();
+    // Repeated native menu/selection notifications must not postpone the same range forever.
+    if (same(pending, next)) return;
     cancel();
-    if (!getRange()) { previous = undefined; return; }
+    if (!next) { previous = undefined; return; }
+    pending = next.cloneRange();
     const scheduled = generation;
     timer = setTimeout(async () => {
       let range = getRange();
-      if (!range || doc.__moduQuickMarkEnabled) return;
+      if (!range || doc.__moduQuickMarkEnabled) { pending = undefined; return; }
       try { await beforeSelection?.(); } catch { /* Keep the native range on failure. */ }
       if (disposed || generation !== scheduled) return;
+      pending = undefined;
       range = getRange();
       if (!range || doc.__moduQuickMarkEnabled || same(previous, range)) return;
       previous = range.cloneRange();

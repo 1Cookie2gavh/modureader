@@ -4,17 +4,19 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Receive Android remote keys before the platform WebView consumes them.
+/// Receive Android remote keys and opt-in iOS system-volume changes.
 /// The owner rechecks its current route/focus state on every delivered event.
 class ReaderPageKeys {
   ReaderPageKeys(
       {required this.onDirection,
       this.onShortcut,
       this.onHostStateChanged,
-      bool? android})
+      bool? android,
+      bool? ios})
       : _android = android ??
-            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    if (_android) channel.setMethodCallHandler(_handle);
+            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
+        _ios = ios ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    if (_supported) channel.setMethodCallHandler(_handle);
   }
 
   static const channel = MethodChannel('com.modu.reader/page_keys');
@@ -22,6 +24,8 @@ class ReaderPageKeys {
   final void Function(int)? onShortcut;
   final VoidCallback? onHostStateChanged;
   final bool _android;
+  final bool _ios;
+  bool get _supported => _android || _ios;
   bool _active = false;
   bool _volume = false;
   bool _disposed = false;
@@ -35,7 +39,7 @@ class ReaderPageKeys {
       onHostStateChanged?.call();
       return;
     }
-    if (!_active) return;
+    if (!_active || (_ios && !_volume)) return;
     if (call.method == 'shortcut') {
       final action = call.arguments;
       if (action is int && action >= 3 && action <= 7) onShortcut?.call(action);
@@ -53,7 +57,7 @@ class ReaderPageKeys {
       required bool volume,
       bool force = false,
       List<Map<String, int>>? shortcuts}) {
-    if (_disposed || !_android) return;
+    if (_disposed || !_supported) return;
     if (!force &&
         _active == active &&
         _volume == volume &&
@@ -71,7 +75,7 @@ class ReaderPageKeys {
       await channel.invokeMethod<void>('configure', {
         'active': active,
         'volume': volume,
-        if (_shortcuts != null) 'shortcuts': _shortcuts,
+        if (_android && _shortcuts != null) 'shortcuts': _shortcuts,
       });
     } on MissingPluginException {
       // Older development hosts may not yet have the native bridge.
@@ -82,7 +86,7 @@ class ReaderPageKeys {
 
   void dispose() {
     _disposed = true;
-    if (!_android) return;
+    if (!_supported) return;
     channel.setMethodCallHandler(null);
     unawaited(_send(false, false));
   }

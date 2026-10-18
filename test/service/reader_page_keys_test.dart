@@ -1,5 +1,6 @@
 import 'package:anx_reader/service/reader_page_keys.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -65,6 +66,34 @@ void main() {
     bridge.update(active: true, volume: true);
     bridge.dispose();
     expect(calls, isEmpty);
+  });
+
+  test('iOS uses the channel only with volume enabled and releases on exit',
+      () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final turns = <int>[];
+    final bridge = ReaderPageKeys(onDirection: turns.add);
+    bridge.update(active: true, volume: false);
+    await send(-1);
+    expect(turns, isEmpty);
+    bridge.update(active: true, volume: true, shortcuts: [
+      {'keyCode': 66, 'modifiers': 0, 'action': 3}
+    ]);
+    expect(calls.last.arguments, {'active': true, 'volume': true});
+    await send(-1);
+    await send(1);
+    expect(turns, [-1, 1]);
+    bridge.update(active: false, volume: true);
+    await send(1);
+    expect(turns, [-1, 1]);
+    bridge.update(active: true, volume: false);
+    await send(1);
+    expect(turns, [-1, 1]);
+    bridge.dispose();
+    await send(1);
+    expect(turns, [-1, 1]);
+    expect(calls.last.arguments, {'active': false, 'volume': false});
   });
 
   test('custom actions respect active state and binding changes resend policy',

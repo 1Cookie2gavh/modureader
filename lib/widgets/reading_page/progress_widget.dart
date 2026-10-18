@@ -98,6 +98,7 @@ class _ReadingProgressControlsState extends State<ReadingProgressControls> {
           Expanded(
             child: Slider(
               key: const ValueKey('reader-progress-slider'),
+              allowedInteraction: SliderInteraction.tapAndSlide,
               inactiveColor: Colors.grey.shade300,
               value: fraction,
               label: title,

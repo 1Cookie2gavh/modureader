@@ -236,6 +236,10 @@ class View {
   cancelLoad() { this.#cancelLoad?.() }
   async load(src, afterLoad, beforeRender) {
     if (typeof src !== 'string') throw new Error(`${src} is not string`)
+    const started = Date.now()
+    const timing = (stage, since) => this.container?.dispatchEvent(new CustomEvent('chapter-state', {
+      detail: { state: 'timing', stage, durationMs: Math.max(0, Date.now() - since) },
+    }))
     return new Promise((resolve, reject) => {
       let settled = false
       let processing = false
@@ -264,6 +268,8 @@ class View {
           if (doc?.URL === 'about:blank' && src !== 'about:blank') return
           if (!doc?.body) throw documentError()
           processing = true
+          timing('chapter_document', started)
+          const preparing = Date.now()
           afterLoad?.(doc)
 
           // it needs to be visible for Firefox to get computed style
@@ -278,16 +284,22 @@ class View {
 
           this.#contentRange.selectNodeContents(doc.body)
           this.#iframe.style.display = 'block'
+          timing('chapter_prepare', preparing)
           // Settle original fonts (or generic fallback after a real failure)
           // before pagination. Keep the outgoing chapter visible during this wait.
+          const fontStarted = Date.now()
           const ready = await waitForReaderFonts(doc, fonts.signal)
           if (settled) return
+          timing('chapter_fonts', fontStarted)
           if (this.#destroyed) throw new Error('Reader view closed')
           if (this.document !== doc || !doc.body) throw documentError()
           if (!ready) throw new Error('Reader font loading failed')
           // Measure the latest viewport, including resizes during font loading.
+          const layoutStarted = Date.now()
           const layout = beforeRender?.({ vertical, rtl })
-          this.render(layout)
+          timing('layout_viewport', layoutStarted)
+          this.render(layout, timing)
+          timing('chapter_layout', layoutStarted)
           this.#iframe.style.visibility = ''
           this.#observer.observe(doc.body)
           // Lazy images can obtain their intrinsic dimensions after pagination.
@@ -329,16 +341,19 @@ class View {
     this.#writingMode = direction.writingMode
     return { ...direction, changed }
   }
-  render(layout) {
+  render(layout, timing) {
     if (!layout) return
+    const resetting = Date.now()
     for (const animation of this.#element.getAnimations?.() ?? []) animation.cancel()
     resetPageAlignment(this.document)
     this.#column = layout.flow !== 'scrolled'
     this.#layout = layout
-    if (this.#column) this.columnize(layout)
-    else this.scrolled(layout)
+    timing?.('layout_reset', resetting)
+    if (this.#column) this.columnize(layout, timing)
+    else this.scrolled(layout, timing)
   }
-  scrolled({ gap, columnWidth, height }) {
+  scrolled({ gap, columnWidth, height }, timing) {
+    const styling = Date.now()
     const vertical = this.#vertical
     const doc = this.document
     if (!doc) return
@@ -355,10 +370,16 @@ class View {
       'margin': 'auto',
     })
     this.setImageSize()
+    timing?.('layout_styles', styling)
+    const spacing = Date.now()
     if (!vertical && !this.#rtl) fitTextLineSpacing(doc, height)
+    timing?.('layout_spacing', spacing)
+    const expanding = Date.now()
     this.expand()
+    timing?.('layout_expand', expanding)
   }
-  columnize({ width, height, gap, columnWidth, topMargin, bottomMargin }) {
+  columnize({ width, height, gap, columnWidth, topMargin, bottomMargin }, timing) {
+    const styling = Date.now()
     const vertical = this.#vertical
     this.#size = vertical ? height : width
 
@@ -392,9 +413,15 @@ class View {
       'margin': '0',
     })
     this.setImageSize()
+    timing?.('layout_styles', styling)
+    const spacing = Date.now()
     if (!vertical && !this.#rtl) fitTextLineSpacing(doc)
-    alignPaginatedText(doc, { width, height, gap, columnWidth, topMargin, bottomMargin }, vertical || this.#rtl)
-    this.expand()
+    timing?.('layout_spacing', spacing)
+    const extent = alignPaginatedText(doc, { width, height, gap, columnWidth, topMargin, bottomMargin },
+      vertical || this.#rtl, timing, () => this.#measureColumnExtent())
+    const expanding = Date.now()
+    this.expand(true, extent)
+    timing?.('layout_expand', expanding)
   }
   setImageSize() {
     if (this.#layout.mobileImageFit) {
@@ -426,20 +453,23 @@ class View {
       })
     }
   }
-  expand(notify = true) {
+  #measureColumnExtent() {
+    const side = this.#vertical ? 'height' : 'width'
+    this.#contentRange.selectNodeContents(this.document.body)
+    const contentRect = this.#contentRange.getBoundingClientRect()
+    const rootRect = this.document.documentElement.getBoundingClientRect()
+    // WebKit can insert a leading column break in horizontal writing.
+    const contentStart = this.#vertical ? 0
+      : this.#rtl ? rootRect.right - contentRect.right : contentRect.left - rootRect.left
+    return contentStart + contentRect[side]
+  }
+  expand(notify = true, measuredExtent) {
     if (this.#destroyed) return
     const { documentElement } = this.document
     if (this.#column) {
       const side = this.#vertical ? 'height' : 'width'
       const otherSide = this.#vertical ? 'width' : 'height'
-      this.#contentRange.selectNodeContents(this.document.body)
-      const contentRect = this.#contentRange.getBoundingClientRect()
-      const rootRect = documentElement.getBoundingClientRect()
-      // offset caused by column break at the start of the page
-      // which seem to be supported only by WebKit and only for horizontal writing
-      const contentStart = this.#vertical ? 0
-        : this.#rtl ? rootRect.right - contentRect.right : contentRect.left - rootRect.left
-      const contentSize = contentStart + contentRect[side]
+      const contentSize = measuredExtent ?? this.#measureColumnExtent()
       const pageCount = Math.ceil(contentSize / this.#size)
       const expandedSize = pageCount * this.#size
       this.#element.style.padding = '0'
@@ -768,10 +798,34 @@ export class Paginator extends HTMLElement {
     }
     this.#mediaQuery.addEventListener('change', this.#mediaQueryListener)
   }
-  attributeChangedCallback(name, _, value) {
+  #updatingAttributes = false
+  #attributesNeedRender = false
+  setLayoutAttributes(attributes) {
+    const updating = this.#updatingAttributes
+    this.#updatingAttributes = true
+    try {
+      for (const [name, value] of Object.entries(attributes)) {
+        if (value === null) this.removeAttribute(name)
+        else this.setAttribute(name, value)
+      }
+    } finally {
+      this.#updatingAttributes = updating
+      if (!updating && this.#attributesNeedRender) {
+        this.#attributesNeedRender = false
+        this.render()
+      }
+    }
+  }
+  #renderAttributes() {
+    if (this.#updatingAttributes) this.#attributesNeedRender = true
+    else this.render()
+  }
+  attributeChangedCallback(name, previous, value) {
+    // Reapplying settings must not paginate the whole chapter for each attribute.
+    if (previous === value) return
     switch (name) {
       case 'flow':
-        this.render()
+        this.#renderAttributes()
         break
       case 'top-margin':
       case 'max-block-size':
@@ -787,7 +841,7 @@ export class Paginator extends HTMLElement {
       case 'max-inline-size':
         // needs explicit `render()` as it doesn't necessarily resize
         this.#top.style.setProperty('--_' + name, value)
-        this.render()
+        this.#renderAttributes()
         break
       case 'bgimg-url':
       case 'bgimg-blur':
@@ -1740,11 +1794,14 @@ export class Paginator extends HTMLElement {
     this.dispatchEvent(new CustomEvent('continuous-start'))
   }
   async #goTo({ index, anchor, select }) {
+    const started = Date.now()
     this.#lastNavigation = { index, anchor, select }
     this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'loading' } }))
     try {
       const result = await this.#loadSection({ index, anchor, select })
-      this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'ready' } }))
+      this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
+        state: 'ready', durationMs: Math.max(0, Date.now() - started),
+      } }))
       return result
     } catch (error) {
       const reason = error.message === 'Reader font loading failed' ? 'font'
@@ -1754,6 +1811,7 @@ export class Paginator extends HTMLElement {
       this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
         state: error.name === 'AbortError' ? 'cancelled' : 'failed',
         reason, index,
+        durationMs: Math.max(0, Date.now() - started),
       } }))
       throw error
     }
@@ -1780,8 +1838,15 @@ export class Paginator extends HTMLElement {
         this.setStyles(this.#styles)
         this.dispatchEvent(new CustomEvent('load', { detail }))
       }
+      const resourceStarted = Date.now()
       await this.#display(this.#sectionCache.load(index)
-        .then(src => ({ index, src, anchor, onLoad, select }))
+        .then(src => {
+          this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
+            state: 'timing', stage: 'chapter_resource',
+            durationMs: Math.max(0, Date.now() - resourceStarted),
+          } }))
+          return { index, src, anchor, onLoad, select }
+        })
         .catch(e => {
           console.warn(e)
           console.warn(new Error(`Failed to load section ${index}`))

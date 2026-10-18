@@ -17,12 +17,14 @@ from verify_tools import verify
 from prepare import overrides, prepare
 
 
-def fixture(path, version='1.2.2', build=10087):
+def fixture(path, version='1.2.2', build=10087, source_version=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, 'w') as archive:
         archive.writestr('module.json', json.dumps({
             'module': {'name': 'entry'}, 'app': {'bundleName': 'com.modu.reader',
             'versionName': version, 'versionCode': build}}))
+        archive.writestr('resources/rawfile/flutter_assets/pubspec.yaml',
+                         f'version: {source_version or version}+{build}\n')
         archive.writestr('libs/arm64-v8a/libtokenizers_ffi.so',
                          bytes.fromhex('7f454c460201010000000000000000000300b700') + bytes(44))
         archive.writestr('resources/rawfile/flutter_assets/NativeAssetsManifest.json',
@@ -32,6 +34,24 @@ def fixture(path, version='1.2.2', build=10087):
 
 
 class HarmonyCloudTest(unittest.TestCase):
+    def test_beta_requires_numeric_platform_and_exact_bundled_version(self):
+        for native, bundled, build in [
+                ('1.2.11', '1.2.11-beta.1', 10130),
+                ('1.2.11.1', '1.2.11-beta.1', 10130),
+                ('1.2.11', '1.2.11-beta.2', 10130),
+                ('1.2.11', '1.2.11', 10130),
+                ('1.2.11', '1.2.11-beta.1', 10129)]:
+            with self.subTest(native=native, bundled=bundled, build=build), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / 'pubspec.yaml').write_text('version: 1.2.11-beta.1+10130\n')
+                fixture(root / 'ohos/entry-unsigned.hap', native, build, bundled)
+                if (native, bundled, build) == ('1.2.11', '1.2.11-beta.1', 10130):
+                    self.assertEqual(package_release(root).name,
+                                     'Modu-1.2.11-beta.1-harmony-arm64.hap')
+                else:
+                    with self.assertRaisesRegex(ValueError, 'does not match'):
+                        package_release(root)
+
     def test_release_hap_requires_matching_version_and_native_assets(self):
         for version, build in [('1.2.2', 10087), ('1.2.1', 10087), ('1.2.2', 10086)]:
             with self.subTest(version=version, build=build), tempfile.TemporaryDirectory() as tmp:

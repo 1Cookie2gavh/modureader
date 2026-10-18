@@ -10,6 +10,7 @@ import 'document_appearance_controls.dart';
 import 'package:anx_reader/dao/theme.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'style_widget.dart';
+import 'more_settings/more_settings.dart';
 
 class DocumentTextStyleDialog extends StatefulWidget {
   const DocumentTextStyleDialog(
@@ -112,11 +113,12 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                       setState(() => _style = value);
                       await _apply();
                     },
-                    onDocumentSettings: () => showDialog<void>(
-                        context: context,
-                        builder: (_) => DocumentTextStyleDialog(
-                            initial: _style,
-                            save: (value) async {
+                    onDocumentSettings: () => showReaderPopup(context,
+                        enableDrag: false,
+                        builder: (_) => ReaderMoreSettings(
+                            settings: ReadingSettings.theme,
+                            documentStyle: _style,
+                            saveDocumentStyle: (value) async {
                               await widget.save?.call(value);
                               if (mounted) setState(() => _style = value);
                             })),
@@ -152,7 +154,7 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                       'Typography below affects only this book’s extracted text and reflow, not the original PDF or other books.')),
                   Padding(
                       padding: EdgeInsets.symmetric(
-                          vertical: 12, horizontal: _style.margin),
+                          vertical: 12, horizontal: _style.margin.clamp(0, 40)),
                       child: Text(
                           t('文字识别之后，可以按照自己的阅读习惯调整样式。\n让阅读更清晰、更舒适。',
                               'Adjust the recognized text to suit your reading preferences.\nMake reading clearer and more comfortable.'),
@@ -191,9 +193,9 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                   _slider('height', t('行间距', 'Line spacing'), _style.height,
                       1.2, 2.4, 12),
                   _slider('spacing', t('字间距', 'Letter spacing'), _style.spacing,
-                      0, 6, 12),
+                      -3, 7, 20),
                   _slider('margin', t('侧边距', 'Side margins'), _style.margin, 0,
-                      60, 30,
+                      _style.margin > 60 ? _style.margin : 60, 30,
                       decimals: 0),
                   _slider('verticalMargin', t('上下边距', 'Top / bottom margins'),
                       _style.verticalMargin, 0, 80, 40,
@@ -225,7 +227,7 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                   SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(t('两端对齐', 'Justify text')),
-                      value: _style.justify,
+                      value: _style.alignment == TextAlign.justify,
                       onChanged: _saving
                           ? null
                           : (v) {

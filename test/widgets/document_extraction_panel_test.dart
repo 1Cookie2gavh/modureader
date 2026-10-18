@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/widgets/reading_page/document_extraction_panel.dart';
 import 'package:dio/dio.dart';
@@ -9,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'pdf_region_preview_test.dart' as fixture;
+import 'document_reflow_reader_test.dart' as reflow_fixture;
 
 class FakeStore extends OcrModelStore {
   bool ready = false;
@@ -27,12 +31,15 @@ class FakeStore extends OcrModelStore {
 Future<void> open(WidgetTester tester,
     {DocumentRequest? extract,
     FakeStore? store,
+    DocumentReflowStore? saved,
     DocumentOcr? ocr,
     bool forceOcr = false,
+    DocumentTextStyle initialStyle = const DocumentTextStyle(),
     Widget Function(String)? narration,
     Future<void> Function()? stopNarration,
     ValueChanged<String?>? result}) async {
   await tester.pumpWidget(MaterialApp(
+      scrollBehavior: const AppScrollBehavior(),
       localizationsDelegates: const [L10n.delegate],
       supportedLocales: L10n.supportedLocales,
       home: Builder(
@@ -43,7 +50,9 @@ Future<void> open(WidgetTester tester,
                         MaterialPageRoute(
                             builder: (_) => Scaffold(
                                 body: DocumentExtractionPanel(
+                                    reflowStore: saved,
                                     forceOcr: forceOcr,
+                                    initialTextStyle: initialStyle,
                                     narrationBuilder: narration,
                                     stopNarration: stopNarration,
                                     info: (page) async => {
@@ -69,10 +78,6 @@ Future<void> open(WidgetTester tester,
 }
 
 Future<void> tap(WidgetTester tester, String text) async {
-  if (find.text(text).evaluate().isEmpty) {
-    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
-    await tester.pumpAndSettle();
-  }
   await tester.ensureVisible(find.text(text));
   await tester.tap(find.text(text));
   await tester.pumpAndSettle();
@@ -82,6 +87,72 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+  testWidgets('short OCR preview aligns within the full reading width',
+      (tester) async {
+    await open(tester,
+        forceOcr: true,
+        store: FakeStore()..ready = true,
+        initialStyle: const DocumentTextStyle(textAlignment: 'right'),
+        ocr: (_, c, p) async => '短段落。');
+    await tap(tester, 'Preview extracted text');
+    final field = find.byType(SelectableText);
+    final bounds = tester.getRect(field);
+    final width = MediaQuery.sizeOf(tester.element(field)).width;
+    expect(bounds.left, closeTo(20, .01));
+    expect(width - bounds.right, closeTo(20, .01));
+  });
+
+  testWidgets(
+      'whole-page extraction saves and reuses edited text without a model',
+      (tester) async {
+    final saved = reflow_fixture.MemoryStore();
+    var calls = 0;
+    await open(tester,
+        saved: saved,
+        forceOcr: true,
+        store: FakeStore()..ready = true, ocr: (_, cancel, progress) async {
+      calls++;
+      return '识别结果';
+    });
+    await tap(tester, 'Whole page');
+    await tap(tester, 'Preview extracted text');
+    expect(saved.latest['0']!.text, '识别结果');
+    await tap(tester, 'Edit saved page');
+    await tester.enterText(
+        find.byKey(const ValueKey('saved-page-editor')), '校对稿\n\n第二段');
+    await tester.tap(find.byKey(const ValueKey('save-page-edit')));
+    await tester.pumpAndSettle();
+    expect(saved.latest['0']!.editedText, '校对稿\n\n第二段');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    await open(tester,
+        saved: saved,
+        forceOcr: true,
+        ocr: (_, cancel, progress) async =>
+            throw StateError('must use saved text'));
+    await tap(tester, 'Whole page');
+    await tap(tester, 'Preview extracted text');
+    expect(find.text('校对稿\n\n第二段'), findsOneWidget);
+    expect(calls, 1);
+  });
+
+  testWidgets(
+      'region extraction never reads or replaces whole-page corrections',
+      (tester) async {
+    final saved = reflow_fixture.MemoryStore();
+    final original = DocumentReflowPage(page: 0, ocr: true, rawText: '整页文字');
+    await saved.save(original, '');
+    await saved.saveEdit(original, '整页校对稿');
+    var calls = 0;
+    await open(tester, saved: saved, extract: (_) async {
+      calls++;
+      return {'text': '区域文字'};
+    });
+    await tap(tester, 'Preview extracted text');
+    expect(find.text('区域文字'), findsOneWidget);
+    expect(calls, 1);
+    expect(saved.latest['0']!.text, '整页校对稿');
   });
   testWidgets('source layout affects preview but not the original AI draft',
       (tester) async {
@@ -337,7 +408,7 @@ void main() {
     final handle = find
         .descendant(of: selector, matching: find.byType(GestureDetector))
         .at(1);
-    await tester.drag(handle, Offset(box.width * .08, box.height * .06));
+    await tester.drag(handle, Offset(box.width * .16, box.height * .12));
     await tester.pumpAndSettle();
     final after = tester.widget<DocumentRegionSelector>(selector).region;
     expect(after.left, greaterThan(before.left));
@@ -396,23 +467,9 @@ void main() {
     await tap(tester, 'Preview extracted text');
     expect(find.byType(SelectableText), findsOneWidget);
     expect(draft, isNull);
-    await tester.tap(find.byTooltip('OCR text style'));
-    await tester.pumpAndSettle();
-    final slider =
-        tester.widget<Slider>(find.byKey(const ValueKey('ocr-style-size')));
-    slider.onChanged!(28);
-    await tester.pumpAndSettle();
-    slider.onChangeEnd!(28);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Hide menu'));
-    await tester.pumpAndSettle();
-    expect(
-        tester
-            .widget<SelectableText>(find.byType(SelectableText))
-            .textSpan!
-            .style!
-            .fontSize,
-        28);
+    expect(find.byTooltip('OCR text style'), findsNothing);
+    expect(find.byKey(const ValueKey('document-style-menu')), findsNothing);
+    expect(find.byTooltip('Brightness / colors'), findsNothing);
     await tap(tester, 'Original');
     expect(find.byType(DocumentRegionSelector), findsOneWidget);
     await tap(tester, 'Extracted text');
@@ -428,8 +485,6 @@ void main() {
         result: (v) => draft = v,
         extract: (_) async => {'text': ''},
         ocr: (_, c, p) => done.future);
-    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
-    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Extract to AI draft'));
     await tester.tap(find.text('Extract to AI draft'));
     await tester.pump();

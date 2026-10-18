@@ -4,6 +4,9 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/page/settings_page/subpage/log_page.dart';
 import 'package:anx_reader/utils/log/common.dart';
+import 'package:anx_reader/service/tts/media_diagnostics.dart';
+import 'package:anx_reader/service/feedback/detailed_runtime_log.dart';
+import 'package:logging/logging.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:file_picker/file_picker.dart';
@@ -62,6 +65,11 @@ void main() {
     FilePicker.platform = picker;
     log = await File('${directory.path}/modu.log').writeAsString(text);
     AnxLog.logFile = log;
+    DetailedRuntimeLog.clear();
+    DetailedRuntimeLog.record(LogRecord(
+        Level.INFO,
+        'TTS media diagnostic: {"source":"android","event":"state","state":3,"canPause":true,"title":"PRIVATE BOOK"}',
+        'test'));
   });
   tearDown(() async {
     AnxToast.fToast.removeCustomToast();
@@ -115,7 +123,14 @@ void main() {
       expect(find.byType(LogPage), findsOneWidget);
       expect(log.readAsStringSync(), text);
       if (outcome == 'success') {
-        expect(File(picker.output!).readAsStringSync(), text);
+        final exported = File(picker.output!).readAsStringSync();
+        if (MediaDiagnostics.enabled) {
+          expect(exported, contains('"canPause":true'));
+          expect(exported, isNot(contains('PRIVATE BOOK')));
+          expect(exported, isNot(contains(text)));
+        } else {
+          expect(exported, text);
+        }
         expect(find.textContaining('保存成功'), findsOneWidget);
       } else if (outcome == 'error') {
         expect(find.textContaining('日志导出失败'), findsOneWidget);

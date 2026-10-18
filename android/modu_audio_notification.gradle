@@ -6,12 +6,74 @@ project(':audio_service').afterEvaluate { audioProject ->
         def service = new File(upstream, 'com/ryanheise/audioservice/AudioService.java')
         def builderAnchor = '.setShowWhen(false)'
         def channelAnchor = 'channel.setShowBadge(config.androidShowNotificationBadge);'
+        // Flutter forwards --dart-define as base64 Gradle properties. Ordinary
+        // builds do not opt in, even when installed on vivo/iQOO.
+        def defines = (rootProject.findProperty('dart-defines') ?: '').split(',')
+            .findAll { it }.collect { new String(it.decodeBase64(), 'UTF-8') }
+        def iqooTest = defines.contains('MODU_IQOO_MEDIA_COMPAT=true')
+        def classAnchor = 'public class AudioService extends MediaBrowserServiceCompat {'
+        def customAnchor = 'customActions.add(customAction);'
+        def compactAnchor = 'if (Build.VERSION.SDK_INT < 33) {'
+        def stopAnchor = 'public void stop() {'
+        def playAnchor = 'listener.onPlay();'
+        def receiver = new File(upstream, 'com/ryanheise/audioservice/MediaButtonReceiver.java')
+        def receiveAnchor = 'super.onReceive(context, intent);'
         def generated = audioProject.layout.buildDirectory.dir('generated/moduAudioService/java')
         def patchTask = audioProject.tasks.register('prepareModuSilentAudioService', Sync) {
             inputs.property('moduSilentNotificationPolicy', 1)
+            inputs.property('moduIqooMediaCompat', iqooTest)
+            inputs.property('moduIqooMediaCompatRevision', 2)
+            from(rootProject.file('audio_service/ModuNotificationPlay.java')) {
+                into('com/ryanheise/audioservice')
+            }
+            from(rootProject.file('audio_service/ModuMediaNotificationPolicy.java')) {
+                into('com/ryanheise/audioservice')
+                filter { String line ->
+                    line.replace('TEST_BUILD = false;', "TEST_BUILD = ${iqooTest};")
+                }
+            }
             from(upstream) {
+                filesMatching('**/MediaButtonReceiver.java') {
+                    filter { String line ->
+                        if (line.trim() == receiveAnchor) {
+                            return '        if (AudioService.instance != null && ModuNotificationPlay.handle(' +
+                                '\n                context, intent, AudioService.instance.getSessionToken())) return;' +
+                                '\n' + line
+                        }
+                        return line
+                    }
+                }
                 filesMatching('**/AudioService.java') {
                     filter { String line ->
+                        if (line.trim() == playAnchor) {
+                            return '            if (moduMediaCompatEnabled()) ModuMediaNotificationPolicy.sessionPlayCallbacks++;' +
+                                '\n' + line
+                        }
+                        if (line.trim() == classAnchor) {
+                            return line + '\n    public static boolean moduMediaCompatEnabled() {' +
+                                '\n        return ModuMediaNotificationPolicy.enabled(ModuMediaNotificationPolicy.TEST_BUILD, Build.BRAND, Build.MANUFACTURER);' +
+                                '\n    }'
+                        }
+                        if (line.trim() == customAnchor) {
+                            // Keep the modern session custom stop action, and
+                            // also provide it to the legacy notification layout.
+                            return line + '\n                if (moduMediaCompatEnabled() && control.actionCode == PlaybackStateCompat.ACTION_STOP) {' +
+                                '\n                    nativeActions.add(createAction(control.icon, control.label, control.actionCode));' +
+                                '\n                }'
+                        }
+                        if (line.trim() == compactAnchor) {
+                            return '        if (Build.VERSION.SDK_INT < 33 || moduMediaCompatEnabled()) {'
+                        }
+                        if (line.trim() == stopAnchor) {
+                            // A bound service may outlive stopSelf. Remove the
+                            // old foreground card now, not only in onDestroy.
+                            return line + '\n        if (moduMediaCompatEnabled()) {' +
+                                '\n            notificationCreated = false;' +
+                                '\n            legacyStopForeground(true);' +
+                                '\n            getNotificationManager().cancel(NOTIFICATION_ID);' +
+                                '\n            releaseWakeLock();' +
+                                '\n        }'
+                        }
                         if (line.trim() == builderAnchor) {
                             return line + '\n                    .setSilent(true)' +
                                 '\n                    .setOnlyAlertOnce(true)' +
@@ -32,6 +94,10 @@ project(':audio_service').afterEvaluate { audioProject ->
                 def lines = service.readLines('UTF-8').collect { it.trim() }
                 if (lines.count(builderAnchor) != 1 || lines.count(channelAnchor) != 1) {
                     throw new GradleException('audio_service notification code changed; review Modu silent policy before building')
+                }
+                if ([classAnchor, customAnchor, compactAnchor, stopAnchor, playAnchor].any { lines.count(it) != 1 } ||
+                        receiver.readLines('UTF-8').count { it.trim() == receiveAnchor } != 1) {
+                    throw new GradleException('audio_service media controls changed; review iQOO compatibility before building')
                 }
             }
         }

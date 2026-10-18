@@ -33,10 +33,12 @@ void main() {
                             child: SingleChildScrollView(
                                 child: PdfReadingControls(
                                     initial: const PdfReadingView(),
-                                    save: (_) async {},
-                                    pan: (_, __) async {})))));
+                                    save: (_) async {})))));
               });
         })));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Page turning and options'));
+        await tester.tap(find.text('Page turning and options'));
         await tester.pumpAndSettle();
         void verifyInherited() {
           final theme =

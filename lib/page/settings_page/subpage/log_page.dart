@@ -1,5 +1,8 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
+import 'package:anx_reader/service/tts/media_diagnostics.dart';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -97,11 +100,17 @@ class _LogPageState extends State<LogPage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final logFile = await getLogFile();
       final date = DateTime.now();
-      final fileName = 'Modu-Log-${date.year}-${date.month}-${date.day}.txt';
+      final fileName =
+          '${MediaDiagnostics.enabled ? 'Modu-iQOO-Log' : 'Modu-Log'}-${date.year}-${date.month}-${date.day}.txt';
       final filePath = await saveFileToDownload(
-          sourceFilePath: logFile.path,
+          // Diagnostic test builds share only the current-session allowlisted
+          // projection, not existing raw logs containing book names/addresses.
+          bytes: MediaDiagnostics.enabled
+              ? Uint8List.fromList(utf8.encode(RuntimeDiagnostics.preview()))
+              : null,
+          sourceFilePath:
+              MediaDiagnostics.enabled ? null : (await getLogFile()).path,
           fileName: fileName,
           mimeType: 'text/plain');
       if (mounted && filePath != null && filePath.isNotEmpty) {

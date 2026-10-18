@@ -60,6 +60,11 @@ class PdfReadingStateStore {
         throw const FormatException('Invalid PDF region position');
       }
       final center = position['center'];
+      final zoom = position['zoom'];
+      if (zoom != null &&
+          (zoom is! num || !zoom.isFinite || zoom < 1 || zoom > 15)) {
+        throw const FormatException('Invalid PDF page zoom');
+      }
       if (center != null &&
           (center is! Map ||
               !['x', 'y'].every((key) =>
@@ -73,6 +78,7 @@ class PdfReadingStateStore {
         'page': position['page'],
         'panel': position['panel'],
         'signature': position['signature'],
+        if (zoom != null) 'zoom': zoom,
         if (center != null) 'center': {'x': center['x'], 'y': center['y']},
       };
     }
@@ -90,7 +96,22 @@ class PdfReadingStateStore {
       final decoded = jsonDecode(previous ?? '{}');
       if (decoded is! Map) throw const FormatException('Invalid PDF states');
       final all = Map<String, dynamic>.from(decoded);
-      all[bookKey] = {...read(bookKey), ...patch};
+      final entry = {...read(bookKey), ...patch};
+      final position = patch['position'];
+      if (position is Map &&
+          position['zoom'] is num &&
+          position['signature'] != 'original-target') {
+        entry['pageViews'] = {
+          if (entry['pageViews'] is Map)
+            ...Map<String, dynamic>.from(entry['pageViews']),
+          '${position['page']}:${position['panel']}': position,
+        };
+        entry['view'] = {
+          ...readView(bookKey).toJson(),
+          'zoom': position['zoom'],
+        };
+      }
+      all[bookKey] = entry;
       try {
         if (!await prefs.setString(key, jsonEncode(all))) {
           throw StateError('PDF reading position save failed');

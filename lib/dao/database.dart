@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:anx_reader/utils/get_path/get_cache_dir.dart';
 import 'package:anx_reader/utils/platform_utils.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
+import 'package:anx_reader/service/sync/harmony_database_snapshot.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/book.dart';
@@ -258,6 +259,9 @@ class DBHelper {
     try {
       final db = await DBHelper().database;
       final cacheDir = await getAnxCacheDir();
+      if (AnxPlatform.isOhos) {
+        return await createHarmonyDatabaseSnapshot(db, cacheDir);
+      }
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final snapshotPath = join(cacheDir.path, 'snapshot_aaaa_$timestamp.db');
 

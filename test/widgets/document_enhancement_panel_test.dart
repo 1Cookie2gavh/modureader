@@ -225,6 +225,10 @@ void main() {
           return {'dataUrl': fixture.pixel};
         });
     change(tester, 'ink', 8);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('enhancement-contrast')), 60,
+        scrollable: find.descendant(
+            of: find.byType(ListView), matching: find.byType(Scrollable)));
     change(tester, 'contrast', 20);
     await tester.pumpAndSettle();
     expect(saved, isEmpty);

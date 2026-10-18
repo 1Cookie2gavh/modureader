@@ -36,23 +36,22 @@ class AppUpdateDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label),
-          DropdownButton<UpdateSource>(
+          Wrap(
             key: ValueKey(id),
-            value: value,
-            isExpanded: true,
-            items: [
-              DropdownMenuItem(
-                  value: UpdateSource.github,
-                  child: Text(ModuStrings.text(context, 'GitHub（默认，优先）',
-                      'GitHub (default, preferred)'))),
-              const DropdownMenuItem(
-                  value: UpdateSource.gitee, child: Text('Gitee')),
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final source in UpdateSource.values)
+                ChoiceChip(
+                  key: ValueKey('$id-${source.name}'),
+                  selected: value == source,
+                  label: Text(source == UpdateSource.github
+                      ? ModuStrings.text(context, 'GitHub（默认，优先）',
+                          'GitHub (default, preferred)')
+                      : 'Gitee'),
+                  onSelected: controller.busy ? null : (_) => onChanged(source),
+                ),
             ],
-            onChanged: controller.busy
-                ? null
-                : (source) {
-                    if (source != null) onChanged(source);
-                  },
           ),
         ],
       );

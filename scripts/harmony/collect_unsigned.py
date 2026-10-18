@@ -63,22 +63,32 @@ def collect(root: Path) -> list[Path]:
     return sources
 
 
-def package_release(root: Path) -> Path:
-    """Require the same version/build and native payload as the tagged source."""
+def release_version(root: Path) -> tuple[str, str]:
     match = re.search(r'^version:\s*(\d+\.\d+\.\d+(?:-[\w.]+)?)\+(\d+)\s*$',
                       (root / 'pubspec.yaml').read_text(), re.MULTILINE)
     if match is None:
         raise ValueError('Missing release version/build in pubspec')
-    version, build = match.groups()
+    return match.groups()
+
+
+def package_release(root: Path) -> Path:
+    """Require the source identity with Harmony's numeric platform version."""
+    version, build = release_version(root)
     sources = collect(root)
     if len(sources) != 1:
         raise ValueError('Expected exactly one entry HAP for release')
     with zipfile.ZipFile(sources[0]) as archive:
         app = json.loads(archive.read('module.json')).get('app', {})
         if (app.get('bundleName') != 'com.modu.reader'
-                or app.get('versionName') != version
+                or app.get('versionName') != version.split('-')[0]
                 or app.get('versionCode') != int(build)):
             raise ValueError('HAP identity/version/build does not match release source')
+        manifests = [name for name in archive.namelist()
+                     if name.endswith('/flutter_assets/pubspec.yaml')]
+        if len(manifests) != 1 or not re.search(
+                rf'^version:\s*{re.escape(version)}\+{build}\s*$',
+                archive.read(manifests[0]).decode('utf-8'), re.MULTILINE):
+            raise ValueError('HAP bundled release version does not match source')
     output = root / 'dist-release'
     output.mkdir(parents=True, exist_ok=True)
     target = output / f'Modu-{version}-harmony-arm64.hap'
@@ -94,9 +104,15 @@ def package_release(root: Path) -> Path:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--release', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--release', action='store_true')
+    mode.add_argument('--build-name', action='store_true')
+    mode.add_argument('--release-version', action='store_true')
     args = parser.parse_args()
-    if args.release:
+    if args.build_name or args.release_version:
+        version, build = release_version(Path.cwd())
+        print(version.split('-')[0] if args.build_name else f'{version}+{build}')
+    elif args.release:
         package_release(Path.cwd())
     else:
         collect(Path.cwd())

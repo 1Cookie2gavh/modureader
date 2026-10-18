@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/webview/recoverable_webview.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:collection';
 import 'dart:async';
@@ -349,107 +350,123 @@ class _SelectionSearchBrowserState extends State<SelectionSearchBrowser> {
                               : null),
                       Expanded(
                           child: widget.pageBuilder?.call(context, _uri) ??
-                              InAppWebView(
-                                // Native views otherwise lose vertical drags to ancestor
-                                // recognizers. Claim gestures only inside the web page;
-                                // the search, engine and close controls stay outside it.
-                                gestureRecognizers: {
-                                  Factory<OneSequenceGestureRecognizer>(
-                                      () => EagerGestureRecognizer()),
-                                },
-                                webViewEnvironment: webViewEnvironment,
-                                initialUrlRequest:
-                                    URLRequest(url: WebUri(_uri.toString())),
-                                initialUserScripts:
-                                    UnmodifiableListView([_zoomScript]),
-                                initialSettings: InAppWebViewSettings(
-                                  userAgent: popupWebUserAgent,
-                                  preferredContentMode:
-                                      UserPreferredContentMode.MOBILE,
-                                  horizontalScrollBarEnabled: false,
-                                  verticalScrollBarEnabled: false,
-                                  disableHorizontalScroll: true,
-                                  disableVerticalScroll: false,
-                                  useWideViewPort: false,
-                                  loadWithOverviewMode: false,
-                                  useShouldOverrideUrlLoading: true,
-                                  supportMultipleWindows: true,
-                                  javaScriptCanOpenWindowsAutomatically: false,
-                                  javaScriptBridgeEnabled: false,
-                                  allowFileAccess: false,
-                                  allowContentAccess: false,
-                                  allowFileAccessFromFileURLs: false,
-                                  allowUniversalAccessFromFileURLs: false,
-                                  mediaPlaybackRequiresUserGesture: true,
-                                  safeBrowsingEnabled: true,
-                                ),
-                                onWebViewCreated: (controller) =>
-                                    _controller = controller,
-                                shouldOverrideUrlLoading: (_, action) async =>
-                                    _allow(action.request.url)
-                                        ? NavigationActionPolicy.ALLOW
-                                        : NavigationActionPolicy.CANCEL,
-                                onCreateWindow: (controller, action) async {
-                                  if (_allow(action.request.url)) {
-                                    await _action((c) =>
-                                        c.loadUrl(urlRequest: action.request));
-                                  }
-                                  return false; // Keep all results in this view, never open another app.
-                                },
-                                onPermissionRequest: (_, request) async =>
-                                    PermissionResponse(
-                                        resources: request.resources,
-                                        action: PermissionResponseAction.DENY),
-                                onLoadStart: (_, url) {
-                                  if (mounted) {
-                                    setState(() {
-                                      _progress = 0;
-                                      _message = null;
-                                    });
-                                  }
-                                },
-                                onProgressChanged: (_, progress) {
-                                  if (mounted) {
-                                    setState(() => _progress = progress);
-                                  }
-                                },
-                                onLoadStop: (controller, url) async {
-                                  if (!mounted) return;
-                                  unawaited(installWebScrollbar(controller,
-                                      reducedMotion:
-                                          MediaQuery.disableAnimationsOf(
-                                              context)));
-                                  if (mounted) setState(() => _progress = 100);
-                                  await _applyZoom();
-                                  await _history(controller, url);
-                                },
-                                onUpdateVisitedHistory: (controller, url, _) =>
-                                    _history(controller, url),
-                                onReceivedError: (_, request, error) {
-                                  if (mounted &&
-                                      request.isForMainFrame == true) {
-                                    setState(() {
-                                      _progress = 100;
-                                      _message = ModuStrings.text(
-                                          context,
-                                          '网页加载失败，请刷新或切换搜索引擎。',
-                                          'Could not load the page. Reload or switch engines.');
-                                    });
-                                  }
-                                },
-                                onReceivedHttpError: (_, request, response) {
-                                  if (mounted &&
-                                      request.isForMainFrame == true) {
-                                    setState(() {
-                                      _progress = 100;
-                                      _message = ModuStrings.text(
-                                          context,
-                                          '网站暂时无法访问，请刷新或切换搜索引擎。',
-                                          'Website unavailable. Reload or switch engines.');
-                                    });
-                                  }
-                                },
-                              )),
+                              RecoverableWebView(
+                                  onGone: () => _controller = null,
+                                  builder: (onGone) => InAppWebView(
+                                        onRenderProcessGone: onGone,
+                                        // Native views otherwise lose vertical drags to ancestor
+                                        // recognizers. Claim gestures only inside the web page;
+                                        // the search, engine and close controls stay outside it.
+                                        gestureRecognizers: {
+                                          Factory<OneSequenceGestureRecognizer>(
+                                              () => EagerGestureRecognizer()),
+                                        },
+                                        webViewEnvironment: webViewEnvironment,
+                                        initialUrlRequest: URLRequest(
+                                            url: WebUri(_uri.toString())),
+                                        initialUserScripts:
+                                            UnmodifiableListView([_zoomScript]),
+                                        initialSettings: InAppWebViewSettings(
+                                          userAgent: popupWebUserAgent,
+                                          preferredContentMode:
+                                              UserPreferredContentMode.MOBILE,
+                                          horizontalScrollBarEnabled: false,
+                                          verticalScrollBarEnabled: false,
+                                          disableHorizontalScroll: true,
+                                          disableVerticalScroll: false,
+                                          useWideViewPort: false,
+                                          loadWithOverviewMode: false,
+                                          useShouldOverrideUrlLoading: true,
+                                          supportMultipleWindows: true,
+                                          javaScriptCanOpenWindowsAutomatically:
+                                              false,
+                                          javaScriptBridgeEnabled: false,
+                                          allowFileAccess: false,
+                                          allowContentAccess: false,
+                                          allowFileAccessFromFileURLs: false,
+                                          allowUniversalAccessFromFileURLs:
+                                              false,
+                                          mediaPlaybackRequiresUserGesture:
+                                              true,
+                                          safeBrowsingEnabled: true,
+                                        ),
+                                        onWebViewCreated: (controller) =>
+                                            _controller = controller,
+                                        shouldOverrideUrlLoading: (_,
+                                                action) async =>
+                                            _allow(action.request.url)
+                                                ? NavigationActionPolicy.ALLOW
+                                                : NavigationActionPolicy.CANCEL,
+                                        onCreateWindow:
+                                            (controller, action) async {
+                                          if (_allow(action.request.url)) {
+                                            await _action((c) => c.loadUrl(
+                                                urlRequest: action.request));
+                                          }
+                                          return false; // Keep all results in this view, never open another app.
+                                        },
+                                        onPermissionRequest: (_,
+                                                request) async =>
+                                            PermissionResponse(
+                                                resources: request.resources,
+                                                action: PermissionResponseAction
+                                                    .DENY),
+                                        onLoadStart: (_, url) {
+                                          if (mounted) {
+                                            setState(() {
+                                              _progress = 0;
+                                              _message = null;
+                                            });
+                                          }
+                                        },
+                                        onProgressChanged: (_, progress) {
+                                          if (mounted) {
+                                            setState(
+                                                () => _progress = progress);
+                                          }
+                                        },
+                                        onLoadStop: (controller, url) async {
+                                          if (!mounted) return;
+                                          unawaited(installWebScrollbar(
+                                              controller,
+                                              reducedMotion: MediaQuery
+                                                  .disableAnimationsOf(
+                                                      context)));
+                                          if (mounted) {
+                                            setState(() => _progress = 100);
+                                          }
+                                          await _applyZoom();
+                                          await _history(controller, url);
+                                        },
+                                        onUpdateVisitedHistory:
+                                            (controller, url, _) =>
+                                                _history(controller, url),
+                                        onReceivedError: (_, request, error) {
+                                          if (mounted &&
+                                              request.isForMainFrame == true) {
+                                            setState(() {
+                                              _progress = 100;
+                                              _message = ModuStrings.text(
+                                                  context,
+                                                  '网页加载失败，请刷新或切换搜索引擎。',
+                                                  'Could not load the page. Reload or switch engines.');
+                                            });
+                                          }
+                                        },
+                                        onReceivedHttpError:
+                                            (_, request, response) {
+                                          if (mounted &&
+                                              request.isForMainFrame == true) {
+                                            setState(() {
+                                              _progress = 100;
+                                              _message = ModuStrings.text(
+                                                  context,
+                                                  '网站暂时无法访问，请刷新或切换搜索引擎。',
+                                                  'Website unavailable. Reload or switch engines.');
+                                            });
+                                          }
+                                        },
+                                      ))),
                     ]))),
       );
 }

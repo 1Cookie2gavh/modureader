@@ -1,5 +1,6 @@
+import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/providers/sync.dart';
-import 'package:anx_reader/widgets/bookshelf/sync_status_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,9 +52,12 @@ class _SyncButtonState extends ConsumerState<SyncButton>
               ),
             )
           : const Icon(Icons.sync),
-      onPressed: () {
-        showSyncStatusBottomSheet(context);
-      },
+      onPressed: isSyncing
+          ? null
+          : () {
+              ref.read(syncProvider.notifier).syncData(SyncDirection.both, ref,
+                  trigger: SyncTrigger.manual);
+            },
     );
   }
 }

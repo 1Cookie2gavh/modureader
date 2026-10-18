@@ -22,6 +22,8 @@ class PdfRegionPreview extends StatefulWidget {
     required this.close,
     this.initialLayout = const DocumentLayoutConfig(),
     this.saveLayout,
+    this.panelReading,
+    this.setPanelReading,
     this.startWithLayoutEditor = false,
     this.imageEpub = false,
     this.initialEnhancement = const DocumentEnhancement(),
@@ -33,6 +35,8 @@ class PdfRegionPreview extends StatefulWidget {
   final VoidCallback cancelRender;
   final VoidCallback close;
   final DocumentLayoutConfig initialLayout;
+  final bool? panelReading;
+  final Future<void> Function(bool)? setPanelReading;
   final Future<void> Function(DocumentLayoutConfig)? saveLayout;
 
   /// Open the editor in this route, without a preview route underneath it.
@@ -273,7 +277,9 @@ class _PdfRegionPreviewState extends State<PdfRegionPreview> {
             info: widget.info,
             render: widget.render,
             cancelRender: widget.cancelRender,
-            save: widget.saveLayout!));
+            save: widget.saveLayout!,
+            panelReading: widget.panelReading,
+            setPanelReading: widget.setPanelReading));
     if (!mounted) return;
     setState(() {
       _editing = false;
@@ -302,7 +308,9 @@ class _PdfRegionPreviewState extends State<PdfRegionPreview> {
             info: widget.info,
             render: widget.render,
             cancelRender: widget.cancelRender,
-            save: widget.saveLayout!);
+            save: widget.saveLayout!,
+            panelReading: widget.panelReading,
+            setPanelReading: widget.setPanelReading);
       }
       // Resolve the current original page first; no intermediate preview render
       // or additional navigation is needed. Loading is cancellable/retryable.

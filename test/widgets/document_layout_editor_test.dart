@@ -38,11 +38,68 @@ DocumentPageLayout draft(WidgetTester tester) => tester
     .whereType<DocumentCropPainter>()
     .single
     .layout;
-void choose(WidgetTester tester, String key, String value) => tester
-    .widget<DropdownButton<String>>(find.byKey(ValueKey(key)))
-    .onChanged!(value);
+void choose(WidgetTester tester, String key, String value) {
+  if (key == 'layout-grid') {
+    tester
+        .widget<ChoiceChip>(find.byKey(ValueKey('$key-$value')))
+        .onSelected!(true);
+  } else {
+    tester
+        .widget<DropdownButton<String>>(find.byKey(ValueKey(key)))
+        .onChanged!(value);
+  }
+}
 
 void main() {
+  testWidgets('crop scope is directly selectable and saves the chosen coverage',
+      (tester) async {
+    DocumentLayoutConfig? saved;
+    await openEditor(tester, save: (value) async => saved = value);
+    final current = find.byKey(const ValueKey('layout-scope-current'));
+    final all = find.byKey(const ValueKey('layout-scope-all'));
+    expect(tester.widget<ChoiceChip>(current).selected, true);
+    expect(find.byType(DropdownButton<DocumentLayoutScope>), findsNothing);
+    await tester.ensureVisible(all);
+    await tester.pumpAndSettle();
+    await tester.tap(all);
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(all).selected, true);
+    choose(tester, 'layout-grid', 'four');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(saved!.forPage(0).preset, 'four');
+    expect(saved!.forPage(5).preset, 'four');
+  });
+  testWidgets(
+      'preview stays above separately scrolling illustrated grid choices',
+      (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await openEditor(tester);
+    final preview = find.byKey(const ValueKey('crop-preview'));
+    final options = find.byKey(const ValueKey('crop-options'));
+    final before = tester.getRect(preview);
+    expect(before.bottom, lessThanOrEqualTo(tester.getRect(options).top));
+    final grid = find.byKey(const ValueKey('layout-grid-four'));
+    await tester.ensureVisible(grid);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(preview), before);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('layout-grid')),
+            matching: find.byType(DropdownButton<String>)),
+        findsNothing);
+    await tester.tap(grid);
+    await tester.pumpAndSettle();
+    expect(draft(tester).preset, 'four');
+    expect(tester.widget<ChoiceChip>(grid).selected, isTrue);
+    expect(tester.getRect(preview), before);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
   testWidgets(
       'auto crop is a reviewable draft; margin and presets do not save until confirm',
       (tester) async {
@@ -125,9 +182,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('auto-crop')));
     await tester.pump();
     tester
-        .widget<DropdownButton<DocumentLayoutScope>>(
-            find.byKey(const ValueKey('layout-scope')))
-        .onChanged!(DocumentLayoutScope.all);
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-scope-all')))
+        .onSelected!(true);
     await tester.pumpAndSettle();
     pending.complete({
       'dataUrl': fixture.pixel,
@@ -180,9 +236,8 @@ void main() {
     await tester.tap(find.text('Odd / even'));
     await tester.pumpAndSettle();
     tester
-        .widget<DropdownButton<DocumentLayoutScope>>(
-            find.byKey(const ValueKey('layout-scope')))
-        .onChanged!(DocumentLayoutScope.even);
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-scope-even')))
+        .onSelected!(true);
     await tester.pump();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -246,18 +301,16 @@ void main() {
     choose(tester, 'layout-grid', 'horizontal2');
     await tester.pumpAndSettle();
     tester
-        .widget<DropdownButton<DocumentLayoutScope>>(
-            find.byKey(const ValueKey('layout-scope')))
-        .onChanged!(DocumentLayoutScope.even);
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-scope-even')))
+        .onSelected!(true);
     await tester.pumpAndSettle();
     expect(draft(tester).preset, 'single');
     expect(pages.last, 1);
     choose(tester, 'layout-grid', 'four');
     await tester.pumpAndSettle();
     tester
-        .widget<DropdownButton<DocumentLayoutScope>>(
-            find.byKey(const ValueKey('layout-scope')))
-        .onChanged!(DocumentLayoutScope.odd);
+        .widget<ChoiceChip>(find.byKey(const ValueKey('layout-scope-odd')))
+        .onSelected!(true);
     await tester.pumpAndSettle();
     expect(draft(tester).preset, 'horizontal2');
     await tester.tap(find.text('Confirm'));
@@ -299,9 +352,9 @@ void main() {
       await openEditor(tester, total: 1);
       await tester.tap(find.text('Odd / even'));
       await tester.pumpAndSettle();
-      final dropdown = tester.widget<DropdownButton<DocumentLayoutScope>>(
-          find.byKey(const ValueKey('layout-scope')));
-      expect(dropdown.items!.last.enabled, false);
+      final even = tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('layout-scope-even')));
+      expect(even.onSelected, isNull);
       expect(find.byKey(const ValueKey('crop-tl')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Cancel'));

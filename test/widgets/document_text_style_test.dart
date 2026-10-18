@@ -6,6 +6,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('shared settings round trip and legacy controls remain compatible', () {
+    final old =
+        DocumentTextStyle.fromJson({'verticalMargin': 26, 'justify': false});
+    expect(
+        old.padding, const EdgeInsets.symmetric(horizontal: 20, vertical: 26));
+    final current = DocumentTextStyle.fromJson({
+      ...old.toJson(),
+      'topMargin': 40,
+      'bottomMargin': 80,
+      'margin': 288,
+      'spacing': -3,
+      'textAlignment': 'center',
+    });
+    final restored = DocumentTextStyle.fromJson(current.toJson());
+    expect(restored.padding, const EdgeInsets.fromLTRB(288, 40, 288, 80));
+    expect(restored.spacing, -3);
+    expect(restored.alignment, TextAlign.center);
+    expect(restored.withValue('justify', true).alignment, TextAlign.justify);
+    expect(restored.withValue('verticalMargin', 10).padding,
+        const EdgeInsets.fromLTRB(288, 10, 288, 10));
+    expect(restored.withValue('size', 28).textAlignment, 'center');
+  });
   test('style round trip is book-local and does not toggle original-page mode',
       () async {
     SharedPreferences.setMockInitialValues({});

@@ -123,14 +123,13 @@ void main() {
       await tester.tap(find.text('取消').last);
       await tester.pumpAndSettle();
       expect(store.calls, 0);
-      final source = find.byType(DropdownButtonFormField<String>);
+      final source = find.byKey(const ValueKey('vector-source-gitee'));
       await tester.ensureVisible(source);
       await tester.pumpAndSettle();
       await tester.tap(source);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Gitee 镜像').last);
-      await tester.pumpAndSettle();
       expect(Prefs().vectorModelDownloadSource, 'gitee');
+      expect(tester.widget<ChoiceChip>(source).selected, true);
       expect(store.downloadSource, EmbeddingDownloadSource.gitee);
       expect(store.calls, 0,
           reason: 'Selecting a source does not download models');
@@ -140,8 +139,7 @@ void main() {
       await tester.pump();
       expect(store.calls, 1);
       expect(find.text('正在下载 50%'), findsOneWidget);
-      expect(tester.widget<DropdownButtonFormField<String>>(source).onChanged,
-          isNull,
+      expect(tester.widget<ChoiceChip>(source).onSelected, isNull,
           reason: 'Source cannot change during a download');
       expect(find.text('测试推理'), findsNothing);
       store.done.complete();

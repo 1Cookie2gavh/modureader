@@ -54,7 +54,7 @@ test('font readiness handles success, failure, cancellation and hosts without Fo
 });
 test('actual chapter loader stays hidden until custom font metrics are ready, on every chapter', async () => {
   const paginator = await source('paginator.js');
-  const method = paginator.slice(paginator.indexOf('  async load(src,'), paginator.indexOf('\n  render(layout) {'));
+  const method = paginator.slice(paginator.indexOf('  async load(src,'), paginator.indexOf('\n  render(layout, timing) {'));
   const Harness = runInNewContext(`class Harness {
     #destroyed = false; #cancelLoad; #cleanup = [];
     #iframe; #vertical; #rtl; #writingMode; #layout = {};

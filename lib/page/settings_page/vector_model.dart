@@ -401,29 +401,33 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
               CustomSettingsTile(
                   child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: DropdownButtonFormField<String>(
-                  initialValue: prefs.vectorModelDownloadSource,
-                  decoration: InputDecoration(
-                      labelText: ModuStrings.text(
-                          context, '模型下载源', 'Model download source')),
-                  items: [
-                    const DropdownMenuItem(
-                        value: 'huggingFace', child: Text('Hugging Face')),
-                    DropdownMenuItem(
-                        value: 'gitee',
-                        child: Text(ModuStrings.text(
-                            context, 'Gitee 镜像', 'Gitee mirror'))),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(ModuStrings.text(
+                        context, '模型下载源', 'Model download source')),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final source in ['huggingFace', 'gitee'])
+                        ChoiceChip(
+                          key: ValueKey('vector-source-$source'),
+                          selected: prefs.vectorModelDownloadSource == source,
+                          label: Text(source == 'huggingFace'
+                              ? 'Hugging Face'
+                              : ModuStrings.text(
+                                  context, 'Gitee 镜像', 'Gitee mirror')),
+                          onSelected: _downloadProgress.isNotEmpty
+                              ? null
+                              : (_) {
+                                  prefs.vectorModelDownloadSource = source;
+                                  _localModelStore.downloadSource =
+                                      source == 'gitee'
+                                          ? EmbeddingDownloadSource.gitee
+                                          : EmbeddingDownloadSource.huggingFace;
+                                  setState(() {});
+                                },
+                        ),
+                    ]),
                   ],
-                  onChanged: _downloadProgress.isNotEmpty
-                      ? null
-                      : (value) {
-                          if (value == null) return;
-                          prefs.vectorModelDownloadSource = value;
-                          _localModelStore.downloadSource = value == 'gitee'
-                              ? EmbeddingDownloadSource.gitee
-                              : EmbeddingDownloadSource.huggingFace;
-                          setState(() {});
-                        },
                 ),
               )),
               CustomSettingsTile(

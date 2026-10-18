@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'package:anx_reader/service/ocr/document_reflow_store.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/document_reading_mode.dart';
@@ -12,6 +16,9 @@ import 'package:anx_reader/widgets/reading_page/eink_refresh_controls.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_reading_controls.dart';
 import 'package:anx_reader/widgets/reading_page/style_widget.dart';
 import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
+import 'package:anx_reader/widgets/reading_page/document_enhancement_panel.dart';
+import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
+import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,10 +82,133 @@ class _PlayerKey extends GlobalObjectKey<EpubPlayerState> {
   EpubPlayerState get currentState => player;
 }
 
+class _Paths extends PathProviderPlatform {
+  _Paths(this.path);
+  final String path;
+  @override
+  Future<String?> getApplicationSupportPath() async => path;
+  @override
+  Future<String?> getDownloadsPath() async => path;
+}
+
+class _Picker extends FilePicker {
+  _Picker(this.path);
+  final String path;
+  @override
+  Future<String?> saveFile(
+          {String? dialogTitle,
+          String? fileName,
+          String? initialDirectory,
+          FileType type = FileType.any,
+          List<String>? allowedExtensions,
+          Uint8List? bytes,
+          bool lockParentWindow = false}) async =>
+      path;
+}
+
 void main() {
+  setUpAll(() async {
+    FilePicker.platform = _Picker('');
+    await L10n.delegate.load(const Locale('en'));
+    await L10n.delegate.load(const Locale('zh'));
+  });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+  for (final mode in [DocumentReadingMode.pdf, DocumentReadingMode.imageEpub]) {
+    testWidgets(
+        'Text menu exports saved corrections without a page editing entry: $mode',
+        (tester) async {
+      final directory = Directory.systemTemp.createTempSync('modu-text-menu-');
+      final oldPaths = PathProviderPlatform.instance;
+      final oldPicker = FilePicker.platform;
+      PathProviderPlatform.instance = _Paths(directory.path);
+      FilePicker.platform = _Picker('${directory.path}/export.txt');
+      addTearDown(() {
+        PathProviderPlatform.instance = oldPaths;
+        FilePicker.platform = oldPicker;
+        directory.deleteSync(recursive: true);
+      });
+      final player = _Player(mode);
+      final store = DocumentReflowStore(player.cssBookKey);
+      await tester.runAsync(() async {
+        final page =
+            DocumentReflowPage(page: 2, ocr: true, rawText: 'Saved OCR');
+        await store.save(page, '');
+        await store.saveEdit(page, 'Corrected text');
+      });
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: DocumentStyleWidget(player: player, textOnly: true))));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit, cache and export'), findsNothing);
+      expect(find.byKey(const ValueKey('edit-saved-page')), findsNothing);
+      expect(find.text('Edit saved page'), findsNothing);
+      final export = find.byKey(const ValueKey('export-saved-txt'));
+      expect(export, findsOneWidget);
+      await tester.ensureVisible(export);
+      await tester.runAsync(() async {
+        await tester.tap(export);
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pumpAndSettle();
+      final output =
+          directory.listSync().whereType<File>().single.readAsStringSync();
+      expect(output, contains('Corrected text'));
+      expect(output, isNot(contains('Saved OCR')));
+      expect(find.text('TXT exported'), findsOneWidget);
+      expect(player.renderSources, isEmpty,
+          reason: 'Export must never start OCR');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      player.documentReadingMode.dispose();
+    });
+  }
+  testWidgets(
+      'PDF phone style uses aligned sections and a single enhancement entry',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final player = _Player(DocumentReadingMode.pdf);
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('zh'),
+      localizationsDelegates: L10n.localizationsDelegates,
+      supportedLocales: L10n.supportedLocales,
+      scrollBehavior: const AppScrollBehavior(),
+      theme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+          body: Align(
+              alignment: Alignment.bottomCenter,
+              child: ReaderQuickStylePanel(
+                content:
+                    DocumentStyleWidget(player: player, openReflow: (_) {}),
+                toolbar: const SizedBox(height: 48),
+              ))),
+    ));
+    await tester.pumpAndSettle();
+    final panel = tester.getRect(find.byType(DocumentStyleWidget));
+    final row = tester.getRect(find.byType(DocumentControlRow).first);
+    expect(row.left - panel.left, closeTo(panel.right - row.right, .01));
+    final rows = tester
+        .widgetList<DocumentControlRow>(find.byType(DocumentControlRow))
+        .take(8);
+    for (final item in rows) {
+      expect(tester.getRect(find.byWidget(item)).left, closeTo(row.left, .01));
+    }
+    expect(find.text('调整图像效果'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '文字加黑 0'), findsNothing);
+    await tester.ensureVisible(find.text('调整图像效果'));
+    await tester.tap(find.text('调整图像效果'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DocumentEnhancementPanel), findsOneWidget);
+    await tester.tap(find.byTooltip('返回版式'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DocumentEnhancementPanel), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    player.documentReadingMode.dispose();
   });
   for (final mode in [DocumentReadingMode.pdf, DocumentReadingMode.imageEpub]) {
     testWidgets(
@@ -157,25 +287,27 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.byType(DocumentStyleWidget), findsOneWidget);
-      expect(
-          find.text(mode == DocumentReadingMode.pdf
-              ? 'PDF reading'
-              : 'Scanned image reading'),
-          findsOneWidget);
+      expect(find.text('Page'), findsOneWidget);
       expect(find.byType(PdfReadingControls), findsOneWidget);
+      await tester.tap(find.text('Zoom and fit'));
+      await tester.pumpAndSettle();
       expect(find.text('Fit width'), findsOneWidget);
       expect(find.text('Image enhancement'), findsOneWidget);
       expect(find.byIcon(Icons.format_size), findsNothing);
-      expect(find.byTooltip('OCR text style'), findsOneWidget);
-      await tester.tap(find.byTooltip('OCR text style'));
+      expect(find.byTooltip('OCR text style'), findsNothing);
+      final crop = find.text(mode == DocumentReadingMode.pdf
+          ? 'PDF crop and panels'
+          : 'Scanned image crop and panels');
+      await tester.ensureVisible(crop);
+      await tester.tap(crop);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('ocr-style-size')), findsOneWidget);
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(SwitchListTile).first);
+      await tester.ensureVisible(find.text('Read cropped panels'));
+      await tester.tap(find.text('Read cropped panels'));
       await tester.pumpAndSettle();
       expect(player.enabled, isFalse);
-      expect(find.byType(PdfReadingControls), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PdfReadingControls), findsOneWidget);
       expect(
           find.text(mode == DocumentReadingMode.pdf
               ? 'PDF crop and panels'
@@ -221,15 +353,18 @@ void main() {
           .widgetList<DocumentControlRow>(find.byType(DocumentControlRow))
           .map((row) => row.label)
           .toList();
-      expect(rows.take(7), [
-        'Text mode',
-        'Original page zoom',
-        'Mode',
-        'Crop',
-        'Layout',
-        'Image enhancement',
-        'Rotation'
-      ]);
+      expect(rows, ['Image enhancement']);
+      for (final title in [
+        'Zoom and fit',
+        'Rotation',
+        'Page turning and options'
+      ]) {
+        expect(find.text(title), findsOneWidget);
+        await tester.ensureVisible(find.text(title));
+        await tester.tap(find.text(title));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: title);
+      }
       final chip = tester
           .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Single page'));
       expect(chip.selected, isTrue);
@@ -239,11 +374,20 @@ void main() {
       expect(chip.selectedColor, appTheme.colorScheme.primary);
       expect((chip.label as Text).style?.color, appTheme.colorScheme.onPrimary);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: DocumentStyleWidget(
+                  player: player,
+                  textOnly: true,
+                  openReflow: reflowModes.add))));
+      await tester.pumpAndSettle();
+      expect(find.text('Region extraction and continuous OCR'), findsOneWidget);
       await tester.ensureVisible(find.text('Reflow text'));
       await tester.tap(find.text('Reflow text'));
-      await tester.ensureVisible(find.text('OCR reflow'));
-      await tester.tap(find.text('OCR reflow'));
-      expect(reflowModes, [false, true]);
+      expect(reflowModes, [false]);
+      expect(find.text('OCR reflow'), findsNothing);
+      expect(find.text('Text style'), findsNothing);
+      expect(find.text('Background OCR cache'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       player.documentReadingMode.dispose();
     });

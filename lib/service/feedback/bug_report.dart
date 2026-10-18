@@ -21,6 +21,13 @@ abstract class FeedbackReport {
   Uri get prefilledUri;
   String? get crashLog => null;
   String? get runtimeLog => null;
+  bool get runtimeLogNeedsAttachment => (runtimeLog?.length ?? 0) > 12000;
+
+  String get runtimeLogMarkdown => runtimeLogNeedsAttachment
+      ? 'Detailed runtime log requires a TXT attachment / 详细运行日志需附加 TXT 文件。\n'
+          'Export the reviewed log and attach it manually on GitHub; it is not uploaded automatically.\n'
+          '请导出预览中的运行日志，并在 GitHub 手动附加；不会自动上传。'
+      : runtimeLog ?? '';
 
   // Be conservative across desktop/mobile URL handlers. Never truncate text.
   // Diagnostic text must not enter URLs/browser history, even when short.
@@ -83,7 +90,7 @@ ${steps.trim()}
 
 ${actual.trim().isEmpty ? '' : '## Actual behavior / 实际结果\n${actual.trim()}\n\n'}## Expected behavior / 预期行为
 ${expected.trim()}
-${environment == null ? '' : '\n## Environment / 运行环境\n$environment\n'}${additional.trim().isEmpty ? '' : '\n## Additional context / 补充信息\n${additional.trim()}\n'}${crashLog == null ? '' : '\n## Crash diagnostics / 崩溃诊断日志\n$crashLog\n'}${runtimeLog == null ? '' : '\n## Runtime diagnostics / 运行日志\n$runtimeLog\n'}''';
+${environment == null ? '' : '\n## Environment / 运行环境\n$environment\n'}${additional.trim().isEmpty ? '' : '\n## Additional context / 补充信息\n${additional.trim()}\n'}${crashLog == null ? '' : '\n## Crash diagnostics / 崩溃诊断日志\n$crashLog\n'}${runtimeLog == null ? '' : '\n## Runtime diagnostics / 运行日志\n$runtimeLogMarkdown\n'}''';
 
   /// Match the field IDs in .github/ISSUE_TEMPLATE/bug-report.yaml. A `body`
   /// query alone does not prefill a YAML issue form's custom fields.

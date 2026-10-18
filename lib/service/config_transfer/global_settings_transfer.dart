@@ -33,12 +33,12 @@ keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showB
 showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
 bottomNavigatorShowStatistics bottomNavigatorShowAI syncCompletedToast autoSync readingTimedSync
 isSystemTts showTextUnderIconButton notesExportMergeChapters verticalRedFrame enableJsForEpub
-httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft'''
+httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft ocrPrecacheEnabled'''
             .split(RegExp(r'\s+')))
       key: 'bool',
     for (final key
         in '''themeColor awakeTime pageTurningType aiRpm aiMaxTokens aiContextTurns maxAiCacheCount
-readingSyncMinutes excerptShareColorIndex excerptShareBgimgIndex httpProxyPort customCssDefaultIndex scrollPagePercent selectionSearchZoomPercent webTranslationZoomPercent eInkRefreshPages'''
+readingSyncMinutes excerptShareColorIndex excerptShareBgimgIndex httpProxyPort customCssDefaultIndex scrollPagePercent selectionSearchZoomPercent webTranslationZoomPercent eInkRefreshPages ocrPrecachePages'''
             .split(RegExp(r'\s+')))
       key: 'int',
     for (final key
@@ -155,6 +155,10 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
         'type': 'string',
         'value': jsonEncode(profiles)
       };
+    }
+    // Normalize only the export snapshot; leave existing preferences intact.
+    if (values['themeMode']?['value'] == 'auto') {
+      values['themeMode'] = {'type': 'string', 'value': 'system'};
     }
     validate(values);
     final envelope = {
@@ -437,6 +441,9 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
         throw const FormatException('无效设置 / Invalid setting');
       }
       Object value = entry.value['value'];
+      if (entry.key == 'themeMode' && value == 'auto') {
+        value = 'system';
+      }
       if (entry.key == 'bgimg') {
         value = jsonEncode({
           ...prefs.bgimg.toJson(),

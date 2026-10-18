@@ -31,11 +31,13 @@ const scrollLayout = uri((await source('pdf-scroll-layout'))
     .replace("'./pdf-reading-viewport.js'", JSON.stringify(viewport))
     .replace("'./document-regions.js'", JSON.stringify(geometry)));
 const scrollReader = uri((await source('pdf-scroll-reader'))
+    .replace("'./pdf-zoom-input.js'", JSON.stringify(uri(await source('pdf-zoom-input'))))
     .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./transient-scrollbar.js'", JSON.stringify(uri(await source('transient-scrollbar'))))
     .replace("'./pdf-reading-layout.js'", JSON.stringify(layout))
     .replace("'./pdf-scroll-layout.js'", JSON.stringify(scrollLayout)));
 await import(uri((await source('fixed-layout'))
+    .replace("'./pdf-zoom-input.js'", JSON.stringify(uri(await source('pdf-zoom-input'))))
     .replace("'./pdf-render-budget.js'", JSON.stringify(uri(await source('pdf-render-budget'))))
     .replace("'./document-reading-options.js'", JSON.stringify(uri(await source('document-reading-options'))))
     .replace("'./frame-script-policy.js'", JSON.stringify(uri(await source('frame-script-policy'))))
@@ -118,6 +120,61 @@ test('PDF marks survive page recycling, crop, rotation and switching between pag
     for(const layer of layers) assert.equal(layer.element.children.length,0);
 });
 
+test('zoom and pan remember each original page, inherit new pages and reset without losing crop', async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);
+        await h.renderer.goTo({index:0});
+        assert.equal(h.renderer.zoomPdfView(2),true);
+        h.renderer.panPdfView(50,90);
+        const first={...h.renderer.pdfRegionLocation};
+        await h.renderer.next();
+        assert.equal(h.renderer.pdfRegionLocation.zoom,2);
+        assert.deepEqual(h.renderer.pdfRegionLocation.center,first.center);
+        h.renderer.zoomPdfView(3);
+        await h.renderer.prev();
+        assert.equal(h.renderer.pdfRegionLocation.zoom,2);
+        assert.deepEqual(h.renderer.pdfRegionLocation.center,first.center);
+        await h.renderer.next();
+        assert.equal(h.renderer.pdfRegionLocation.zoom,3);
+        const signature=h.renderer.pdfRegionLocation.signature;
+        assert.equal(h.renderer.zoomPdfView(50),true);
+        assert.equal(h.renderer.pdfRegionLocation.zoom,4);
+        h.renderer.zoomPdfView(1,true);
+        assert.equal(h.renderer.pdfRegionLocation.signature,signature);
+        assert.equal(h.renderer.pdfRegionLocation.zoom,1);
+        assert.equal(h.renderer.zoomPdfView(NaN),false);
+        h.renderer.setPdfPageViews({'0:0':first});
+        await h.renderer.goTo({index:0});
+        assert.equal(h.renderer.pdfRegionLocation.zoom,2);
+    } finally {h.close()}
+});
+
+test('two-finger zoom and enlarged-page drag use existing pixels without starting page turns', async () => {
+    const h=harness();let renders=0;
+    const render=h.source.render;h.source.render=async(...a)=>{renders++;return render(...a)};
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
+        const doc=h.renderer.getContents()[0].doc, before=renders;
+        const send=(type,points)=>{
+            const e=new doc.defaultView.Event(type,{bubbles:true,cancelable:true});
+            Object.defineProperty(e,'touches',{value:points.map(([screenX,screenY])=>({screenX,screenY}))});
+            doc.dispatchEvent(e);return e.defaultPrevented;
+        };
+        assert.equal(send('touchstart',[[100,100],[200,100]]),true);
+        assert.equal(send('touchmove',[[50,100],[250,100]]),true);
+        assert.equal(h.renderer.pdfRegionLocation.zoom,2);
+        send('touchend',[]);
+        const center=h.renderer.pdfRegionLocation.center;
+        send('touchstart',[[200,300]]);
+        assert.equal(send('touchmove',[[200,200]]),true);
+        send('touchend',[]);
+        assert.ok(h.renderer.pdfRegionLocation.center.y>center.y);
+        assert.equal(h.renderer.index,0);
+        assert.equal(renders,before,'gesture transforms pixels; refinement is debounced');
+    } finally {h.close()}
+});
+
 test('formal renderer commits panel locations, returns to source page and retains text DOM', async () => {
     const h=harness();
     try {
@@ -132,6 +189,25 @@ test('formal renderer commits panel locations, returns to source page and retain
         await h.renderer.setPdfLayout(config,false);
         assert.equal(h.renderer.pdfReading,false);assert.equal(h.renderer.index,0);
         assert.equal(h.events.at(-1).pdfRegion,null);
+    } finally {h.close()}
+});
+
+test('desktop rectangle zoom is explicit and retains the original text layer', async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
+        const doc=h.renderer.getContents()[0].doc;
+        const send=(type,x,y,buttons=1)=>{
+            const e=new doc.defaultView.MouseEvent(type,{clientX:x,clientY:y,button:0,buttons,bubbles:true,cancelable:true});
+            doc.dispatchEvent(e);return e.defaultPrevented;
+        };
+        assert.equal(send('mousedown',50,50),false);
+        h.renderer.setPdfBoxZoom(true);
+        assert.equal(send('mousedown',50,50),true);
+        send('mousemove',250,250);send('mouseup',250,250,0);
+        assert.equal(h.renderer.pdfRegionLocation.zoom,4);
+        assert.equal(doc.querySelector('.textLayer').textContent,'Original text');
+        assert.equal(doc.querySelectorAll('div[style*="2147483647"]').length,0);
     } finally {h.close()}
 });
 

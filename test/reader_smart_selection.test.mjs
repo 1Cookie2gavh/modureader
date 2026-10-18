@@ -150,7 +150,7 @@ test('aligned Android selections paint glyph height and restore native painting 
   };
   f.hit(node, 1); f.send('pointerdown'); f.select(0, 2, node);
   await f.control.beforeSelection();
-  const box = handlesHost(f).shadowRoot.querySelector('[data-selection-highlight] i');
+  const box = f.doc.querySelector('[data-selection-highlight]').shadowRoot.querySelector('i');
   assert.equal(box.style.height, '20px'); assert.equal(box.style.top, '40px');
   assert.equal(f.text(), '中国');
   assert.equal(run.style.cssText, '');
@@ -158,6 +158,49 @@ test('aligned Android selections paint glyph height and restore native painting 
   f.select(0, 0, node);
   assert.equal(handlesHost(f), null);
   assert.equal(f.doc.head.querySelector('style'), null);
+  f.close();
+});
+
+test('native pen selections paint text height before takeover without including paragraph leading', () => {
+  for (const markup of ['<span>中国</span><em>文化</em>',
+    '<modu-page-run>中国</modu-page-run><modu-page-run>文化</modu-page-run>']) {
+    const f = fixture(`<p style="line-height:60px">${markup}</p>`,
+      { nativeTouchSelection: true, enabled: () => false });
+    const p = f.doc.querySelector('p'), first = p.firstChild.firstChild, last = p.lastChild.firstChild;
+    for (const run of f.doc.querySelectorAll('modu-page-run')) run.__moduPageRun = true;
+    f.dom.window.Range.prototype.getClientRects = function () {
+      if (this.startContainer !== this.endContainer)
+        return [{ left: 0, right: 80, top: 0, bottom: 60, width: 80, height: 60 }];
+      const left = this.startContainer === first ? 0 : 40;
+      return [{ left, right: left + 40, top: 20, bottom: 40, width: 40, height: 20 }];
+    };
+    f.hit(first, 0); f.send('pointerdown', { pointerType: 'pen' });
+    f.send('pointermove', { pointerType: 'pen', clientX: 75 });
+    f.select(0, 2, first, last);
+    assert.equal(handlesHost(f), null); // Native selection has not been taken over.
+    const boxes = [...f.doc.querySelector('[data-selection-highlight]').shadowRoot.querySelectorAll('i')];
+    assert.equal(boxes.length, 1);
+    assert.equal(boxes[0].style.top, '20px');
+    assert.equal(boxes[0].style.height, '20px');
+    assert.equal(boxes[0].style.width, '80px');
+    assert.equal(p.style.lineHeight, '60px');
+    assert.equal(f.text(), '中国文化');
+    f.select(0, 0, first);
+    assert.equal(f.doc.querySelector('[data-selection-highlight]'), null);
+    assert.equal(f.doc.head.querySelector('style'), null);
+    f.close();
+  }
+});
+
+test('fixed-layout PDF retains its own selection paint while using reader handles', async () => {
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    enabled: () => false, textSelectionHighlight: false });
+  f.send('pointerdown'); f.select(3, 5);
+  await f.control.beforeSelection();
+  assert.ok(handlesHost(f));
+  assert.equal(f.doc.querySelector('[data-selection-highlight]'), null);
+  assert.equal(f.doc.head.querySelector('style'), null);
+  assert.equal(f.text(), '中国');
   f.close();
 });
 
@@ -224,6 +267,55 @@ test('Android mouse and keyboard selections do not acquire touch handles', async
   }
 });
 
+test('Android pen drag retains its exact range and adopts reader handles after moving', async () => {
+  for (const selectBeforeMove of [false, true]) {
+    const f = fixture(undefined, {nativeTouchSelection:true, paragraph:() => true});
+    f.send('pointerdown', {pointerType:'pen'});
+    f.send('touchstart'); // Compatibility event must not overwrite the pen kind.
+    if (selectBeforeMove) f.select(2, 6);
+    f.send('pointermove', {pointerType:'pen', clientX:80});
+    f.select(2, 6);
+    f.send('pointerup', {pointerType:'pen', clientX:80});
+    await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文');
+    assert.equal(f.adjusted.length, 0, 'manual pen selection must not expand to a paragraph');
+    assert.ok(handleAt(f, 'start')); assert.ok(handleAt(f, 'end'));
+    f.close();
+  }
+});
+
+test('finger scrolling and pen multi-touch do not re-enable reader handles', async () => {
+  for (const pointerType of ['touch', 'pen']) {
+    const f = fixture(undefined, {nativeTouchSelection:true});
+    f.send('pointerdown', {pointerType});
+    f.send('pointermove', {pointerType, clientX:80,
+      ...(pointerType === 'pen' ? {touches:[{clientX:80,clientY:10},{}]} : {})});
+    f.select(2, 6);
+    await f.control.beforeSelection();
+    assert.equal(handlesHost(f), null);
+    assert.equal(f.text(), '欢中国文');
+    f.close();
+  }
+});
+
+test('native scroll-to-selection after a pen drag keeps takeover, but navigation cancels it', async () => {
+  for (const navigate of [false, true]) {
+    const f = fixture(undefined, {nativeTouchSelection:true, paragraph:() => true});
+    f.send('pointerdown', {pointerType:'pen'});
+    f.send('pointermove', {pointerType:'pen', clientX:80});
+    f.select(2, 6);
+    f.send('scroll', {}, f.doc);
+    f.control.nativeLongPress();
+    f.send('pointerup', {pointerType:'pen', clientX:80});
+    if (navigate) f.control.cancel();
+    await f.control.beforeSelection();
+    assert.equal(f.text(), '欢中国文');
+    assert.equal(f.adjusted.length, 0);
+    assert.equal(!!handlesHost(f), !navigate);
+    f.close();
+  }
+});
+
 test('expanded handles drag either endpoint and cross without snapping back to the word', async () => {
   for (const [side, destination, expected] of [
     ['start', 1, '喜欢中国'], ['end', 7, '中国文化'],
@@ -285,7 +377,7 @@ test('late segmentation after the selection changed cannot resurrect expanded ha
     segmentWord: () => new Promise(resolve => { finish = resolve; }) });
   f.select(3, 4);
   const pending = f.control.beforeSelection();
-  assert.equal(handlesHost(f), null);
+  assert.ok(handlesHost(f));
   f.select(2, 6); finish([3, 5]); await pending;
   assert.equal(handlesHost(f), null);
   assert.equal(f.text(), '欢中国文'); f.close();
@@ -409,6 +501,246 @@ const withLegacyEngine = async action => {
   finally { Intl.Segmenter = saved; }
 };
 const flushBridge = () => new Promise(resolve => setImmediate(resolve));
+
+test('Android prewarms one paragraph and immediately selects cached words across repeated presses', () => withLegacyEngine(async () => {
+  const requests = [];
+  const f = fixture(undefined, { nativeTouchSelection: true, locale: () => 'zh-CN',
+    segmentParagraph: async request => { requests.push(request); return [[0, 1], [1, 3], [3, 5], [5, 7]]; } });
+  f.send('pointerdown'); await flushBridge();
+  assert.equal(f.text(), '');
+  assert.deepEqual(requests, [{ text: '我喜欢中国文化。', locale: 'zh-CN' }]);
+  f.advance(600); f.select(3, 4);
+  assert.equal(f.text(), '中国'); // No menu debounce or asynchronous bridge wait.
+  assert.ok(handleAt(f, 'end'));
+  f.select(0, 0); f.advance(100);
+  f.hit(f.doc.querySelector('p').firstChild, 5);
+  f.send('pointerdown'); f.select(5, 6);
+  assert.equal(f.text(), '文化');
+  await flushBridge(); assert.equal(requests.length, 1);
+  f.close();
+}));
+
+test('a fresh long press on text replaces the previous selection without a blank-area tap', async () => {
+  for (const collapse of [false, true]) {
+    const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => [[3, 5], [5, 7]] });
+    f.send('pointerdown'); f.select(3, 4);
+    assert.equal(f.text(), '中国');
+    f.send('pointerup'); f.advance(700);
+    f.hit(f.doc.querySelector('p').firstChild, 5); f.send('pointerdown');
+    f.send('selectionchange', {}, f.doc); // Old selection may be reported while still held.
+    assert.equal(f.text(), '中国');
+    if (collapse) f.select(5, 5);
+    f.advance(600); f.select(5, 6);
+    assert.equal(f.text(), '文化', `collapse=${collapse}`);
+    f.select(5, 6); f.control.nativeLongPress();
+    assert.equal(f.text(), '文'); // Later adjustment must not expand again.
+    f.close();
+  }
+});
+
+test('a fresh long press on the same manually narrowed glyph can select its word again', async () => {
+  const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => [[3, 5]] });
+  f.send('pointerdown'); f.select(3, 4); f.select(3, 4);
+  assert.equal(f.text(), '中');
+  f.send('pointerup'); f.advance(700); f.send('pointerdown');
+  f.control.nativeLongPress(); assert.equal(f.text(), '中'); // Not a long press yet.
+  f.advance(600); f.control.nativeLongPress();
+  assert.equal(f.text(), '中国'); f.close();
+});
+
+test('short taps, blank-area presses and dragging cannot re-arm expansion of an old selection', async () => {
+  for (const action of ['tap', 'blank', 'swipe', 'pen', 'handle']) {
+    const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => [[3, 5]] });
+    f.send('pointerdown'); f.select(3, 4); f.send('pointerup'); f.advance(700);
+    if (action === 'handle') {
+      f.send('pointerdown', { pointerId: 1 }, handleAt(f, 'end'));
+      f.hit(f.doc.querySelector('p').firstChild, 4);
+      f.send('pointermove', { pointerId: 1 }); f.send('pointerup', { pointerId: 1 });
+    } else {
+      f.select(3, 4);
+      f.send('pointerdown', { clientY: action === 'blank' ? 100 : 10,
+        pointerType: action === 'pen' ? 'pen' : 'touch' });
+      if (action === 'tap') { f.advance(50); f.send('pointerup'); }
+      if (action === 'pen' || action === 'swipe') f.send('pointermove', { clientX: 80 });
+    }
+    f.advance(600); f.control.nativeLongPress(); await f.control.beforeSelection();
+    assert.equal(f.text(), '中', action); f.close();
+  }
+});
+
+test('pressing the right half of a glyph uses the hit word rather than a native range prefix', async () => {
+  const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => [[3, 5], [5, 7]] });
+  f.hit(f.doc.querySelector('p').firstChild, 5);
+  f.send('pointerdown', { clientX: 48 }); // caret is after 国, but finger is on 国.
+  f.select(0, 5); // Some native engines initially select a larger fragment.
+  assert.equal(f.text(), '中国'); f.close();
+});
+
+test('late paragraph cache never changes a manual round-handle selection or its menu payload', async () => {
+  let resolve;
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    segmentParagraph: () => new Promise(done => { resolve = done; }) });
+  f.send('pointerdown'); await flushBridge(); f.select(3, 4);
+  assert.equal(f.text(), '中国'); // Synchronous local segmentation while ICU is pending.
+  const handle = handleAt(f, 'end'); assert.ok(handle);
+  f.send('pointerdown', { pointerId: 1 }, handle);
+  f.hit(f.doc.querySelector('p').firstChild, 6);
+  f.send('pointermove', { pointerId: 1 }); f.send('pointerup', { pointerId: 1 });
+  const manual = f.text(); assert.equal(manual, '中国文');
+  resolve([[0, 7]]); await flushBridge();
+  await f.control.beforeSelection(); f.control.nativeLongPress();
+  assert.equal(f.text(), manual);
+  assert.deepEqual(f.adjusted, ['中国']);
+  f.close();
+});
+
+test('cached UTF-16 boundaries map across inline nodes and survive paragraph DOM replacement', () => withLegacyEngine(async () => {
+  const requests = [];
+  const f = fixture('<p>😀我爱<span>中</span><em>国</em>文化。</p><p>下一段不预取。</p>', {
+    nativeTouchSelection: true,
+    segmentParagraph: async request => { requests.push(request); return [[2, 3], [3, 4], [4, 6], [6, 8]]; },
+  });
+  let node = f.doc.querySelector('span').firstChild;
+  f.hit(node, 0); f.send('pointerdown'); await flushBridge(); f.select(0, 1, node);
+  assert.equal(f.text(), '中国');
+  f.select(0, 0, node);
+  f.doc.querySelector('p').innerHTML = '😀我爱<b>中国</b>文化。';
+  node = f.doc.querySelector('b').firstChild;
+  f.hit(node, 1); f.advance(100); f.send('pointerdown'); f.select(1, 2, node);
+  assert.equal(f.text(), '中国'); await flushBridge();
+  assert.equal(requests.length, 1); assert.equal(requests[0].text, '😀我爱中国文化。');
+  f.close();
+}));
+
+test('legacy WebView caches late results for the next press without moving the current range', () => withLegacyEngine(async () => {
+  let resolve;
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    segmentParagraph: () => new Promise(done => { resolve = done; }) });
+  f.send('pointerdown'); await flushBridge(); f.select(3, 4);
+  assert.equal(f.text(), '中'); assert.ok(handleAt(f, 'end'));
+  resolve([[3, 5]]); await flushBridge(); await f.control.beforeSelection();
+  assert.equal(f.text(), '中');
+  f.select(0, 0); f.advance(100); f.send('pointerdown'); f.select(3, 4);
+  assert.equal(f.text(), '中国'); f.close();
+}));
+
+test('paragraph cache invalidates on text or locale changes and ignores stale replies', () => withLegacyEngine(async () => {
+  let language = 'zh-CN';
+  const requests = [], resolves = [];
+  const f = fixture(undefined, { nativeTouchSelection: true, locale: () => language,
+    segmentParagraph: request => { requests.push(request); return new Promise(done => resolves.push(done)); } });
+  f.send('pointerdown'); await flushBridge();
+  language = 'zh-TW'; f.advance(100); f.send('pointerdown'); await flushBridge();
+  resolves[1]([[3, 5]]); resolves[0]([[0, 7]]); await flushBridge();
+  f.select(3, 4); assert.equal(f.text(), '中国');
+  f.select(0, 0); f.doc.querySelector('p').firstChild.data = '我喜欢中华文化。';
+  f.advance(100); f.send('pointerdown'); await flushBridge();
+  assert.deepEqual(requests.map(r => [r.text, r.locale]), [
+    ['我喜欢中国文化。', 'zh-CN'], ['我喜欢中国文化。', 'zh-TW'], ['我喜欢中华文化。', 'zh-TW']]);
+  resolves[2]([[3, 5]]); await flushBridge(); f.select(3, 4);
+  assert.equal(f.text(), '中华'); f.close();
+}));
+
+test('paragraph cache rejects malformed boundaries and does not recreate selection after disposal', () => withLegacyEngine(async () => {
+  for (const words of [null, [[-1, 5]], [[3, 99]], [[3, 3]], [[3.5, 5]], [[3, 5], [4, 7]], [[5, 7], [3, 5]]]) {
+    const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => words });
+    f.send('pointerdown'); await flushBridge(); f.select(3, 4);
+    assert.equal(f.text(), '中'); f.close();
+  }
+  let calls = 0;
+  const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => { calls++; return [[3, 5]]; } });
+  f.send('pointerdown'); f.control.destroy(); await flushBridge();
+  assert.equal(calls, 0); assert.equal(handlesHost(f), null); f.close();
+}));
+
+test('cached boundaries do not expand pen drag, mouse, keyboard or multi-touch selections', async () => {
+  for (const mode of ['pen', 'mouse', 'keyboard', 'multitouch']) {
+    const f = fixture(undefined, { nativeTouchSelection: true, segmentParagraph: async () => [[3, 5]] });
+    f.send('pointerdown', { pointerType: mode === 'mouse' ? 'mouse' : mode === 'pen' ? 'pen' : 'touch' });
+    if (mode === 'pen') f.send('pointermove', { pointerType: 'pen', clientX: 70 });
+    if (mode === 'keyboard') f.send('keydown');
+    if (mode === 'multitouch') f.send('touchmove', { touches: [{ clientX: 31, clientY: 10 }, {}] });
+    await flushBridge(); f.select(3, 4); await f.control.beforeSelection();
+    assert.equal(f.text(), '中', mode); assert.equal(f.adjusted.length, 0); f.close();
+  }
+});
+
+test('Android reader handles appear before a slow word lookup completes', async () => {
+  let resolve;
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    segmentWord: () => new Promise(done => { resolve = done; }) });
+  f.send('pointerdown'); f.select(3, 4);
+  const pending = f.control.beforeSelection();
+  assert.ok(handleAt(f, 'start')); assert.ok(handleAt(f, 'end'));
+  assert.equal(f.text(), '中');
+  resolve([3, 5]); await pending;
+  assert.equal(f.text(), '中国');
+  assert.ok(handleAt(f, 'start')); assert.ok(handleAt(f, 'end'));
+  f.close();
+});
+
+test('stalled Android bridge has a deadline and cannot change the selection after fallback', async () => {
+  for (const legacy of [false, true]) {
+    const saved = Intl.Segmenter;
+    let resolve;
+    try {
+      if (legacy) Intl.Segmenter = undefined;
+      const f = fixture(undefined, { nativeTouchSelection: true,
+        segmentWord: () => new Promise(done => { resolve = done; }) });
+      f.select(3, 4);
+      const pending = f.control.beforeSelection();
+      f.advance(120); await pending;
+      const expected = legacy ? '中' : '中国';
+      assert.equal(f.text(), expected);
+      assert.equal(f.tasks.size, 0);
+      resolve([2, 7]); await flushBridge();
+      assert.equal(f.text(), expected);
+      f.close();
+    } finally { Intl.Segmenter = saved; }
+  }
+});
+
+test('reader handles retain round blue dots and the original drag hit area at different text sizes', async () => {
+  for (const height of [12, 20, 32]) {
+    const f = fixture(undefined, { nativeTouchSelection: true, enabled: () => false });
+    f.dom.window.Range.prototype.getClientRects = () =>
+      [{ left: 100, right: 112, top: 100, bottom: 100 + height }];
+    f.select(3, 4); await f.control.beforeSelection();
+    const start = handleAt(f, 'start'), end = handleAt(f, 'end');
+    const css = handlesHost(f).shadowRoot.querySelector('style').textContent;
+    assert.match(css, /width:36px; height:36px/);
+    assert.match(css, /width:16px; height:16px/);
+    assert.match(css, /border-radius:50%; background:#1976d2/);
+    for (const control of [start, end]) {
+      assert.equal(parseFloat(control.style.top), 100 + height + 10);
+      assert.equal(control.style.getPropertyValue('--handle-width'), '');
+    }
+    assert.equal(start.style.left, '100px');
+    assert.equal(end.style.left, '112px');
+    assert.equal(f.text(), '中');
+    f.close();
+  }
+});
+
+test('reader handle dragging during word lookup cancels the late expansion', async () => {
+  let resolve;
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    segmentWord: () => new Promise(done => { resolve = done; }) });
+  f.select(3, 4);
+  const pending = f.control.beforeSelection();
+  const control = handleAt(f, 'end');
+  assert.ok(control);
+  f.send('pointerdown', { pointerId: 1 }, control);
+  f.hit(f.doc.querySelector('p').firstChild, 7);
+  f.send('pointermove', { pointerId: 1 });
+  f.send('pointerup', { pointerId: 1 });
+  const manual = f.text();
+  resolve([3, 5]); await pending;
+  assert.equal(f.text(), manual);
+  assert.equal(f.adjusted.length, 0);
+  assert.ok(handleAt(f, 'end'));
+  f.close();
+});
 
 test('Android normalizes the native single character even without pointer events or a caret hit', async () => {
   for (const paragraph of [false, true]) {
@@ -547,6 +879,44 @@ test('Android native normalization does not expand links, keyboard selection or 
     await f.control.beforeSelection?.();
     assert.equal(f.adjusted.length, 0, action); f.close();
   }
+});
+
+test('repeated unchanged Android notifications cannot starve the selection toolbar', async () => {
+  const f = fixture(undefined, { nativeTouchSelection: true, enabled: () => false });
+  const emitted = [];
+  const stop = installSettledSelection(f.doc, { delay: 15,
+    getRange: () => f.doc.getSelection().isCollapsed ? null : f.doc.getSelection().getRangeAt(0),
+    beforeSelection: () => f.control.beforeSelection(), onSelection: () => emitted.push(f.text()) });
+  try {
+    f.select(3, 4);
+    for (let i = 0; i < 15; i++) {
+      await new Promise(done => setTimeout(done, 5));
+      f.send('selectionchange', {}, f.doc);
+    }
+    assert.deepEqual(emitted, ['中']);
+  } finally { stop(); f.close(); }
+});
+
+test('Android toolbar appears after bridge deadline and never republishes a late result', async () => {
+  let resolve;
+  const f = fixture(undefined, { nativeTouchSelection: true,
+    segmentWord: () => new Promise(done => { resolve = done; }) });
+  const emitted = [];
+  const stop = installSettledSelection(f.doc, { delay: 5,
+    getRange: () => f.doc.getSelection().isCollapsed ? null : f.doc.getSelection().getRangeAt(0),
+    beforeSelection: () => f.control.beforeSelection(), onSelection: () => emitted.push(f.text()) });
+  try {
+    f.select(3, 4);
+    await new Promise(done => setTimeout(done, 25));
+    assert.equal(typeof resolve, 'function');
+    f.advance(120);
+    await new Promise(done => setTimeout(done, 25));
+    assert.deepEqual(emitted, ['中国']);
+    resolve([2, 7]);
+    await new Promise(done => setTimeout(done, 25));
+    assert.deepEqual(emitted, ['中国']);
+    assert.equal(f.text(), '中国');
+  } finally { stop(); f.close(); }
 });
 
 test('Android toolbar publishes the final expanded range once, then preserves handle edits', async () => {
@@ -712,7 +1082,7 @@ test('actual Android reader wiring expands a glyph selection before sending it t
       handleSelection: () => emitted.push(f.text()), stopAutoPageSession: () => {},
       isInitialSmartSelection, window: bridgeWindow, reader: { view }, isPdf: false,
       callFlutter: async (name, request) => {
-        assert.equal(name, 'onReaderWordBounds'); requests.push(request); return [3, 5];
+        assert.equal(name, 'onReaderParagraphWords'); requests.push(request); return [[3, 5]];
       },
     });
     setup(view, f.doc, 0);

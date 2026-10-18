@@ -16,9 +16,14 @@ import 'package:anx_reader/widgets/reading_page/more_settings/long_press_selecti
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
 import 'package:flutter/material.dart';
+import 'reader_setting_availability.dart';
 
 class OtherSettings extends StatefulWidget {
-  const OtherSettings({super.key, this.showKeyboardShortcuts = false});
+  const OtherSettings(
+      {super.key,
+      this.showKeyboardShortcuts = false,
+      this.documentMode = false});
+  final bool documentMode;
 
   final bool showKeyboardShortcuts;
 
@@ -29,6 +34,8 @@ class OtherSettings extends StatefulWidget {
 class _OtherSettingsState extends State<OtherSettings> {
   @override
   Widget build(BuildContext context) {
+    Widget ebookOnly(Widget child) =>
+        ReaderSettingAvailability(enabled: !widget.documentMode, child: child);
     Widget screenTimeout() {
       return ListTile(
         contentPadding: EdgeInsets.zero,
@@ -268,6 +275,12 @@ class _OtherSettingsState extends State<OtherSettings> {
       return ListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(L10n.of(context).readingPageVolumeKeyTurnPage),
+        subtitle: AnxPlatform.isIOS
+            ? Text(ModuStrings.text(
+                context,
+                'iOS 兼容监听：音量加翻上一页，音量减翻下一页。仍会调节系统音量；音量到顶／到底时可能不触发。监听的是音量变化，外部音量调整也可能翻页，部分系统需音频会话活跃。',
+                'iOS compatibility mode: volume up goes back, volume down goes forward. System volume still changes; presses at its limits may not turn pages. Other volume changes can also turn pages, and some systems require an active audio session.'))
+            : null,
         trailing: Switch(
           value: Prefs().volumeKeyTurnPage,
           onChanged: (bool value) => setState(() {
@@ -310,23 +323,25 @@ class _OtherSettingsState extends State<OtherSettings> {
       child: Column(
         children: [
           fullScreen(),
-          if (AnxPlatform.isAndroid) keyboardTurnPage(),
+          if (AnxPlatform.isAndroid || AnxPlatform.isIOS) keyboardTurnPage(),
           // if (PageTurnMode.fromCode(Prefs().pageTurnMode) ==
           //     PageTurnMode.simple)
-          swapPageTurnArea(),
-          showMenuOnHover(),
+          ebookOnly(swapPageTurnArea()),
+          ebookOnly(showMenuOnHover()),
           autoAdjustReadingTheme(),
-          autoTranslateSelection(),
-          autoMarkSelection(),
+          ebookOnly(autoTranslateSelection()),
+          ebookOnly(autoMarkSelection()),
           LongPressSelectionTile(
             value: Prefs().longPressSelectParagraph,
             onChanged: (value) {
               setState(() => Prefs().longPressSelectParagraph = value);
-              epubPlayerKey.currentState?.changeStyle(null);
+              if (!widget.documentMode) {
+                epubPlayerKey.currentState?.changeStyle(null);
+              }
             },
           ),
           screenTimeout(),
-          pageTurningControl(),
+          ebookOnly(pageTurningControl()),
           if (widget.showKeyboardShortcuts)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -338,19 +353,19 @@ class _OtherSettingsState extends State<OtherSettings> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const ReaderShortcutsSettings())),
             ),
-          ContinuousScrollTile(onChanged: (value) {
+          ebookOnly(ContinuousScrollTile(onChanged: (value) {
             epubPlayerKey.currentState?.changeContinuousScroll(value);
-          }),
-          ScrollPagePercentTile(onChanged: (value) {
+          })),
+          ebookOnly(ScrollPagePercentTile(onChanged: (value) {
             epubPlayerKey.currentState?.changeScrollPagePercent(value);
-          }),
-          TapOnlyPageTurnTile(
+          })),
+          ebookOnly(TapOnlyPageTurnTile(
             value: Prefs().tapOnlyPageTurn,
             onChanged: (value) {
               setState(() => Prefs().tapOnlyPageTurn = value);
               epubPlayerKey.currentState?.changeStyle(null);
             },
-          ),
+          )),
         ],
       ),
     );

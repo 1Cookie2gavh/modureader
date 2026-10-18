@@ -28,7 +28,7 @@ class ChangeThemeModeState extends State<ChangeThemeMode> {
               enabled: !Prefs().eInkMode,
               segments: <SegmentButtonItem<String>>[
                 SegmentButtonItem(
-                  value: 'auto',
+                  value: 'system',
                   label: L10n.of(context).settingsSystemMode,
                   icon: const Icon(Icons.brightness_auto),
                 ),

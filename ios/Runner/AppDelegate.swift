@@ -40,6 +40,9 @@ import UniformTypeIdentifiers
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ReaderVolumeKeysPlugin") {
+      ReaderVolumeKeysPlugin.register(with: registrar)
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "BookFolderPlugin") {
       BookFolderPlugin.register(with: registrar)
     }
