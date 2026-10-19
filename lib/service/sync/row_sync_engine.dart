@@ -17,7 +17,7 @@ import 'package:anx_reader/utils/log/common.dart';
 class RowSyncArchive {
   static const format = 1;
 
-  /// Transport schema version. v9 adds `time.round` and the `round` kind.
+  /// Transport schema version. v9 adds `time.round`, `round` and `review` kinds.
   ///
   /// The remote file name intentionally stays `database8.db`: old clients must
   /// READ the new archive and stop with "不支持的同步数据库版本" instead of

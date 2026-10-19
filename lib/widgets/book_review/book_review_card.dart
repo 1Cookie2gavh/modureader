@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'package:anx_reader/dao/book.dart';
+import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/page/book_review_editor_page.dart';
 import 'package:anx_reader/providers/book_list.dart';
+import 'package:anx_reader/providers/sync.dart';
+import 'package:anx_reader/providers/sync_database_revision.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:anx_reader/widgets/markdown/styled_markdown.dart';
@@ -14,8 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// - 允许为空（未填写时显示引导提示）
 /// - 点击卡片进入编辑页；保存后刷新书架
 ///
-/// 注意：Modu 的行级同步协议（RowSyncStore）目前不包含 review 字段，
-/// 因此书评只保存在本机数据库，不会随 WebDAV 同步到其它设备。
+/// 书评独立同步，避免与书籍信息、阅读进度互相覆盖。
 class BookReviewCard extends ConsumerStatefulWidget {
   const BookReviewCard({
     super.key,
@@ -40,47 +44,62 @@ class _BookReviewCardState extends ConsumerState<BookReviewCard> {
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void didUpdateWidget(covariant BookReviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bookId != widget.bookId) {
+      _loading = true;
+      _load();
+    }
+  }
+
+  Future<String?> _load() async {
+    final bookId = widget.bookId;
     try {
-      final text = await bookDao.selectReview(widget.bookId);
-      if (!mounted) return;
+      final text = await bookDao.selectReview(bookId);
+      if (!mounted || bookId != widget.bookId) return null;
       setState(() {
         _review = text;
         _loading = false;
       });
+      return text;
     } catch (e) {
-      // 读取失败（例如字段缺失）时按"无备注"处理，不影响详情页其它内容
       AnxLog.severe('BookReview: load failed: $e');
-      if (!mounted) return;
-      setState(() {
-        _review = '';
-        _loading = false;
-      });
+      if (mounted && bookId == widget.bookId) {
+        setState(() => _loading = false);
+      }
+      return null;
     }
   }
 
   Future<void> _openEditor() async {
+    final latest = await _load();
+    if (!mounted || latest == null) return;
     final result = await Navigator.push<String?>(
       context,
       MaterialPageRoute(
         builder: (context) => BookReviewEditorPage(
           bookId: widget.bookId,
           bookTitle: widget.bookTitle,
-          initialReview: _review,
+          initialReview: latest,
         ),
       ),
     );
 
-    if (result == null) return; // 未保存
     if (!mounted) return;
-    setState(() => _review = result);
+    await _load();
+    if (!mounted || result == null) return;
 
     // 备注变化后刷新书架（Book 模型带 review 字段）
     ref.read(bookListProvider.notifier).refresh();
+    unawaited(ref
+        .read(syncProvider.notifier)
+        .syncData(SyncDirection.both, null, trigger: SyncTrigger.auto));
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(syncDatabaseRevisionProvider, (_, __) => _load());
     final l10n = L10n.of(context);
     final theme = Theme.of(context);
     final hasContent = _review.trim().isNotEmpty;

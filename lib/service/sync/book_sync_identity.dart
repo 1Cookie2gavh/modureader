@@ -6,7 +6,7 @@ part of 'row_sync_record.dart';
 const _bookAliasPrefix = 'modu-book-alias-v1:';
 
 String? bookSyncAliasTarget(RowSyncRecord record) {
-  if (!const ['book', 'position', 'life'].contains(record.kind) ||
+  if (!const ['book', 'position', 'life', 'review'].contains(record.kind) ||
       !record.deleted ||
       !record.revision.startsWith(_bookAliasPrefix)) {
     return null;
@@ -131,8 +131,8 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
     ...parents.keys,
     ...aliases.map((r) => r.id)
   };
-  for (final record in records
-      .where((r) => const ['book', 'position', 'life'].contains(r.kind))) {
+  for (final record in records.where(
+      (r) => const ['book', 'position', 'life', 'review'].contains(r.kind))) {
     final id = root(record.id);
     final previous = clocks[id] ?? 0;
     if (record.clock > previous) clocks[id] = record.clock;
@@ -141,7 +141,7 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
     if (bookSyncAliasTarget(record) != null) continue;
     var id = record.id;
     var data = record.data;
-    if (const ['book', 'position', 'life'].contains(record.kind)) {
+    if (const ['book', 'position', 'life', 'review'].contains(record.kind)) {
       id = root(id);
     } else {
       final field = switch (record.kind) {
@@ -172,7 +172,12 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
     // Companion tombstones stop older clients' independent 'life' records
     // from making a retired alias visible again. New clients recognize these
     // as redirects, never as a deletion of the canonical book.
-    for (final kind in ['book', 'position', 'life']) {
+    for (final kind in [
+      'book',
+      'position',
+      'life',
+      if (records.any((r) => r.kind == 'review')) 'review'
+    ]) {
       output.add(RowSyncRecord(
           kind,
           id,

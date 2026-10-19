@@ -86,6 +86,9 @@ void main() {
         .map((row) => row['name'])
         .toSet();
     if (bookColumns.contains('review')) {
+      for (final suffix in ['insert', 'update', 'delete']) {
+        await db.execute('DROP TRIGGER IF EXISTS modu_review_$suffix');
+      }
       await db.execute('ALTER TABLE tb_books DROP COLUMN review');
     }
     // If the sync v9 PR is already in main, its triggers reference `round`;

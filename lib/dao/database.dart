@@ -171,6 +171,7 @@ class DBHelper {
           onUpgrade: onUpgradeDatabase,
           onOpen: (db) async {
             await RowSyncStore.ensureRounds(db);
+            await db.transaction(RowSyncStore.ensureReviews);
           },
         );
       case AnxPlatformEnum.ios:
@@ -193,6 +194,7 @@ class DBHelper {
             onUpgrade: onUpgradeDatabase,
             onOpen: (db) async {
               await RowSyncStore.ensureRounds(db);
+              await db.transaction(RowSyncStore.ensureReviews);
             },
           ),
         );

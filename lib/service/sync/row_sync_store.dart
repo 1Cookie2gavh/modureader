@@ -28,6 +28,7 @@ const _fields = <String, List<String>>{
   ],
   'position': ['last_read_position', 'reading_percentage'],
   'life': ['is_deleted'],
+  'review': ['review'],
   'note': [
     'book_id',
     'content',
@@ -64,6 +65,7 @@ const _tables = <String, String>{
   'book': 'tb_books',
   'position': 'tb_books',
   'life': 'tb_books',
+  'review': 'tb_books',
   'note': 'tb_notes',
   'time': 'tb_reading_time',
   'round': 'tb_reading_rounds',
@@ -115,7 +117,7 @@ class RowSyncStore {
 
     final identities = <String, Map<int, String>>{};
     for (final kind in _tables.keys) {
-      if (kind == 'secret') continue; // Secret row has a fixed string ID.
+      if (kind == 'secret' || kind == 'review') continue;
       // Reading rounds are created by a later app schema migration; a v7/v8
       // install must skip the missing table and let ensureRounds() add it.
       if (!await _tableExists(db, _tables[kind]!)) continue;
@@ -190,12 +192,14 @@ class RowSyncStore {
         });
       }
     }
-    for (final kind in _tables.keys.where((k) => k != 'secret')) {
+    for (final kind
+        in _tables.keys.where((k) => k != 'secret' && k != 'review')) {
       if (!await _tableExists(db, _tables[kind]!)) continue;
       await _installTriggers(db, kind);
     }
     await db.execute(
         'UPDATE $_control SET clock=COALESCE((SELECT MAX(clock) FROM $syncRecordsTable),0)');
+    await ensureReviews(db);
   }
 
   static String? _filter(String kind) => switch (kind) {
@@ -280,6 +284,7 @@ class RowSyncStore {
       final row = rows.single;
       final data = {for (final field in _fields[kind]!) field: row[field]};
       if (kind == 'time' && data['round'] == null) data['round'] = 1;
+      if (kind == 'review' && data['review'] == null) data['review'] = '';
       for (final ref in (_refs[kind] ?? const <String, String>{}).entries) {
         final id = (data[ref.key] as num?)?.toInt();
         data[ref.key] = id == null ? null : ids[ref.value]?[id];
@@ -340,6 +345,50 @@ class RowSyncStore {
         "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
         [table]);
     return rows.isNotEmpty;
+  }
+
+  /// Called inside a transaction after the review column exists. An untouched
+  /// empty review is not an edit and must never erase another device's review.
+  static Future<void> ensureReviews(DatabaseExecutor db) async {
+    if (!await _tableExists(db, _control)) return;
+    final columns = await db.rawQuery('PRAGMA table_info(tb_books)');
+    if (!columns.any((row) => row['name'] == 'review')) return;
+    final installed = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name='modu_review_update'");
+    if (installed.isNotEmpty) return;
+    await db.execute('''INSERT OR IGNORE INTO $syncRecordsTable
+      (kind,sync_id,local_id,clock,revision,deleted,dirty)
+      SELECT 'review',r.sync_id,b.id,
+        COALESCE(CAST((julianday(b.update_time)-2440587.5)*86400000 AS INTEGER),r.clock),
+        'legacy',0,1
+      FROM tb_books b JOIN $syncRecordsTable r
+        ON r.kind='book' AND r.local_id=b.id
+      WHERE COALESCE(b.review,'') != '' ''');
+    await db.execute('UPDATE $_control SET clock=MAX(clock, '
+        'COALESCE((SELECT MAX(clock) FROM $syncRecordsTable),0))');
+    final key = "COALESCE((SELECT sync_id FROM $syncRecordsTable "
+        "WHERE kind='book' AND local_id=NEW.id), ${_sqlBookKey('NEW')})";
+    for (final operation in ['insert', 'update']) {
+      final changed = operation == 'insert'
+          ? "COALESCE(NEW.review,'') != ''"
+          : "COALESCE(OLD.review,'') IS NOT COALESCE(NEW.review,'')";
+      await db.execute('''CREATE TRIGGER modu_review_$operation
+        AFTER ${operation.toUpperCase()} ON tb_books
+        WHEN $_active AND ($changed) BEGIN $_tick
+        INSERT OR IGNORE INTO $syncRecordsTable
+          (kind,sync_id,local_id,clock,revision,deleted,dirty)
+          VALUES('review',$key,NEW.id,$_clock,lower(hex(randomblob(16))),0,1);
+        UPDATE $syncRecordsTable SET local_id=NEW.id,clock=$_clock,
+          revision=lower(hex(randomblob(16))),deleted=0,dirty=1
+          WHERE kind='review' AND sync_id=$key;
+        END''');
+    }
+    await db
+        .execute('''CREATE TRIGGER modu_review_delete BEFORE DELETE ON tb_books
+      WHEN $_active BEGIN $_tick
+      UPDATE $syncRecordsTable SET clock=$_clock,revision=lower(hex(randomblob(16))),
+        deleted=1,dirty=0,local_id=NULL WHERE kind='review' AND local_id=OLD.id;
+      END''');
   }
 
   /// v9 reading-round sync migration. Called on every database open and
@@ -501,7 +550,7 @@ class RowSyncStore {
         final rebind = (_refs[r.kind] ?? const <String, String>{}).entries.any(
                 (ref) =>
                     allocated.contains('${ref.value}/${r.data[ref.key]}')) ||
-            (const ['position', 'life'].contains(r.kind) &&
+            (const ['position', 'life', 'review'].contains(r.kind) &&
                 allocated.contains('book/${r.id}'));
         if (old[r.key] == jsonEncode(r.toMap()) && !rebind) continue;
         if (r.kind == 'secret') {
@@ -510,8 +559,9 @@ class RowSyncStore {
           continue;
         }
         final kind = r.kind;
-        final id =
-            ids[kind == 'position' || kind == 'life' ? 'book' : kind]?[r.id];
+        final id = ids[const ['position', 'life', 'review'].contains(kind)
+            ? 'book'
+            : kind]?[r.id];
         if (r.deleted) {
           if (id != null) {
             if (kind == 'book' || kind == 'life') {
@@ -520,6 +570,11 @@ class RowSyncStore {
             } else if (kind == 'group') {
               await txn.update('tb_groups', {'is_deleted': 1},
                   where: 'id=?', whereArgs: [id]);
+            } else if (kind == 'review') {
+              if (bookSyncAliasTarget(r) == null) {
+                await txn.update('tb_books', {'review': ''},
+                    where: 'id=?', whereArgs: [id]);
+              }
             } else if (kind != 'position') {
               await txn.delete(_tables[kind]!, where: 'id=?', whereArgs: [id]);
             }
@@ -586,7 +641,8 @@ class RowSyncStore {
       final members = {canonical, ...aliases};
       final related = metadata
           .where((r) =>
-              const ['book', 'position', 'life'].contains(r['kind']) &&
+              const ['book', 'position', 'life', 'review']
+                  .contains(r['kind']) &&
               members.contains(r['sync_id']))
           .toList();
       final needsRepair = related.any((r) =>
@@ -701,6 +757,9 @@ class RowSyncStore {
     }
     if (r.kind == 'life' && ![0, 1].contains(r.data['is_deleted'])) {
       throw const FormatException('删除状态无效');
+    }
+    if (r.kind == 'review' && r.data['review'] is! String) {
+      throw const FormatException('书评内容无效');
     }
     for (final field in ['create_time', 'update_time', 'date', 'updated_at']) {
       final value = r.data[field];
