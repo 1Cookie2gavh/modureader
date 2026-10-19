@@ -271,7 +271,8 @@ void main() {
   });
 
   test('production home wraps all compact pages, not only settings', () {
-    final source = File('lib/page/home_page.dart').readAsStringSync();
+    final source =
+        File('lib/widgets/home_navigation_shell.dart').readAsStringSync();
     expect(source, contains('body: (_, controller) => HomeNavigationBody('));
     expect(source, contains('hasBottomBar: !keyboardOpen'));
     expect(source, contains('visible: !keyboardOpen'));
