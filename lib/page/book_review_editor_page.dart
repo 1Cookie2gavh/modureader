@@ -78,8 +78,8 @@ class _BookReviewEditorPageState extends State<BookReviewEditorPage> {
       return;
     }
     final ok = await _save();
-    if (ok && mounted) {
-      Navigator.pop(context, _controller.text);
+    if (ok && mounted && !_hasChanges) {
+      Navigator.pop(context, _originalText);
     }
   }
 
@@ -92,9 +92,9 @@ class _BookReviewEditorPageState extends State<BookReviewEditorPage> {
     final navigator = Navigator.of(context);
 
     return PopScope(
-      canPop: !_hasChanges,
+      canPop: !_saving && !_hasChanges,
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+        if (didPop || _saving) return;
         final leave = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -125,7 +125,9 @@ class _BookReviewEditorPageState extends State<BookReviewEditorPage> {
                   ? l10n.bookReviewEditMode
                   : l10n.bookReviewPreviewMode,
               icon: Icon(_previewMode ? Icons.edit_note : Icons.visibility),
-              onPressed: () => setState(() => _previewMode = !_previewMode),
+              onPressed: _saving
+                  ? null
+                  : () => setState(() => _previewMode = !_previewMode),
             ),
             IconButton(
               tooltip: l10n.commonSave,
@@ -178,6 +180,7 @@ class _BookReviewEditorPageState extends State<BookReviewEditorPage> {
                         padding: const EdgeInsets.all(16),
                         child: TextField(
                           controller: _controller,
+                          readOnly: _saving,
                           maxLines: null,
                           expands: true,
                           autofocus: true,
