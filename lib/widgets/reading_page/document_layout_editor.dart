@@ -4,6 +4,7 @@ import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:math' as math;
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/document_page_layout.dart';
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 
 /// Draft-only editing. Neither dragging nor switching odd/even pages writes
@@ -670,7 +671,7 @@ class _DocumentLayoutEditorState extends State<DocumentLayoutEditor> {
           Padding(
               padding: const EdgeInsets.all(12),
               child: Text(tr('裁边与分格', 'Crop and panels'),
-                  style: Theme.of(context).textTheme.titleLarge)),
+                  style: readerSubmenuTitleStyle(context))),
           Text(
               '${tr('预览原页', 'Original preview page')} ${(_busy ? _targetPage : _previewPage) + 1} / ${widget.total}'),
           Expanded(child: LayoutBuilder(builder: (context, constraints) {

@@ -41,7 +41,7 @@ export function desktopDragDirection(dx, dy) {
 export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
   dragEnabled = enabled, nativeKeysEnabled = enabled,
   focusOnPointerDown = () => false, ctrlBrackets = () => false,
-  shortcuts = () => null, onAction = () => {} }) {
+  shortcuts = () => null, onAction = () => {}, panArrow = () => false }) {
   let pointer = null;
   let turning = false;
   let suppressClickUntil = 0;
@@ -65,6 +65,8 @@ export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
   };
   on(doc, 'keydown', e => {
     if (!enabled() || selected()) return;
+    if (!e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey &&
+        !interactive(e) && panArrow(e.key?.toLowerCase())) { consume(e); return; }
     const bindings = shortcuts();
     if (bindings != null) {
       const action = readerShortcutAction(e, bindings);
@@ -90,7 +92,7 @@ export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
     if (enabled() && focusOnPointerDown() && e.pointerType === 'mouse' &&
         e.button === 0 && !interactive(e) && !doc.hasFocus?.())
       doc.defaultView?.focus();
-    if (!dragEnabled() || e.pointerType !== 'mouse' || e.button !== 0 ||
+    if (!dragEnabled() || doc.pdfZoomGestureActive?.() || e.pointerType !== 'mouse' || e.button !== 0 ||
         e.altKey || e.ctrlKey || e.metaKey || e.shiftKey ||
         selected() || interactive(e)) return;
     pointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
@@ -102,7 +104,7 @@ export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
     const start = pointer;
     cancel();
     if (!start || e.pointerId !== start.id || e.button !== 0 ||
-        !dragEnabled() || selected() || interactive(e)) return;
+        !dragEnabled() || doc.pdfZoomGestureActive?.() || selected() || interactive(e)) return;
     const direction = desktopDragDirection(e.clientX - start.x, e.clientY - start.y);
     if (!direction) return;
     consume(e);
@@ -118,6 +120,9 @@ export function installDesktopPageInput(doc, { enabled, turnPage, hasSelection,
   on(doc, 'mouseleave', cancel);
   on(doc.defaultView, 'blur', cancel);
   return { cancel,
+    panFromKeyboard(key) {
+      return nativeKeysEnabled() && !selected() && !interactive({target: doc.activeElement}) && panArrow(key);
+    },
     actionFromKeyboard(action) {
       const narration = ['playPause', 'previousPassage', 'nextPassage'].includes(action);
       if (!nativeKeysEnabled() || (!narration && selected()) || interactive({ target: doc.activeElement })) return false;

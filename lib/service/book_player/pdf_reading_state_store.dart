@@ -78,7 +78,7 @@ class PdfReadingStateStore {
         'page': position['page'],
         'panel': position['panel'],
         'signature': position['signature'],
-        if (zoom != null) 'zoom': zoom,
+        if (zoom != null) 'zoom': (zoom as num).clamp(1, 8),
         if (center != null) 'center': {'x': center['x'], 'y': center['y']},
       };
     }

@@ -4,6 +4,7 @@ import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/service/tts/base_tts.dart';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'package:anx_reader/service/tts/tts_factory.dart';
 import 'package:anx_reader/service/tts/tts_media_state.dart';
 import 'package:anx_reader/service/tts/notification_permission.dart';
@@ -93,7 +94,8 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Called from the speech cursor, including detached/background chapters.
   /// Ignore a late callback from a stopped or different book.
   void updateChapter({required int bookId, required String chapter}) {
-    if (mediaItem.value?.id != bookId.toString() ||
+    if (tts.pageSource != null ||
+        mediaItem.value?.id != bookId.toString() ||
         tts.ttsStateNotifier.value == TtsStateEnum.stopped) {
       return;
     }
@@ -109,12 +111,17 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _syncPlaybackState() {
+    if (tts.ttsStateNotifier.value == TtsStateEnum.stopped) {
+      tts.pageSource?.clearHighlight();
+    }
     playbackState.add(ttsMediaState(
         playbackState.value, tts.ttsStateNotifier.value,
         chinese: _chinese, buffering: tts.bufferingNotifier.value));
     if (tts.ttsStateNotifier.value != TtsStateEnum.stopped) _refreshMetadata();
-    unawaited(epubPlayerKey.currentState
-        ?.recordNarrationState(tts.ttsStateNotifier.value));
+    if (tts.pageSource == null) {
+      unawaited(epubPlayerKey.currentState
+          ?.recordNarrationState(tts.ttsStateNotifier.value));
+    }
   }
 
   /// Rebuild only the speech cursor and highlight. Never synthesize or play.
@@ -144,8 +151,13 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     tts.updateTtsState(TtsStateEnum.paused);
   }
 
-  Future<void> init(Function getCurrentText, Function getNextText,
-      Function getPrevText) async {
+  Future<void> init(
+      Function getCurrentText, Function getNextText, Function getPrevText,
+      {TtsPageSource? pageSource}) async {
+    if (!identical(tts.pageSource, pageSource)) {
+      tts.pageSource?.clearHighlight();
+    }
+    tts.pageSource = pageSource;
     _getCurrentText = getCurrentText;
     _getNextText = getNextText;
     _getPrevText = getPrevText;
@@ -171,11 +183,13 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> switchTtsType(String serviceId) async {
+    final pageSource = tts.pageSource;
     ++_transportCommand;
     _interruptionActive = false;
     _interruptionResume = null;
     _resumeAfterInterruption = false;
     await _ttsFactory.switchTtsType(serviceId);
+    tts.pageSource = pageSource;
     if (_getCurrentText != null &&
         _getNextText != null &&
         _getPrevText != null) {
@@ -267,7 +281,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _play({bool focusAlreadyGained = false}) async {
     _resumeAfterInterruption = false;
     final backend = tts;
-    if (backend.isPlaying) return;
+    if (backend.isPlaying || backend.pageSource?.valid == false) return;
     final command = ++_transportCommand;
     final reader = epubPlayerKey.currentState;
     final previous = mediaItem.value;
@@ -306,7 +320,11 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       AnxLog.warning('TTS transport preparation failed: ${error.runtimeType}');
       return;
     }
-    if (command != _transportCommand || !identical(tts, backend)) return;
+    if (command != _transportCommand ||
+        !identical(tts, backend) ||
+        backend.pageSource?.valid == false) {
+      return;
+    }
     if (resuming &&
         epubPlayerKey.currentState != null &&
         epubPlayerKey.currentState != reader) {
@@ -332,7 +350,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         : ttsMediaItem(
             bookId: reader!.book.id.toString(),
             title: reader.book.title,
-            chapter: reader.chapterTitle,
+            chapter: backend.pageSource?.chapter ?? reader.chapterTitle,
             author: reader.book.author,
             coverPath: reader.book.coverFullPath,
             state: TtsStateEnum.playing,
@@ -355,9 +373,10 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     RuntimeDiagnostics.record(RuntimeEvent.ttsPlay);
     // A media command must finish promptly, not hold its response open until
     // an entire book has finished. Later pause/stop remains authoritative.
-    unawaited(
-        Future<void>.sync(() => resume ? backend.resume() : backend.speak())
-            .catchError((Object error) {
+    unawaited(Future<void>.sync(() => resume
+            ? backend.resume()
+            : backend.speak(content: backend.pageSource?.currentText()))
+        .catchError((Object error) {
       AnxLog.warning('TTS playback command failed: ${error.runtimeType}');
       RuntimeDiagnostics.record(RuntimeEvent.ttsFailed);
       if (command == _transportCommand && identical(tts, backend)) {
@@ -408,6 +427,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> stop() async {
+    tts.pageSource?.clearHighlight();
     RuntimeDiagnostics.record(RuntimeEvent.ttsStop);
     _restoredSession = false;
     _interruptionResume = null;
@@ -433,6 +453,7 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           await tts.stop();
         }),
         Future<void>.sync(() async {
+          if (tts.pageSource != null) return;
           if (_stopReaderOverride != null) {
             await _stopReaderOverride();
           } else {
@@ -462,10 +483,22 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> playPrevious() async {
+    final source = tts.pageSource;
+    if (source != null) {
+      if (source.valid) {
+        await navigateParagraph(source.previousText, forward: false);
+      }
+      return;
+    }
     await tts.prev();
   }
 
   Future<void> playNext() async {
+    final source = tts.pageSource;
+    if (source != null) {
+      if (source.valid) await navigateParagraph(source.nextText, forward: true);
+      return;
+    }
     await tts.next();
   }
 
@@ -487,6 +520,10 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!current()) return;
     if (backend.playbackError != null) {
       throw StateError('TTS paragraph navigation failed');
+    }
+    if (backend.pageSource?.atEnd == true) {
+      await stop();
+      return;
     }
     if (wasPlaying) await play();
   }

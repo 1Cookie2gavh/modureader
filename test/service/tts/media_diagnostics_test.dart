@@ -41,6 +41,7 @@ void main() {
       'importance': 2,
       'notificationActions': 4,
       'compatActive': true,
+      'stopCompatActive': true,
       'notificationPlayRequests': 2,
       'sessionPlayCallbacks': 3,
       'actionIconPresent': [true, true],
@@ -59,6 +60,7 @@ void main() {
     expect(safe['canPause'], true);
     expect(safe['compact'], [0, 1, 2]);
     expect(safe['compatActive'], true);
+    expect(safe['stopCompatActive'], true);
     expect(safe['notificationPlayRequests'], 2);
     expect(safe['sessionPlayCallbacks'], 3);
     expect(safe['actionIconPresent'], [true, true]);
@@ -70,6 +72,7 @@ void main() {
     final exported = DetailedRuntimeLog.preview();
     expect(exported, contains('"mediaDiagnostic"'));
     expect(exported, contains('"canPause":true'));
+    expect(exported, contains('"stopCompatActive":true'));
     expect(exported, contains('"notificationPlayRequests":2'));
     expect(exported, contains('"sessionPlayCallbacks":3'));
     expect(exported, isNot(contains('SECRET')));
@@ -81,6 +84,7 @@ void main() {
       'event': 'SECRET',
       'sdk': 'SECRET',
       'playing': 1,
+      'stopCompatActive': 'SECRET',
       'actions': double.nan,
       'controls': List.generate(100, (i) => i),
       'compact': [-1, 'SECRET', 1],

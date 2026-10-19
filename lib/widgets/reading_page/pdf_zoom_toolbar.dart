@@ -41,19 +41,9 @@ class _PdfZoomToolbarState extends State<PdfZoomToolbar> {
     if (_hidden && mounted) setState(() => _hidden = false);
     _hideTimer = Timer(const Duration(seconds: 5), () async {
       if (!mounted) return;
-      if (_busy) {
+      if (_busy || _box) {
         _activity();
         return;
-      }
-      if (_box) {
-        try {
-          await widget.boxZoom?.call(false);
-          if (!mounted) return;
-          setState(() => _box = false);
-        } catch (_) {
-          if (mounted) _activity();
-          return;
-        }
       }
       if (mounted && activity == _activityId) setState(() => _hidden = true);
     });
@@ -130,24 +120,24 @@ class _PdfZoomToolbarState extends State<PdfZoomToolbar> {
                                                     : () => _run(() =>
                                                         widget.change(
                                                             (zoom - .25)
-                                                                .clamp(1, 4),
+                                                                .clamp(1, 8),
                                                             false))),
                                             Text('${zoom.toStringAsFixed(1)}×'),
                                             IconButton(
                                                 tooltip: t('放大', 'Zoom in'),
                                                 icon: const Icon(Icons.add),
-                                                onPressed: _busy || zoom >= 4
+                                                onPressed: _busy || zoom >= 8
                                                     ? null
                                                     : () => _run(() =>
                                                         widget.change(
                                                             (zoom + .25)
-                                                                .clamp(1, 4),
+                                                                .clamp(1, 8),
                                                             false))),
                                             IconButton(
                                                 tooltip: t('恢复原样（保留裁边）',
                                                     'Reset zoom (keep crop)'),
                                                 icon: const Icon(
-                                                    Icons.fit_screen),
+                                                    Icons.restart_alt),
                                                 onPressed: _busy
                                                     ? null
                                                     : () => _run(() => widget
@@ -157,8 +147,14 @@ class _PdfZoomToolbarState extends State<PdfZoomToolbar> {
                                                   tooltip: t(
                                                       '框选放大', 'Rectangle zoom'),
                                                   isSelected: _box,
-                                                  icon: const Icon(
-                                                      Icons.zoom_in_map),
+                                                  icon: const Stack(
+                                                      alignment:
+                                                          Alignment.center,
+                                                      children: [
+                                                        Icon(Icons.crop_free),
+                                                        Icon(Icons.zoom_in,
+                                                            size: 16),
+                                                      ]),
                                                   onPressed: _busy
                                                       ? null
                                                       : () => _run(() async {

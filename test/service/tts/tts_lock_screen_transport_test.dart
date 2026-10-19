@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'dart:typed_data';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -18,6 +19,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'tts_rate_recovery_test.dart' show NativePlayer;
 
 class PausableBackend extends Fake implements BaseTts {
+  @override
+  TtsPageSource? pageSource;
   @override
   final bufferingNotifier = ValueNotifier(false);
   @override

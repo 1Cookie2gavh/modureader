@@ -112,6 +112,12 @@ class DetailedRuntimeLog {
         types.where((type) => RegExp('\\b$type\\b').hasMatch(source)).toList();
     if (foundTypes.isNotEmpty) details['errors'] = foundTypes;
     const reasons = {
+      'reason=ocr_model_unavailable': 'ocr_model_unavailable',
+      'reason=ocr_invalid_page': 'ocr_invalid_page',
+      'reason=ocr_invalid_bounds': 'ocr_invalid_bounds',
+      'reason=ocr_invalid_image': 'ocr_invalid_image',
+      'reason=ocr_no_text': 'ocr_no_text',
+      'reason=ocr_preview_failed': 'ocr_preview_failed',
       'open_failed': 'open_failed',
       'open_failed_error': 'open_failed',
       'missing_table': 'missing_table',

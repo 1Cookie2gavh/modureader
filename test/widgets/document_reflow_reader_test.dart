@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:anx_reader/enums/text_alignment.dart';
@@ -100,6 +101,11 @@ void main() {
       VoidCallback? openReaderMenu,
       ValueChanged<Widget>? openReaderPanel,
       VoidCallback? closeReaderMenu,
+      FocusOnKeyEventCallback? readerKeyEvent,
+      VoidCallback? keyboardEligibilityChanged,
+      void Function(TtsPageSource)? narrationInvalidated,
+      bool comparison = false,
+      ValueChanged<bool>? onComparisonChanged,
       Future<void> Function(String, String, bool)? query,
       Future<void> Function(String)? draft,
       Future<void> Function(DocumentReflowAnchor, String)? bookmark,
@@ -117,6 +123,11 @@ void main() {
         home: Scaffold(
             body: DocumentReflowReader(
           key: key,
+          onReaderKeyEvent: readerKeyEvent,
+          onKeyboardEligibilityChanged: keyboardEligibilityChanged,
+          onNarrationInvalidated: narrationInvalidated,
+          comparison: comparison,
+          onComparisonChanged: onComparisonChanged,
           store: store,
           precache: precache,
           onSourcePageChanged: sourcePageChanged,
@@ -165,6 +176,212 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  testWidgets(
+      'reflow keys precede text navigation but preserve selection and editor focus',
+      (tester) async {
+    final handled = <LogicalKeyboardKey>[];
+    var eligibilityChanges = 0;
+    await open(tester,
+        comparison: true,
+        keyboardEligibilityChanged: () => eligibilityChanges++,
+        readerKeyEvent: (_, event) {
+          if (event is! KeyDownEvent ||
+              HardwareKeyboard.instance.isShiftPressed) {
+            return KeyEventResult.ignored;
+          }
+          handled.add(event.logicalKey);
+          return KeyEventResult.handled;
+        });
+    key.currentState!.requestKeyboardFocus();
+    await tester.pump();
+    expect(key.currentState!.canUseReadingKeys, true);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    expect(handled, [LogicalKeyboardKey.arrowRight]);
+    final controller = tester
+        .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
+        .controller!;
+    controller.selection = const TextSelection.collapsed(offset: 0);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    expect(controller.selection.isCollapsed, false);
+    expect(key.currentState!.canUseReadingKeys, false);
+    expect(eligibilityChanges, greaterThan(0));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    expect(handled, [LogicalKeyboardKey.arrowRight]);
+    key.currentState!.clearSelection();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+    expect(handled.last, LogicalKeyboardKey.pageDown);
+    final context = tester.element(find.byType(DocumentReflowReader));
+    unawaited(showDialog<void>(
+        context: context,
+        builder: (_) =>
+            const AlertDialog(content: TextField(autofocus: true))));
+    await tester.pumpAndSettle();
+    expect(key.currentState!.canUseReadingKeys, false);
+    await tester.enterText(find.byType(TextField).last, 'editing');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    expect(
+        handled, [LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.pageDown]);
+    Navigator.of(context).pop();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('comparison toggle keeps loaded text, selection and reader state',
+      (tester) async {
+    var extracts = 0;
+    bool? selected;
+    Future<String> extract(int page) async {
+      extracts++;
+      return 'Comparison text for page $page';
+    }
+
+    await open(tester,
+        extract: extract, onComparisonChanged: (value) => selected = value);
+    final state = key.currentState;
+    final controller = tester
+        .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
+        .controller!;
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 10);
+    await tester.tap(find.byKey(const ValueKey('reflow-comparison')));
+    expect(selected, true);
+    await open(tester,
+        comparison: true,
+        extract: extract,
+        onComparisonChanged: (value) => selected = value);
+    expect(key.currentState, same(state));
+    expect(extracts, 1);
+    expect(controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 10));
+    await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.byKey(const ValueKey('reflow-comparison-switch')))
+            .value,
+        true);
+  });
+
+  testWidgets(
+      'source page follows cached corrections without OCR or PDF navigation',
+      (tester) async {
+    await store.save(
+        DocumentReflowPage(
+            page: 1,
+            ocr: true,
+            rawText: 'old OCR',
+            editedText: 'saved correction'),
+        '');
+    await open(tester);
+    pages.clear();
+    model.ready = false;
+    await key.currentState!.followOriginalPage(1);
+    await tester.pumpAndSettle();
+    expect(text(tester), 'saved correction');
+    expect(pages, isEmpty);
+    await tester.tap(find.byKey(const ValueKey('reflow-next')));
+    await tester.pumpAndSettle();
+    expect(pages, [2]);
+    expect(text(tester), contains('第2页'));
+  });
+
+  testWidgets(
+      'rapid source turns discard stale results and never turn PDF back',
+      (tester) async {
+    final slow = Completer<String>();
+    await open(tester,
+        extract: (page) async => page == 1 ? slow.future : 'page $page');
+    pages.clear();
+    final first = key.currentState!.followOriginalPage(1);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('reflow-text')), findsNothing);
+    final last = key.currentState!.followOriginalPage(2);
+    await tester.pump();
+    slow.complete('stale page 1');
+    await first;
+    await last;
+    await tester.pumpAndSettle();
+    expect(text(tester), 'page 2');
+    expect(pages, isEmpty);
+  });
+
+  testWidgets('failed source OCR does not retry on every relocation',
+      (tester) async {
+    var extracts = 0;
+    await open(tester, extract: (page) async {
+      extracts++;
+      return page == 0 ? 'page zero' : '';
+    });
+    model.ready = false;
+    await key.currentState!.followOriginalPage(1);
+    await tester.pumpAndSettle();
+    await key.currentState!.followOriginalPage(1);
+    await tester.pumpAndSettle();
+    expect(extracts, 2);
+    expect(find.byKey(const ValueKey('reflow-text')), findsNothing);
+    expect(pages, [0]);
+  });
+
+  testWidgets('rapid source backtracking keeps the last requested page',
+      (tester) async {
+    final slow = Completer<String>();
+    await open(tester,
+        extract: (page) async => page == 1 ? slow.future : 'page $page');
+    pages.clear();
+    final first = key.currentState!.followOriginalPage(1);
+    await tester.pump();
+    final second = key.currentState!.followOriginalPage(2);
+    final back = key.currentState!.followOriginalPage(1);
+    final home = key.currentState!.followOriginalPage(0);
+    slow.complete('stale page');
+    await Future.wait([first, second, back, home]);
+    await tester.pumpAndSettle();
+    expect(text(tester), 'page 0');
+    expect(pages, isEmpty);
+  });
+
+  testWidgets('opening extraction cancels queued comparison loads as well',
+      (tester) async {
+    final slow = Completer<String>();
+    final extracted = <int>[];
+    await open(tester, extract: (page) async {
+      extracted.add(page);
+      return page == 1 ? slow.future : 'page $page';
+    });
+    final first = key.currentState!.followOriginalPage(1);
+    await tester.pump();
+    final queued = key.currentState!.followOriginalPage(2);
+    final stop = key.currentState!.stopLoading();
+    slow.complete('cancelled');
+    await Future.wait([first, queued, stop]);
+    await tester.pumpAndSettle();
+    expect(extracted, [0, 1]);
+    expect(pages, [0]);
+  });
+
+  testWidgets('returning from extraction resumes a cancelled comparison page',
+      (tester) async {
+    final slow = Completer<String>();
+    var secondPageCalls = 0;
+    await open(tester, extract: (page) async {
+      if (page != 1) return 'page zero';
+      return ++secondPageCalls == 1 ? slow.future : 'resumed page';
+    });
+    final load = key.currentState!.followOriginalPage(1);
+    await tester.pump();
+    final stop = key.currentState!.stopLoading();
+    slow.complete('cancelled');
+    await load;
+    await stop;
+    await key.currentState!.followOriginalPage(1);
+    await tester.pumpAndSettle();
+    expect(text(tester), 'resumed page');
+    expect(secondPageCalls, 2);
+    expect(pages, [0]);
+  });
 
   testWidgets(
       'reflow keeps prefetch alive by original page and reuses in-flight OCR',
@@ -305,8 +522,62 @@ void main() {
   }
 
   for (final ocr in [false, true]) {
-    testWidgets('reflow has no narration menu: OCR=$ocr', (tester) async {
+    testWidgets(
+        'speech highlight preserves reflow text and selection: OCR=$ocr',
+        (tester) async {
       await open(tester, ocr: ocr);
+      final field =
+          tester.widget<TextField>(find.byKey(const ValueKey('reflow-text')));
+      final controller = field.controller!;
+      final original = controller.text;
+      const selection = TextSelection(baseOffset: 0, extentOffset: 2);
+      controller.selection = selection;
+      final source = key.currentState!.narrationSource!;
+      String highlightedText() => controller
+          .buildTextSpan(
+              context: tester.element(find.byType(EditableText)),
+              style: const TextStyle(),
+              withComposing: false)
+          .children!
+          .whereType<TextSpan>()
+          .where(
+              (span) => span.style?.backgroundColor == const Color(0x8339c5bc))
+          .map((span) => span.text)
+          .join();
+      final first = source.currentText();
+      await tester.pump();
+      expect(highlightedText(), first);
+      final second = source.nextText();
+      await tester.pump();
+      expect(highlightedText(), second);
+      expect(controller.selection, selection);
+      expect(controller.text, original);
+      source.clearHighlight();
+      await tester.pump();
+      expect(highlightedText(), isEmpty);
+      source.showCurrent();
+      expect(highlightedText(), second);
+      while (source.nextText().isNotEmpty) {}
+      expect(highlightedText(), isEmpty);
+      expect(pages, [0]);
+      source.currentText();
+      await key.currentState!.turnOriginalPage(1);
+      await tester.pumpAndSettle();
+      expect(highlightedText(), isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'reflow exposes a bounded page source to the shared host: OCR=$ocr',
+        (tester) async {
+      final invalidated = <TtsPageSource>[];
+      await open(tester, ocr: ocr, narrationInvalidated: invalidated.add);
+      final source = key.currentState!.narrationSource!;
+      expect(source.collect(100).map((s) => s.text).join(),
+          text(tester).replaceAll(RegExp(r'\s+'), ''));
+      expect(key.currentState!.narrationSource, same(source));
+      // The standalone fixture does not add a second narration menu.
       expect(
           tester
               .widget<DocumentReaderSurface>(find.byType(DocumentReaderSurface))
@@ -315,6 +586,17 @@ void main() {
       expect(find.byTooltip('Read aloud'), findsNothing);
       expect(find.byKey(const ValueKey('document-style-menu')), findsOneWidget);
       expect(text(tester), isNotEmpty);
+      while (source.nextText().isNotEmpty) {}
+      expect(pages, [0]);
+      await key.currentState!.turnOriginalPage(1);
+      await tester.pumpAndSettle();
+      expect(source.valid, isFalse);
+      expect(invalidated, [source]);
+      final next = key.currentState!.narrationSource!;
+      expect(next, isNot(same(source)));
+      await tester.pumpWidget(const SizedBox());
+      expect(next.valid, isFalse);
+      expect(invalidated, [source, next]);
       expect(tester.takeException(), isNull);
     });
   }
@@ -1141,6 +1423,16 @@ void main() {
         context: tester.element(find.byType(EditableText)),
         style: const TextStyle(),
         withComposing: false);
+    final source = key.currentState!.narrationSource!;
+    source.currentText();
+    source.clearHighlight();
+    final afterSpeech = field.controller!.buildTextSpan(
+        context: tester.element(find.byType(EditableText)),
+        style: const TextStyle(),
+        withComposing: false);
+    expect(afterSpeech, span); // Temporary speech colour never overwrites notes.
+    expect(field.controller!.selection,
+        const TextSelection(baseOffset: 2, extentOffset: 8));
     expect(
         span.children!
             .whereType<TextSpan>()

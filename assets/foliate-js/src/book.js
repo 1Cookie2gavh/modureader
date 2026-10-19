@@ -1405,12 +1405,18 @@ class Reader {
       hasSelection: () => this.view.renderer.getContents().some(
         ({ doc: content }) => !!content.getSelection()?.toString()),
       turnPage: direction => direction > 0 ? this.view.next() : this.view.prev(),
+      panArrow: key => this.view.renderer.panPdfArrow?.(key) ?? false,
     }));
   }
 
   turnFromKeyboard(direction) {
     const doc = this.view.renderer.getContents().find(({ doc }) => doc.hasFocus())?.doc ?? document;
     return desktopInputDocuments.get(doc)?.turnFromKeyboard(direction) ?? false;
+  }
+
+  panFromKeyboard(key) {
+    const doc = this.view.renderer.getContents().find(({ doc }) => doc.hasFocus())?.doc ?? document;
+    return desktopInputDocuments.get(doc)?.panFromKeyboard(key) ?? false;
   }
 
   actionFromKeyboard(action) {
@@ -2051,8 +2057,8 @@ const getMetadata = async (book, inspectDocument = false) => {
 }
 
 window.refreshToc = () => onSetToc()
-window.setDocumentReaderActive = active => {
-  if (reader) reader.keyboardActive = active === true;
+window.setDocumentReaderActive = (active, keyboardActive = active) => {
+  if (reader) reader.keyboardActive = active === true && keyboardActive === true;
   if (reader?.view?.renderer) reader.view.renderer.readerActive = active === true;
 }
 window.setPdfReadingView = value => reader?.view?.renderer?.setPdfView?.(value) ?? false
@@ -2227,6 +2233,7 @@ window.goToPercent = percent => reader.view.goToFraction(percent)
 window.nextPage = () => reader.view.next()
 
 window.turnPageFromKeyboard = direction => reader.turnFromKeyboard(direction)
+window.panDocumentFromKeyboard = key => reader.panFromKeyboard(key)
 window.readerActionFromKeyboard = action => reader.actionFromKeyboard(action)
 
 window.prevPage = () => reader.view.prev()

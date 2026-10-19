@@ -42,7 +42,9 @@ class ReaderPageKeys {
     if (!_active || (_ios && !_volume)) return;
     if (call.method == 'shortcut') {
       final action = call.arguments;
-      if (action is int && action >= 3 && action <= 7) onShortcut?.call(action);
+      if (action is int && action >= 3 && action <= 11) {
+        onShortcut?.call(action);
+      }
       return;
     }
     if (call.method != 'turnPage') return;

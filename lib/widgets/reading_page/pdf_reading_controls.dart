@@ -29,7 +29,6 @@ class PdfReadingControls extends StatefulWidget {
 
 class _PdfReadingControlsState extends State<PdfReadingControls> {
   late PdfReadingView _view = widget.initial;
-  late double _zoom = _view.zoom;
   bool _busy = false;
   String? _error;
 
@@ -38,7 +37,6 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
     super.didUpdateWidget(oldWidget);
     if (!_busy) {
       _view = widget.initial;
-      _zoom = _view.zoom;
     }
   }
 
@@ -59,7 +57,6 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _zoom = _view.zoom;
         });
       }
     }
@@ -117,34 +114,7 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      section(text('缩放与适配', 'Zoom and fit'), Icons.zoom_in, [
-        DocumentControlRow(
-          label: text('缩放', 'Original page zoom'),
-          child: Row(children: [
-            Text('${(_zoom * 100).round()}%'),
-            button(
-                Icons.remove,
-                text('缩小', 'Zoom out'),
-                () => _apply(
-                    _view.copyWith(zoom: (_view.zoom - .25).clamp(1.0, 4.0)))),
-            Expanded(
-                child: Slider(
-              value: _zoom.clamp(1, 4),
-              min: 1,
-              max: 4,
-              divisions: 12,
-              label: '${(_zoom * 100).round()}%',
-              onChanged: _busy ? null : (v) => setState(() => _zoom = v),
-              onChangeEnd:
-                  _busy ? null : (v) => _apply(_view.copyWith(zoom: v)),
-            )),
-            button(
-                Icons.add,
-                text('放大', 'Zoom in'),
-                () => _apply(
-                    _view.copyWith(zoom: (_view.zoom + .25).clamp(1.0, 4.0)))),
-          ]),
-        ),
+      section(text('页面适配', 'Page fit'), Icons.fit_screen, [
         DocumentControlRow(
           label: text('页面适配', 'Page fit'),
           child: choices({
@@ -237,18 +207,6 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
                       ? null
                       : (value) => _apply(_view.copyWith(
                           display: _view.display.change(entry.key, value)))),
-            DocumentControlRow(
-                label: text('滑动翻页', 'Swipe navigation'),
-                child: choices(
-                    {
-                      'horizontal': text('左右', 'Horizontal'),
-                      'reverse': text('左右反向', 'Reversed horizontal'),
-                      'vertical': text('上下', 'Vertical'),
-                      'tap': text('仅点击', 'Tap only'),
-                    },
-                    _view.display.swipe,
-                    (value) => _apply(_view.copyWith(
-                        display: _view.display.change('swipe', value))))),
           ]),
     ]);
   }

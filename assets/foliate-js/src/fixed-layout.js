@@ -70,7 +70,7 @@ export class FixedLayout extends HTMLElement {
     setPdfBoxZoom(value) { this.#pdfBoxZoom = value === true; return true }
     zoomPdfView(zoom, reset = false) {
         if (!Number.isFinite(zoom) || !this.#pdfEnabled || this.#pdfBusy) return false
-        this.#pdfView = { ...this.#pdfView, zoom: Math.max(1, Math.min(4, zoom)) }
+        this.#pdfView = { ...this.#pdfView, zoom: Math.max(1, Math.min(8, zoom)) }
         if (reset) this.#pdfCenter = null
         this.#render()
         if (reset && this.#pdfScroll) this.#pdfScroll.resetPosition()
@@ -115,6 +115,8 @@ export class FixedLayout extends HTMLElement {
     setPdfView(value) {
         if (this.#destroyed || this.#pdfBusy || !this.book?.readingRegionRenderer) return false
         const next = normalizePdfView(value)
+        this.#pdfScroll?.flushPosition()
+        if (this.#pdfViewportDirty && this.pdfRegionLocation) this.#reportLocation('viewport')
         const previous = this.#pdfView, location = this.pdfRegionLocation
         const changeMode = next.mode !== previous.mode
         const changeImage = JSON.stringify(next.enhancement ?? {}) !== JSON.stringify(previous.enhancement ?? {}) ||
@@ -140,6 +142,16 @@ export class FixedLayout extends HTMLElement {
         this.#schedulePdfDetail(true)
         return true
     }
+    panPdfArrow(key) {
+        const vector = {arrowleft: [-60, 0], arrowright: [60, 0], arrowup: [0, -60], arrowdown: [0, 60]}[key]
+        if (!vector || !this.readerActive || !this.#pdfEnabled || !(this.pdfRegionLocation?.zoom > 1)) return false
+        // Consume at crop edges and while loading; arrows must never fall through to paging.
+        if (!this.#pdfBusy) {
+            if (this.#pdfScroll) this.#pdfScroll.panWithinPage(...vector)
+            else this.panPdfView(...vector)
+        }
+        return true
+    }
     get pdfRegionLocation() {
         if (this.#pdfEnabled && this.#pdfScroll) return this.#pdfScroll.location
         if (!this.#pdfEnabled || this.#pdfPage < 0) return null
@@ -152,6 +164,8 @@ export class FixedLayout extends HTMLElement {
     async setPdfLayout(config, enabled, resume) {
         if (!this.book.readingRegionRenderer) return false
         const layout = validateReadingLayout(config)
+        this.#pdfScroll?.flushPosition()
+        if (this.#pdfViewportDirty && this.pdfRegionLocation && !this.#pdfBusy) this.#reportLocation('viewport')
         const page = this.index
         const previous = { layout: this.#pdfLayout, enabled: this.#pdfEnabled }
         this.#pdfGeneration++
@@ -248,7 +262,7 @@ export class FixedLayout extends HTMLElement {
         if (this.#pdfScroll) { this.#pdfScroll.changed(record); return }
         if (!this.#pdfEnabled || !this.#center?.crop || this.#destroyed || this.#pdfBusy) return
         this.#pdfDetailTimer = setTimeout(() => {
-            if (record) this.#reportLocation('viewport')
+            if (this.#pdfViewportDirty) this.#reportLocation('viewport')
             void this.#refreshPdfDetail()
         }, 100)
     }
@@ -310,12 +324,14 @@ export class FixedLayout extends HTMLElement {
             setZoom: value => this.zoomPdfView(value),
             pan: (x,y) => this.panPdfView(x,y),
             boxMode: () => this.#pdfBoxZoom,
+            onGestureEnd: () => { if (this.#pdfViewportDirty) this.#reportLocation('viewport') },
             box: rect => {
                 const frame = this.#center, plan = this.#pdfPlan, bounds = this.getBoundingClientRect()
                 if (!frame || !plan) return
                 this.#pdfCenter = {x:(rect.x+rect.width/2)/frame.width,y:(rect.y+rect.height/2)/frame.height}
-                this.zoomPdfView(this.#pdfView.zoom * Math.min(bounds.width/(rect.width*plan.scale),
-                    bounds.height/(rect.height*plan.scale)))
+                const swapped = plan.rotation % 180 !== 0
+                this.zoomPdfView(this.#pdfView.zoom * Math.min(bounds.width/((swapped ? rect.height : rect.width)*plan.scale),
+                    bounds.height/((swapped ? rect.width : rect.height)*plan.scale)))
             },
         })
         doc.addEventListener('wheel', event => {
@@ -331,6 +347,7 @@ export class FixedLayout extends HTMLElement {
     }
     async #showPdfPanel(page, panel, reason, anchor, center) {
         if (this.#destroyed || page < 0 || page >= this.book.sections.length) return false
+        this.#pdfScroll?.flushPosition()
         if (reason !== 'layout' && this.#pdfViewportDirty && this.pdfRegionLocation && !this.#pdfBusy)
             this.#reportLocation('viewport')
         const previousView = this.#pdfView
@@ -338,7 +355,7 @@ export class FixedLayout extends HTMLElement {
             const saved = this.#pdfPageViews[`${page}:${panel}`]
             if (saved?.signature === layoutSignature(this.#pdfLayout, page) &&
                 Number.isFinite(saved.zoom) && saved.zoom >= 1 && saved.zoom <= 15) {
-                this.#pdfView = { ...this.#pdfView, zoom: saved.zoom }
+                this.#pdfView = { ...this.#pdfView, zoom: Math.min(8, saved.zoom) }
                 center ??= saved.center
             } else center ??= this.pdfRegionLocation?.center
         }
@@ -437,7 +454,8 @@ export class FixedLayout extends HTMLElement {
             url = null
             this.#render()
             this.#attachPdfPan(frame.iframe.contentDocument)
-            attachDocumentGestures(frame.iframe.contentDocument, () => this.#pdfView,
+            attachDocumentGestures(frame.iframe.contentDocument,
+                () => ({...this.#pdfView, display: {...this.#pdfView.display, swipe: 'tap', swipeMenu: false}}),
                 direction => direction > 0 ? this.next() : this.prev(),
                 () => this.dispatchEvent(new CustomEvent('document-menu')))
             this.dispatchEvent(new CustomEvent('load', { detail: { doc: frame.iframe.contentDocument, index: page } }))
@@ -884,6 +902,8 @@ export class FixedLayout extends HTMLElement {
         return contents.map(item => ({ ...item, overlayer: this.#overlayers.get(item.doc) }))
     }
     destroy() {
+        this.#pdfScroll?.flushPosition()
+        if (this.#pdfViewportDirty && this.pdfRegionLocation && !this.#pdfBusy) this.#reportLocation('viewport')
         this.#destroyed = true
         for (const overlayer of this.#overlayers.values()) overlayer.destroy()
         this.#overlayers.clear()

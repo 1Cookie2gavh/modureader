@@ -50,13 +50,10 @@ void main() {
     expect(find.text('Move viewport'), findsNothing);
     expect(find.text('Swipe up for menu'), findsNothing);
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-    await tester.ensureVisible(find.text('Vertical'));
-    await tester.tap(find.text('Vertical'));
-    await tester.pumpAndSettle();
-    expect(saved.last.display.swipe, 'vertical');
+    expect(find.text('Swipe navigation'), findsNothing);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('zoom, fit, rotation, pan and reset operate at mobile width',
+  testWidgets('fit, rotation and reset work without duplicate zoom controls',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -69,11 +66,10 @@ void main() {
                 child: PdfReadingControls(
                     initial: const PdfReadingView(),
                     save: (value) async => saved.add(value))))));
-    await tester.tap(find.text('Zoom and fit'));
+    await tester.tap(find.text('Page fit').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Zoom in'));
-    await tester.pumpAndSettle();
-    expect(saved.last.zoom, 1.25);
+    expect(find.byType(Slider), findsNothing);
+    expect(find.byTooltip('Zoom in'), findsNothing);
     await tester.tap(find.text('Fit width'));
     await tester.pumpAndSettle();
     expect(saved.last.fit, 'width');
@@ -89,12 +85,7 @@ void main() {
     await tester.tap(find.text('Page turning and options'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Move down'), findsNothing);
-    final slider = tester.widget<Slider>(find.byType(Slider));
-    slider.onChanged!(4);
-    slider.onChangeEnd!(4);
-    await tester.pumpAndSettle();
-    expect(saved.last.zoom, 4);
-    expect(find.text('400%'), findsOneWidget);
+    expect(find.byType(Slider), findsNothing);
     await tester.ensureVisible(find.text('Reset view'));
     await tester.tap(find.text('Reset view'));
     await tester.pumpAndSettle();
@@ -123,16 +114,28 @@ void main() {
                 child: PdfReadingControls(
                     initial: const PdfReadingView(),
                     save: (_) => pending.future)))));
-    await tester.tap(find.text('Zoom and fit'));
+    await tester.tap(find.text('Page fit').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Zoom in'));
+    await tester.tap(find.text('Fit width'));
     await tester.pump();
-    expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Fit width'))
+            .onSelected,
+        isNull);
     pending.completeError(StateError('injected'));
     await tester.pumpAndSettle();
-    expect(find.text('100%'), findsOneWidget);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Fit screen'))
+            .selected,
+        isTrue);
     expect(find.text('Could not apply. Please retry.'), findsOneWidget);
-    expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNotNull);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Fit width'))
+            .onSelected,
+        isNotNull);
     expect(tester.takeException(), isNull);
   });
 }

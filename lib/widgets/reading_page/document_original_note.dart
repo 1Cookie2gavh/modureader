@@ -5,6 +5,7 @@ import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/utils/app_motion.dart';
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 import 'reader_popup.dart';
 
@@ -90,7 +91,7 @@ class _DocumentOriginalNoteState extends State<DocumentOriginalNote> {
                     Expanded(
                         child: Text(
                             '${t('原书第', 'Original page')} ${widget.anchor.page + 1}',
-                            style: Theme.of(context).textTheme.titleLarge)),
+                            style: readerSubmenuTitleStyle(context))),
                     IconButton(
                         tooltip: t('关闭', 'Close'),
                         onPressed: () => Navigator.of(context).pop(),

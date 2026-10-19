@@ -80,7 +80,7 @@ void main() {
       }),
     ]);
     final reload = PdfReadingStateStore(prefs);
-    expect(reload.readView('a').zoom, 15);
+    expect(reload.readView('a').zoom, 8);
     expect(reload.readView('a').rotation, 270);
     expect(reload.read('a')['position']['center'], {'x': .3, 'y': .7});
     expect(reload.readView('missing').zoom, 1);

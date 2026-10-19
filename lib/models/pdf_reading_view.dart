@@ -33,7 +33,7 @@ class PdfReadingView {
       throw const FormatException('Invalid PDF view');
     }
     return PdfReadingView(
-        zoom: zoom.toDouble(),
+        zoom: zoom.toDouble().clamp(1.0, 8.0),
         fit: fit,
         rotation: rotation,
         mode: mode,

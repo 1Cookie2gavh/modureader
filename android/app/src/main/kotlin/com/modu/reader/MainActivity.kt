@@ -33,7 +33,7 @@ class MainActivity : AudioServiceActivity() {
                 (if (event.isAltPressed) 4 else 0) or (if (event.isMetaPressed) 8 else 0),
         )
         if (result == -1 || result == 1) pageKeyChannel?.invokeMethod("turnPage", result)
-        if (result in 3..7) pageKeyChannel?.invokeMethod("shortcut", result)
+        if (result in 3..11) pageKeyChannel?.invokeMethod("shortcut", result)
         // Do not also deliver handled keys to Flutter/WebView (double paging).
         return if (result != ReaderPageKeys.PASS) true else super.dispatchKeyEvent(event)
     }

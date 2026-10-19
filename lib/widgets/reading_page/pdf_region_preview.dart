@@ -9,6 +9,7 @@ import 'package:anx_reader/models/document_page_layout.dart';
 import 'package:anx_reader/widgets/reading_page/document_layout_editor.dart';
 import 'package:anx_reader/models/document_enhancement.dart';
 import 'package:anx_reader/widgets/reading_page/document_enhancement_panel.dart';
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 
 /// Original-page/region preview, separate from the main reader's position and
@@ -324,7 +325,7 @@ class _PdfRegionPreviewState extends State<PdfRegionPreview> {
               onPressed: () => Navigator.pop(context)),
           Expanded(
               child: Text(tr('裁边与分格', 'Crop and panels'),
-                  style: Theme.of(context).textTheme.titleLarge)),
+                  style: readerSubmenuTitleStyle(context))),
         ]),
         Expanded(
             child: Center(

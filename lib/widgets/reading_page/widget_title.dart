@@ -1,6 +1,17 @@
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:flutter/material.dart';
 
+const readerMenuTitleStyle = TextStyle(
+  fontSize: 28,
+  fontFamily: 'SourceHanSerif',
+  fontWeight: FontWeight.bold,
+);
+
+TextStyle? readerSubmenuTitleStyle(BuildContext context) => Theme.of(context)
+    .textTheme
+    .titleLarge
+    ?.copyWith(fontFamily: readerMenuTitleStyle.fontFamily);
+
 Widget widgetTitle(String title, ReadingSettings? settings,
     {VoidCallback? onSettings}) {
   Widget settingsButton = settings == null && onSettings == null
@@ -20,11 +31,7 @@ Widget widgetTitle(String title, ReadingSettings? settings,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 28,
-              fontFamily: 'SourceHanSerif',
-              fontWeight: FontWeight.bold,
-            ),
+            style: readerMenuTitleStyle,
           ),
           const Spacer(),
           settingsButton,

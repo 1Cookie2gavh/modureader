@@ -45,6 +45,7 @@ Map<String, Object> safeMediaDiagnosticFields(Object? input) {
     'sessionPresent',
     'errorPresent',
     'compatActive',
+    'stopCompatActive',
   };
   const enums = {
     'source': {'dart', 'android'},

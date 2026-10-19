@@ -5,6 +5,57 @@ const source = await readFile(new URL('../assets/foliate-js/src/desktop-page-inp
 const { desktopPageKey, desktopDragDirection, installDesktopPageInput, readerShortcutAction } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const settle = () => new Promise(resolve => setImmediate(resolve));
+test('comparison disables source keys without disabling source gestures', async () => {
+  const book = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
+  const bridge = book.slice(book.indexOf('window.setDocumentReaderActive ='), book.indexOf('window.setPdfReadingView ='));
+  const reader = { view: { renderer: {} } }, window = {};
+  new Function('window', 'reader', bridge)(window, reader);
+  const doc = new EventTarget(); doc.getSelection = () => '';
+  const turns = [], pans = [];
+  const input = installDesktopPageInput(doc, {
+    enabled: () => reader.keyboardActive,
+    nativeKeysEnabled: () => reader.keyboardActive,
+    turnPage: direction => turns.push(direction),
+    panArrow: key => { pans.push(key); return true; },
+  });
+  const arrow = () => {
+    const event = new Event('keydown', { cancelable: true });
+    Object.assign(event, { key: 'ArrowRight' }); doc.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  window.setDocumentReaderActive(true, false);
+  assert.equal(reader.keyboardActive, false);
+  assert.equal(reader.view.renderer.readerActive, true);
+  assert.equal(arrow(), false);
+  assert.equal(input.panFromKeyboard('arrowright'), false);
+  await settle(); assert.deepEqual(turns, []); assert.deepEqual(pans, []);
+  window.setDocumentReaderActive(true, true);
+  assert.equal(reader.keyboardActive, true);
+  assert.equal(arrow(), true);
+  assert.deepEqual(pans, ['arrowright']);
+  window.setDocumentReaderActive(false, true);
+  assert.equal(reader.keyboardActive, false);
+  assert.equal(reader.view.renderer.readerActive, false);
+  window.setDocumentReaderActive(true);
+  assert.equal(reader.keyboardActive, true);
+  input.destroy();
+});
+test('zoom arrows pan before shortcut mapping, including native fallback, without stealing editor keys', async () => {
+  const doc=new EventTarget();doc.getSelection=()=>'';
+  const pans=[],turns=[],actions=[];
+  const input=installDesktopPageInput(doc,{enabled:()=>true,turnPage:d=>turns.push(d),
+    shortcuts:()=>({'0:arrowup':'playPause','0:arrowright':'next'}),onAction:a=>actions.push(a),
+    panArrow:key=>{if(!['arrowleft','arrowright','arrowup','arrowdown'].includes(key))return false;pans.push(key);return true;}});
+  const send=(key,extra={})=>{const e=new Event('keydown',{cancelable:true});Object.assign(e,{key,...extra});doc.dispatchEvent(e);return e.defaultPrevented;};
+  for(const key of ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown']) assert.equal(send(key),true);
+  assert.equal(send('ArrowRight',{ctrlKey:true}),false);
+  assert.equal(send('ArrowRight',{isComposing:true}),false);
+  assert.equal(input.panFromKeyboard('arrowleft'),true);
+  doc.activeElement={isContentEditable:true};assert.equal(input.panFromKeyboard('arrowright'),false);
+  doc.getSelection=()=> 'selected';assert.equal(send('ArrowDown'),false);
+  await settle();assert.deepEqual(turns,[]);assert.deepEqual(actions,[]);assert.equal(pans.length,5);
+  input.destroy();
+});
 test('shifted symbols use the same binding as native key capture', () => {
   assert.equal(readerShortcutAction({key:'!',code:'Digit1',shiftKey:true}, {'2:1':'menu'}),'menu');
   assert.equal(readerShortcutAction({key:'{',code:'BracketLeft',shiftKey:true}, {'2:[':'previous'}),'previous');

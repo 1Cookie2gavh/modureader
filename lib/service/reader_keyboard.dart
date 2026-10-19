@@ -1,6 +1,14 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+// Private bridge actions, not configurable ebook shortcuts.
+const documentPanKeys = <int, String>{
+  8: 'arrowleft',
+  9: 'arrowright',
+  10: 'arrowup',
+  11: 'arrowdown',
+};
+
 /// Block paging while a text editor or a stale/transitional focus owns input.
 /// A FocusNode may briefly retain an unmounted Element during menu removal.
 /// Reading its widget before checking mounted throws in release builds too.

@@ -10,9 +10,9 @@ const G = await import(uri((await source('pdf-reading-viewport'))
 const base = {pageWidth:600,pageHeight:800,width:390,height:700,crop:{x:.1,y:.1,width:.8,height:.8}};
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7, `${a} != ${b}`);
 
-for (const rotation of [0,90,180,270]) test(`viewport matrix and visible ROI agree at ${rotation} degrees and 1500%`, () => {
-    const p=G.pdfViewport({...base,view:{zoom:15,rotation},center:{x:.7,y:.3}});
-    assert.ok(p.sourceRegion.width < .15 && p.sourceRegion.height < .15);
+for (const rotation of [0,90,180,270]) test(`viewport matrix and visible ROI agree at ${rotation} degrees and 800%`, () => {
+    const p=G.pdfViewport({...base,view:{zoom:8,rotation},center:{x:.7,y:.3}});
+    assert.ok(p.sourceRegion.width < .25 && p.sourceRegion.height < .25);
     const r=p.sourceRegion, [a,b,c,d,e,f]=p.matrix;
     const points=[[r.x,r.y],[r.x+r.width,r.y],[r.x,r.y+r.height],[r.x+r.width,r.y+r.height]]
         .map(([x,y])=>({x:a*x*600+c*y*800+e,y:b*x*600+d*y*800+f}));
@@ -51,6 +51,7 @@ test('original and cropped scans fit the current window and retain user zoom on 
     }
 });
 test('invalid view parameters rejected and snapshots are isolated', () => {
+    assert.equal(G.normalizePdfView({zoom:15}).zoom,8,'old zooms migrate without dropping fit or location');
     for(const view of [{zoom:0},{zoom:16},{zoom:NaN},{rotation:45},{fit:'invalid'}])
         assert.throws(()=>G.pdfViewport({...base,view}));
     assert.throws(()=>G.pdfViewport({...base,width:0}));

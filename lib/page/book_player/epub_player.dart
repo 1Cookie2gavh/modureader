@@ -228,7 +228,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void prevPage() {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       unawaited(readingPageKey.currentState!.reflowReader?.turn(-1));
       return;
     }
@@ -282,6 +282,13 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   bool get isPdfDocument => widget.book.filePath.toLowerCase().endsWith('.pdf');
   final documentReadingMode = ValueNotifier(DocumentReadingMode.standard);
   final pdfZoom = ValueNotifier<double>(1);
+
+  void _updatePdfZoom(double value) {
+    final crossed = (pdfZoom.value > 1) != (value > 1);
+    pdfZoom.value = value;
+    if (crossed) readingPageKey.currentState?.refreshDocumentReaderActivity();
+  }
+
   bool get isImageEpub =>
       documentReadingMode.value == DocumentReadingMode.imageEpub;
   bool get supportsDocumentImages => documentReadingMode.value.hasDocumentMenu;
@@ -339,14 +346,18 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void setDocumentReaderActive(bool active) {
-    active = active && readingPageKey.currentState?.isReflowReading != true;
+    active = active &&
+        (readingPageKey.currentState?.isReflowReading != true ||
+            readingPageKey.currentState?.isComparingDocument == true);
     _einkReaderActive = active;
     _configureEinkPreferences();
+    final keyboardActive =
+        active && readingPageKey.currentState?.isReflowActive != true;
     if (!_readerReady || !mounted) return;
     unawaited(webViewController
         .evaluateJavascript(
             source:
-                'window.setDocumentReaderActive?.(${active ? 'true' : 'false'}); void 0;')
+                'window.setDocumentReaderActive?.($active, $keyboardActive); void 0;')
         .catchError((_) => null));
   }
 
@@ -452,7 +463,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       await readingPageKey.currentState?.setDocumentRotation(view.rotation);
       await PdfReadingStateStore(Prefs().prefs)
           .saveView(cssBookKey, view, enabled: pdfPanelReading);
-      pdfZoom.value = view.zoom;
+      _updatePdfZoom(view.zoom);
     } catch (_) {
       await apply(previous);
       await readingPageKey.currentState?.setDocumentRotation(previous.rotation);
@@ -462,13 +473,15 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Future<void> zoomPdfReadingView(double zoom, bool reset) async {
     if (!_readerReady || !mounted) throw StateError('Reader is not ready');
+    if (!zoom.isFinite) throw ArgumentError.value(zoom, 'zoom');
+    zoom = zoom.clamp(1.0, 8.0);
     final result = await webViewController.callAsyncJavaScript(
         functionBody: 'return window.zoomPdfReadingView(zoom, reset);',
         arguments: {'zoom': zoom, 'reset': reset});
     if (result?.error != null || result?.value != true) {
       throw StateError('PDF zoom failed');
     }
-    pdfZoom.value = zoom;
+    _updatePdfZoom(zoom);
   }
 
   Future<void> setPdfBoxZoom(bool enabled) async {
@@ -576,7 +589,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void nextPage() {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       unawaited(readingPageKey.currentState!.reflowReader?.turn(1));
       return;
     }
@@ -584,7 +597,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void prevChapter() {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       unawaited(
           readingPageKey.currentState!.reflowReader?.turnOriginalPage(-1));
       return;
@@ -595,7 +608,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void nextChapter() {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       unawaited(readingPageKey.currentState!.reflowReader?.turnOriginalPage(1));
       return;
     }
@@ -649,7 +662,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   Future<void> goToPercentage(double value) async {
-    await readingPageKey.currentState?.closeDocumentReflow();
+    readingPageKey.currentState?.activateOriginalDocumentPane();
+    if (readingPageKey.currentState?.isComparingDocument != true) {
+      await readingPageKey.currentState?.closeDocumentReflow();
+    }
     await webViewController.evaluateJavascript(source: '''
       goToPercent($value); 
       ''');
@@ -836,7 +852,11 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         }
         final info = await documentReflowInfo(null);
         if (mounted && readingPageKey.currentState?.reflowReader == reflow) {
-          await reflow.goToPage((info['page'] as num).toInt());
+          if (readingPageKey.currentState?.isComparingDocument == true) {
+            await reflow.followOriginalPage((info['page'] as num).toInt());
+          } else {
+            await reflow.goToPage((info['page'] as num).toInt());
+          }
         }
         return;
       }
@@ -849,7 +869,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   void turnPageFromKeyboard(int direction) {
     if (direction != 1 && direction != -1) return;
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       unawaited(readingPageKey.currentState!.reflowReader?.turn(direction));
       return;
     }
@@ -858,12 +878,18 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   void readerActionFromKeyboard(String action) {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       readingPageKey.currentState?.handleReaderShortcut(action);
       return;
     }
     webViewController.evaluateJavascript(
         source: 'window.readerActionFromKeyboard?.(${jsonEncode(action)})');
+  }
+
+  void panDocumentFromKeyboard(String key) {
+    if (readingPageKey.currentState?.isReflowActive == true) return;
+    unawaited(webViewController.evaluateJavascript(
+        source: 'window.panDocumentFromKeyboard?.(${jsonEncode(key)})'));
   }
 
   String? _pendingLinkedCfi;
@@ -883,8 +909,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       return;
     }
     if (cfi.startsWith(DocumentReflowAnchor.prefix)) return;
+    readingPageKey.currentState?.activateOriginalDocumentPane();
     unawaited(() async {
-      if (readingPageKey.currentState?.isReflowReading == true) {
+      if (readingPageKey.currentState?.isReflowReading == true &&
+          readingPageKey.currentState?.isComparingDocument != true) {
         await readingPageKey.currentState?.closeDocumentReflow();
       }
       if (mounted) {
@@ -907,10 +935,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   String get selectionChapterTitle =>
-      readingPageKey.currentState?.reflowReader?.chapter ?? chapterTitle;
+      readingPageKey.currentState?.isReflowActive == true
+          ? readingPageKey.currentState!.reflowReader?.chapter ?? chapterTitle
+          : chapterTitle;
 
   void clearReaderSelection() {
-    if (readingPageKey.currentState?.isReflowReading == true) {
+    if (readingPageKey.currentState?.isReflowActive == true) {
       readingPageKey.currentState?.reflowReader?.clearSelection();
     } else {
       webViewController.evaluateJavascript(source: 'clearSelection()');
@@ -994,7 +1024,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   Future<void> _goToSearchCfi(String target) async {
-    await readingPageKey.currentState?.closeDocumentReflow();
+    readingPageKey.currentState?.activateOriginalDocumentPane();
+    if (readingPageKey.currentState?.isComparingDocument != true) {
+      await readingPageKey.currentState?.closeDocumentReflow();
+    }
     final result = await webViewController.callAsyncJavaScript(
         functionBody:
             'return await window.goToSearchResult(${jsonEncode(target)})');
@@ -1523,14 +1556,16 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   void detachNarration() => _narrationDetached = true;
 
   bool get _hasNarrationSession {
-    if (!mounted || _narrationDetached) return false;
+    if (!mounted || _narrationDetached || supportsDocumentImages) return false;
     final handler = TtsHandler();
-    return handler.mediaItem.value?.id == book.id.toString() &&
+    return handler.tts.pageSource == null &&
+        handler.mediaItem.value?.id == book.id.toString() &&
         handler.ttsStateNotifier.value != TtsStateEnum.stopped;
   }
 
   Future<void> restoreNarration(NarrationPosition? saved) async {
-    if (!mounted ||
+    if (supportsDocumentImages ||
+        !mounted ||
         _narrationDetached ||
         _restoringNarration ||
         _hasNarrationSession ||
@@ -1553,6 +1588,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   }
 
   Future<void> recordNarrationState(TtsStateEnum state) async {
+    // Reflow speech is session-local, not the original book's CFI cursor.
+    if (supportsDocumentImages || TtsHandler().tts.pageSource != null) return;
     final current = _progress.current;
     final speech = _speechPosition;
     if (!mounted ||
@@ -1580,6 +1617,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Future<void> _recordReadingAction(String position, double fraction,
       {dynamic pdfRegion, NarrationPosition? narration}) async {
+    if (narration != null &&
+        (supportsDocumentImages || TtsHandler().tts.pageSource != null)) {
+      return;
+    }
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null &&
         lifecycle != AppLifecycleState.resumed &&
@@ -1654,7 +1695,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           final store = PdfReadingStateStore(Prefs().prefs);
           final state = store.read(cssBookKey);
           final view = pdfReadingView;
-          pdfZoom.value = view.zoom;
+          _updatePdfZoom(view.zoom);
           try {
             await readingPageKey.currentState
                 ?.setDocumentRotation(view.rotation);
@@ -1759,8 +1800,13 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           if (!mounted) return;
           _observeEinkPage(location);
           final region = location['pdfRegion'];
+          if (supportsDocumentImages) {
+            readingPageKey.currentState
+                ?.originalDocumentPageChanged(documentOcrPage(location));
+          }
           if (supportsDocumentImages &&
-              readingPageKey.currentState?.isReflowReading != true) {
+              (readingPageKey.currentState?.isReflowReading != true ||
+                  readingPageKey.currentState?.isComparingDocument == true)) {
             _ocrPrecachePage = documentOcrPage(location);
             final total = location['totalChapters'];
             _ocrPrecacheTotal =
@@ -1771,7 +1817,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               region is Map &&
               region['zoom'] is num) {
             final zoom = (region['zoom'] as num).toDouble();
-            if (zoom.isFinite && zoom >= 1 && zoom <= 15) pdfZoom.value = zoom;
+            if (zoom.isFinite && zoom >= 1 && zoom <= 15) {
+              _updatePdfZoom(zoom.clamp(1.0, 8.0));
+            }
           }
           if (cfi == location['cfi'] &&
               writingMode.code == location['writingMode'] &&
@@ -1850,7 +1898,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     controller.addJavaScriptHandler(
         handlerName: 'onTtsProgress',
         callback: (args) {
-          if (!mounted ||
+          if (supportsDocumentImages ||
+              TtsHandler().tts.pageSource != null ||
+              !mounted ||
               _narrationDetached ||
               _restoringNarration ||
               TtsHandler().mediaItem.value?.id != book.id.toString() ||
@@ -1963,6 +2013,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         handlerName: 'onSelectionEnd',
         callback: (args) {
           if (_selectionClearLocked) return;
+          readingPageKey.currentState?.activateOriginalDocumentPane();
           Map<String, dynamic> location = args[0];
           if (AnxPlatform.isMobile &&
               quickMarkEnabled &&
@@ -2004,7 +2055,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     controller.addJavaScriptHandler(
         handlerName: 'onSelectionCleared',
         callback: (args) {
-          if (readingPageKey.currentState?.isReflowReading == true) return;
+          if (readingPageKey.currentState?.isReflowActive == true) return;
           if (_selectionClearLocked) {
             _selectionClearPending = true;
             return;
@@ -2026,6 +2077,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           removeOverlay();
 
           if (annotation['annotation'] == null) {
+            if (supportsDocumentImages || TtsHandler().tts.pageSource != null) {
+              return;
+            }
             // Check if TTS is active and the click is on the currently read text
             final currentTtsState = TtsHandler().ttsStateNotifier.value;
             if (currentTtsState == TtsStateEnum.playing ||

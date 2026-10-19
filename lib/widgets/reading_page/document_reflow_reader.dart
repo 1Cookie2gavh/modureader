@@ -2,6 +2,7 @@ import 'ocr_precache_settings.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -15,6 +16,7 @@ import 'package:anx_reader/service/book_player/reading_appearance.dart';
 import 'package:anx_reader/service/ocr/local_ocr_service.dart';
 import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/service/ocr/ocr_models.dart';
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -62,8 +64,18 @@ class DocumentReflowReader extends StatefulWidget {
       this.onOpenReaderMenu,
       this.onOpenReaderPanel,
       this.onCloseReaderMenu,
+      this.onReaderKeyEvent,
+      this.onKeyboardEligibilityChanged,
+      this.onNarrationInvalidated,
       this.readerMenuVisible = false,
+      this.comparison = false,
+      this.onComparisonChanged,
       this.readerActions = const []});
+  final bool comparison;
+  final FocusOnKeyEventCallback? onReaderKeyEvent;
+  final VoidCallback? onKeyboardEligibilityChanged;
+  final void Function(TtsPageSource)? onNarrationInvalidated;
+  final ValueChanged<bool>? onComparisonChanged;
   final VoidCallback? onOpenReaderMenu, onCloseReaderMenu;
   final ValueChanged<Widget>? onOpenReaderPanel;
   final bool readerMenuVisible;
@@ -169,7 +181,35 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   late DocumentTextStyle _style = widget.initialStyle;
   late bool _forceOcr = widget.anchor?.ocr ?? widget.forceOcr;
   DocumentReflowPage? _page;
-  int _total = 0, _generation = 0;
+  TtsPageSource? _narrationSource;
+  TtsPageSource? get narrationSource {
+    if (_busy ||
+        _page == null ||
+        _page!.page != _navigationPage ||
+        _page!.text.trim().isEmpty) {
+      return null;
+    }
+    return _narrationSource ??=
+        TtsPageSource(_page!.text, chapter: chapter, onHighlight: (range) {
+      if (mounted) _controller.setNarrationRange(range);
+    }, onPosition: (offset) {
+      if (!mounted ||
+          _controller.selection.isValid && !_controller.selection.isCollapsed) {
+        return;
+      }
+      _textState?.bringIntoView(TextPosition(offset: offset));
+    });
+  }
+
+  void _invalidateNarration() {
+    final source = _narrationSource;
+    _narrationSource = null;
+    if (source == null) return;
+    source.invalidate();
+    widget.onNarrationInvalidated?.call(source);
+  }
+
+  int _total = 0, _generation = 0, _loadRequest = 0;
   int? _requestedPage;
   int? get _navigationPage => _requestedPage ?? _page?.page;
   Future<void>? _pendingLoad;
@@ -196,6 +236,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   @override
   void initState() {
     super.initState();
+    _focus.onKeyEvent = (node, event) => canUseReadingKeys
+        ? widget.onReaderKeyEvent?.call(node, event) ?? KeyEventResult.ignored
+        : KeyEventResult.ignored;
     _controller.addListener(_selectionChanged);
     unawaited(_style.loadFont().then((_) {
       if (mounted) setState(() {});
@@ -205,6 +248,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   @override
   void dispose() {
+    _invalidateNarration();
     _generation++;
     _selectionTimer?.cancel();
     _mouseLongPressTimer?.cancel();
@@ -230,6 +274,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     final selection = _controller.selection;
     if (selection == _observedSelection) return;
     _observedSelection = selection;
+    widget.onKeyboardEligibilityChanged?.call();
     _selectionEpoch++;
     _shownSelection = null;
     if (_selectionSession &&
@@ -254,6 +299,11 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         offset: _controller.selection.extentOffset
             .clamp(0, _controller.text.length));
   }
+
+  bool get canUseReadingKeys =>
+      _focus.hasPrimaryFocus && _controller.selection.isCollapsed;
+
+  void requestKeyboardFocus() => _focus.requestFocus();
 
   Future<void> navigate(DocumentReflowAnchor anchor) async {
     if (_busy) {
@@ -298,12 +348,14 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     await turnOriginalPage(direction);
   }
 
-  void cancelLoading() {
+  void cancelLoading({bool queued = true}) {
+    if (queued) _loadRequest++;
     _cancel?.cancel();
     if (_ownsRenderer) widget.cancelRender();
   }
 
   Future<void> stopLoading() async {
+    _invalidateNarration();
     cancelLoading();
     await _pendingLoad;
   }
@@ -317,6 +369,16 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   Future<void> goToPage(int page) async {
     if (page >= 0 && page < _total) await _load(page);
+  }
+
+  /// Source scrolling must not navigate the PDF back after recognition finishes.
+  Future<void> followOriginalPage(int page) async {
+    if (page < 0 || (_total > 0 && page >= _total)) return;
+    if (page == _navigationPage &&
+        (_busy || _page?.page == page || _error != null || _needsModel)) {
+      return;
+    }
+    await _load(page, followOriginal: true);
   }
 
   String get actionText {
@@ -429,13 +491,20 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> _load(int? target,
-      {DocumentReflowAnchor? anchor, bool refresh = false}) async {
+      {DocumentReflowAnchor? anchor,
+      bool refresh = false,
+      bool followOriginal = false}) async {
+    _invalidateNarration();
+    final request = ++_loadRequest;
+    if (target != null) _requestedPage = target;
     while (_pendingLoad != null) {
-      cancelLoading();
+      cancelLoading(queued: false);
       await _pendingLoad;
+      if (!mounted || request != _loadRequest) return;
     }
     if (!mounted) return;
-    final pending = _performLoad(target, anchor: anchor, refresh: refresh);
+    final pending = _performLoad(target,
+        anchor: anchor, refresh: refresh, followOriginal: followOriginal);
     _pendingLoad = pending;
     try {
       await pending;
@@ -445,7 +514,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> _performLoad(int? target,
-      {DocumentReflowAnchor? anchor, bool refresh = false}) async {
+      {DocumentReflowAnchor? anchor,
+      bool refresh = false,
+      bool followOriginal = false}) async {
     _resetSelectionGesture();
     final generation = ++_generation, cancel = OcrCancellation();
     _cancel?.cancel();
@@ -455,6 +526,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       _busy = true;
       // Navigation follows the attempted source page, not stale reflow text.
       _requestedPage = target ?? _navigationPage;
+      if (followOriginal && target != _page?.page) _page = null;
       _error = null;
       _needsModel = false;
       _progress = null;
@@ -526,7 +598,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       final notes = await widget.loadNotes();
       check();
       // Commit page and reader progress together only after successful loading.
-      await widget.onPageChanged(page);
+      if (!followOriginal) await widget.onPageChanged(page);
       check();
       widget.onSourcePageChanged?.call(page, total);
       _page = result;
@@ -578,6 +650,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> _editPage() async {
+    _invalidateNarration();
     final page = _page;
     if (_busy || page == null) return;
     closeMenu();
@@ -615,7 +688,15 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
           ]),
         _ => Column(mainAxisSize: MainAxisSize.min, children: [
             Text(t('PDF / OCR', 'PDF / OCR'),
-                style: Theme.of(context).textTheme.titleLarge),
+                style: readerSubmenuTitleStyle(context)),
+            if (widget.onComparisonChanged != null)
+              SwitchListTile(
+                  key: const ValueKey('reflow-comparison-switch'),
+                  title: Text(t('原页对照', 'Compare with original')),
+                  subtitle: Text(t('竖屏上下，横屏左右；按原页码联动',
+                      'Top/bottom in portrait, side by side in landscape')),
+                  value: widget.comparison,
+                  onChanged: widget.onComparisonChanged),
             OcrPrecacheSettings(cache: widget.precache),
             ListTile(
                 key: const ValueKey('edit-saved-page'),
@@ -912,6 +993,13 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                 key: const ValueKey('reflow-mode'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis)),
+        if (widget.onComparisonChanged != null)
+          IconButton(
+              key: const ValueKey('reflow-comparison'),
+              tooltip: t('原页对照', 'Compare with original'),
+              isSelected: widget.comparison,
+              icon: const Icon(Icons.splitscreen_outlined),
+              onPressed: () => widget.onComparisonChanged!(!widget.comparison)),
         if (widget.onOpenReaderMenu == null)
           PopupMenuButton<String>(
             key: const ValueKey('reflow-more'),
@@ -1053,6 +1141,13 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 }
 
 class _ReflowTextController extends TextEditingController {
+  TextRange? _narrationRange;
+  void setNarrationRange(TextRange? range) {
+    if (_narrationRange == range) return;
+    _narrationRange = range;
+    notifyListeners();
+  }
+
   double paragraphSpacing = 1;
   DocumentReflowPage? page;
   List<BookNote> notes = [];
@@ -1081,6 +1176,11 @@ class _ReflowTextController extends TextEditingController {
     final edges = {
       0,
       text.length,
+      if (_narrationRange case final range?
+          when range.isValid && range.end <= text.length) ...[
+        range.start,
+        range.end
+      ],
       for (final mark in marks) ...[mark.$1.start, mark.$1.end],
       for (final match in RegExp(r'\n\n').allMatches(text)) ...[
         match.start + 1,
@@ -1110,6 +1210,11 @@ class _ReflowTextController extends TextEditingController {
               0xffffff00);
       if (note.type == 'highlight') background = color.withValues(alpha: .35);
       if (note.type == 'underline') underline = color;
+    }
+    final range = _narrationRange;
+    if (range != null && offset >= range.start && offset < range.end) {
+      // Match the ordinary ebook speech overlay without changing selection/notes.
+      background = const Color(0x8339c5bc);
     }
     return TextStyle(
         backgroundColor: background,

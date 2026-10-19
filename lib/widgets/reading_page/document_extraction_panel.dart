@@ -10,6 +10,7 @@ import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/service/ocr/ocr_models.dart';
 import 'package:anx_reader/service/ocr/document_page_range.dart';
 import 'package:dio/dio.dart';
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 import 'document_reader_surface.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
@@ -41,7 +42,11 @@ class DocumentExtractionPanel extends StatefulWidget {
       this.brightness,
       this.narrationBuilder,
       this.stopNarration,
+      this.comparison = false,
+      this.onComparisonChanged,
       this.forceOcr = false});
+  final bool comparison;
+  final void Function(int page, bool enabled)? onComparisonChanged;
   final Widget? brightness;
   final Widget Function(String text)? narrationBuilder;
   final Future<void> Function()? stopNarration;
@@ -546,6 +551,14 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                         : t('提取结果', 'Extracted text'))),
             ]),
         tools: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (widget.onComparisonChanged != null)
+            SwitchListTile(
+                key: const ValueKey('extraction-comparison-switch'),
+                title: Text(t('原页对照重排', 'Compare original and reflow')),
+                value: widget.comparison,
+                onChanged: _busy || _preview == null
+                    ? null
+                    : (value) => widget.onComparisonChanged!(_page, value)),
           if (widget.reflowStore != null) ...[
             if (_savedPages.containsKey(_page)) ...[
               ListTile(
@@ -569,7 +582,7 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                         exportSavedDocumentText(context, widget.reflowStore!)),
           ],
           Text(t('文字识别', 'Text recognition'),
-              style: Theme.of(context).textTheme.titleLarge),
+              style: readerSubmenuTitleStyle(context)),
           if (_multiple && _batchPages.isNotEmpty)
             Text(t('已完成 ${_results.length} / ${_batchPages.length} 页',
                 '${_results.length} / ${_batchPages.length} pages completed')),

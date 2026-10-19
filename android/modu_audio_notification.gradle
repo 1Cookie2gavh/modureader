@@ -7,7 +7,8 @@ project(':audio_service').afterEvaluate { audioProject ->
         def builderAnchor = '.setShowWhen(false)'
         def channelAnchor = 'channel.setShowBadge(config.androidShowNotificationBadge);'
         // Flutter forwards --dart-define as base64 Gradle properties. Ordinary
-        // builds do not opt in, even when installed on vivo/iQOO.
+        // builds do not opt into experimental play routing/compact layout.
+        // The Android 13+ vivo/iQOO stop-action fix is independent of this flag.
         def defines = (rootProject.findProperty('dart-defines') ?: '').split(',')
             .findAll { it }.collect { new String(it.decodeBase64(), 'UTF-8') }
         def iqooTest = defines.contains('MODU_IQOO_MEDIA_COMPAT=true')
@@ -22,7 +23,7 @@ project(':audio_service').afterEvaluate { audioProject ->
         def patchTask = audioProject.tasks.register('prepareModuSilentAudioService', Sync) {
             inputs.property('moduSilentNotificationPolicy', 1)
             inputs.property('moduIqooMediaCompat', iqooTest)
-            inputs.property('moduIqooMediaCompatRevision', 2)
+            inputs.property('moduIqooMediaCompatRevision', 3)
             from(rootProject.file('audio_service/ModuNotificationPlay.java')) {
                 into('com/ryanheise/audioservice')
             }
@@ -52,12 +53,15 @@ project(':audio_service').afterEvaluate { audioProject ->
                         if (line.trim() == classAnchor) {
                             return line + '\n    public static boolean moduMediaCompatEnabled() {' +
                                 '\n        return ModuMediaNotificationPolicy.enabled(ModuMediaNotificationPolicy.TEST_BUILD, Build.BRAND, Build.MANUFACTURER);' +
+                                '\n    }' +
+                                '\n    public static boolean moduStopCompatEnabled() {' +
+                                '\n        return ModuMediaNotificationPolicy.stopActionEnabled(Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER);' +
                                 '\n    }'
                         }
                         if (line.trim() == customAnchor) {
                             // Keep the modern session custom stop action, and
                             // also provide it to the legacy notification layout.
-                            return line + '\n                if (moduMediaCompatEnabled() && control.actionCode == PlaybackStateCompat.ACTION_STOP) {' +
+                            return line + '\n                if (moduStopCompatEnabled() && control.actionCode == PlaybackStateCompat.ACTION_STOP) {' +
                                 '\n                    nativeActions.add(createAction(control.icon, control.label, control.actionCode));' +
                                 '\n                }'
                         }
@@ -67,7 +71,7 @@ project(':audio_service').afterEvaluate { audioProject ->
                         if (line.trim() == stopAnchor) {
                             // A bound service may outlive stopSelf. Remove the
                             // old foreground card now, not only in onDestroy.
-                            return line + '\n        if (moduMediaCompatEnabled()) {' +
+                            return line + '\n        if (moduStopCompatEnabled()) {' +
                                 '\n            notificationCreated = false;' +
                                 '\n            legacyStopForeground(true);' +
                                 '\n            getNotificationManager().cancel(NOTIFICATION_ID);' +
