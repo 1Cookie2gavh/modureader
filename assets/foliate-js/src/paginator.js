@@ -827,13 +827,13 @@ export class Paginator extends HTMLElement {
       case 'flow':
         this.#renderAttributes()
         break
-      case 'top-margin':
       case 'max-block-size':
         this.#top.style.setProperty('--_' + name, value)
         break
       case 'background-color':
         this.style.setProperty('--_background-color', value)
         break
+      case 'top-margin':
       case 'bottom-margin':
       case 'gap':
       case 'max-column-count':
