@@ -1,6 +1,7 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/providers/reading_data_revision.dart';
+import 'package:anx_reader/providers/sync_database_revision.dart';
 import 'package:anx_reader/service/reading_streak_calculator.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -65,6 +66,15 @@ class ReadingStreak extends _$ReadingStreak {
   Future<ReadingStreakData> build() async {
     // 阅读时长入库后自动重算（见 reading_data_revision.dart）
     ref.watch(readingDataRevisionProvider);
+    ref.watch(syncDatabaseRevisionProvider);
+    final prefs = Prefs();
+    final goal = prefs.dailyCheckInMinutes;
+    void onGoalChanged() {
+      if (prefs.dailyCheckInMinutes != goal) ref.invalidateSelf();
+    }
+
+    prefs.addListener(onGoalChanged);
+    ref.onDispose(() => prefs.removeListener(onGoalChanged));
     return _calculateStreak();
   }
 

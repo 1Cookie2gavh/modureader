@@ -51,8 +51,9 @@ class _ReadingStreakContent extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = L10n.of(context);
     final hasQualifiedToday = data.hasQualifiedToday;
-    final fireColor =
-        hasQualifiedToday ? theme.colorScheme.primary : theme.colorScheme.outline;
+    final fireColor = hasQualifiedToday
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outline;
 
     final encouragement = hasQualifiedToday
         ? l10n.tileReadingStreakEncouragementActive
@@ -60,74 +61,82 @@ class _ReadingStreakContent extends StatelessWidget {
             ? l10n.tileReadingStreakEncouragementGoalPending
             : l10n.tileReadingStreakEncouragementInactive;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.local_fire_department, color: fireColor),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.tileReadingStreakCurrent(data.currentStreak),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: fireColor,
-                      fontWeight: FontWeight.bold,
+    return LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                    child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.local_fire_department, color: fireColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.tileReadingStreakCurrent(
+                                    data.currentStreak),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: fireColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                _goalSubtitle(l10n, hasQualifiedToday),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
                     ),
-                  ),
-                  Text(
-                    _goalSubtitle(l10n, hasQualifiedToday),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            )
-          ],
-        ),
-        if (data.hasGoal) ...[
-          const SizedBox(height: 10),
-          _GoalProgress(data: data, qualified: hasQualifiedToday),
-        ],
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: _StatPill(
-                  label: l10n.tileReadingStreakBestLabel,
-                  value: l10n.tileReadingStreakCurrent(data.longestStreak),
-                ),
-              ),
-            ),
-            if (data.qualifiedDays > 0) ...[
-              const SizedBox(width: 8),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: _StatPill(
-                    label: l10n.tileReadingStreakQualifiedDaysLabel,
-                    value: '${data.qualifiedDays} ${l10n.tileReadingDaysUnit}',
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const Spacer(),
-        Text(
-          encouragement,
-          style: theme.textTheme.bodyMedium,
-        ),
-      ],
-    );
+                    if (data.hasGoal) ...[
+                      const SizedBox(height: 10),
+                      _GoalProgress(data: data),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: _StatPill(
+                              label: l10n.tileReadingStreakBestLabel,
+                              value: l10n
+                                  .tileReadingStreakCurrent(data.longestStreak),
+                            ),
+                          ),
+                        ),
+                        if (data.hasGoal && data.qualifiedDays > 0) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: _StatPill(
+                                label: l10n.tileReadingStreakQualifiedDaysLabel,
+                                value:
+                                    '${data.qualifiedDays} ${l10n.tileReadingDaysUnit}',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      encouragement,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                )))));
   }
 
   /// 连击数字下方的一行状态说明
@@ -147,10 +156,9 @@ class _ReadingStreakContent extends StatelessWidget {
 
 /// 今日打卡进度：进度条 + 「今日已读 / 目标」文字
 class _GoalProgress extends StatelessWidget {
-  const _GoalProgress({required this.data, required this.qualified});
+  const _GoalProgress({required this.data});
 
   final ReadingStreakData data;
-  final bool qualified;
 
   @override
   Widget build(BuildContext context) {

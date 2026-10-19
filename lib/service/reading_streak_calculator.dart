@@ -46,6 +46,7 @@ class ReadingStreakCalculator {
         .fold<int>(0, (sum, entry) => sum + entry.value);
 
     final qualifiedDays = dailySeconds.entries
+        .where((entry) => _differenceInDays(entry.key, now) >= 0)
         .where((entry) => goalSeconds <= 0 || entry.value >= goalSeconds)
         .map((entry) => entry.key)
         .toList()
@@ -96,13 +97,11 @@ class ReadingStreakCalculator {
     }
 
     var streak = 1;
-    var expectedDay = lastDay.subtract(const Duration(days: 1));
     for (var i = sortedDays.length - 2; i >= 0; i--) {
-      final day = sortedDays[i];
-      if (_isSameDay(day, expectedDay)) {
+      // Calendar days, not 24-hour intervals across daylight-saving changes.
+      if (_differenceInDays(sortedDays[i], sortedDays[i + 1]) == 1) {
         streak++;
-        expectedDay = expectedDay.subtract(const Duration(days: 1));
-      } else if (day.isBefore(expectedDay)) {
+      } else {
         break;
       }
     }

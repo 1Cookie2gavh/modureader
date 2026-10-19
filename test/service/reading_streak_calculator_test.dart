@@ -11,6 +11,28 @@ void main() {
   const tenMinutes = 600;
 
   group('ReadingStreakCalculator', () {
+    test('future-dated records cannot award future check-ins', () {
+      final result = ReadingStreakCalculator.compute(
+          dailySeconds: {day(10, 4): 600, day(10, 5): 600, day(10, 9): 600},
+          goalSeconds: tenMinutes,
+          today: day(10, 5));
+      expect(result.currentStreak, 2);
+      expect(result.qualifiedDays, 2);
+      expect(result.lastQualifiedDay, day(10, 5));
+    });
+
+    test('calendar streak survives daylight-saving clock changes', () {
+      for (final start in [DateTime(2026, 3, 7), DateTime(2026, 10, 31)]) {
+        final days = List.generate(
+            4, (i) => DateTime(start.year, start.month, start.day + i));
+        final result = ReadingStreakCalculator.compute(
+            dailySeconds: {for (final date in days) date: 600},
+            goalSeconds: tenMinutes,
+            today: days.last);
+        expect(result.currentStreak, 4);
+        expect(result.longestStreak, 4);
+      }
+    });
     test('没有任何阅读记录时全部为 0', () {
       final result = ReadingStreakCalculator.compute(
         dailySeconds: const {},
