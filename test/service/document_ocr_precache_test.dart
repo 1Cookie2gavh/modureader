@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'package:logging/logging.dart';
+import 'package:anx_reader/service/feedback/detailed_runtime_log.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
@@ -11,6 +14,55 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets(
+      'prefetch failures retain safe diagnosis without private payloads',
+      (tester) async {
+    final records = <LogRecord>[];
+    final listener = Logger.root.onRecord.listen(records.add);
+    addTearDown(listener.cancel);
+    var failure = const FormatException('Invalid image page');
+    final cache = DocumentOcrPrecache(
+        canRun: () => true, load: (_, __) async => throw failure);
+    cache.update(0, 1);
+    await tester.pump(const Duration(milliseconds: 300));
+    final record = records.singleWhere(
+        (record) => record.message.startsWith('OCR precache failed:'));
+    expect(record.stackTrace, isNotNull);
+    final details = jsonDecode(DetailedRuntimeLog.format(record)) as Map;
+    expect(details['operation'], 'ocr');
+    expect(details['reasons'], ['ocr_invalid_page']);
+    expect(details['errors'], ['FormatException']);
+
+    records.clear();
+    failure = const FormatException('/Users/private/book.pdf SECRET_CONTENT');
+    cache.resume();
+    await tester.pump(const Duration(milliseconds: 300));
+    final privateRecord = records.single;
+    expect(privateRecord.message, contains('reason=unknown'));
+    expect(privateRecord.message, isNot(contains('private')));
+    expect(privateRecord.message, isNot(contains('SECRET_CONTENT')));
+    expect(privateRecord.error, isNull);
+    cache.dispose();
+  });
+
+  testWidgets('cancelled prefetch does not log a failure', (tester) async {
+    final records = <LogRecord>[];
+    final listener = Logger.root.onRecord.listen(records.add);
+    addTearDown(listener.cancel);
+    final cache = DocumentOcrPrecache(
+        canRun: () => true,
+        load: (_, token) async {
+          token.cancel();
+          throw StateError('cancelled');
+        });
+    cache.update(0, 1);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(records.where((r) => r.message.startsWith('OCR precache failed:')),
+        isEmpty);
+    expect(cache.error, isNull);
+    cache.dispose();
+  });
+
   testWidgets('foreground failure releases worker but respects lifecycle pause',
       (tester) async {
     final loaded = <int>[];

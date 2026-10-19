@@ -24,6 +24,7 @@ Future<void> showContextMenu(
     bool footnote,
     Axis axis,
     {String? contextText,
+    Rect? readerViewport,
     List<int> annotationIds = const []}) async {
   final playerKey = epubPlayerKey.currentState;
   if (playerKey == null) return;
@@ -64,12 +65,15 @@ Future<void> showContextMenu(
   final renderBoxSize = renderBox?.size;
 
   final mediaQuery = MediaQuery.of(context);
-  final double screenHeight = renderBoxSize?.height ?? mediaQuery.size.height;
-  final double screenWidth = renderBoxSize?.width ?? mediaQuery.size.width;
+  final double screenHeight =
+      readerViewport?.height ?? renderBoxSize?.height ?? mediaQuery.size.height;
+  final double screenWidth =
+      readerViewport?.width ?? renderBoxSize?.width ?? mediaQuery.size.width;
   final double keyboardInset = mediaQuery.viewInsets.bottom;
 
-  final Offset localToGlobal =
-      renderBox?.localToGlobal(Offset.zero) ?? Offset.zero;
+  final Offset localToGlobal = readerViewport?.topLeft ??
+      renderBox?.localToGlobal(Offset.zero) ??
+      Offset.zero;
 
   final viewportRect = Rect.fromLTWH(
     localToGlobal.dx,

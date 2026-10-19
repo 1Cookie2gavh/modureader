@@ -54,6 +54,13 @@ public final class ReaderPageKeysTest {
         equal(-1, keys.handle(24, 0, 0, 7, true, true, 0));
         keys.reset(); keys.configure(java.util.List.of());
         equal(0, keys.handle(22, 0, 0, 7, true, false, 0));
-        System.out.println("ReaderPageKeys: legacy/custom mappings, modifiers, repeat, key-up, lifecycle and reconnect tests passed");
+        for (int action = 8; action <= 11; action++) {
+            keys.configure(java.util.List.of(java.util.Map.of("keyCode", 19, "modifiers", 0, "action", action)));
+            equal(action, keys.handle(19, 0, 0, 7, true, false, 0));
+            equal(action, keys.handle(19, 0, 1, 7, true, false, 0));
+            equal(2, keys.handle(19, 0, 2, 7, false, false, 0));
+            equal(2, keys.handle(19, 1, 0, 7, false, false, 0));
+        }
+        System.out.println("ReaderPageKeys: legacy/custom mappings, document pan, modifiers, repeat, key-up, lifecycle and reconnect tests passed");
     }
 }

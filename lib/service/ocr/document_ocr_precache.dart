@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:anx_reader/utils/log/common.dart';
+import 'document_reflow_loader.dart';
 import 'local_ocr_service.dart';
 
 /// Original PDFs and scanned EPUBs do not always report a cropped panel.
@@ -144,8 +146,28 @@ class DocumentOcrPrecache extends ChangeNotifier {
         if (page >= _page && page < _page + _count) _cached.add(page);
         if (generation == _generation) error = null;
       }
-    } catch (failure) {
-      if (!cancel.cancelled && generation == _generation) error = failure;
+    } catch (failure, stack) {
+      if (!cancel.cancelled && generation == _generation) {
+        error = failure;
+        final reason = switch (failure) {
+          ReflowModelUnavailable() => 'ocr_model_unavailable',
+          FormatException(
+            message: 'Invalid image page' || 'Invalid precache page'
+          ) =>
+            'ocr_invalid_page',
+          FormatException(message: 'Invalid reflow bounds') =>
+            'ocr_invalid_bounds',
+          FormatException(message: 'Invalid page image') => 'ocr_invalid_image',
+          FormatException(message: 'No usable text') => 'ocr_no_text',
+          StateError(message: 'PDF preview failed') => 'ocr_preview_failed',
+          _ => 'unknown',
+        };
+        // Never log raw errors: file/bridge failures may contain private paths.
+        AnxLog.warning(
+            'OCR precache failed: ${failure.runtimeType}; reason=$reason',
+            null,
+            stack);
+      }
     } finally {
       currentPage = null;
       progress = null;

@@ -20,7 +20,7 @@ final class ReaderPageKeys {
             Number key = binding.get("keyCode"), modifiers = binding.get("modifiers"), action = binding.get("action");
             if (key == null || modifiers == null || action == null) continue;
             int a = action.intValue(), m = modifiers.intValue(), k = key.intValue();
-            if (k < 0 || k > 300 || m < 0 || m > 15 || (a != -1 && a != 1 && (a < 3 || a > 7))) continue;
+            if (k < 0 || k > 300 || m < 0 || m > 15 || (a != -1 && a != 1 && (a < 3 || a > 11))) continue;
             shortcuts.put((k << 4) | m, a);
         }
     }
@@ -36,7 +36,11 @@ final class ReaderPageKeys {
         // Finish a consumed press even if a dialog opens before key-up.
         if (action == 1) return pressed.remove(identity) ? CONSUME : PASS;
         if (action != 0) return PASS;
-        if (pressed.contains(identity)) return CONSUME;
+        if (pressed.contains(identity)) {
+            Integer shortcut = shortcuts == null ? null : shortcuts.get((key << 4) | modifiers);
+            if (active && repeat > 0 && shortcut != null && shortcut >= 8 && shortcut <= 11) return shortcut;
+            return CONSUME;
+        }
         if (!active || repeat != 0) return PASS;
         if (shortcuts != null && modifiers >= 0) {
             Integer shortcut = shortcuts.get((key << 4) | modifiers);

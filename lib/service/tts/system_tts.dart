@@ -169,7 +169,8 @@ class SystemTts extends BaseTts {
     });
     var lastProgressMs = -500;
     flutterTts.setProgressHandler((spoken, start, end, word) {
-      if (!live ||
+      if (pageSource != null ||
+          !live ||
           !isPlaying ||
           spoken != text ||
           text != _currentVoiceText ||

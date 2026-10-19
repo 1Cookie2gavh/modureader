@@ -118,6 +118,8 @@ class MediaDiagnosticsPlugin : FlutterPlugin {
             "event" to "snapshot", "sdk" to Build.VERSION.SDK_INT,
             "compatActive" to ModuMediaNotificationPolicy.enabled(
                 ModuMediaNotificationPolicy.TEST_BUILD, Build.BRAND, Build.MANUFACTURER),
+            "stopCompatActive" to ModuMediaNotificationPolicy.stopActionEnabled(
+                Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER),
             "notificationPlayRequests" to ModuMediaNotificationPolicy.notificationPlayRequests,
             "sessionPlayCallbacks" to ModuMediaNotificationPolicy.sessionPlayCallbacks,
             "targetSdk" to context.applicationInfo.targetSdkVersion,

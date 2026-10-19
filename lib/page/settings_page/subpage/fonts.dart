@@ -26,90 +26,103 @@ class FontsSettingPage extends ConsumerWidget {
             );
           }
 
-          return ListView.builder(
-            itemCount: fonts.length,
-            itemBuilder: (context, index) {
-              final font = fonts[index];
-              return FilledContainer(
-                margin: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (font.preview.isNotEmpty)
-                      CachedNetworkImage(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        imageUrl: 'https://fonts.anxcye.com/${font.preview}',
-                        width: MediaQuery.of(context).size.width,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: EinkStaticIndicator(
-                              child: CircularProgressIndicator()),
-                        ),
-                        errorWidget: (context, url, error) =>
-                            const Icon(Icons.error),
-                      ),
-                    const Divider(),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            font.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(font.desc),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 840),
+              child: ListView.builder(
+                itemCount: fonts.length,
+                itemBuilder: (context, index) {
+                  final font = fonts[index];
+                  return FilledContainer(
+                    margin: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (font.preview.isNotEmpty)
+                          LayoutBuilder(
+                              builder: (context, constraints) =>
+                                  CachedNetworkImage(
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                    imageUrl:
+                                        'https://fonts.anxcye.com/${font.preview}',
+                                    width: constraints.maxWidth,
+                                    height: (constraints.maxWidth * 0.32)
+                                        .clamp(120.0, 220.0),
+                                    fit: BoxFit.contain,
+                                    placeholder: (context, url) => const Center(
+                                      child: EinkStaticIndicator(
+                                          child: CircularProgressIndicator()),
+                                    ),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(Icons.error),
+                                  )),
+                        const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              TextButton.icon(
-                                onPressed: () {
-                                  launchUrlString(
-                                    font.official,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
-                                icon: const Icon(Icons.link),
-                                label: Text(
-                                  L10n.of(context).fontOfficialWebsite,
-                                  style: TextStyle(
-                                    color: Theme.of(context).primaryColor,
-                                    decoration: TextDecoration.underline,
-                                  ),
+                              Text(
+                                font.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              TextButton.icon(
-                                onPressed: () {
-                                  launchUrlString(
-                                    font.license.url,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
-                                icon: const Icon(Icons.link),
-                                label: Text(
-                                  font.license.name,
-                                  style: TextStyle(
-                                    color: Theme.of(context).primaryColor,
-                                    decoration: TextDecoration.underline,
+                              const SizedBox(height: 8),
+                              Text(font.desc),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                alignment: WrapAlignment.end,
+                                spacing: 8,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      launchUrlString(
+                                        font.official,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.link),
+                                    label: Text(
+                                      L10n.of(context).fontOfficialWebsite,
+                                      style: TextStyle(
+                                        color: Theme.of(context).primaryColor,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      launchUrlString(
+                                        font.license.url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.link),
+                                    label: Text(
+                                      font.license.name,
+                                      style: TextStyle(
+                                        color: Theme.of(context).primaryColor,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 16),
+                              _buildDownloadButton(context, ref, font),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          _buildDownloadButton(context, ref, font),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           );
         },
         loading: () => const Center(
@@ -148,11 +161,12 @@ class FontsSettingPage extends ConsumerWidget {
                   child:
                       LinearProgressIndicator(value: downloadState.progress)),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
                 children: [
                   Text(
                       '${L10n.of(context).fontDownloading((downloadState.progress * 100).toStringAsFixed(1))}%'),
-                  const Spacer(),
                   TextButton.icon(
                     onPressed: () => ref
                         .read(fontDownloadsProvider.notifier)
@@ -173,11 +187,12 @@ class FontsSettingPage extends ConsumerWidget {
           );
 
         case DownloadStatus.paused:
-          return Row(
+          return Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
             children: [
               Text(
                   '${L10n.of(context).fontCancelled((downloadState.progress * 100).toStringAsFixed(1))}%'),
-              const Spacer(),
               TextButton.icon(
                 onPressed: () => ref
                     .read(fontDownloadsProvider.notifier)

@@ -5,6 +5,7 @@ import 'package:anx_reader/enums/hint_key.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/widgets/home_navigation_metrics.dart';
 import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/models/reading_time_deletion.dart';
 import 'package:anx_reader/widgets/statistic/reading_history_book_link.dart';
 import 'package:anx_reader/providers/statistic_data.dart';
 import 'package:anx_reader/utils/date/convert_seconds.dart';
@@ -143,13 +144,13 @@ class _DateBooksState extends ConsumerState<DateBooks> {
     overflow: TextOverflow.ellipsis,
   );
 
-  List<int> deleteBookIds = [];
+  final pendingDeletions = <ReadingTimeDeletion>{};
 
   @override
   void dispose() {
     super.dispose();
-    if (deleteBookIds.isNotEmpty) {
-      readingTimeDao.deleteReadingTimeByBookId(deleteBookIds);
+    if (pendingDeletions.isNotEmpty) {
+      readingTimeDao.deleteReadingTimeInScopes(pendingDeletions);
     }
   }
 
@@ -157,9 +158,9 @@ class _DateBooksState extends ConsumerState<DateBooks> {
   Widget build(BuildContext context) {
     final statisticData = ref.watch(statisticDataProvider);
 
-    Widget dragToDelete(Widget child, int bookId) {
+    Widget dragToDelete(Widget child, ReadingTimeDeletion deletion) {
       return StatefulBuilder(builder: (context, localSetState) {
-        if (deleteBookIds.contains(bookId)) {
+        if (pendingDeletions.contains(deletion)) {
           return OutlinedContainer(
             margin: const EdgeInsets.only(bottom: 10),
             height: 146,
@@ -187,7 +188,7 @@ class _DateBooksState extends ConsumerState<DateBooks> {
                     FilledButton(
                         onPressed: () {
                           localSetState(() {
-                            deleteBookIds.remove(bookId);
+                            pendingDeletions.remove(deletion);
                           });
                         },
                         child: Text(L10n.of(context).commonUndo)),
@@ -211,7 +212,7 @@ class _DateBooksState extends ConsumerState<DateBooks> {
             SlidableAction(
               onPressed: (context) {
                 localSetState(() {
-                  deleteBookIds.add(bookId);
+                  pendingDeletions.add(deletion);
                 });
               },
               icon: Icons.delete,
@@ -221,7 +222,7 @@ class _DateBooksState extends ConsumerState<DateBooks> {
           ],
         );
         return Slidable(
-          key: ValueKey(bookId),
+          key: ValueKey(deletion),
           startActionPane: actionPane,
           endActionPane: actionPane,
           child: child,
@@ -275,7 +276,12 @@ class _DateBooksState extends ConsumerState<DateBooks> {
                         book: book,
                         readingTime: readingTime,
                       ),
-                      book.id,
+                      readingTimeDeletion(
+                        bookId: book.id,
+                        date: data.date,
+                        mode: data.mode,
+                        isSelectingDay: data.isSelectingDay,
+                      ),
                     );
                   })
                 ],

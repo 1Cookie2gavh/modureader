@@ -6,6 +6,8 @@ const require = createRequire(`${process.env.MODU_JSDOM_ROOT || '/private/tmp/mo
 const {JSDOM} = require('jsdom');
 const source = await readFile(new URL('../assets/foliate-js/src/pdf-zoom-input.js', import.meta.url), 'utf8');
 const {attachPdfZoomInput} = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const desktopSource = await readFile(new URL('../assets/foliate-js/src/desktop-page-input.js', import.meta.url), 'utf8');
+const {installDesktopPageInput} = await import('data:text/javascript;base64,' + Buffer.from(desktopSource).toString('base64'));
 function setup() {
   const dom = new JSDOM('<body>page</body>');
   const doc = dom.window.document;
@@ -41,4 +43,25 @@ test('enlarged page short touch reaches click; drag suppresses synthetic click',
     h.touch('touchend',[]); h.mouse('click');
     assert.equal(h.taps,1); assert.equal(h.pans,1);
   } finally {h.dom.window.close()}
+});
+
+for (const zoom of [1, 2, 8]) test(`real pointer/mouse sequence cannot turn a scanned page at ${zoom}x`, async () => {
+  const dom = new JSDOM('<body><img></body>'), doc = dom.window.document;
+  const turns=[], pans=[];
+  // Also exercise the reverse listener registration order.
+  const input=installDesktopPageInput(doc,{enabled:()=>true,turnPage:d=>turns.push(d)});
+  attachPdfZoomInput(doc,{active:()=>true,zoom:()=>zoom,setZoom(){},pan:(x,y)=>pans.push([x,y]),boxMode:()=>false,box(){}});
+  const event=(type,x,y,extra={})=>{
+    const e=new dom.window.MouseEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,screenX:x,screenY:y,button:0,buttons:1});
+    Object.assign(e,extra);doc.dispatchEvent(e);return e;
+  };
+  try {
+    event('pointerdown',200,200,{pointerType:'mouse',pointerId:1});event('mousedown',200,200);
+    assert.equal(event('dragstart',200,200).defaultPrevented,true);
+    event('pointermove',200,100,{pointerType:'mouse',pointerId:1});event('mousemove',200,100);
+    event('pointerup',200,100,{pointerType:'mouse',pointerId:1});event('mouseup',200,100);
+    assert.equal(event('click',200,100).defaultPrevented,true);
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(turns,[]);assert.deepEqual(pans,[[0,100]]);
+  } finally {input.destroy();dom.window.close()}
 });

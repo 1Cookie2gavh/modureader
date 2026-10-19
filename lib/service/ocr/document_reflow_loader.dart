@@ -24,14 +24,20 @@ Future<DocumentReflowPage> loadDocumentReflowPage({
   bool refresh = false,
 }) async {
   cancel.check();
-  final page = info['page'], total = info['total'];
-  if (page is! int ||
-      total is! int ||
-      page < 0 ||
-      page >= total ||
+  final rawPage = info['page'], rawTotal = info['total'];
+  // WKWebView bridges JavaScript integers as doubles on Apple platforms.
+  if (rawPage is! num ||
+      rawTotal is! num ||
+      !rawPage.isFinite ||
+      !rawTotal.isFinite ||
+      rawPage != rawPage.toInt() ||
+      rawTotal != rawTotal.toInt() ||
+      rawPage < 0 ||
+      rawPage >= rawTotal ||
       info['imageOnly'] == false) {
     throw const FormatException('Invalid image page');
   }
+  final page = rawPage.toInt();
   final cached = refresh
       ? null
       : anchor == null

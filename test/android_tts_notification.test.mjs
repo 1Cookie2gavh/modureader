@@ -42,7 +42,7 @@ test('foreground service and media controls are retained across pauses', () => {
         /androidWillPauseWhenDucked: true/);
 });
 
-test('compatibility is off for normal builds and non-vivo/iQOO phones', () => {
+test('release stop compatibility is scoped to vivo/iQOO Android 13+; play remains opt-in', () => {
     const output = mkdtempSync(join(tmpdir(), 'modu-media-policy-'));
     try {
         execFileSync('javac', ['-d', output,
@@ -83,8 +83,10 @@ test('workaround retains MediaSession and gates each notification change', () =>
     assert.match(patch, /TEST_BUILD = \$\{iqooTest\}/);
     assert.match(read('android/audio_service/ModuMediaNotificationPolicy.java'), /TEST_BUILD = false/);
     assert.match(patch, /Build.VERSION.SDK_INT < 33 \|\| moduMediaCompatEnabled\(\)/);
-    assert.match(patch, /moduMediaCompatEnabled\(\) && control.actionCode == PlaybackStateCompat.ACTION_STOP/);
-    assert.match(patch, /if \(moduMediaCompatEnabled\(\)\) \{/);
+    assert.match(patch, /ModuMediaNotificationPolicy.stopActionEnabled\(Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER\)/);
+    assert.match(patch, /moduStopCompatEnabled\(\) && control.actionCode == PlaybackStateCompat.ACTION_STOP/);
+    assert.match(patch, /if \(moduStopCompatEnabled\(\)\) \{/);
+    assert.doesNotMatch(patch, /moduMediaCompatEnabled\(\) && control.actionCode == PlaybackStateCompat.ACTION_STOP/);
     for (const action of ['notificationCreated = false', 'legacyStopForeground(true)',
         'getNotificationManager().cancel(NOTIFICATION_ID)', 'releaseWakeLock()']) {
         assert.ok(patch.includes(action));

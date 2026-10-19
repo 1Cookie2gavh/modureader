@@ -5,6 +5,7 @@ import 'package:anx_reader/enums/sync_direction.dart';
 import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/reading_time.dart';
+import 'package:anx_reader/models/reading_time_deletion.dart';
 import 'package:anx_reader/providers/reading_data_revision.dart';
 import 'package:anx_reader/providers/sync.dart';
 
@@ -411,15 +412,16 @@ class ReadingTimeDao extends BaseDao {
     );
   }
 
-  Future<void> deleteReadingTimeByBookId(List<int> bookIds) async {
-    if (bookIds.isEmpty) return;
+  Future<void> deleteReadingTimeInScopes(
+      Iterable<ReadingTimeDeletion> scopes) async {
+    final pending = scopes.toList(growable: false);
+    if (pending.isEmpty) return;
 
-    final placeholders = List.filled(bookIds.length, '?').join(',');
-    await delete(
-      table,
-      where: 'book_id IN ($placeholders)',
-      whereArgs: bookIds,
-    );
+    await transaction((txn) async {
+      for (final scope in pending) {
+        await txn.delete(table, where: scope.where, whereArgs: scope.whereArgs);
+      }
+    });
 
     // 删除记录同样影响打卡/热力图统计
     bumpReadingDataRevision();

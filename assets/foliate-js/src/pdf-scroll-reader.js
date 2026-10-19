@@ -110,6 +110,7 @@ export class PdfScrollReader {
         this.changed(false)
     }
     suspend() {
+        this.flushPosition()
         this.stopMomentum()
         this.active = false
         this.baseController.abort()
@@ -178,7 +179,7 @@ export class PdfScrollReader {
         const bounds = this.bounds()
         const saved = this.pageViews[`${e.index}:${e.panel}`]
         e.zoom ??= saved?.signature === layoutSignature(this.layout, e.index) &&
-            Number.isFinite(saved.zoom) && saved.zoom >= 1 && saved.zoom <= 15 ? saved.zoom : this.view.zoom
+            Number.isFinite(saved.zoom) && saved.zoom >= 1 && saved.zoom <= 15 ? Math.min(8, saved.zoom) : Math.min(8, this.view.zoom)
         e.plan = scrollPagePlan({ pageWidth: e.width, pageHeight: e.height,
             width: Math.max(1, (this.element.clientWidth || bounds.width) - 12), height: Math.max(1, bounds.height), crop: e.crop, view: {...this.view,zoom:e.zoom} })
         Object.assign(e.element.style, { position: 'relative', visibility: '',
@@ -216,6 +217,14 @@ export class PdfScrollReader {
         this.programmaticTop = this.element.scrollTop
         this.lastTop = this.element.scrollTop
     }
+    panWithinPage(dx, dy) {
+        const e = this.current
+        if (!e) return
+        this.stopMomentum()
+        this.programmaticScroll(Math.max(0, Math.min(Math.max(0, e.plan.width - this.viewport.width), this.element.scrollLeft + dx)),
+            Math.max(e.element.offsetTop, Math.min(e.element.offsetTop + Math.max(0, e.plan.height - this.viewport.height), this.element.scrollTop + dy)))
+        this.changed(true)
+    }
     resize(view = this.view) {
         this.stopMomentum()
         // ResizeObserver runs after the container changed size. Capture the
@@ -223,13 +232,13 @@ export class PdfScrollReader {
         const location = this.savedLocation ?? this.location
         const e = this.entries.find(e => e.index === location?.page && e.panel === location?.panel) ?? this.current
         if (e && view.zoom !== this.view.zoom) {
-            e.zoom = view.zoom
+            e.zoom = Math.min(8, view.zoom)
             // Prepared neighbours are not visited pages: inherit the new zoom
             // unless this book already has an explicit viewport for that page.
             for (const item of this.entries) {
                 const saved = this.pageViews[`${item.index}:${item.panel}`]
                 if (item !== e && saved?.signature !== layoutSignature(this.layout, item.index))
-                    item.zoom = view.zoom
+                    item.zoom = Math.min(8, view.zoom)
             }
         }
         this.view = view
@@ -288,11 +297,13 @@ export class PdfScrollReader {
             zoom: () => this.current?.zoom ?? this.view.zoom,
             setZoom: this.setZoom, pan: (x,y) => this.pan(x,y), boxMode: this.boxMode,
             onGesture: () => this.stopMomentum(),
+            onGestureEnd: () => this.flushPosition(),
             box: rect => {
                 const e = this.entries.find(e => e.iframe.contentDocument === doc)
                 if (!e) return
-                this.setZoom((e.zoom ?? this.view.zoom) * Math.min(this.viewport.width/(rect.width*e.plan.scale),
-                    this.viewport.height/(rect.height*e.plan.scale)))
+                const swapped = this.view.rotation % 180 !== 0
+                this.setZoom((e.zoom ?? this.view.zoom) * Math.min(this.viewport.width/((swapped ? rect.height : rect.width)*e.plan.scale),
+                    this.viewport.height/((swapped ? rect.width : rect.height)*e.plan.scale)))
                 this.restore(e, {x:(rect.x+rect.width/2)/e.width,y:(rect.y+rect.height/2)/e.height})
                 this.changed(true)
             },
@@ -417,6 +428,12 @@ export class PdfScrollReader {
         await this.ensureNeighbors()
         if (!this.blocked.size) this.onState('ready')
         return this.blocked.size === 0
+    }
+    flushPosition() {
+        if (!this.active || this.destroyed || !this.recordPending) return
+        this.recordPending = false
+        this.onRelocate('viewport')
+        this.reportedLocation = this.location
     }
     changed(record) {
         if (!this.active || this.destroyed) return

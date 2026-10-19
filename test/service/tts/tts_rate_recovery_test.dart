@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/tts/base_tts.dart';
@@ -59,6 +60,8 @@ class NativePlayer extends Fake implements AudioPlayer {
 }
 
 class DisposableTts extends Fake implements BaseTts {
+  @override
+  TtsPageSource? pageSource;
   final gate = Completer<void>();
   int disposals = 0;
   bool fail = false;

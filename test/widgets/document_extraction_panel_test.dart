@@ -37,6 +37,7 @@ Future<void> open(WidgetTester tester,
     DocumentTextStyle initialStyle = const DocumentTextStyle(),
     Widget Function(String)? narration,
     Future<void> Function()? stopNarration,
+    void Function(int, bool)? comparison,
     ValueChanged<String?>? result}) async {
   await tester.pumpWidget(MaterialApp(
       scrollBehavior: const AppScrollBehavior(),
@@ -50,6 +51,7 @@ Future<void> open(WidgetTester tester,
                         MaterialPageRoute(
                             builder: (_) => Scaffold(
                                 body: DocumentExtractionPanel(
+                                    onComparisonChanged: comparison,
                                     reflowStore: saved,
                                     forceOcr: forceOcr,
                                     initialTextStyle: initialStyle,
@@ -87,6 +89,19 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+  testWidgets('OCR comparison switch reports the previewed original page',
+      (tester) async {
+    (int, bool)? selected;
+    await open(tester,
+        comparison: (page, enabled) => selected = (page, enabled));
+    final next = find.byIcon(Icons.chevron_right);
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    final toggle = find.byKey(const ValueKey('extraction-comparison-switch'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    expect(selected, (1, true));
   });
   testWidgets('short OCR preview aligns within the full reading width',
       (tester) async {

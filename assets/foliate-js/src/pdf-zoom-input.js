@@ -1,5 +1,5 @@
 // Only attached to cropped image/PDF frames, never ordinary ebook chapters.
-export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, box, onGesture = () => {} }) {
+export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, box, onGesture = () => {}, onGestureEnd = () => {} }) {
     const stop = e => { e.preventDefault(); e.stopImmediatePropagation() }
     const point = e => {
         const ts = [...e.touches]
@@ -8,7 +8,15 @@ export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, b
             n: ts.length, distance: ts.length === 2 ? Math.hypot(
                 ts[0].screenX - ts[1].screenX, ts[0].screenY - ts[1].screenY) : 0 } : null
     }
-    let last, start, dragging = false, suppress = 0, mouse, outline
+    let last, start, dragging = false, suppress = 0, mouse, outline, pointerId
+    // Pointerup arrives before mouseup: desktop page gestures must yield first.
+    doc.pdfZoomGestureActive = () => active()
+    doc.addEventListener('pointerdown', e => {
+        if (e.pointerType !== 'mouse' || e.button !== 0 || !doc.pdfZoomGestureActive() ||
+            (!boxMode() && doc.getSelection()?.type === 'Range')) return
+        pointerId = e.pointerId
+    }, { capture: true })
+    doc.addEventListener('dragstart', e => { if (mouse) stop(e) }, { capture: true })
     doc.addEventListener('touchstart', e => {
         if (!active()) return
         last = point(e); start = { ...last, at: Date.now() }
@@ -30,12 +38,12 @@ export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, b
         last = p
     }, { capture: true, passive: false })
     for (const type of ['touchend', 'touchcancel']) doc.addEventListener(type, e => {
-        if (dragging) { stop(e); suppress = Date.now() + 400 }
+        if (dragging) { stop(e); suppress = Date.now() + 400; onGestureEnd() }
         last = point(e)
         if (!last || type === 'touchcancel') dragging = false
     }, { capture: true, passive: false })
     doc.addEventListener('mousedown', e => {
-        if (!active() || e.button !== 0 || (!boxMode() && zoom() <= 1)) return
+        if (!active() || e.button !== 0) return
         if (!boxMode() && doc.getSelection()?.type === 'Range') return
         mouse = { x: e.clientX, y: e.clientY, sx: e.screenX, sy: e.screenY, box: boxMode() }
         if (mouse.box) {
@@ -49,7 +57,12 @@ export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, b
     doc.addEventListener('mousemove', e => {
         if (!mouse) return
         if (!e.buttons) { outline?.remove(); outline=null; mouse=null; return }
-        if (!mouse.moved && Math.hypot(e.clientX-mouse.x, e.clientY-mouse.y) <= 8) return
+        if (!mouse.box && doc.getSelection()?.type === 'Range') { mouse=null; return }
+        if (!mouse.moved && Math.hypot(e.screenX-mouse.sx, e.screenY-mouse.sy) <= 8) return
+        if (!mouse.moved && pointerId != null) {
+            // Capture only drags, leaving normal taps/links and text selection untouched.
+            try { doc.documentElement.setPointerCapture?.(pointerId) } catch (_) {}
+        }
         mouse.moved = true
         onGesture()
         if (mouse.box) Object.assign(outline.style, {left:`${Math.min(mouse.x,e.clientX)}px`,
@@ -66,8 +79,13 @@ export function attachPdfZoomInput(doc, { active, zoom, setZoom, pan, boxMode, b
                 width:Math.abs(mouse.x-e.clientX),height:Math.abs(mouse.y-e.clientY)})
         const consumed = mouse.moved || mouse.box
         outline?.remove(); outline=null; mouse=null
-        if (consumed) { suppress=Date.now()+400; stop(e) }
+        if (consumed) { suppress=Date.now()+400; stop(e); onGestureEnd() }
     }, { capture: true })
-    doc.defaultView?.addEventListener('blur', () => { outline?.remove(); outline=null; mouse=null; last=null; dragging=false })
+    const cancel = () => {
+        if (mouse?.moved || dragging) { suppress=Date.now()+400; onGestureEnd() }
+        outline?.remove(); outline=null; mouse=null; last=null; dragging=false
+    }
+    doc.addEventListener('pointercancel', cancel, {capture:true})
+    doc.defaultView?.addEventListener('blur', cancel)
     doc.addEventListener('click', e => { if (Date.now()<suppress) stop(e) }, {capture:true})
 }

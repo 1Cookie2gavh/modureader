@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'tts_page_source.dart';
 import 'package:anx_reader/service/tts/models/tts_voice.dart';
 import 'package:flutter/material.dart';
 
 enum TtsStateEnum { playing, stopped, paused, continued }
 
 abstract class BaseTts {
+  TtsPageSource? pageSource;
+
   /// Loading is separate from user intent: buffering must keep the background
   /// audio session playing, rather than release its foreground service.
   final bufferingNotifier = ValueNotifier<bool>(false);

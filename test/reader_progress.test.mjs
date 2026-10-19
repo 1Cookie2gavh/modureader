@@ -105,7 +105,7 @@ test('layout changes notify fresh page counts even if the CFI is unchanged', () 
 })
 test('the reader menu opens progress by default with no extra circle button', async () => {
   const source = await readFile(new URL('../lib/page/reading_page.dart', import.meta.url), 'utf8')
-  assert.match(source, /identical\(_currentPage, empty\)\s*\? \(isReflowReading\s*\? reflowReader\?\.progressPanel\(\) \?\? empty\s*:\s*ProgressWidget\(\s*epubPlayerKey: epubPlayerKey\)\)\s*:\s*_currentPage/)
+  assert.match(source, /identical\(_currentPage, empty\)\s*\? \(isReflowActive\s*\? reflowReader\?\.progressPanel\(\) \?\? empty\s*:\s*ProgressWidget\(\s*epubPlayerKey: epubPlayerKey\)\)\s*:\s*_currentPage/)
   assert.doesNotMatch(source, /Icons\.data_usage|progressHandler/)
 })
 test('both scrolling paths include the active viewport fraction in relocation', async () => {

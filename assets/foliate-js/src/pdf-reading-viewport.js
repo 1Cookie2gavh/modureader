@@ -7,7 +7,8 @@ export const normalizePdfView = (value = {}) => {
     if (!Number.isFinite(zoom) || zoom < 1 || zoom > 15 || !['screen', 'width'].includes(fit) ||
         !['single', 'scroll'].includes(mode))
         throw new RangeError('Invalid PDF view')
-    return { zoom, fit, rotation: normalizeRotation(value.rotation ?? 0), mode,
+    // Older saved views allowed 15x; retain their fit/position while capping zoom.
+    return { zoom: Math.min(8, zoom), fit, rotation: normalizeRotation(value.rotation ?? 0), mode,
         ...(value.enhancement ? {enhancement:normalizeEnhancement(value.enhancement)} : {}),
         ...(value.display ? {display:normalizeDocumentDisplay(value.display)} : {}) }
 }

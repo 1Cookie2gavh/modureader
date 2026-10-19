@@ -4,6 +4,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/service/tts/base_tts.dart';
+import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'package:anx_reader/service/tts/tts_handler.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/service/tts/system_tts_support.dart';
@@ -18,11 +19,16 @@ import 'package:icons_plus/icons_plus.dart';
 import 'dart:async';
 
 class TtsWidget extends StatefulWidget {
-  const TtsWidget({super.key, required this.epubPlayerKey, this.extractedText});
+  const TtsWidget(
+      {super.key,
+      required this.epubPlayerKey,
+      this.extractedText,
+      this.pageSource});
 
   final GlobalKey<EpubPlayerState> epubPlayerKey;
   // OCR previews must never read from the underlying original-page WebView.
   final String? extractedText;
+  final TtsPageSource? pageSource;
 
   @override
   State<TtsWidget> createState() => _TtsWidgetState();
@@ -35,12 +41,17 @@ class _TtsWidgetState extends State<TtsWidget> {
   double stopSeconds = 0;
   Timer? stopTimer;
   String? _startupError;
+  late final TtsPageSource? _pageSource = widget.pageSource ??
+      (widget.extractedText == null
+          ? null
+          : TtsPageSource(widget.extractedText!, chapter: ''));
 
   bool get _unsupportedSystem =>
       Prefs().ttsService == 'system' && !supportsSystemTts();
 
   String _unitLabel(BuildContext context, {required bool previous}) {
-    final paragraph = tts_svc.getTtsService(Prefs().ttsService).isOnline;
+    final paragraph = _pageSource == null &&
+        tts_svc.getTtsService(Prefs().ttsService).isOnline;
     return paragraph
         ? (previous
             ? ModuStrings.text(context, '上一段', 'Previous passage')
@@ -54,7 +65,8 @@ class _TtsWidgetState extends State<TtsWidget> {
   void initState() {
     super.initState();
     if (!_unsupportedSystem &&
-        (widget.extractedText != null ||
+        ((_pageSource != null &&
+                !identical(TtsHandler().tts.pageSource, _pageSource)) ||
             TtsHandler().ttsStateNotifier.value == TtsStateEnum.stopped)) {
       unawaited(_startReading());
     }
@@ -64,16 +76,19 @@ class _TtsWidgetState extends State<TtsWidget> {
     final reader = widget.epubPlayerKey.currentState;
     if (reader == null) return;
     try {
-      final text = widget.extractedText;
-      if (text != null) {
+      final source = _pageSource;
+      if (source != null) {
+        if (!source.valid) return;
         await audioHandler.stop();
-        if (!mounted) return;
-        await TtsHandler()
-            .init(() async => text, () async => '', () async => '');
+        if (!mounted || !source.valid) return;
+        await TtsHandler().init(
+            source.currentText, source.nextText, source.previousText,
+            pageSource: source);
       } else {
         await TtsHandler().init(reader.initTts, reader.ttsNext, reader.ttsPrev);
       }
       if (!mounted ||
+          source?.valid == false ||
           !reader.mounted ||
           widget.epubPlayerKey.currentState != reader) {
         return;
@@ -92,6 +107,7 @@ class _TtsWidgetState extends State<TtsWidget> {
 
   @override
   void dispose() {
+    if (widget.pageSource == null) _pageSource?.invalidate();
     super.dispose();
   }
 
@@ -189,7 +205,10 @@ class _TtsWidgetState extends State<TtsWidget> {
                 volume(),
                 pitch(),
                 rate(),
-                if (tts_svc.getTtsService(Prefs().ttsService).isOnline)
+                if (_pageSource != null)
+                  Text(ModuStrings.text(context, '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
+                      'Read this reflow page only, then stop. Changing pages or leaving reflow stops narration.'))
+                else if (tts_svc.getTtsService(Prefs().ttsService).isOnline)
                   Text(ModuStrings.text(
                       context,
                       '连贯朗读：同段相邻句合成，高亮和前后跳转按小段；长段自动拆分。',
@@ -244,11 +263,15 @@ class _TtsWidgetState extends State<TtsWidget> {
         }
 
         Widget buttons() {
+          if (_pageSource?.valid == false) {
+            return Text(ModuStrings.text(context, '本页已切换，请重新打开朗读。',
+                'The page has changed. Reopen narration.'));
+          }
           return Wrap(
             alignment: WrapAlignment.spaceAround,
             children: [
               IconButton(
-                onPressed: widget.extractedText != null
+                onPressed: _pageSource != null
                     ? null
                     : () async {
                         await audioHandler.stop();
@@ -289,7 +312,7 @@ class _TtsWidgetState extends State<TtsWidget> {
                 icon: const Icon(EvaIcons.chevron_right),
               ),
               IconButton(
-                onPressed: widget.extractedText != null
+                onPressed: _pageSource != null
                     ? null
                     : () async {
                         await audioHandler.stop();
@@ -322,6 +345,13 @@ class _TtsWidgetState extends State<TtsWidget> {
                           stopTimer = Timer.periodic(
                             const Duration(seconds: 5),
                             (timer) {
+                              if (_pageSource != null &&
+                                  (!_pageSource.valid ||
+                                      !identical(TtsHandler().tts.pageSource,
+                                          _pageSource))) {
+                                timer.cancel();
+                                return;
+                              }
                               if (stopSeconds > 5) {
                                 stopSeconds -= 5;
                                 if (mounted) {

@@ -9,7 +9,8 @@ const dom = new JSDOM('<!doctype html><body></body>', {url:'https://reader.test/
 for (const key of ['document','HTMLElement','customElements','CustomEvent']) globalThis[key] = dom.window[key];
 globalThis.devicePixelRatio = 1;
 globalThis.CSSStyleSheet = class {replaceSync() {}};
-globalThis.ResizeObserver = class {observe() {} unobserve() {}};
+const resizeObservers = [];
+globalThis.ResizeObserver = class {constructor(callback){this.callback=callback;resizeObservers.push(this)} observe() {} unobserve() {}};
 dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({left:0,top:0,right:800,bottom:600,width:800,height:600});
 // Each iframe has its own prototype; decode is installed by the simulated source.
 const uri = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
@@ -139,7 +140,7 @@ test('zoom and pan remember each original page, inherit new pages and reset with
         assert.equal(h.renderer.pdfRegionLocation.zoom,3);
         const signature=h.renderer.pdfRegionLocation.signature;
         assert.equal(h.renderer.zoomPdfView(50),true);
-        assert.equal(h.renderer.pdfRegionLocation.zoom,4);
+        assert.equal(h.renderer.pdfRegionLocation.zoom,8);
         h.renderer.zoomPdfView(1,true);
         assert.equal(h.renderer.pdfRegionLocation.signature,signature);
         assert.equal(h.renderer.pdfRegionLocation.zoom,1);
@@ -198,7 +199,7 @@ test('desktop rectangle zoom is explicit and retains the original text layer', a
         await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
         const doc=h.renderer.getContents()[0].doc;
         const send=(type,x,y,buttons=1)=>{
-            const e=new doc.defaultView.MouseEvent(type,{clientX:x,clientY:y,button:0,buttons,bubbles:true,cancelable:true});
+            const e=new doc.defaultView.MouseEvent(type,{clientX:x,clientY:y,screenX:x,screenY:y,button:0,buttons,bubbles:true,cancelable:true});
             doc.dispatchEvent(e);return e.defaultPrevented;
         };
         assert.equal(send('mousedown',50,50),false);
@@ -208,6 +209,77 @@ test('desktop rectangle zoom is explicit and retains the original text layer', a
         assert.equal(h.renderer.pdfRegionLocation.zoom,4);
         assert.equal(doc.querySelector('.textLayer').textContent,'Original text');
         assert.equal(doc.querySelectorAll('div[style*="2147483647"]').length,0);
+    } finally {h.close()}
+});
+
+for(const rotation of [0,90,180,270]) test(`rectangle zoom centers the selected source area inside crop at ${rotation} degrees`, async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,all:{crop:{x:.1,y:.1,width:.8,height:.8}},pages:{}},true);
+        await h.renderer.goTo({index:0});
+        h.renderer.setPdfView({zoom:1,rotation});h.renderer.setPdfBoxZoom(true);
+        const doc=h.renderer.getContents()[0].doc;
+        const send=(type,x,y)=>doc.dispatchEvent(new doc.defaultView.MouseEvent(type,
+            {clientX:x,clientY:y,screenX:x,screenY:y,button:0,buttons:type==='mouseup'?0:1,bubbles:true,cancelable:true}));
+        send('mousedown',200,300);send('mousemove',300,500);send('mouseup',300,500);
+        const location=h.renderer.pdfRegionLocation;
+        assert.ok(Math.abs(location.zoom-3.2)<1e-8);
+        assert.ok(Math.abs(location.center.x-250/600)<1e-8);
+        assert.ok(Math.abs(location.center.y-.5)<1e-8);
+        assert.equal(h.events.at(-1).reason,'viewport','mouse release persists immediately');
+        await h.renderer.next();await h.renderer.prev();
+        assert.deepEqual(h.renderer.pdfRegionLocation,location);
+    } finally {h.close()}
+});
+
+test('zoom/pan persistence is not cancelled by a resize or immediate close', async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
+        h.renderer.zoomPdfView(3);h.renderer.panPdfView(50,70);
+        const expected={...h.renderer.pdfRegionLocation};
+        resizeObservers.at(-1).callback();
+        await new Promise(resolve=>setTimeout(resolve,140));
+        assert.deepEqual(h.events.at(-1).pdfRegion,expected);
+        assert.equal(h.events.at(-1).reason,'viewport');
+        h.renderer.panPdfView(-20,30);
+        const closing={...h.renderer.pdfRegionLocation};
+        h.renderer.destroy();
+        assert.deepEqual(h.events.at(-1).pdfRegion,closing);
+    } finally {h.close()}
+});
+
+test('source-page arrows move only inside the enlarged crop and never change page', async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
+        assert.equal(h.renderer.panPdfArrow('arrowdown'),false);
+        h.renderer.zoomPdfView(3);h.renderer.panPdfView(200,200);
+        const center=h.renderer.pdfRegionLocation.center;
+        h.renderer.panPdfArrow('arrowright');assert.ok(h.renderer.pdfRegionLocation.center.x>center.x);
+        h.renderer.panPdfArrow('arrowleft');
+        assert.ok(Math.abs(h.renderer.pdfRegionLocation.center.x-center.x)<1e-8);
+        h.renderer.panPdfArrow('arrowdown');assert.ok(h.renderer.pdfRegionLocation.center.y>center.y);
+        h.renderer.panPdfArrow('arrowup');
+        for(let i=0;i<60;i++)assert.equal(h.renderer.panPdfArrow('arrowdown'),true);
+        assert.equal(h.renderer.index,0);
+        const bottom=h.renderer.pdfRegionLocation.center;
+        h.renderer.panPdfArrow('arrowdown');assert.deepEqual(h.renderer.pdfRegionLocation.center,bottom);
+    } finally {h.close()}
+});
+
+test('old swipe settings never turn original/scanned pages; short taps remain available', async () => {
+    const h=harness();
+    try {
+        await h.renderer.setPdfLayout({version:1,pages:{}},true);await h.renderer.goTo({index:0});
+        for(const swipe of ['horizontal','reverse','vertical']) {
+            h.renderer.setPdfView({zoom:1,display:{swipe}});
+            const doc=h.renderer.getContents()[0].doc;
+            const send=(type,points)=>{const e=new doc.defaultView.Event(type,{bubbles:true,cancelable:true});
+                Object.defineProperty(e,'touches',{value:points.map(([screenX,screenY])=>({screenX,screenY}))});doc.dispatchEvent(e);return e;};
+            send('touchstart',[[200,200]]);send('touchmove',[[50,50]]);send('touchend',[]);
+            await new Promise(resolve=>setImmediate(resolve));assert.equal(h.renderer.index,0);
+        }
     } finally {h.close()}
 });
 

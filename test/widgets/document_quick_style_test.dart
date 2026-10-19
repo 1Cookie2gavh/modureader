@@ -117,6 +117,25 @@ void main() {
     await Prefs().initPrefs();
   });
   for (final mode in [DocumentReadingMode.pdf, DocumentReadingMode.imageEpub]) {
+    testWidgets('original Text menu exposes comparison switch: $mode',
+        (tester) async {
+      bool? comparison;
+      await tester.pumpWidget(MaterialApp(
+          localizationsDelegates: const [L10n.delegate],
+          supportedLocales: L10n.supportedLocales,
+          home: Scaffold(
+              body: DocumentStyleWidget(
+                  player: _Player(mode),
+                  textOnly: true,
+                  onComparisonChanged: (value) => comparison = value))));
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(const ValueKey('document-comparison-switch'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      expect(comparison, true);
+      expect(find.text('Reflow text'), findsOneWidget);
+      expect(find.text('Region extraction and continuous OCR'), findsOneWidget);
+    });
     testWidgets(
         'Text menu exports saved corrections without a page editing entry: $mode',
         (tester) async {
@@ -142,6 +161,10 @@ void main() {
           home: Scaffold(
               body: DocumentStyleWidget(player: player, textOnly: true))));
       await tester.pumpAndSettle();
+      final textHeading = tester.widget<Text>(find.text('Text'));
+      expect(textHeading.style?.fontFamily, 'SourceHanSerif');
+      expect(textHeading.style?.fontSize, 28);
+      expect(textHeading.style?.fontWeight, FontWeight.bold);
       expect(find.text('Edit, cache and export'), findsNothing);
       expect(find.byKey(const ValueKey('edit-saved-page')), findsNothing);
       expect(find.text('Edit saved page'), findsNothing);
@@ -288,8 +311,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DocumentStyleWidget), findsOneWidget);
       expect(find.text('Page'), findsOneWidget);
+      final heading = tester.widget<Text>(find.text('Page'));
+      expect(heading.style?.fontFamily, 'SourceHanSerif');
+      expect(heading.style?.fontSize, 28);
+      expect(heading.style?.fontWeight, FontWeight.bold);
       expect(find.byType(PdfReadingControls), findsOneWidget);
-      await tester.tap(find.text('Zoom and fit'));
+      await tester.tap(find.text('Page fit').first);
       await tester.pumpAndSettle();
       expect(find.text('Fit width'), findsOneWidget);
       expect(find.text('Image enhancement'), findsOneWidget);
@@ -355,7 +382,7 @@ void main() {
           .toList();
       expect(rows, ['Image enhancement']);
       for (final title in [
-        'Zoom and fit',
+        'Page fit',
         'Rotation',
         'Page turning and options'
       ]) {

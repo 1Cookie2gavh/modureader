@@ -48,9 +48,9 @@ test('rotated continuous geometry maps visible strips to bounded source rectangl
     for(const rotation of [0,90,180,270]){
         const crop={x:.1,y:.1,width:.8,height:.8};
         const plan=scrollPagePlan({pageWidth:600,pageHeight:800,width:390,height:844,crop,view:{zoom:15,fit:'width',rotation}});
-        assert.ok(plan.height>844);near(plan.width,5850);
+        assert.ok(plan.height>844);near(plan.width,3120);
         const region=scrollVisibleRegion(plan,crop,rect(-100,-200,plan.width,plan.height),rect(0,0,390,844));
-        assert.ok(region.x>=.1-1e-9&&region.y>=.1-1e-9&&region.width<.2&&region.height<.3);
+        assert.ok(region.x>=.1-1e-9&&region.y>=.1-1e-9&&region.width<.3&&region.height<.4);
         const p=scrollSourcePoint(plan,crop,100,200);assert.ok(p.x>=.1-1e-9&&p.y>=.1-1e-9);
         assert.equal(scrollVisibleRegion(plan,crop,rect(0,900,plan.width,plan.height),rect(0,0,390,844)),null);
     }
@@ -83,6 +83,22 @@ test('continuous pages restore independent zooms without unbounded frames',async
         assert.ok(h.flow.entries.length<=7);
         h.flow.resetPosition();
         assert.equal(h.flow.location.zoom,2.5);
+    } finally {h.close()}
+});
+
+test('arrow panning is bounded to the current scroll page and pending position survives suspension',async()=>{
+    const h=harness();
+    try {
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        h.flow.resize({...h.flow.view,zoom:3});
+        h.flow.panWithinPage(100,100);
+        assert.equal(h.flow.location.page,0);
+        for(let i=0;i<100;i++)h.flow.panWithinPage(60,60);
+        assert.equal(h.flow.location.page,0);
+        const edge={...h.flow.location};h.flow.panWithinPage(60,60);
+        assert.deepEqual(h.flow.location,edge);
+        h.flow.suspend();assert.deepEqual(h.locations.at(-1).location,edge);
+        assert.equal(h.locations.at(-1).reason,'viewport');
     } finally {h.close()}
 });
 
@@ -317,7 +333,7 @@ test('processed base reuse invalidates on enhancement/crop changes; zoom request
         assert.equal(rendered.length,3);assert.deepEqual(rendered.at(-1).region,e.crop);
         h.flow.resize({...h.flow.view,zoom:15});await h.flow.refreshDetail();
         assert.equal(details.length,1);assert.ok(details[0].region.height<.1);
-        assert.ok(details[0].region.width<.1);assert.equal(rendered.length,3);
+        assert.ok(details[0].region.width<.15);assert.equal(rendered.length,3);
     }finally{h.close()}
 });
 test('background reader does not launch neighbor preprocessing',async()=>{

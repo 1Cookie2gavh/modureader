@@ -305,6 +305,7 @@ class OnlineTts extends BaseTts {
 
   // ============ Buffer Management ============
   VoidCallback _trackSpeechProgress(AudioPlayer player, TtsSegment segment) {
+    if (pageSource != null) return () {};
     var duration = Duration.zero;
     var lastMs = -500;
     var live = true;
@@ -454,6 +455,7 @@ class OnlineTts extends BaseTts {
   }
 
   Future<List<TtsSentence>> _collectSentences(int count) async {
+    if (pageSource != null) return pageSource!.collect(count);
     if (_collectOverride != null) return _collectOverride!(count);
     final state = epubPlayerKey.currentState;
     if (state == null) return [];
@@ -751,6 +753,7 @@ class OnlineTts extends BaseTts {
   }
 
   Future<void> _highlightSegment(TtsSegment segment) async {
+    if (pageSource != null) return;
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     if (_isHighlighting) return;

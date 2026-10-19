@@ -1,4 +1,5 @@
 import 'ocr_precache_settings.dart';
+import 'widget_title.dart';
 import 'document_saved_text_actions.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/utils/app_motion.dart';
@@ -20,10 +21,14 @@ class DocumentStyleWidget extends StatefulWidget {
       {super.key,
       required this.player,
       this.openReflow,
+      this.comparison = false,
+      this.onComparisonChanged,
       this.textOnly = false,
       this.openExtraction});
   final EpubPlayerState player;
   final void Function(bool forceOcr)? openReflow;
+  final bool comparison;
+  final ValueChanged<bool>? onComparisonChanged;
   final bool textOnly;
   final VoidCallback? openExtraction;
 
@@ -151,9 +156,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
             child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(text('文字', 'Text'),
-                style: Theme.of(context).textTheme.headlineSmall),
-            const Divider(),
+            widgetTitle(text('文字', 'Text'), null),
             ListTile(
                 leading: const Icon(Icons.article_outlined),
                 title: Text(text('文字重排', 'Reflow text')),
@@ -162,6 +165,14 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
                 onTap: widget.openReflow == null
                     ? null
                     : () => widget.openReflow!(false)),
+            if (widget.onComparisonChanged != null)
+              SwitchListTile(
+                  key: const ValueKey('document-comparison-switch'),
+                  title: Text(text('原页对照重排', 'Compare original and reflow')),
+                  subtitle: Text(text('竖屏上下，横屏左右',
+                      'Top/bottom in portrait, side by side in landscape')),
+                  value: widget.comparison,
+                  onChanged: widget.onComparisonChanged),
             ListTile(
                 leading: const Icon(Icons.crop_free),
                 title: Text(
@@ -203,12 +214,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
       child: ReaderSettingsScrollView(
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Expanded(
-                child: Text(ModuStrings.text(context, '页面', 'Page'),
-                    style: Theme.of(context).textTheme.headlineSmall)),
-          ]),
-          const Divider(),
+          widgetTitle(ModuStrings.text(context, '页面', 'Page'), null),
           ListenableBuilder(
             listenable: Prefs(),
             builder: (context, _) =>

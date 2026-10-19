@@ -1,3 +1,4 @@
+import 'widget_title.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
@@ -144,7 +145,7 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                 widget.embedded
                     ? t('样式', 'Style')
                     : t('OCR 文字样式', 'OCR text style'),
-                style: Theme.of(context).textTheme.titleLarge),
+                style: readerSubmenuTitleStyle(context)),
             Flexible(
                 child: ReaderSettingsScrollView(
                     child: Column(

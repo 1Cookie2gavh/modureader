@@ -111,16 +111,18 @@ void main() {
     await send(3, 'shortcut');
     await send(7, 'shortcut');
     await send(8, 'shortcut');
+    await send(11, 'shortcut');
+    await send(12, 'shortcut');
     await send('3', 'shortcut');
-    expect(actions, [3, 7]);
+    expect(actions, [3, 7, 8, 11]);
     bridge.update(active: true, volume: false, shortcuts: []);
     expect(calls, hasLength(2));
     bridge.update(active: false, volume: false, shortcuts: []);
     await send(4, 'shortcut');
-    expect(actions, [3, 7]);
+    expect(actions, [3, 7, 8, 11]);
     bridge.dispose();
     await send(5, 'shortcut');
-    expect(actions, [3, 7]);
+    expect(actions, [3, 7, 8, 11]);
   });
 
   test(
