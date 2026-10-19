@@ -34,8 +34,19 @@ test('replaying unchanged settings does not repeatedly paginate a chapter', () =
   renderer.attributeChangedCallback('flow', 'paginated', 'scrolled');
   renderer.attributeChangedCallback('bottom-margin', '20', '30');
   assert.equal(renderer.renders, 2, 'real layout changes still repaginate');
+  renderer.attributeChangedCallback('top-margin', '90', '120');
+  assert.equal(renderer.renders, 3, 'top margin alone repaginates');
   renderer.attributeChangedCallback('bgimg-url', 'old', 'new');
   assert.equal(renderer.paints, 1);
+});
+
+test('changing only the top margin repaginates once per settings batch', () => {
+  const renderer = new Renderer();
+  renderer.setLayoutAttributes({'top-margin': '90px', 'bottom-margin': '50px'});
+  assert.equal(renderer.renders, 1);
+  renderer.setLayoutAttributes({'top-margin': '120px', 'bottom-margin': '50px'});
+  assert.equal(renderer.renders, 2, 'top margin changes must reach the page layout');
+  assert.equal(renderer.layouts.at(-1)['top-margin'], '120px');
 });
 
 test('a settings batch renders once with the final flow, margins and scroll policy', () => {
