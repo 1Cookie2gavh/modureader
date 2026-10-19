@@ -3,6 +3,7 @@ import 'package:anx_reader/dao/reading_round.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/reading_round.dart';
+import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/utils/reading_progress.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -113,6 +114,7 @@ class ReadingRoundService {
         where: 'id = ?',
         whereArgs: [book.id],
       );
+      await RowSyncStore.markPositionReset(txn, book.id);
     });
 
     return bookDao.selectBookById(book.id);
@@ -163,9 +165,17 @@ class ReadingRoundService {
       );
       final totalTime = await _sumReadingTime(txn, book.id, previousRound);
 
-      // 删除新轮记录（同一轮次号可能有多条异常数据，一并清掉）
-      await txn.delete(
+      // 撤销：把新轮标记为 cancelled（软取消），而不是 DELETE。
+      // 删除会生成同步墓碑；同一轮次号之后可能被再次使用（再次完成上一轮），
+      // 保留行 + 状态位可以让它安全复活，也能让同步端稳定合并。
+      await txn.update(
         _roundTable,
+        {
+          'status': ReadingRound.statusCancelled,
+          'end_time': now,
+          'total_reading_time': 0,
+          'update_time': now,
+        },
         where: 'book_id = ? AND round_number = ?',
         whereArgs: [book.id, currentRound],
       );

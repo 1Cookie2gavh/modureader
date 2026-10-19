@@ -28,6 +28,18 @@ class ReadingTimeDao extends BaseDao {
     readingTime.date ??= resolvedDay;
 
     if (readingTime.readingTime <= 0) return;
+
+    // 轮次以数据库为准：同步可能刚把 current_round 推进到下一轮，
+    // 阅读页里的 Book 实例仍是旧的；若沿用旧值，就会把新时长记到上一轮。
+    final currentRound = await rawQuerySingle<int>(
+      'SELECT current_round FROM tb_books WHERE id = ?',
+      arguments: [readingTime.bookId],
+      mapper: (row) => (row['current_round'] as int?) ?? 1,
+    );
+    if (currentRound != null && currentRound > 0) {
+      readingTime.round = currentRound;
+    }
+
     // Each completed reading interval is an independent sync event. Daily
     // statistics already use SUM/GROUP BY; never modify a shared daily total.
     await db.insert(table, {

@@ -145,7 +145,7 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
       id = root(id);
     } else {
       final field = switch (record.kind) {
-        'note' || 'time' => 'book_id',
+        'note' || 'time' || 'round' => 'book_id',
         'tag_link' => 'line_height',
         _ => null,
       };
@@ -156,6 +156,8 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
           data = {...data, field: canonical};
           if (record.kind == 'tag_link') {
             id = '$canonical:${data['letter_spacing']}';
+          } else if (record.kind == 'round') {
+            id = '$canonical:r${data['round_number']}';
           }
         }
       }

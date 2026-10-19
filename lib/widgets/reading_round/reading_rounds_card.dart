@@ -54,6 +54,15 @@ class _ReadingRoundsCardState extends ConsumerState<ReadingRoundsCard> {
     final l10n = L10n.of(context);
     final theme = Theme.of(context);
     final finishedRounds = rounds.where((r) => r.isFinished).toList();
+    // 同步可能刚把轮次推进到下一轮，详情页持有的 Book 实例还是旧的；
+    // 以轮次表里的 reading 行为准，避免卡片显示错轮。
+    var currentRound = widget.book.currentRound;
+    for (final round in rounds) {
+      if (round.status == ReadingRound.statusReading &&
+          round.roundNumber > currentRound) {
+        currentRound = round.roundNumber;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +72,7 @@ class _ReadingRoundsCardState extends ConsumerState<ReadingRoundsCard> {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 10),
-        _buildCurrentRound(context),
+        _buildCurrentRound(context, currentRound),
         const Divider(height: 24),
         if (finishedRounds.isEmpty)
           Padding(
@@ -96,7 +105,7 @@ class _ReadingRoundsCardState extends ConsumerState<ReadingRoundsCard> {
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
-              onPressed: (widget.book.currentRound > 1 && !_processing)
+              onPressed: (currentRound > 1 && !_processing)
                   ? () => _undoLastRound(context)
                   : null,
               icon: const Icon(Icons.undo),
@@ -109,12 +118,12 @@ class _ReadingRoundsCardState extends ConsumerState<ReadingRoundsCard> {
   }
 
   /// 当前轮次：轮次号 + 状态 + 本轮累计时长 + 当前进度
-  Widget _buildCurrentRound(BuildContext context) {
+  Widget _buildCurrentRound(BuildContext context, int currentRound) {
     final l10n = L10n.of(context);
     final theme = Theme.of(context);
     return FutureBuilder<int>(
       future: readingTimeDao.selectTotalReadingTimeByBookAndRound(
-          widget.book.id, widget.book.currentRound),
+          widget.book.id, currentRound),
       builder: (context, snapshot) {
         final duration = convertSeconds(snapshot.data ?? 0);
         final progress =
@@ -130,7 +139,7 @@ class _ReadingRoundsCardState extends ConsumerState<ReadingRoundsCard> {
                 children: [
                   Text(
                     '${l10n.readingRoundsCurrentRound}：'
-                    '${l10n.readingRoundsNth('${widget.book.currentRound}')} · '
+                    '${l10n.readingRoundsNth('$currentRound')} · '
                     '${l10n.readingRoundsInProgress}',
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
