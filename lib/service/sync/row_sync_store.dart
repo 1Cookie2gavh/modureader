@@ -39,7 +39,20 @@ const _fields = <String, List<String>>{
     'update_time',
     'reader_note'
   ],
-  'time': ['book_id', 'date', 'reading_time'],
+  'time': ['book_id', 'date', 'reading_time', 'round'],
+  // Reading rounds are synced as their own kind. `total_reading_time` is
+  // intentionally NOT synced: it is derived from the synced `time` rows so two
+  // devices finishing the same round cannot fight over a stored total.
+  'round': [
+    'book_id',
+    'round_number',
+    'status',
+    'start_time',
+    'end_time',
+    'start_percentage',
+    'end_percentage',
+    'end_position'
+  ],
   // tb_styles is also used for tags. ONLY the two tag sentinels are portable;
   // ordinary font/typography styles are deliberately excluded.
   'tag': ['font_size', 'font_family', 'line_height'],
@@ -53,6 +66,7 @@ const _tables = <String, String>{
   'life': 'tb_books',
   'note': 'tb_notes',
   'time': 'tb_reading_time',
+  'round': 'tb_reading_rounds',
   'tag': 'tb_styles',
   'tag_link': 'tb_styles',
   'secret': 'tb_sync_secrets',
@@ -62,6 +76,7 @@ const _refs = <String, Map<String, String>>{
   'book': {'group_id': 'group'},
   'note': {'book_id': 'book'},
   'time': {'book_id': 'book'},
+  'round': {'book_id': 'book'},
   'tag_link': {'line_height': 'book', 'letter_spacing': 'tag'},
 };
 
@@ -101,6 +116,9 @@ class RowSyncStore {
     final identities = <String, Map<int, String>>{};
     for (final kind in _tables.keys) {
       if (kind == 'secret') continue; // Secret row has a fixed string ID.
+      // Reading rounds are created by a later app schema migration; a v7/v8
+      // install must skip the missing table and let ensureRounds() add it.
+      if (!await _tableExists(db, _tables[kind]!)) continue;
       final rows = await db.query(_tables[kind]!, where: _filter(kind));
       final ids = identities.putIfAbsent(kind, () => {});
       for (final row in rows) {
@@ -127,6 +145,9 @@ class RowSyncStore {
                   identities['book']![row['book_id']],
                   (row['date'] as String).substring(0, 10)
                 ])}';
+          case 'round':
+            key =
+                '${identities['book']![row['book_id']]}:r${row['round_number']}';
           case 'tag':
             key =
                 'legacy:${_hash((row['font_family'] as String).toLowerCase())}';
@@ -170,6 +191,7 @@ class RowSyncStore {
       }
     }
     for (final kind in _tables.keys.where((k) => k != 'secret')) {
+      if (!await _tableExists(db, _tables[kind]!)) continue;
       await _installTriggers(db, kind);
     }
     await db.execute(
@@ -193,6 +215,10 @@ class RowSyncStore {
       'book' || 'position' || 'life' => _sqlBookKey('NEW'),
       'group' =>
         "CASE WHEN NEW.id = 0 THEN 'root' ELSE lower(hex(randomblob(16))) END",
+      // A round is identified by its book identity + round number. Both devices
+      // finishing the same round therefore resolve to the SAME sync record.
+      'round' =>
+        "(SELECT sync_id FROM $syncRecordsTable WHERE kind='book' AND local_id=NEW.book_id) || ':r' || NEW.round_number",
       'tag_link' =>
         "(SELECT sync_id FROM $syncRecordsTable WHERE kind='book' AND local_id=CAST(NEW.line_height AS INTEGER)) || ':' || "
             "(SELECT sync_id FROM $syncRecordsTable WHERE kind='tag' AND local_id=CAST(NEW.letter_spacing AS INTEGER))",
@@ -225,6 +251,16 @@ class RowSyncStore {
 
   Future<List<RowSyncRecord>> snapshot() => db.transaction(_snapshot);
 
+  /// Called inside the round transaction, including when the cursor was empty.
+  static Future<void> markPositionReset(DatabaseExecutor db, int bookId) async {
+    await db.execute(_tick);
+    await db.rawUpdate(
+        'UPDATE $syncRecordsTable SET clock=$_clock, '
+        "revision=? || lower(hex(randomblob(16))), dirty=1 "
+        "WHERE kind='position' AND local_id=? AND deleted=0",
+        [syncPositionResetPrefix, bookId]);
+  }
+
   static Future<List<RowSyncRecord>> _snapshot(Transaction txn) async {
     final metadata = await txn.query(syncRecordsTable);
     final ids = <String, Map<int, String>>{};
@@ -243,6 +279,7 @@ class RowSyncStore {
       if (rows.length != 1) throw StateError('同步记录缺少本地数据');
       final row = rows.single;
       final data = {for (final field in _fields[kind]!) field: row[field]};
+      if (kind == 'time' && data['round'] == null) data['round'] = 1;
       for (final ref in (_refs[kind] ?? const <String, String>{}).entries) {
         final id = (data[ref.key] as num?)?.toInt();
         data[ref.key] = id == null ? null : ids[ref.value]?[id];
@@ -298,11 +335,109 @@ class RowSyncStore {
     }
   }
 
+  static Future<bool> _tableExists(DatabaseExecutor db, String table) async {
+    final rows = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [table]);
+    return rows.isNotEmpty;
+  }
+
+  /// v9 reading-round sync migration. Called on every database open and
+  /// idempotent:
+  ///
+  /// - re-creates the `time` triggers so a `round` change marks the record dirty
+  /// - installs the `round` kind triggers/identities
+  /// - backfills `round` records for rounds written before this upgrade
+  /// - backfills `time.payload.round` from the local row
+  ///
+  /// Nothing here changes a single reading-time row; only sync metadata.
+  static Future<void> ensureRounds(DatabaseExecutor db) async {
+    if (!await _tableExists(db, _control)) return;
+    if (!await _tableExists(db, _tables['round']!)) return;
+
+    final roundTrigger = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name='modu_round_insert'");
+    final timeTrigger = await db.rawQuery(
+        "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='modu_time_update'");
+    final timeHasRound = timeTrigger.isNotEmpty &&
+        (timeTrigger.single['sql'] as String? ?? '').contains('NEW.round');
+    if (roundTrigger.isNotEmpty && timeHasRound) return;
+
+    for (final suffix in ['insert', 'update', 'delete']) {
+      await db.execute('DROP TRIGGER IF EXISTS modu_time_$suffix');
+      await db.execute('DROP TRIGGER IF EXISTS modu_round_$suffix');
+    }
+    await _installTriggers(db, 'time');
+    await _installTriggers(db, 'round');
+    await _backfillRoundRecords(db);
+    await _backfillTimeRounds(db);
+    await db.execute('UPDATE $_control SET clock = MAX(clock, '
+        'COALESCE((SELECT MAX(clock) FROM $syncRecordsTable), 0))');
+  }
+
+  static Future<void> _backfillRoundRecords(DatabaseExecutor db) async {
+    final books = await db.query(syncRecordsTable,
+        columns: ['sync_id', 'local_id'],
+        where: "kind='book' AND deleted=0 AND local_id IS NOT NULL");
+    final bookSync = {
+      for (final row in books) row['local_id'] as int: row['sync_id'] as String
+    };
+    final rounds = await db.query(_tables['round']!);
+    for (final row in rounds) {
+      final id = row['id'] as int?;
+      final bookId = row['book_id'] as int?;
+      if (id == null || bookId == null) continue;
+      final bookKey = bookSync[bookId];
+      if (bookKey == null) continue;
+      final key = '$bookKey:r${row['round_number'] ?? 1}';
+      final clock = DateTime.tryParse(row['update_time'] as String? ?? '')
+              ?.millisecondsSinceEpoch ??
+          0;
+      final existing = await db.query(syncRecordsTable,
+          where: "kind='round' AND sync_id=?", whereArgs: [key]);
+      if (existing.isEmpty) {
+        await db.insert(syncRecordsTable, {
+          'kind': 'round',
+          'sync_id': key,
+          'local_id': id,
+          'clock': clock,
+          'revision': 'legacy',
+          'deleted': 0,
+          'payload': '{}',
+          'dirty': 1,
+        });
+      } else if (existing.single['local_id'] != id) {
+        await db.update(
+            syncRecordsTable, {'local_id': id, 'clock': clock, 'dirty': 1},
+            where: "kind='round' AND sync_id=?", whereArgs: [key]);
+      }
+    }
+  }
+
+  static Future<void> _backfillTimeRounds(DatabaseExecutor db) async {
+    final rows = await db.rawQuery(
+        'SELECT r.sync_id, r.payload, r.local_id, r.deleted, t.round '
+        'FROM $syncRecordsTable r LEFT JOIN ${_tables['time']} t '
+        'ON t.id = r.local_id WHERE r.kind = ?',
+        ['time']);
+    for (final row in rows) {
+      if (row['deleted'] == 1 || row['local_id'] == null) continue;
+      final round = (row['round'] as num?)?.toInt() ?? 1;
+      final payload =
+          jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+      if (payload['round'] == round) continue;
+      payload['round'] = round;
+      await db.update(
+          syncRecordsTable, {'payload': jsonEncode(payload), 'dirty': 1},
+          where: "kind='time' AND sync_id=?", whereArgs: [row['sync_id']]);
+    }
+  }
+
   /// Merge into live rows in one transaction, including changes made while
   /// the network request was in flight. No closing/replacing the live DB.
   Future<List<RowSyncRecord>> merge(List<RowSyncRecord> remote,
       {bool importOnlyMissingRecords = false}) async {
-    remote = remote.map(normalizeSyncReadingPosition).toList();
+    remote = remote.map(normalizeRoundFields).toList();
     for (final record in remote) {
       validate(record);
     }
@@ -336,7 +471,15 @@ class RowSyncStore {
       }
       // Allocate IDs first: references never depend on a remote numeric ID or
       // on group parent ordering. Existing IDs are never renumbered.
-      for (final kind in ['group', 'book', 'note', 'time', 'tag', 'tag_link']) {
+      for (final kind in [
+        'group',
+        'book',
+        'round',
+        'note',
+        'time',
+        'tag',
+        'tag_link'
+      ]) {
         final map = ids.putIfAbsent(kind, () => {});
         for (final r in merged.where((r) =>
             r.kind == kind &&
@@ -384,6 +527,14 @@ class RowSyncStore {
         } else {
           if (id == null) throw const FormatException('同步记录缺少关联书籍');
           final values = Map<String, Object?>.from(r.data);
+          if (kind == 'round') {
+            // These local model fields are not part of the wire payload.
+            final timestamp =
+                DateTime.fromMillisecondsSinceEpoch(r.clock, isUtc: true)
+                    .toIso8601String();
+            values['create_time'] = values['start_time'] ?? timestamp;
+            values['update_time'] = timestamp;
+          }
           for (final ref in (_refs[kind] ?? const <String, String>{}).entries) {
             final key = values[ref.key];
             values[ref.key] = key == null ? null : ids[ref.value]?[key];
@@ -488,18 +639,19 @@ class RowSyncStore {
       }
       changed = true;
     }
-    // Tag-link IDs include the book identity. Remove only the superseded link
-    // records/rows; the normalized link is materialized by the ordinary merge.
+    // Composite IDs include the book identity. Remove superseded rows while
+    // triggers are suppressed; their canonical winners are materialized above.
     for (final row in metadata.where((r) =>
-        r['kind'] == 'tag_link' &&
-        !byKey.containsKey('tag_link/${r['sync_id']}'))) {
+        const ['tag_link', 'round'].contains(r['kind']) &&
+        !byKey.containsKey('${r['kind']}/${r['sync_id']}'))) {
+      final kind = row['kind'] as String;
       if (row['local_id'] != null) {
-        await txn.delete('tb_styles',
-            where: 'id=? AND font_size=2', whereArgs: [row['local_id']]);
+        await txn.delete(_tables[kind]!,
+            where: kind == 'tag_link' ? 'id=? AND font_size=2' : 'id=?',
+            whereArgs: [row['local_id']]);
       }
       await txn.delete(syncRecordsTable,
-          where: 'kind=? AND sync_id=?',
-          whereArgs: ['tag_link', row['sync_id']]);
+          where: 'kind=? AND sync_id=?', whereArgs: [kind, row['sync_id']]);
       changed = true;
     }
     return changed;
@@ -578,6 +730,36 @@ class RowSyncStore {
         (r.data['reading_time'] is! int ||
             (r.data['reading_time'] as int) < 0)) {
       throw const FormatException('阅读时长无效');
+    }
+    if (r.kind == 'time' &&
+        (r.data['round'] is! int || (r.data['round'] as int) < 1)) {
+      throw const FormatException('阅读轮次无效');
+    }
+    if (r.kind == 'round') {
+      final number = r.data['round_number'];
+      final status = r.data['status'];
+      if (number is! int ||
+          number < 1 ||
+          !const ['reading', 'finished', 'cancelled'].contains(status)) {
+        throw const FormatException('轮次记录无效');
+      }
+      for (final field in ['start_percentage', 'end_percentage']) {
+        final value = r.data[field];
+        if (value is! num || !value.isFinite || value < 0 || value > 1) {
+          throw const FormatException('轮次进度无效');
+        }
+      }
+      final position = r.data['end_position'];
+      if (position != null && position is! String) {
+        throw const FormatException('轮次阅读位置无效');
+      }
+      for (final field in ['start_time', 'end_time']) {
+        final value = r.data[field];
+        if (value != null &&
+            (value is! String || DateTime.tryParse(value) == null)) {
+          throw const FormatException('轮次时间无效');
+        }
+      }
     }
     if (r.kind == 'secret') {
       final envelope = jsonDecode(r.data['encrypted_payload'] as String) as Map;

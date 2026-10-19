@@ -6,13 +6,15 @@ import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/dao/reading_round.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/service/reading_round_service.dart';
+import 'package:anx_reader/service/sync/row_sync_store.dart';
+import 'package:anx_reader/service/sync/reading_round_sync.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'sync/row_sync_test.dart' show bookRow;
+import 'sync/row_sync_test.dart' show bookRow, fixture;
 
 class _Paths extends PathProviderPlatform {
   _Paths(this.root);
@@ -127,6 +129,29 @@ void main() {
     expect(rounds.first.endPercentage, 0.75);
     expect(rounds.last.isFinished, isFalse);
     expect(rounds.last.totalReadingTime, 0);
+  });
+
+  test('finish reset survives a round trip to an already synced device',
+      () async {
+    final remote = await fixture(bookId: 77);
+    try {
+      await RowSyncStore(remote).merge(await RowSyncStore(db).snapshot());
+      await ReadingRoundService.finishCurrentRound(
+          await bookDao.selectBookById(1));
+      await RowSyncStore(remote).merge(await RowSyncStore(db).snapshot());
+      await ReadingRoundSync.reconcile(remote);
+      await RowSyncStore(db).merge(await RowSyncStore(remote).snapshot());
+      await ReadingRoundSync.reconcile(db);
+      final book = await bookDao.selectBookById(1);
+      expect(book.currentRound, 2);
+      expect(book.lastReadPosition, '');
+      expect(book.readingPercentage, 0);
+      final received = await remote.query('tb_books', where: 'id=77');
+      expect(received.single['last_read_position'], '');
+      expect(received.single['reading_percentage'], 0);
+    } finally {
+      await remote.close();
+    }
   });
 
   test(

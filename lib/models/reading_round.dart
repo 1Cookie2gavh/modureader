@@ -35,8 +35,14 @@ class ReadingRound {
 
   bool get isFinished => status == 'finished';
 
+  bool get isCancelled => status == statusCancelled;
+
   static const String statusReading = 'reading';
   static const String statusFinished = 'finished';
+
+  /// 撤销后保留的行（软取消）：不再参与「当前轮/历史轮」展示，
+  /// 但保留行本身，使同步端可以安全地再次复用同一轮次号。
+  static const String statusCancelled = 'cancelled';
 
   Map<String, Object?> toMap() {
     return {
