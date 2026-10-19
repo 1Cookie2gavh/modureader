@@ -16,9 +16,8 @@ from pathlib import Path
 import sys
 
 PATCHES = {
-    'lib/page/home_page.dart': (
-        'scrollableBuilder:\n'
-        '                (BuildContext context, ScrollController controller) {',
+    'lib/widgets/home_navigation_shell.dart': (
+        'scrollableBuilder: (BuildContext context, ScrollController controller) {',
         'builder: (BuildContext context) {'),
     'lib/service/initialization_check.dart': (
         'scrollableBuilder: (BuildContext context, ScrollController controller) {',
