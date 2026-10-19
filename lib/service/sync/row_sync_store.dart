@@ -251,6 +251,16 @@ class RowSyncStore {
 
   Future<List<RowSyncRecord>> snapshot() => db.transaction(_snapshot);
 
+  /// Called inside the round transaction, including when the cursor was empty.
+  static Future<void> markPositionReset(DatabaseExecutor db, int bookId) async {
+    await db.execute(_tick);
+    await db.rawUpdate(
+        'UPDATE $syncRecordsTable SET clock=$_clock, '
+        "revision=? || lower(hex(randomblob(16))), dirty=1 "
+        "WHERE kind='position' AND local_id=? AND deleted=0",
+        [syncPositionResetPrefix, bookId]);
+  }
+
   static Future<List<RowSyncRecord>> _snapshot(Transaction txn) async {
     final metadata = await txn.query(syncRecordsTable);
     final ids = <String, Map<int, String>>{};
@@ -268,9 +278,7 @@ class RowSyncStore {
           where: 'id = ?', whereArgs: [meta['local_id']]);
       if (rows.length != 1) throw StateError('同步记录缺少本地数据');
       final row = rows.single;
-      final data = {
-        for (final field in _fields[kind]!) field: row[field]
-      };
+      final data = {for (final field in _fields[kind]!) field: row[field]};
       if (kind == 'time' && data['round'] == null) data['round'] = 1;
       for (final ref in (_refs[kind] ?? const <String, String>{}).entries) {
         final id = (data[ref.key] as num?)?.toInt();
@@ -400,10 +408,8 @@ class RowSyncStore {
         });
       } else if (existing.single['local_id'] != id) {
         await db.update(
-            syncRecordsTable,
-            {'local_id': id, 'clock': clock, 'dirty': 1},
-            where: "kind='round' AND sync_id=?",
-            whereArgs: [key]);
+            syncRecordsTable, {'local_id': id, 'clock': clock, 'dirty': 1},
+            where: "kind='round' AND sync_id=?", whereArgs: [key]);
       }
     }
   }
@@ -422,10 +428,8 @@ class RowSyncStore {
       if (payload['round'] == round) continue;
       payload['round'] = round;
       await db.update(
-          syncRecordsTable,
-          {'payload': jsonEncode(payload), 'dirty': 1},
-          where: "kind='time' AND sync_id=?",
-          whereArgs: [row['sync_id']]);
+          syncRecordsTable, {'payload': jsonEncode(payload), 'dirty': 1},
+          where: "kind='time' AND sync_id=?", whereArgs: [row['sync_id']]);
     }
   }
 
@@ -523,6 +527,14 @@ class RowSyncStore {
         } else {
           if (id == null) throw const FormatException('同步记录缺少关联书籍');
           final values = Map<String, Object?>.from(r.data);
+          if (kind == 'round') {
+            // These local model fields are not part of the wire payload.
+            final timestamp =
+                DateTime.fromMillisecondsSinceEpoch(r.clock, isUtc: true)
+                    .toIso8601String();
+            values['create_time'] = values['start_time'] ?? timestamp;
+            values['update_time'] = timestamp;
+          }
           for (final ref in (_refs[kind] ?? const <String, String>{}).entries) {
             final key = values[ref.key];
             values[ref.key] = key == null ? null : ids[ref.value]?[key];
@@ -627,18 +639,19 @@ class RowSyncStore {
       }
       changed = true;
     }
-    // Tag-link IDs include the book identity. Remove only the superseded link
-    // records/rows; the normalized link is materialized by the ordinary merge.
+    // Composite IDs include the book identity. Remove superseded rows while
+    // triggers are suppressed; their canonical winners are materialized above.
     for (final row in metadata.where((r) =>
-        r['kind'] == 'tag_link' &&
-        !byKey.containsKey('tag_link/${r['sync_id']}'))) {
+        const ['tag_link', 'round'].contains(r['kind']) &&
+        !byKey.containsKey('${r['kind']}/${r['sync_id']}'))) {
+      final kind = row['kind'] as String;
       if (row['local_id'] != null) {
-        await txn.delete('tb_styles',
-            where: 'id=? AND font_size=2', whereArgs: [row['local_id']]);
+        await txn.delete(_tables[kind]!,
+            where: kind == 'tag_link' ? 'id=? AND font_size=2' : 'id=?',
+            whereArgs: [row['local_id']]);
       }
       await txn.delete(syncRecordsTable,
-          where: 'kind=? AND sync_id=?',
-          whereArgs: ['tag_link', row['sync_id']]);
+          where: 'kind=? AND sync_id=?', whereArgs: [kind, row['sync_id']]);
       changed = true;
     }
     return changed;

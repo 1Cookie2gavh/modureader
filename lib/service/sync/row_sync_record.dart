@@ -4,6 +4,9 @@ import 'package:anx_reader/utils/reading_progress.dart';
 
 part 'book_sync_identity.dart';
 
+// An intentional new-round reset is an operation, not an unread legacy row.
+const syncPositionResetPrefix = 'modu-position-reset-v1:';
+
 /// Portable identity and operation clock; never a device-local integer row ID.
 class RowSyncRecord {
   const RowSyncRecord(
@@ -53,9 +56,8 @@ RowSyncRecord normalizeRoundFields(RowSyncRecord record) {
   if (record.deleted) return record;
   if (record.kind == 'time') {
     if (record.data.containsKey('round')) return record;
-    return RowSyncRecord(
-        record.kind, record.id, record.clock, record.revision, false,
-        {...record.data, 'round': 1},
+    return RowSyncRecord(record.kind, record.id, record.clock, record.revision,
+        false, {...record.data, 'round': 1},
         narration: record.narration);
   }
   if (record.kind == 'round') {
@@ -96,6 +98,7 @@ RowSyncRecord normalizeSyncReadingPosition(RowSyncRecord record) {
 }
 
 bool _hasReadingPosition(RowSyncRecord record) =>
+    record.revision.startsWith(syncPositionResetPrefix) ||
     (record.data['last_read_position'] is String &&
         (record.data['last_read_position'] as String).isNotEmpty) ||
     (record.data['reading_percentage'] is num &&

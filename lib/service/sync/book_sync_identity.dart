@@ -156,6 +156,8 @@ List<RowSyncRecord> _normalizeBookIdentities(List<RowSyncRecord> records) {
           data = {...data, field: canonical};
           if (record.kind == 'tag_link') {
             id = '$canonical:${data['letter_spacing']}';
+          } else if (record.kind == 'round') {
+            id = '$canonical:r${data['round_number']}';
           }
         }
       }

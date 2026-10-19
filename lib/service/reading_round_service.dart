@@ -3,6 +3,7 @@ import 'package:anx_reader/dao/reading_round.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/reading_round.dart';
+import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/utils/reading_progress.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -113,6 +114,7 @@ class ReadingRoundService {
         where: 'id = ?',
         whereArgs: [book.id],
       );
+      await RowSyncStore.markPositionReset(txn, book.id);
     });
 
     return bookDao.selectBookById(book.id);
