@@ -9,10 +9,8 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/page/settings_page/subpage/fonts.dart';
-import 'package:anx_reader/providers/reading_streak_provider.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'reader_setting_availability.dart';
 
@@ -570,8 +568,9 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
     /// 每日打卡：当天（跨书累计）阅读满 N 分钟才算完成打卡。
     /// 0 分钟即旧行为「打开书籍即打卡」。
     Widget dailyCheckIn() {
-      return Consumer(
-        builder: (context, ref, _) {
+      return ListenableBuilder(
+        listenable: Prefs(),
+        builder: (context, _) {
           final minutes = Prefs().dailyCheckInMinutes;
           final valueLabel = minutes == 0
               ? L10n.of(context).settingsDailyCheckInOff
@@ -603,17 +602,14 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
                     ?.copyWith(color: Colors.grey),
               ),
               Slider(
+                allowedInteraction: SliderInteraction.slideThumb,
                 value: minutes.toDouble(),
                 min: 0,
                 max: 120,
                 divisions: 24,
                 label: valueLabel,
                 onChanged: (value) {
-                  setState(() {
-                    Prefs().dailyCheckInMinutes = value.round();
-                  });
-                  // 判定口径已变，立即重算连击/打卡数据
-                  ref.invalidate(readingStreakProvider);
+                  Prefs().dailyCheckInMinutes = value.round();
                 },
               ),
             ],
