@@ -73,14 +73,26 @@ void main() {
 
   test('fresh install and v9 upgrade preserve legacy history as round one',
       () async {
-    expect(await db.getVersion(), 10);
+    // v10 = reading rounds; v11 = book review/notes. Keep this regression
+    // test valid on both branches so a schema bump does not break the other PR.
+    final version = await db.getVersion();
+    expect(version, greaterThanOrEqualTo(10));
     expect(
         (await db.rawQuery('PRAGMA table_info(tb_reading_rounds)'))
             .map((row) => row['name']),
         contains('end_position'));
-    // Reconstruct the v9 schema by removing exactly the v10 additions.
-    // v10 sync triggers reference `round`; a real v9 database has neither
-    // those triggers nor the column.
+    // Reconstruct the v9 schema by removing exactly the v10/v11 additions.
+    final bookColumns = (await db.rawQuery('PRAGMA table_info(tb_books)'))
+        .map((row) => row['name'])
+        .toSet();
+    if (bookColumns.contains('review')) {
+      for (final suffix in ['insert', 'update', 'delete']) {
+        await db.execute('DROP TRIGGER IF EXISTS modu_review_$suffix');
+      }
+      await db.execute('ALTER TABLE tb_books DROP COLUMN review');
+    }
+    // If the sync v9 PR is already in main, its triggers reference `round`;
+    // they must go before the column is dropped. No-op on v10 without them.
     for (final suffix in ['insert', 'update', 'delete']) {
       await db.execute('DROP TRIGGER IF EXISTS modu_time_$suffix');
       await db.execute('DROP TRIGGER IF EXISTS modu_round_$suffix');
@@ -91,12 +103,18 @@ void main() {
     await db.setVersion(9);
     await DBHelper.close();
     db = await DBHelper().database;
-    expect(await db.getVersion(), 10);
+    expect(await db.getVersion(), version);
     expect((await bookDao.selectBookById(1)).currentRound, 1);
     expect((await db.query('tb_reading_time')).single['round'], 1);
     expect(
         await readingTimeDao.selectTotalReadingTimeByBookAndRound(1, 1), 120);
     expect(await db.query('tb_reading_rounds'), isEmpty);
+    if (version >= 11) {
+      expect(
+          (await db.rawQuery('PRAGMA table_info(tb_books)'))
+              .map((row) => row['name']),
+          contains('review'));
+    }
   });
 
   test('finish captures exact position and starts an empty second round',

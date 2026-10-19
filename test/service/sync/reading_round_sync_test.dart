@@ -97,8 +97,8 @@ void main() {
       final path = '${temp.path}/v8.db';
       final db = await databaseFactoryFfi.openDatabase(path,
           options: OpenDatabaseOptions(singleInstance: false));
-      await db.execute(
-          'CREATE TABLE modu_sync_manifest (format INTEGER NOT NULL)');
+      await db
+          .execute('CREATE TABLE modu_sync_manifest (format INTEGER NOT NULL)');
       await db.insert('modu_sync_manifest', {'format': 1});
       await db.execute(
           'CREATE TABLE modu_sync_records (kind TEXT NOT NULL, sync_id TEXT NOT NULL, '
@@ -145,10 +145,7 @@ void main() {
         ReadingRound.statusFinished);
     expect(mergeSyncRecords([finished], [laterCancel]).single.data['status'],
         ReadingRound.statusCancelled);
-    expect(
-        mergeSyncRecords([laterCancel], [laterFinish])
-            .single
-            .data['status'],
+    expect(mergeSyncRecords([laterCancel], [laterFinish]).single.data['status'],
         ReadingRound.statusFinished);
     expect(
         mergeSyncRecords([finished], [laterFinish]).single.data['end_position'],
@@ -161,7 +158,8 @@ void main() {
     try {
       await a.insert(ReadingRoundDao.table, roundRow(1, 1));
       await b.insert(ReadingRoundDao.table, roundRow(77, 1));
-      await a.update(ReadingRoundDao.table,
+      await a.update(
+          ReadingRoundDao.table,
           {
             'status': ReadingRound.statusFinished,
             'end_percentage': .98,
@@ -169,7 +167,14 @@ void main() {
           },
           where: 'book_id = ? AND round_number = ?',
           whereArgs: [1, 1]);
-      await b.update(ReadingRoundDao.table,
+      // Separate databases can tick in the same millisecond. Make B's later
+      // operation explicit rather than depending on wall-clock execution speed.
+      final first = (await RowSyncStore(a).snapshot())
+          .singleWhere((r) => r.kind == 'round');
+      await b.rawUpdate(
+          'UPDATE modu_sync_control SET clock=MAX(clock,?)', [first.clock]);
+      await b.update(
+          ReadingRoundDao.table,
           {
             'status': ReadingRound.statusFinished,
             'end_percentage': 1.0,
@@ -191,16 +196,29 @@ void main() {
     }
   });
 
-  test('undo (cancel) versus continue reading re-attributes the time', () async {
+  test('same-clock round conflicts converge by revision, not finish percentage',
+      () {
+    final data = roundRecord(100, ReadingRound.statusFinished, end: 1).data;
+    final a = RowSyncRecord('round', 'book-x:r1', 100, 'a', false, data);
+    final b = RowSyncRecord('round', 'book-x:r1', 100, 'z', false,
+        {...data, 'end_percentage': .98});
+    final ab = mergeSyncRecords([a], [b]);
+    final ba = mergeSyncRecords([b], [a]);
+    expect(sameSyncRecords(ab, ba), isTrue);
+    expect(ab.single.data['end_percentage'], .98);
+  });
+
+  test('undo (cancel) versus continue reading re-attributes the time',
+      () async {
     final a = await fixture();
     final b = await fixture(bookId: 77);
     try {
       // Both devices have round 1 finished and round 2 in progress.
-      await a.insert(ReadingRoundDao.table, roundRow(1, 1,
-          status: ReadingRound.statusFinished, end: .98));
+      await a.insert(ReadingRoundDao.table,
+          roundRow(1, 1, status: ReadingRound.statusFinished, end: .98));
       await a.insert(ReadingRoundDao.table, roundRow(1, 2));
-      await b.insert(ReadingRoundDao.table, roundRow(77, 1,
-          status: ReadingRound.statusFinished, end: .98));
+      await b.insert(ReadingRoundDao.table,
+          roundRow(77, 1, status: ReadingRound.statusFinished, end: .98));
       await b.insert(ReadingRoundDao.table, roundRow(77, 2));
       await a.insert('tb_reading_time', timeRow(1, 60, round: 1));
       await b.insert('tb_reading_time', timeRow(77, 30, round: 2));
@@ -209,24 +227,24 @@ void main() {
       await converge(a, b);
 
       // A undoes round 2; B is offline and keeps reading round 2.
-      await a.update(ReadingRoundDao.table,
+      await a.update(
+          ReadingRoundDao.table,
           {
             'status': ReadingRound.statusCancelled,
             'end_time': '2026-10-05T00:00:00',
           },
           where: 'book_id = ? AND round_number = ?',
           whereArgs: [1, 2]);
-      await a.update(ReadingRoundDao.table,
-          {'status': ReadingRound.statusReading},
-          where: 'book_id = ? AND round_number = ?',
-          whereArgs: [1, 1]);
+      await a.update(
+          ReadingRoundDao.table, {'status': ReadingRound.statusReading},
+          where: 'book_id = ? AND round_number = ?', whereArgs: [1, 1]);
       await a.update('tb_books', {'current_round': 1}, where: 'id = 1');
       await b.insert('tb_reading_time', timeRow(77, 40, round: 2));
 
       await converge(a, b);
       for (final db in [a, b]) {
-        final rows = await db.query(ReadingRoundDao.table,
-            orderBy: 'round_number');
+        final rows =
+            await db.query(ReadingRoundDao.table, orderBy: 'round_number');
         expect(rows.first['status'], ReadingRound.statusReading);
         expect(rows[1]['status'], ReadingRound.statusCancelled);
         final times = await db.query('tb_reading_time');
@@ -247,10 +265,10 @@ void main() {
   test('reconcile derives current_round and per-round totals', () async {
     final db = await fixture();
     try {
-      await db.insert(ReadingRoundDao.table, roundRow(1, 1,
-          status: ReadingRound.statusFinished, end: .9));
-      await db.insert(ReadingRoundDao.table, roundRow(1, 2,
-          status: ReadingRound.statusCancelled));
+      await db.insert(ReadingRoundDao.table,
+          roundRow(1, 1, status: ReadingRound.statusFinished, end: .9));
+      await db.insert(ReadingRoundDao.table,
+          roundRow(1, 2, status: ReadingRound.statusCancelled));
       await db.insert(ReadingRoundDao.table, roundRow(1, 3));
       await db.insert('tb_reading_time', timeRow(1, 60, round: 1));
       await db.insert('tb_reading_time', timeRow(1, 30, round: 2));
@@ -261,8 +279,8 @@ void main() {
 
       final times = await db.query('tb_reading_time', orderBy: 'id');
       expect(times.map((row) => row['round']), [1, 1, 3]);
-      final rounds = await db.query(ReadingRoundDao.table,
-          orderBy: 'round_number');
+      final rounds =
+          await db.query(ReadingRoundDao.table, orderBy: 'round_number');
       expect(rounds.map((row) => row['round_number']), [1, 2, 3]);
       expect(rounds[0]['total_reading_time'], 90);
       expect(rounds[2]['total_reading_time'], 20);
@@ -286,14 +304,13 @@ void main() {
 
       await RowSyncStore.ensureRounds(db);
 
-      final rounds = await db.query('modu_sync_records',
-          where: "kind = 'round'");
+      final rounds =
+          await db.query('modu_sync_records', where: "kind = 'round'");
       expect(rounds, hasLength(1));
       expect(rounds.single['sync_id'], endsWith(':r1'));
       expect(rounds.single['dirty'], 1);
-      final time = (await db.query('modu_sync_records',
-              where: "kind = 'time'"))
-          .single;
+      final time =
+          (await db.query('modu_sync_records', where: "kind = 'time'")).single;
       final payload =
           jsonDecode(time['payload'] as String) as Map<String, dynamic>;
       expect(payload['round'], 1);
@@ -354,11 +371,11 @@ void main() {
       final raw = await databaseFactoryFfi.openDatabase(cloud,
           options: OpenDatabaseOptions(singleInstance: false));
       await raw.delete('modu_sync_records', where: "kind = 'round'");
-      for (final row in await raw.query('modu_sync_records',
-          where: "kind = 'time'")) {
-        final payload =
-            jsonDecode(row['payload'] as String) as Map<String, dynamic>
-              ..remove('round');
+      for (final row
+          in await raw.query('modu_sync_records', where: "kind = 'time'")) {
+        final payload = jsonDecode(row['payload'] as String)
+            as Map<String, dynamic>
+          ..remove('round');
         await raw.update('modu_sync_records', {'payload': jsonEncode(payload)},
             where: 'sync_id = ?', whereArgs: [row['sync_id']]);
       }
@@ -402,7 +419,8 @@ void main() {
       await syncDevice(b, client, tempB);
 
       // A finishes round 1 and starts round 2.
-      await a.update(ReadingRoundDao.table,
+      await a.update(
+          ReadingRoundDao.table,
           {
             'status': ReadingRound.statusFinished,
             'end_percentage': .98,
@@ -423,9 +441,9 @@ void main() {
       await syncDevice(b, client, tempB);
       await syncDevice(a, client, tempA);
 
-      final round2 = await a.rawQuery(
-          'SELECT SUM(reading_time) AS total FROM tb_reading_time '
-          'WHERE book_id = 1 AND round = 2');
+      final round2 = await a
+          .rawQuery('SELECT SUM(reading_time) AS total FROM tb_reading_time '
+              'WHERE book_id = 1 AND round = 2');
       expect(round2.single['total'], 30);
       final aBook = await a.query('tb_books', where: 'id = 1');
       expect(aBook.single['current_round'], 2);

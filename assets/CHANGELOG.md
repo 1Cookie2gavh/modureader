@@ -6,6 +6,16 @@ Latest stable: **1.2.11+10149**. Updated 2026-10-18.
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
+## Unreleased
+
+### English
+
+- Feat(review): Sync book reviews independently of reading progress and book metadata, including edits and clearing. Refresh open review cards after sync. This extends the unreleased v9 sync protocol; all syncing devices need a compatible client.
+
+### 中文
+
+- Feat(review): 书评独立于阅读进度和书籍信息跨设备同步，支持修改、清空，同步后刷新已打开的书评卡片。此功能属于尚未发布的 v9 同步协议，参与同步的设备均需更新兼容客户端。
+
 ## 1.2.11
 
 ### English

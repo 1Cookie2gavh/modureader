@@ -292,6 +292,30 @@ class BookDao extends BaseDao {
       whereArgs: [bookId],
     );
   }
+
+  /// 仅更新书籍备注/书评（支持 Markdown；传入空字符串即清空）。
+  /// 同样单独维护，避免被较早加载的 Book 实例整行覆盖。
+  Future<void> updateReview(int bookId, String? review) {
+    return update(
+      table,
+      {
+        'review': review ?? '',
+        'update_time': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
+
+  /// 读取书籍备注/书评（未填写或字段为空时返回空字符串）
+  Future<String> selectReview(int bookId) async {
+    final value = await rawQuerySingle<String>(
+      'SELECT review FROM $table WHERE id = ?',
+      arguments: [bookId],
+      mapper: (row) => row['review'] as String? ?? '',
+    );
+    return value ?? '';
+  }
 }
 
 final bookDao = BookDao();

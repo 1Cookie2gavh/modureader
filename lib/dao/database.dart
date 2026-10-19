@@ -16,7 +16,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Current app database version
 // v10: 多刷阅读统计（tb_reading_rounds + tb_books.current_round + tb_reading_time.round）
-const int currentDbVersion = 10;
+// v11: 书籍备注/书评（tb_books.review）
+const int currentDbVersion = 11;
 
 const createBookSQL = '''
 CREATE TABLE tb_books (
@@ -170,6 +171,7 @@ class DBHelper {
           onUpgrade: onUpgradeDatabase,
           onOpen: (db) async {
             await RowSyncStore.ensureRounds(db);
+            await db.transaction(RowSyncStore.ensureReviews);
           },
         );
       case AnxPlatformEnum.ios:
@@ -192,6 +194,7 @@ class DBHelper {
             onUpgrade: onUpgradeDatabase,
             onOpen: (db) async {
               await RowSyncStore.ensureRounds(db);
+              await db.transaction(RowSyncStore.ensureReviews);
             },
           ),
         );
@@ -516,6 +519,11 @@ class DBHelper {
           "ALTER TABLE tb_books ADD COLUMN current_round INTEGER NOT NULL DEFAULT 1");
       await db.execute(
           "ALTER TABLE tb_reading_time ADD COLUMN round INTEGER NOT NULL DEFAULT 1");
+    }
+
+    // v11：书籍备注/书评（tb_books.review，可空）
+    if (oldVersion < 11) {
+      await db.execute("ALTER TABLE tb_books ADD COLUMN review TEXT");
     }
 
     if (oldVersion != 0 && Prefs().webdavStatus) {
