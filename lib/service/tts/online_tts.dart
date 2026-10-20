@@ -680,6 +680,12 @@ class OnlineTts extends BaseTts {
               final stopTracking = _trackSpeechProgress(audioPlayer!, segment);
               try {
                 await audioPlayer.play(source);
+                // A new source resets MediaEngine's playback rate on Windows.
+                // Re-apply it after play() so the next sentence keeps the
+                // speed shown in the slider.
+                if (_usesPlaybackRate) {
+                  await audioPlayer.setPlaybackRate(_playbackRate);
+                }
                 await _playbackCompleter!.future;
               } finally {
                 stopTracking();
@@ -936,6 +942,9 @@ class OnlineTts extends BaseTts {
               await _player?.setPlaybackRate(_playbackRate);
             }
             await _player?.resume();
+            if (_usesPlaybackRate) {
+              await _player?.setPlaybackRate(_playbackRate);
+            }
           }
           if (command == _commandVersion && control == _controlVersion) {
             updateTtsState(TtsStateEnum.playing);
@@ -1025,6 +1034,10 @@ class OnlineTts extends BaseTts {
         await audioPlayer.setPlaybackRate(_playbackRate);
       }
       await audioPlayer.play(source);
+      if (_usesPlaybackRate) {
+        // play() installs a new source and resets the native rate.
+        await audioPlayer.setPlaybackRate(_playbackRate);
+      }
     }
   }
 

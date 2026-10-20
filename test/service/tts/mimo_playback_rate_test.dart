@@ -35,6 +35,46 @@ class RatePlayer extends NativePlayer {
   }
 }
 
+/// Windows' MediaEngine resets playback rate when the source changes. Every
+/// TTS sentence calls play() with a new source, so a rate set before play()
+/// would silently fall back to 1.0 on the next sentence.
+class SourceResettingPlayer extends NativePlayer {
+  double currentRate = 1.0;
+
+  @override
+  Future<void> setPlaybackRate(double value) async => currentRate = value;
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> resume() async {}
+
+  @override
+  Future<void> play(Source source,
+      {double? volume,
+      double? balance,
+      AudioContext? ctx,
+      Duration? position,
+      PlayerMode? mode}) async {
+    currentRate = 1.0;
+  }
+}
+
+class CompletingSourceResettingPlayer extends SourceResettingPlayer {
+  @override
+  Future<void> play(Source source,
+      {double? volume,
+      double? balance,
+      AudioContext? ctx,
+      Duration? position,
+      PlayerMode? mode}) async {
+    currentRate = 1.0;
+    await Future<void>.delayed(Duration.zero);
+    completed.add(null);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late XiaomiMimoTtsProvider provider;
@@ -134,6 +174,55 @@ void main() {
     await tts.speakWithVoice('再次试听', 'mimo_default');
     expect(player.playedRates.last, 1.6);
     expect(requests.length, 2);
+  });
+
+  test('rate survives a source reset (the path used by every sentence)',
+      () async {
+    Prefs().ttsRate = 1.5;
+    final resetting = SourceResettingPlayer();
+    var cursor = 0;
+    final tts = OnlineTts.forTesting(
+      backend: provider,
+      createPlayer: () => resetting,
+      collect: (_) async => const [
+        TtsSentence(text: '第一句'),
+        TtsSentence(text: '第二句'),
+      ],
+    );
+    addTearDown(tts.stop);
+    await tts.init(
+      () async => '第一句',
+      () async => ++cursor < 2 ? '第二句' : '',
+      () async => '',
+    );
+    // Preview path uses play() with a fresh source, exactly like each
+    // synthesized sentence. The native player resets its rate on that source
+    // change, so the rate must be applied after play() returns.
+    await tts.speakWithVoice('试听正文', 'mimo_default');
+    expect(resetting.currentRate, 1.5);
+  });
+
+  test('the following sentence keeps the rate after its source reset',
+      () async {
+    Prefs().ttsRate = 1.5;
+    final resetting = CompletingSourceResettingPlayer();
+    var cursor = 0;
+    final tts = OnlineTts.forTesting(
+      backend: provider,
+      createPlayer: () => resetting,
+      collect: (_) async => const [
+        TtsSentence(text: '第一句'),
+        TtsSentence(text: '第二句'),
+      ],
+    );
+    addTearDown(tts.stop);
+    await tts.init(
+      () async => '第一句',
+      () async => ++cursor < 2 ? '第二句' : '',
+      () async => '',
+    );
+    await tts.speak();
+    expect(resetting.currentRate, 1.5);
   });
 
   test('saved 4x is used for preview and restored playback', () async {
