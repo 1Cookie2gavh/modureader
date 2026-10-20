@@ -1799,6 +1799,15 @@ class Prefs extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get bottomNavigatorShowRemote {
+    return prefs.getBool('bottomNavigatorShowRemote') ?? true;
+  }
+
+  set bottomNavigatorShowRemote(bool status) {
+    prefs.setBool('bottomNavigatorShowRemote', status);
+    notifyListeners();
+  }
+
   set syncCompletedToast(bool status) {
     prefs.setBool('syncCompletedToast', status);
     notifyListeners();
