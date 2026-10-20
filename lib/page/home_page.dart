@@ -1,42 +1,32 @@
-import 'package:anx_reader/l10n/modu_strings.dart';
-import 'package:anx_reader/l10n/app_language.dart';
 import 'dart:async';
-import 'dart:ui';
-import 'package:anx_reader/utils/app_motion.dart';
-import 'package:anx_reader/service/notes/reading_link.dart';
-import 'package:anx_reader/service/notes/open_reading_link.dart';
 
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/enums/sync_direction.dart';
 import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
-import 'package:anx_reader/page/home_page/ai_page.dart';
-import 'package:anx_reader/page/home_page/remote_library_page.dart';
-import 'package:anx_reader/service/initialization_check.dart';
 import 'package:anx_reader/page/home_page/bookshelf_page.dart';
 import 'package:anx_reader/page/home_page/notes_page.dart';
+import 'package:anx_reader/page/home_page/remote_library_page.dart';
 import 'package:anx_reader/page/home_page/settings_page.dart';
 import 'package:anx_reader/page/home_page/statistics_page.dart';
+import 'package:anx_reader/providers/sync.dart';
+import 'package:anx_reader/service/initialization_check.dart';
+import 'package:anx_reader/service/notes/open_reading_link.dart';
+import 'package:anx_reader/service/notes/reading_link.dart';
 import 'package:anx_reader/service/receive_file/receive_share.dart';
 import 'package:anx_reader/utils/check_update.dart';
-import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/get_path/get_temp_dir.dart';
 import 'package:anx_reader/utils/load_default_font.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/utils/platform_utils.dart';
-import 'package:anx_reader/providers/sync.dart';
-import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
-import 'package:anx_reader/widgets/common/container/filled_container.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
-import 'package:anx_reader/widgets/home_navigation_metrics.dart';
+import 'package:anx_reader/widgets/home_navigation_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:icons_plus/icons_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 WebViewEnvironment? webViewEnvironment;
@@ -49,10 +39,6 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
-  String _currentTab = 'bookshelf';
-
-  bool? _expanded;
-
   @override
   void initState() {
     super.initState();
@@ -141,218 +127,21 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
+  Widget _buildPage(String identifier, ScrollController? controller) {
+    return switch (identifier) {
+      HomeNavigationDestination.remoteLibrary => const RemoteLibraryPage(),
+      HomeNavigationDestination.statistics =>
+        StatisticPage(controller: controller),
+      HomeNavigationDestination.ai => AiChatStream(),
+      HomeNavigationDestination.notes => NotesPage(controller: controller),
+      HomeNavigationDestination.settings =>
+        SettingsPage(controller: controller),
+      _ => BookshelfPage(controller: controller),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    final localeKey = appLocaleKey(Localizations.localeOf(context));
-    List<Map<String, dynamic>> navBarItems = [
-      {
-        'icon': EvaIcons.book_open,
-        'label': L10n.of(context).navBarBookshelf,
-        'identifier': 'bookshelf'
-      },
-      {
-        'icon': Icons.cloud_download_outlined,
-        'label': switch (localeKey) {
-          'zh-CN' => '远程',
-          'zh-TW' || 'zh-LZH' => '遠程',
-          _ => ModuStrings.text(context, '远程书库', 'Remote library'),
-        },
-        'identifier': 'remoteLibrary'
-      },
-      if (Prefs().bottomNavigatorShowStatistics)
-        {
-          'icon': Icons.history,
-          'label': switch (localeKey) {
-            'zh-CN' => '历史',
-            'zh-TW' || 'zh-LZH' => '歷史',
-            _ => L10n.of(context).navBarStatistics,
-          },
-          'identifier': 'statistics'
-        },
-      if (Prefs().bottomNavigatorShowAI && EnvVar.enableAIFeature)
-        {
-          'icon': Icons.auto_awesome,
-          'label': L10n.of(context).navBarAI,
-          'identifier': 'ai'
-        },
-      if (Prefs().bottomNavigatorShowNote)
-        {
-          'icon': Icons.note,
-          'label': L10n.of(context).navBarNotes,
-          'identifier': 'notes'
-        },
-      {
-        'icon': EvaIcons.settings_2,
-        'label': L10n.of(context).navBarSettings,
-        'identifier': 'settings'
-      },
-    ];
-
-    int currentIndex = navBarItems
-        .indexWhere((element) => element['identifier'] == _currentTab);
-    if (currentIndex == -1) {
-      currentIndex = 0;
-      _currentTab = 'bookshelf';
-    }
-
-    Widget pages(
-      int index,
-      BoxConstraints constraints,
-      ScrollController? controller,
-    ) {
-      final page = [
-        BookshelfPage(controller: controller),
-        const RemoteLibraryPage(),
-        if (Prefs().bottomNavigatorShowStatistics)
-          StatisticPage(controller: controller),
-        if (Prefs().bottomNavigatorShowAI && EnvVar.enableAIFeature)
-          AiChatStream(),
-        if (Prefs().bottomNavigatorShowNote) NotesPage(controller: controller),
-        SettingsPage(controller: controller),
-      ];
-      return page[index];
-    }
-
-    void onBottomTap(int index, bool fromRail) {
-      if (navBarItems[index]['identifier'] == 'ai' && !fromRail) {
-        showCupertinoSheet(
-            context: context,
-            scrollableBuilder:
-                (BuildContext context, ScrollController controller) {
-              Widget widgetBuilder(BuildContext context) => const AiPage();
-              return widgetBuilder(context);
-            });
-        return;
-      }
-      setState(() {
-        _currentTab = navBarItems[index]['identifier'];
-      });
-    }
-
-    List<NavigationRailDestination> railBarItems = navBarItems.map((item) {
-      return NavigationRailDestination(
-        icon: Icon(item['icon'] as IconData),
-        label: Text(item['label'] as String),
-      );
-    }).toList();
-
-    List<BottomNavigationBarItem> bottomBarItems = navBarItems.map((item) {
-      return BottomNavigationBarItem(
-        icon: Icon(item['icon'] as IconData),
-        label: item['label'] as String,
-      );
-    }).toList();
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _expanded ??= constraints.maxWidth > 1000;
-        if (constraints.maxWidth > 600) {
-          return Scaffold(
-            extendBody: true,
-            body: Row(
-              children: [
-                SafeArea(
-                  bottom: false,
-                  child: FilledContainer(
-                    margin: const EdgeInsets.all(16),
-                    color: ElevationOverlay.applySurfaceTint(
-                      Theme.of(context).colorScheme.surface,
-                      Theme.of(context).colorScheme.primary,
-                      3,
-                    ),
-                    radius: 20,
-                    child: SafeArea(
-                      child: NavigationRail(
-                        groupAlignment: 1,
-                        extended: false,
-                        selectedIndex: currentIndex,
-                        onDestinationSelected: (int index) =>
-                            onBottomTap(index, true),
-                        destinations: railBarItems,
-                        labelType: NavigationRailLabelType.all,
-                        backgroundColor: Colors.transparent,
-                        // elevation: 0,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(child: pages(currentIndex, constraints, null)),
-              ],
-            ),
-          );
-        } else {
-          final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-          if (navBarItems[currentIndex]['identifier'] == 'ai') {
-            currentIndex = 0;
-          }
-          return Scaffold(
-            extendBody: true,
-            body: BottomBar(
-              duration: AppMotion.duration(const Duration(milliseconds: 120)),
-              width: 330,
-              offset: HomeNavigationMetrics.barOffset,
-              body: (_, controller) => HomeNavigationBody(
-                hasBottomBar: !keyboardOpen,
-                scrollBehindBar: true,
-                child: pages(currentIndex, constraints, controller),
-              ),
-              showIcon: !keyboardOpen,
-              hideOnScroll: Prefs().autoHideBottomBar,
-              scrollOpposite: false,
-              curve: Curves.easeIn,
-              barColor: Colors.transparent,
-              iconDecoration: BoxDecoration(
-                color: Prefs().autoHideBottomBar
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(500),
-              ),
-              child: Visibility(
-                visible: !keyboardOpen,
-                maintainState: true,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(
-                      sigmaX: Prefs().eInkMode ? 0 : 12,
-                      sigmaY: Prefs().eInkMode ? 0 : 12,
-                    ),
-                    child: Container(
-                      height: HomeNavigationMetrics.barHeightFor(context),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainer
-                            .withAlpha(Prefs().eInkMode ? 255 : 100),
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .outline
-                              .withAlpha(Prefs().eInkMode ? 255 : 90),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: BottomNavigationBar(
-                        selectedFontSize: 12,
-                        enableFeedback: false,
-                        type: BottomNavigationBarType.fixed,
-                        landscapeLayout:
-                            BottomNavigationBarLandscapeLayout.linear,
-                        currentIndex: currentIndex,
-                        onTap: (int index) => onBottomTap(index, false),
-                        items: bottomBarItems,
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-      },
-    );
+    return HomeNavigationShell(pageBuilder: _buildPage);
   }
 }

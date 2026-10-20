@@ -66,7 +66,7 @@ void main() {
             .readAsStringSync();
     expect(
         activity, contains('window.decorView.isHapticFeedbackEnabled = false'));
-    expect(File('lib/page/home_page.dart').readAsStringSync(),
+    expect(File('lib/widgets/home_navigation_shell.dart').readAsStringSync(),
         contains('enableFeedback: false'));
   });
 }

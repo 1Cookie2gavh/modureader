@@ -13,7 +13,7 @@ from patch_app import ANCHOR_COUNTS, PATCHES, install, plan
 class AppCompatibilityTest(unittest.TestCase):
     def test_sheet_adapter_retains_contents_without_unused_controller(self):
         edits = plan(ROOT)
-        for relative in ('lib/page/home_page.dart',
+        for relative in ('lib/widgets/home_navigation_shell.dart',
                          'lib/service/initialization_check.dart',
                          'lib/page/settings_page/advanced.dart'):
             path = ROOT / relative
