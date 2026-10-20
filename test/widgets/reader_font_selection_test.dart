@@ -3,6 +3,8 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/font_model.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/widgets/reading_page/style_widget.dart';
@@ -77,4 +79,36 @@ void main() {
         .ensureVisible(find.byKey(const ValueKey('english-font-follow')));
     expect(tester.takeException(), isNull);
   });
+
+  for (final mode in PageTurn.values) {
+    testWidgets('$mode keeps font and scroll controls separated',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      Prefs().pageTurnStyle = mode;
+      await show(tester, scale: 1.5);
+      final pageTurn = find.byKey(const ValueKey('reader-page-turn'));
+      final fonts = find.byType(DropdownMenu<FontModel>);
+      final body = fonts.first;
+      final english = fonts.last;
+      expect(tester.getTopLeft(body).dy - tester.getBottomLeft(pageTurn).dy,
+          greaterThanOrEqualTo(20));
+      if (mode == PageTurn.scroll) {
+        expect(
+            tester.getTopLeft(find.byType(ContinuousScrollTile)).dy -
+                tester.getBottomLeft(body).dy,
+            greaterThanOrEqualTo(16));
+        expect(
+            tester.getTopLeft(english).dy -
+                tester.getBottomLeft(find.byType(ScrollPagePercentTile)).dy,
+            greaterThanOrEqualTo(20));
+      } else {
+        expect(find.byType(ContinuousScrollTile), findsNothing);
+        expect(tester.getTopLeft(english).dy - tester.getBottomLeft(body).dy,
+            greaterThanOrEqualTo(20));
+      }
+      await tester.ensureVisible(english);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

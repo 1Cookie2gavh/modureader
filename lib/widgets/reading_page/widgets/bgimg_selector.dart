@@ -1,4 +1,5 @@
 import 'package:anx_reader/l10n/modu_strings.dart';
+import '../reader_menu_group.dart';
 import 'dart:io';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -456,7 +457,9 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
       padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Column(
         children: [
-          _buildBgimgFitSelector(context),
+          ReaderMenuGroup(
+              margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: _buildBgimgFitSelector(context)),
           if (Prefs().autoAdjustReadingTheme)
             Padding(
               padding: const EdgeInsets.all(8),
@@ -487,7 +490,10 @@ class _BgimgSelectorState extends ConsumerState<BgimgSelector> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       item,
-                      _buildBlurOpacityControls(context),
+                      ReaderMenuGroup(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          child: _buildBlurOpacityControls(context)),
                     ],
                   );
                 }

@@ -2,6 +2,8 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/selection_toolbar.dart';
+import 'package:anx_reader/page/settings_page/selection_search.dart';
+import 'package:anx_reader/page/settings_page/dictionaries.dart';
 import 'package:anx_reader/widgets/context_menu/selection_action_toolbar.dart';
 import 'package:anx_reader/widgets/context_menu/selection_toolbar_labels.dart';
 import 'package:flutter/material.dart';
@@ -76,6 +78,65 @@ void main() {
     await tester.tap(key('selection-toolbar-enabled'));
     await tester.pumpAndSettle();
     expect(Prefs().selectionToolbar.enabled, false);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'selection search opens from toolbar settings without changing config',
+      (tester) async {
+    final toolbarBefore = Prefs().selectionToolbar.encode();
+    final searchBefore = Prefs().selectionSearchSettings.encode();
+    await tester.pumpWidget(app(const SelectionToolbarSettings()));
+    await tester.pumpAndSettle();
+    final tile = tester.widget<ListTile>(key('selection-search-settings'));
+    final colors =
+        Theme.of(tester.element(key('selection-search-settings'))).colorScheme;
+    expect(tile.textColor, colors.onSurface);
+    expect(tile.iconColor, colors.primary);
+    await tester.tap(key('selection-search-settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectionSearchSettings), findsOneWidget);
+    final route =
+        ModalRoute.of(tester.element(find.byType(SelectionSearchSettings)))!;
+    expect(route.transitionDuration, greaterThan(Duration.zero));
+    expect(route.reverseTransitionDuration, greaterThan(Duration.zero));
+    expect(Prefs().selectionToolbar.encode(), toolbarBefore);
+    expect(Prefs().selectionSearchSettings.encode(), searchBefore);
+    Navigator.of(tester.element(find.byType(SelectionSearchSettings))).pop();
+    await tester.pumpAndSettle();
+    final dictionaryTile =
+        tester.widget<ListTile>(key('selection-dictionary-settings'));
+    final dictionaryColors =
+        Theme.of(tester.element(key('selection-dictionary-settings')))
+            .colorScheme;
+    expect(dictionaryTile.textColor, dictionaryColors.onSurface);
+    expect(dictionaryTile.iconColor, dictionaryColors.primary);
+    expect(find.byType(SelectionToolbarSettings), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'custom dictionaries open from toolbar settings without changing config',
+      (tester) async {
+    final before = Prefs().selectionToolbar.encode();
+    await tester.pumpWidget(app(const SelectionToolbarSettings()));
+    await tester.pumpAndSettle();
+    await tester.tap(key('selection-dictionary-settings'));
+    // The dictionary list loads off-isolate; navigation does not need to wait
+    // for disk IO to prove that the original management page was reused.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(DictionarySettings), findsOneWidget);
+    final route =
+        ModalRoute.of(tester.element(find.byType(DictionarySettings)))!;
+    expect(route.transitionDuration, greaterThan(Duration.zero));
+    expect(route.reverseTransitionDuration, greaterThan(Duration.zero));
+    expect(find.text('导入字典'), findsOneWidget);
+    expect(Prefs().selectionToolbar.encode(), before);
+    Navigator.of(tester.element(find.byType(DictionarySettings))).pop();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(SelectionToolbarSettings), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

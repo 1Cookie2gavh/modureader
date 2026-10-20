@@ -1,4 +1,5 @@
 import 'widget_title.dart';
+import 'reader_menu_group.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
@@ -162,84 +163,111 @@ class _DocumentTextStyleDialogState extends State<DocumentTextStyleDialog> {
                           key: const ValueKey('ocr-style-preview'),
                           style: _style.textStyle,
                           textAlign: _style.alignment)),
-                  DropdownButtonFormField<bool>(
-                      isExpanded: true,
-                      initialValue: _style.serif,
-                      key: ValueKey(_style.serif),
-                      decoration: InputDecoration(labelText: t('字体', 'Font')),
-                      items: [
-                        DropdownMenuItem(
-                            value: false,
-                            child: Text(t('系统字体', 'System font'))),
-                        DropdownMenuItem(
-                            value: true,
-                            child: Text(t('思源宋体', 'Source Han Serif')))
+                  ReaderMenuGroup(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<bool>(
+                            isExpanded: true,
+                            initialValue: _style.serif,
+                            key: ValueKey(_style.serif),
+                            decoration:
+                                InputDecoration(labelText: t('字体', 'Font')),
+                            items: [
+                              DropdownMenuItem(
+                                  value: false,
+                                  child: Text(t('系统字体', 'System font'))),
+                              DropdownMenuItem(
+                                  value: true,
+                                  child: Text(t('思源宋体', 'Source Han Serif')))
+                            ],
+                            onChanged: _saving
+                                ? null
+                                : (v) {
+                                    setState(() => _style =
+                                        _style.withValue('serif', v ?? false));
+                                    _apply();
+                                  }),
+                        _slider('size', t('字体大小', 'Font size'), _style.size, 14,
+                            40, 26,
+                            decimals: 0),
+                        _slider('weight', t('字体粗细', 'Font weight'),
+                            _style.weight, .5, 2, 15),
+                        Text(
+                            t('实际粗细取决于字体支持；思源宋体内置常规和粗体。',
+                                'Weight depends on the font; Source Han Serif includes regular and bold faces.'),
+                            style: Theme.of(context).textTheme.bodySmall),
+                        _slider('height', t('行间距', 'Line spacing'),
+                            _style.height, 1.2, 2.4, 12),
+                        _slider('spacing', t('字间距', 'Letter spacing'),
+                            _style.spacing, -3, 7, 20),
+                        _slider(
+                            'margin',
+                            t('侧边距', 'Side margins'),
+                            _style.margin,
+                            0,
+                            _style.margin > 60 ? _style.margin : 60,
+                            30,
+                            decimals: 0),
+                        _slider(
+                            'verticalMargin',
+                            t('上下边距', 'Top / bottom margins'),
+                            _style.verticalMargin,
+                            0,
+                            80,
+                            40,
+                            decimals: 0),
+                        _slider(
+                            'paragraphSpacing',
+                            t('段间距', 'Paragraph spacing'),
+                            _style.paragraphSpacing,
+                            0,
+                            3,
+                            12),
+                        if (_fonts.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                              key: ValueKey('document-font-${_style.font}'),
+                              initialValue: _fonts.contains(_style.font)
+                                  ? _style.font
+                                  : '',
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                  labelText: t('已导入字体', 'Imported font')),
+                              items: [
+                                DropdownMenuItem(
+                                    value: '',
+                                    child: Text(t('使用上方字体', 'Use font above'))),
+                                for (final font in _fonts)
+                                  DropdownMenuItem(
+                                      value: font, child: Text(font)),
+                              ],
+                              onChanged: _saving
+                                  ? null
+                                  : (v) {
+                                      setState(() => _style =
+                                          _style.withValue('font', v ?? ''));
+                                      _apply();
+                                    }),
+                        SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(t('两端对齐', 'Justify text')),
+                            value: _style.alignment == TextAlign.justify,
+                            onChanged: _saving
+                                ? null
+                                : (v) {
+                                    setState(() => _style =
+                                        _style.withValue('justify', v));
+                                    _apply();
+                                  }),
                       ],
-                      onChanged: _saving
-                          ? null
-                          : (v) {
-                              setState(() => _style =
-                                  _style.withValue('serif', v ?? false));
-                              _apply();
-                            }),
-                  _slider(
-                      'size', t('字体大小', 'Font size'), _style.size, 14, 40, 26,
-                      decimals: 0),
-                  _slider('weight', t('字体粗细', 'Font weight'), _style.weight, .5,
-                      2, 15),
-                  Text(
-                      t('实际粗细取决于字体支持；思源宋体内置常规和粗体。',
-                          'Weight depends on the font; Source Han Serif includes regular and bold faces.'),
-                      style: Theme.of(context).textTheme.bodySmall),
-                  _slider('height', t('行间距', 'Line spacing'), _style.height,
-                      1.2, 2.4, 12),
-                  _slider('spacing', t('字间距', 'Letter spacing'), _style.spacing,
-                      -3, 7, 20),
-                  _slider('margin', t('侧边距', 'Side margins'), _style.margin, 0,
-                      _style.margin > 60 ? _style.margin : 60, 30,
-                      decimals: 0),
-                  _slider('verticalMargin', t('上下边距', 'Top / bottom margins'),
-                      _style.verticalMargin, 0, 80, 40,
-                      decimals: 0),
-                  _slider('paragraphSpacing', t('段间距', 'Paragraph spacing'),
-                      _style.paragraphSpacing, 0, 3, 12),
-                  if (_fonts.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                        key: ValueKey('document-font-${_style.font}'),
-                        initialValue:
-                            _fonts.contains(_style.font) ? _style.font : '',
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                            labelText: t('已导入字体', 'Imported font')),
-                        items: [
-                          DropdownMenuItem(
-                              value: '',
-                              child: Text(t('使用上方字体', 'Use font above'))),
-                          for (final font in _fonts)
-                            DropdownMenuItem(value: font, child: Text(font)),
-                        ],
-                        onChanged: _saving
-                            ? null
-                            : (v) {
-                                setState(() =>
-                                    _style = _style.withValue('font', v ?? ''));
-                                _apply();
-                              }),
-                  SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(t('两端对齐', 'Justify text')),
-                      value: _style.alignment == TextAlign.justify,
-                      onChanged: _saving
-                          ? null
-                          : (v) {
-                              setState(() =>
-                                  _style = _style.withValue('justify', v));
-                              _apply();
-                            }),
-                  const Divider(),
+                    ),
+                  ),
                   Text(t('配色和背景与电子书共用，字号等排版参数仅用于本书重排。',
                       'Colors and backgrounds are shared with ebooks; typography applies only to this book’s reflow.')),
-                  const DocumentAppearanceControls(),
+                  const ReaderMenuGroup(
+                      padding: EdgeInsets.all(12),
+                      child: DocumentAppearanceControls()),
                   if (_failed)
                     Text(t('保存失败，请重试', 'Could not save. Please retry.'),
                         style: TextStyle(

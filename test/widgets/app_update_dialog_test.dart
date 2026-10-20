@@ -62,6 +62,9 @@ void main() {
         installedVersion: () async => '1.0.8');
     addTearDown(c.dispose);
     await show(tester, c);
+    final githubChip = tester
+        .widget<ChoiceChip>(find.byKey(const ValueKey('update-source-github')));
+    expect((githubChip.label as Text).data, 'GitHub');
     expect(
         tester
             .widget<ChoiceChip>(

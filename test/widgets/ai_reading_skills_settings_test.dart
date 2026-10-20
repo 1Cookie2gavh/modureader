@@ -148,7 +148,8 @@ void main() {
     await mount(tester, size: const Size(320, 640), scale: 1.5);
     final first =
         find.byKey(const ValueKey('reading-skill-switch-smart_summary'));
-    await tester.ensureVisible(first);
+    await tester.scrollUntilVisible(first, 200,
+        scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(first);
     await tester.pumpAndSettle();

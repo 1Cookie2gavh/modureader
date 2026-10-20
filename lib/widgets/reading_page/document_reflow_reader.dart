@@ -1,4 +1,11 @@
 import 'ocr_precache_settings.dart';
+import 'reader_menu_group.dart';
+import 'package:anx_reader/enums/translation_mode.dart';
+import 'package:anx_reader/service/translate/document_page_translation.dart';
+import 'package:anx_reader/service/translate/index.dart';
+import 'package:anx_reader/service/translate/ai.dart';
+import 'package:anx_reader/service/translate/deepl.dart';
+import 'package:anx_reader/service/translate/microsoft_free.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
@@ -30,6 +37,8 @@ import 'package:anx_reader/models/reader_progress.dart';
 
 typedef ReflowSelection = Future<void> Function(DocumentReflowAnchor anchor,
     String text, String contextText, Rect globalRect, List<int> annotationIds);
+typedef ReflowTranslatedSelection = Future<void> Function(
+    String text, String contextText, Rect globalRect, int start);
 
 /// A reading surface in the reader's body, not a dialog or another book.
 /// The source WebView stays mounted underneath to retain original-page state.
@@ -46,6 +55,7 @@ class DocumentReflowReader extends StatefulWidget {
       required this.onClose,
       required this.onPageChanged,
       required this.onSelection,
+      this.onTranslatedSelection,
       required this.clearMenu,
       this.selectionInvalidated,
       required this.loadNotes,
@@ -62,6 +72,7 @@ class DocumentReflowReader extends StatefulWidget {
       this.onBookmark,
       this.onExtract,
       this.onOpenReaderMenu,
+      this.onOpenTranslationSettings,
       this.onOpenReaderPanel,
       this.onCloseReaderMenu,
       this.onReaderKeyEvent,
@@ -77,6 +88,7 @@ class DocumentReflowReader extends StatefulWidget {
   final void Function(TtsPageSource)? onNarrationInvalidated;
   final ValueChanged<bool>? onComparisonChanged;
   final VoidCallback? onOpenReaderMenu, onCloseReaderMenu;
+  final VoidCallback? onOpenTranslationSettings;
   final ValueChanged<Widget>? onOpenReaderPanel;
   final bool readerMenuVisible;
   final Future<void> Function(String, String, bool)? onQuery;
@@ -95,6 +107,7 @@ class DocumentReflowReader extends StatefulWidget {
   final VoidCallback? selectionInvalidated;
   final Future<void> Function(int) onPageChanged;
   final ReflowSelection onSelection;
+  final ReflowTranslatedSelection? onTranslatedSelection;
   final Future<List<BookNote>> Function() loadNotes;
   final DocumentTextStyle initialStyle;
   final Future<void> Function(DocumentTextStyle) saveStyle;
@@ -158,6 +171,67 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
           onNextPage: () => turnOriginalPage(1),
           onNextChapter: () => turnOriginalPage(1)));
   final _controller = _ReflowTextController();
+  final _translatedController = _ReflowTextController();
+  final _translation = DocumentPageTranslation();
+  int _translationRequest = 0;
+  ValueNotifier<TranslationModeEnum> get translationMode => _translation.mode;
+  bool get _showTranslation => translationMode.value != TranslationModeEnum.off;
+  _ReflowTextController get _readingController =>
+      _showTranslation ? _translatedController : _controller;
+
+  void stopTranslation() {
+    _translationRequest++;
+    _translation.stop();
+  }
+
+  void _translationChanged() {
+    _invalidateNarration();
+    clearSelection();
+    (widget.selectionInvalidated ?? widget.clearMenu)();
+    _translatedController.text = _translation.text;
+    _translatedController.paragraphSpacing = _style.paragraphSpacing;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> translateCurrentPage(TranslationModeEnum mode,
+      {bool force = false, TranslateServiceProvider? provider}) async {
+    final page = _page;
+    if (!mounted || _busy || page == null || page.page != _navigationPage) {
+      return;
+    }
+    final request = ++_translationRequest;
+    final generation = _generation;
+    final saved = await widget.store.read(page.page, '');
+    if (!mounted ||
+        _busy ||
+        request != _translationRequest ||
+        generation != _generation ||
+        page != _page) {
+      return;
+    }
+    final service = Prefs().fullTextTranslateService;
+    final from = Prefs().fullTextTranslateFrom;
+    final to = Prefs().fullTextTranslateTo;
+    final translator = provider ?? service.provider;
+    await _translation.translate(saved ?? page, mode,
+        settings: '${service.name}/${from.name}/${to.name}',
+        force: force,
+        request: (session, generation, text) => session.translate(
+            generation,
+            (runner) => translator is AiTranslateProvider
+                ? translator.translateStream(text, from, to,
+                    isFullText: true, requestRunner: runner)
+                : translator is MicrosoftFreeTranslateProvider
+                    ? translator.translateStream(text, from, to,
+                        isFullText: true, whenCancelled: runner.whenCancelled)
+                    : translator is DeepLTranslateProvider
+                        ? translator.translateStream(text, from, to,
+                            isFullText: true,
+                            whenCancelled: runner.whenCancelled)
+                        : translator.translateStream(text, from, to,
+                            isFullText: true)));
+  }
+
   final _search = TextEditingController();
   String? _searchStatus;
   final _scroll = ScrollController();
@@ -182,19 +256,33 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   late bool _forceOcr = widget.anchor?.ocr ?? widget.forceOcr;
   DocumentReflowPage? _page;
   TtsPageSource? _narrationSource;
-  TtsPageSource? get narrationSource {
-    if (_busy ||
-        _page == null ||
-        _page!.page != _navigationPage ||
-        _page!.text.trim().isEmpty) {
+  TtsPageSource? narrationSourceFor(DocumentReflowAnchor anchor) {
+    final page = _page;
+    if (_showTranslation ||
+        page == null ||
+        anchor.original ||
+        !anchor.matches(page)) {
       return null;
     }
+    return narrationSource;
+  }
+
+  TtsPageSource? get narrationSource {
+    if (_busy ||
+        _translation.busy ||
+        _page == null ||
+        _page!.page != _navigationPage ||
+        _readingController.text.trim().isEmpty) {
+      return null;
+    }
+    final controller = _readingController;
     return _narrationSource ??=
-        TtsPageSource(_page!.text, chapter: chapter, onHighlight: (range) {
-      if (mounted) _controller.setNarrationRange(range);
+        TtsPageSource(controller.text, chapter: chapter, onHighlight: (range) {
+      if (mounted) controller.setNarrationRange(range);
     }, onPosition: (offset) {
       if (!mounted ||
-          _controller.selection.isValid && !_controller.selection.isCollapsed) {
+          _readingController.selection.isValid &&
+              !_readingController.selection.isCollapsed) {
         return;
       }
       _textState?.bringIntoView(TextPosition(offset: offset));
@@ -240,6 +328,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         ? widget.onReaderKeyEvent?.call(node, event) ?? KeyEventResult.ignored
         : KeyEventResult.ignored;
     _controller.addListener(_selectionChanged);
+    _translatedController.addListener(_translationSelectionChanged);
+    _translation.addListener(_translationChanged);
     unawaited(_style.loadFont().then((_) {
       if (mounted) setState(() {});
     }).catchError((_) {}));
@@ -250,6 +340,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   void dispose() {
     _invalidateNarration();
     _generation++;
+    _translation.removeListener(_translationChanged);
+    _translation.dispose();
+    _translatedController.dispose();
     _selectionTimer?.cancel();
     _mouseLongPressTimer?.cancel();
     _menuTapTimer?.cancel();
@@ -271,7 +364,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   void _selectionChanged() {
-    final selection = _controller.selection;
+    if (!_showTranslation) _readingSelectionChanged();
+  }
+
+  void _readingSelectionChanged() {
+    final controller = _readingController;
+    final selection = controller.selection;
     if (selection == _observedSelection) return;
     _observedSelection = selection;
     widget.onKeyboardEligibilityChanged?.call();
@@ -283,12 +381,17 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          selection != _controller.selection ||
+          controller != _readingController ||
+          selection != controller.selection ||
           _shownSelection != null) {
         return;
       }
       (widget.selectionInvalidated ?? widget.clearMenu)();
     });
+  }
+
+  void _translationSelectionChanged() {
+    if (_showTranslation) _readingSelectionChanged();
   }
 
   void clearSelection() {
@@ -298,10 +401,13 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _controller.selection = TextSelection.collapsed(
         offset: _controller.selection.extentOffset
             .clamp(0, _controller.text.length));
+    _translatedController.selection = TextSelection.collapsed(
+        offset: _translatedController.selection.extentOffset
+            .clamp(0, _translatedController.text.length));
   }
 
   bool get canUseReadingKeys =>
-      _focus.hasPrimaryFocus && _controller.selection.isCollapsed;
+      _focus.hasPrimaryFocus && _readingController.selection.isCollapsed;
 
   void requestKeyboardFocus() => _focus.requestFocus();
 
@@ -382,10 +488,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   String get actionText {
-    final selection = _controller.selection;
+    final selection = _readingController.selection;
     return selection.isValid && !selection.isCollapsed
-        ? selection.textInside(_controller.text)
-        : _controller.text;
+        ? selection.textInside(_readingController.text)
+        : _readingController.text;
   }
 
   Future<void> _jumpToPage() async {
@@ -428,11 +534,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   void _findNext() {
     final query = _search.text;
     if (query.isEmpty) return;
-    final text = _controller.text;
+    final controller = _readingController;
+    final text = controller.text;
     final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
     final match = pattern
             .allMatches(text,
-                _controller.selection.isValid ? _controller.selection.end : 0)
+                controller.selection.isValid ? controller.selection.end : 0)
             .firstOrNull ??
         pattern.firstMatch(text);
     final index = match?.start ?? -1;
@@ -442,7 +549,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     if (index < 0) return;
     final state = _textState;
     state?.userUpdateTextEditingValue(
-        _controller.value.copyWith(
+        controller.value.copyWith(
             selection:
                 TextSelection(baseOffset: index, extentOffset: match!.end)),
         SelectionChangedCause.keyboard);
@@ -452,6 +559,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> _action(String action) async {
+    if (action == 'translate' && widget.onOpenTranslationSettings != null) {
+      widget.onOpenTranslationSettings!();
+      return;
+    }
     final text = actionText, page = _page;
     if (text.isEmpty || page == null) return;
     if (action == 'search') {
@@ -470,7 +581,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         case 'ai':
           await widget.onAiDraft?.call(text);
         case 'bookmark':
-          final selection = _controller.selection;
+          final selection = _showTranslation
+              ? const TextSelection(baseOffset: 0, extentOffset: 0)
+              : _controller.selection;
           final start = selection.isValid
               ? selection.start.clamp(0, page.text.length - 1)
               : 0;
@@ -494,6 +607,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       {DocumentReflowAnchor? anchor,
       bool refresh = false,
       bool followOriginal = false}) async {
+    stopTranslation();
     _invalidateNarration();
     final request = ++_loadRequest;
     if (target != null) _requestedPage = target;
@@ -673,68 +787,82 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   Widget _readerPanel(String menu) => switch (menu) {
         'style' => stylePanel(),
-        'search' => Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-                key: const ValueKey('reflow-search'),
-                controller: _search,
-                decoration:
-                    InputDecoration(labelText: t('本页搜索', 'Search this page')),
-                onSubmitted: (_) => _findNext()),
-            TextButton(
-                key: const ValueKey('reflow-find-next'),
-                onPressed: _findNext,
-                child: Text(t('下一个', 'Find next'))),
-            if (_searchStatus != null) Text(_searchStatus!),
-          ]),
+        'search' => ReaderMenuGroup(
+            padding: const EdgeInsets.all(12),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                  key: const ValueKey('reflow-search'),
+                  controller: _search,
+                  decoration:
+                      InputDecoration(labelText: t('本页搜索', 'Search this page')),
+                  onSubmitted: (_) => _findNext()),
+              TextButton(
+                  key: const ValueKey('reflow-find-next'),
+                  onPressed: _findNext,
+                  child: Text(t('下一个', 'Find next'))),
+              if (_searchStatus != null) Text(_searchStatus!),
+            ])),
         _ => Column(mainAxisSize: MainAxisSize.min, children: [
             Text(t('PDF / OCR', 'PDF / OCR'),
                 style: readerSubmenuTitleStyle(context)),
-            if (widget.onComparisonChanged != null)
-              SwitchListTile(
-                  key: const ValueKey('reflow-comparison-switch'),
-                  title: Text(t('原页对照', 'Compare with original')),
-                  subtitle: Text(t('竖屏上下，横屏左右；按原页码联动',
-                      'Top/bottom in portrait, side by side in landscape')),
-                  value: widget.comparison,
-                  onChanged: widget.onComparisonChanged),
-            OcrPrecacheSettings(cache: widget.precache),
-            ListTile(
-                key: const ValueKey('edit-saved-page'),
-                leading: const Icon(Icons.edit_note),
-                title: Text(t('编辑本页文字', 'Edit saved page')),
-                subtitle: Text(_page?.editedText != null
-                    ? t('已校对', 'Edited')
-                    : t('校对后自动保存到本书', 'Save corrections with this book')),
-                onTap: _busy || _page == null ? null : _editPage),
-            ListTile(
-                key: const ValueKey('export-saved-txt'),
-                leading: const Icon(Icons.file_download_outlined),
-                title: Text(t('导出本书已保存文字 TXT', 'Export saved pages as TXT')),
-                subtitle: Text(t('按原始页码排列，优先导出编辑结果',
-                    'Original page order; edited text takes priority')),
-                onTap: _busy
-                    ? null
-                    : () => exportSavedDocumentText(context, widget.store)),
-            ListTile(
-                leading: const Icon(Icons.refresh),
-                title: Text(t('重新识别本页', 'Recognize this page again')),
-                subtitle: Text(t('确认后替换本页识别及编辑结果，保留旧笔记',
-                    'Confirm replacement of this page’s recognition and edits; keep older notes')),
-                onTap: _busy ? null : _recognizeAgain),
-            if (widget.onExtract != null)
+            const SizedBox(height: 8),
+            ReaderMenuGroup(
+                child: Column(children: [
+              if (widget.onComparisonChanged != null)
+                SwitchListTile(
+                    key: const ValueKey('reflow-comparison-switch'),
+                    title: Text(t('原页对照', 'Compare with original')),
+                    subtitle: Text(t('竖屏上下，横屏左右；按原页码联动',
+                        'Top/bottom in portrait, side by side in landscape')),
+                    value: widget.comparison,
+                    onChanged: widget.onComparisonChanged),
+              Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: OcrPrecacheSettings(cache: widget.precache)),
+            ])),
+            ReaderMenuGroup(
+                child: Column(children: [
               ListTile(
-                  leading: const Icon(Icons.crop),
-                  title: Text(
-                      t('区域 / 连续多页识别', 'Area / multiple-page recognition')),
-                  onTap: widget.onExtract),
-            ListTile(
-                leading: const Icon(Icons.arrow_back),
-                title: Text(t('返回原页', 'Return to original page')),
-                onTap: widget.onClose),
-            ListTile(
-                leading: const Icon(Icons.document_scanner_outlined),
-                title: Text(t('OCR 模型设置', 'OCR model settings')),
-                onTap: _busy ? null : _settings),
+                  key: const ValueKey('edit-saved-page'),
+                  leading: const Icon(Icons.edit_note),
+                  title: Text(t('编辑本页文字', 'Edit saved page')),
+                  subtitle: Text(_page?.editedText != null
+                      ? t('已校对', 'Edited')
+                      : t('校对后自动保存到本书', 'Save corrections with this book')),
+                  onTap: _busy || _page == null ? null : _editPage),
+              ListTile(
+                  key: const ValueKey('export-saved-txt'),
+                  leading: const Icon(Icons.file_download_outlined),
+                  title: Text(t('导出本书已保存文字', 'Export saved text')),
+                  subtitle: Text(t('按原始页码排列，优先导出编辑结果',
+                      'Original page order; edited text takes priority')),
+                  onTap: _busy
+                      ? null
+                      : () => exportSavedDocumentText(context, widget.store)),
+              ListTile(
+                  leading: const Icon(Icons.refresh),
+                  title: Text(t('重新识别本页', 'Recognize this page again')),
+                  subtitle: Text(t('确认后替换本页识别及编辑结果，保留旧笔记',
+                      'Confirm replacement of this page’s recognition and edits; keep older notes')),
+                  onTap: _busy ? null : _recognizeAgain),
+              if (widget.onExtract != null)
+                ListTile(
+                    leading: const Icon(Icons.crop),
+                    title: Text(
+                        t('区域 / 连续多页识别', 'Area / multiple-page recognition')),
+                    onTap: widget.onExtract),
+            ])),
+            ReaderMenuGroup(
+                child: Column(children: [
+              ListTile(
+                  leading: const Icon(Icons.arrow_back),
+                  title: Text(t('返回原页', 'Return to original page')),
+                  onTap: widget.onClose),
+              ListTile(
+                  leading: const Icon(Icons.document_scanner_outlined),
+                  title: Text(t('OCR 模型设置', 'OCR model settings')),
+                  onTap: _busy ? null : _settings),
+            ])),
           ]),
       };
 
@@ -748,6 +876,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
           setState(() {
             _style = style;
             _controller.paragraphSpacing = style.paragraphSpacing;
+            _translatedController.paragraphSpacing = style.paragraphSpacing;
           });
         }
       });
@@ -787,7 +916,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         final word = state.renderEditable.getWordBoundary(position);
         if (!word.isValid || word.isCollapsed) return;
         state.userUpdateTextEditingValue(
-            _controller.value.copyWith(
+            _readingController.value.copyWith(
                 selection: TextSelection(
                     baseOffset: word.start, extentOffset: word.end)),
             SelectionChangedCause.longPress);
@@ -816,7 +945,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         event.timeStamp - _pointerDownTime! < kLongPressTimeout;
     if (shortTap && widget.onOpenReaderMenu != null) {
       _menuTapTimer = Timer(kDoubleTapTimeout, () {
-        if (mounted && _controller.selection.isCollapsed) {
+        if (mounted && _readingController.selection.isCollapsed) {
           widget.onOpenReaderMenu!();
         }
       });
@@ -833,7 +962,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   Future<void> _settleSelection() async {
-    final selection = _controller.selection, page = _page;
+    final controller = _readingController;
+    final selection = controller.selection, page = _page;
     final state = _textState;
     if (!mounted ||
         state == null ||
@@ -850,7 +980,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       // next gesture, a moved handle, or a restored annotation range.
       _expandInitialSelection = false;
       _expandingEpoch = epoch;
-      final text = _controller.text;
+      final text = controller.text;
       final start = selection.start == 0
           ? 0
           : text.lastIndexOf('\n', selection.start - 1) + 1;
@@ -873,7 +1003,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       if (!mounted ||
           epoch != _selectionEpoch ||
           generation != _generation ||
-          selection != _controller.selection) {
+          controller != _readingController ||
+          selection != controller.selection) {
         return;
       }
       // Never shrink a native word/drag range into a smaller token.
@@ -885,7 +1016,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
             ? TextSelection(baseOffset: bounds[0], extentOffset: bounds[1])
             : TextSelection(baseOffset: bounds[1], extentOffset: bounds[0]);
         state.userUpdateTextEditingValue(
-            _controller.value.copyWith(selection: expanded),
+            controller.value.copyWith(selection: expanded),
             _pointerKind == PointerDeviceKind.mouse
                 ? SelectionChangedCause.tap
                 : SelectionChangedCause.longPress);
@@ -893,11 +1024,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       }
     }
     // Wait for the expanded range's layout before reading global anchors.
-    final settled = _controller.selection;
+    final settled = controller.selection;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           generation != _generation ||
-          settled != _controller.selection) {
+          controller != _readingController ||
+          settled != controller.selection) {
         return;
       }
       _publishSelection(state);
@@ -917,21 +1049,38 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   void _publishSelection(EditableTextState state) {
     _editable = state;
-    final selection = _controller.selection, page = _page;
+    final translated = _showTranslation;
+    final controller = _readingController;
+    final text = controller.text;
+    final selection = controller.selection, page = _page;
     if (page == null || !selection.isValid || selection.isCollapsed) {
       return;
     }
-    final anchor = page.anchor(selection.start, selection.end);
-    final id = anchor.encode();
+    final anchor =
+        translated ? null : page.anchor(selection.start, selection.end);
+    final id = anchor?.encode() ??
+        'translation:$_translationRequest:${selection.start}:${selection.end}';
     final primary = state.contextMenuAnchors.primaryAnchor;
     final secondary = state.contextMenuAnchors.secondaryAnchor ?? primary;
     if (_shownSelection != id) {
       _shownSelection = id;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted ||
-            _controller.selection != selection ||
+            controller != _readingController ||
+            controller.text != text ||
+            controller.selection != selection ||
             _page != page ||
             _shownSelection != id) {
+          return;
+        }
+        final contextText = text.substring(
+            (selection.start - 800).clamp(0, text.length),
+            (selection.end + 800).clamp(0, text.length));
+        final rect = Rect.fromPoints(primary, secondary).inflate(4);
+        if (translated) {
+          // Display offsets are ephemeral, never original-page note anchors.
+          await widget.onTranslatedSelection?.call(
+              selection.textInside(text), contextText, rect, selection.start);
           return;
         }
         final ids = _notes
@@ -945,11 +1094,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
             .map((note) => note.id)
             .whereType<int>()
             .toList();
-        final contextText = page.text.substring(
-            (selection.start - 800).clamp(0, page.text.length),
-            (selection.end + 800).clamp(0, page.text.length));
-        await widget.onSelection(anchor, selection.textInside(page.text),
-            contextText, Rect.fromPoints(primary, secondary).inflate(4), ids);
+        await widget.onSelection(
+            anchor!, selection.textInside(text), contextText, rect, ids);
       });
     }
     WidgetsBinding.instance.scheduleFrame();
@@ -1002,6 +1148,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
               onPressed: () => widget.onComparisonChanged!(!widget.comparison)),
         if (widget.onOpenReaderMenu == null)
           PopupMenuButton<String>(
+            clipBehavior: Clip.antiAlias,
             key: const ValueKey('reflow-more'),
             tooltip: t('更多阅读功能', 'More reading tools'),
             icon: const Icon(Icons.more_vert),
@@ -1031,9 +1178,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onOpenReaderMenu,
         child: Column(children: [
-          if (_busy)
+          if (_busy || _translation.busy)
             EinkStaticIndicator(
-                child: LinearProgressIndicator(value: _progress)),
+                child:
+                    LinearProgressIndicator(value: _busy ? _progress : null)),
           Expanded(
               child: _page == null
                   ? Center(
@@ -1060,8 +1208,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                                   child: KeyedSubtree(
                                       key: _textFieldKey,
                                       child: TextField(
-                                        key: const ValueKey('reflow-text'),
-                                        controller: _controller,
+                                        key: ValueKey(_showTranslation
+                                            ? 'reflow-translated-text'
+                                            : 'reflow-text'),
+                                        controller: _readingController,
                                         focusNode: _focus,
                                         readOnly: true,
                                         maxLines: null,

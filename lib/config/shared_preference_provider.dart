@@ -57,6 +57,7 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'wereadEnabled',
   'pendingStorageMigration',
   'storageMigrationSucceeded',
   'pendingAutoSyncRequested',
@@ -88,6 +89,7 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'wereadEnabled',
   'pendingStorageMigration',
   'storageMigrationSucceeded',
   'pendingAutoSyncRequested',
@@ -114,6 +116,20 @@ const Set<String> _prefsExportSkipKeys = {
 };
 
 class Prefs extends ChangeNotifier {
+  bool get wereadEnabled => prefs.getBool('wereadEnabled') ?? false;
+  String get wereadApiKey => prefs.getString('wereadApiKey') ?? '';
+
+  Future<void> saveWereadSettings({bool? enabled, String? apiKey}) async {
+    if (apiKey != null &&
+        !await prefs.setString('wereadApiKey', apiKey.trim())) {
+      throw StateError('Could not save WeRead settings');
+    }
+    if (enabled != null && !await prefs.setBool('wereadEnabled', enabled)) {
+      throw StateError('Could not save WeRead settings');
+    }
+    notifyListeners();
+  }
+
   SelectionToolbarConfig get selectionToolbar {
     final raw = prefs.get('selectionToolbar');
     try {
@@ -306,12 +322,17 @@ class Prefs extends ChangeNotifier {
   }
 
   Color get themeColor {
-    int colorValue = prefs.getInt('themeColor') ?? Colors.blue.toARGB32();
+    int colorValue = prefs.getInt('themeColor') ?? 0xFF197D74;
     return Color(colorValue);
   }
 
   Future<void> saveThemeToPrefs(int colorValue) async {
     await prefs.setInt('themeColor', colorValue);
+    notifyListeners();
+  }
+
+  Future<void> resetThemeColor() async {
+    await prefs.remove('themeColor');
     notifyListeners();
   }
 
@@ -369,8 +390,8 @@ class Prefs extends ChangeNotifier {
     String? readThemeJson = prefs.getString('readTheme');
     if (readThemeJson == null) {
       return ReadTheme(
-          backgroundColor: 'FFFBFBF3',
-          textColor: 'FF343434',
+          backgroundColor: ReadTheme.defaultBackgroundColor,
+          textColor: ReadTheme.defaultTextColor,
           backgroundImagePath: '');
     }
     return ReadTheme.fromJson(readThemeJson);

@@ -5,6 +5,7 @@ import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/app_route_surface.dart';
 import 'package:anx_reader/utils/app_version.dart';
 import 'package:anx_reader/service/app_brightness.dart';
 import 'package:anx_reader/widgets/reading_page/brightness_widget.dart';
@@ -93,6 +94,7 @@ Future<void> main() async {
       'BGE embedding models': 'LICENSES/BGE-Embedding-MIT.txt',
       'E5 embedding model': 'LICENSES/E5-Embedding-MIT.txt',
       'PP-OCRv4 / RapidOCR models': 'LICENSES/PaddleOCR-Apache-2.0.txt',
+      'Atkinson Hyperlegible Next': 'LICENSES/AtkinsonHyperlegibleNext-OFL.txt',
     }.entries) {
       yield LicenseEntryWithLineBreaks(
           [entry.key], await rootBundle.loadString(entry.value));
@@ -383,38 +385,39 @@ class _MyAppState extends ConsumerState<MyApp>
               FlutterSmartDialog.observer,
               heroineController
             ],
-            builder: (context, child) => EinkMotionScope(
-                enabled: prefsNotifier.eInkMotionDisabled,
-                child: AppBrightnessLayer(
-                  controller: AppBrightness.instance,
-                  child: FlutterSmartDialog.init(
-                    loadingBuilder: prefsNotifier.eInkMotionDisabled
-                        ? (message) => Material(
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                side: const BorderSide(color: Colors.black),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.hourglass_empty,
-                                        color: Colors.black),
-                                    if (message.isNotEmpty) ...[
-                                      const SizedBox(height: 12),
-                                      Text(message,
-                                          style: const TextStyle(
-                                              color: Colors.black)),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            )
-                        : null,
-                  )(context, child),
-                )),
+            builder: (context, child) => AppRouteSurface(
+                child: EinkMotionScope(
+                    enabled: prefsNotifier.eInkMotionDisabled,
+                    child: AppBrightnessLayer(
+                      controller: AppBrightness.instance,
+                      child: FlutterSmartDialog.init(
+                        loadingBuilder: prefsNotifier.eInkMotionDisabled
+                            ? (message) => Material(
+                                  color: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    side: const BorderSide(color: Colors.black),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.hourglass_empty,
+                                            color: Colors.black),
+                                        if (message.isNotEmpty) ...[
+                                          const SizedBox(height: 12),
+                                          Text(message,
+                                              style: const TextStyle(
+                                                  color: Colors.black)),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                )
+                            : null,
+                      )(context, child),
+                    ))),
             navigatorKey: navigatorKey,
             locale: prefsNotifier.locale,
             localeListResolutionCallback: _resolveLocale,

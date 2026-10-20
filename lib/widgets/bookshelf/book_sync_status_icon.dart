@@ -1,4 +1,5 @@
 import 'package:anx_reader/enums/book_sync_status.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/widgets/bookshelf/spining_sync_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
@@ -34,6 +35,14 @@ class BookSyncStatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = !Prefs().eInkMode &&
+            {
+              BookSyncStatusEnum.both,
+              BookSyncStatusEnum.downloading,
+              BookSyncStatusEnum.uploading,
+            }.contains(syncStatus)
+        ? Theme.of(context).colorScheme.primary
+        : this.color;
     Widget child = switch (syncStatus) {
       BookSyncStatusEnum.localOnly => Stack(
           children: [

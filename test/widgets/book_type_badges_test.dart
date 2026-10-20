@@ -18,6 +18,53 @@ void main() {
   });
   Book book(String extension) =>
       Book.mock()..filePath = 'file/example.$extension';
+  test('book formats retain their semantic colours independently of theme', () {
+    const colours = {
+      'PDF': Color(0xFF2463CB),
+      'EPUB': Color(0xFF087F83),
+      'FB2': Color(0xFF7851AF),
+      'TXT': Color(0xFF52667A),
+      'MOBI': Color(0xFF8A5636),
+      'AZW3': Color(0xFF4D55AC),
+      'MD': Color(0xFF287A97),
+      'UMD': Color(0xFF936536),
+    };
+    for (final entry in colours.entries) {
+      expect(BookTypeBadges.formatColor(entry.key), entry.value);
+    }
+  });
+
+  testWidgets('indexing states retain semantic colours and E-Ink stays black',
+      (tester) async {
+    for (final eink in [false, true]) {
+      Prefs().eInkMode = eink;
+      for (final status in BookKnowledgeQueueStatus.values) {
+        await tester.pumpWidget(MaterialApp(
+            home: KnowledgeStatusBadge(
+          indexed: true,
+          item: BookKnowledgeQueueItem(
+              book: book('epub'), status: status, requestedAt: DateTime(2026)),
+        )));
+        final expected = switch (status) {
+          BookKnowledgeQueueStatus.queued ||
+          BookKnowledgeQueueStatus.cancelling =>
+            Colors.orange.shade700,
+          BookKnowledgeQueueStatus.extracting ||
+          BookKnowledgeQueueStatus.preparing ||
+          BookKnowledgeQueueStatus.vectorizing =>
+            Colors.blue.shade700,
+          BookKnowledgeQueueStatus.failed => Colors.red.shade700,
+          BookKnowledgeQueueStatus.cancelled => Colors.grey.shade700,
+          BookKnowledgeQueueStatus.completed => Colors.green.shade600,
+        };
+        final box = tester.widget<DecoratedBox>(find.byType(DecoratedBox));
+        expect((box.decoration as BoxDecoration).color,
+            eink ? Colors.black : expected,
+            reason: status.name);
+      }
+    }
+  });
+
   testWidgets(
       'format and indexed labels toggle independently and remember choice',
       (tester) async {
@@ -58,9 +105,9 @@ void main() {
               child: child!),
           home: Scaffold(
               body: Column(children: [
-        BookTypeBadges(book: book('epub')),
-        const KnowledgeStatusBadge(indexed: true, item: null),
-      ]))));
+            BookTypeBadges(book: book('epub')),
+            const KnowledgeStatusBadge(indexed: true, item: null),
+          ]))));
       await tester.pump();
       final format = tester.widget<Text>(find.text('EPUB')).style!;
       final indexed = tester.widget<Text>(find.text('Indexed')).style!;

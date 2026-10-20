@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:anx_reader/page/settings_page/bug_report.dart';
 import 'package:anx_reader/page/settings_page/settings_page.dart';
@@ -118,6 +120,10 @@ Future<void> fillFeature(WidgetTester tester,
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   testWidgets('long logs export the previewed snapshot only on explicit action',
       (tester) async {
     var log = 'OLD_LOG';

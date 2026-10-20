@@ -14,6 +14,7 @@ import 'package:anx_reader/widgets/ai/ai_provider_actions.dart';
 import 'package:anx_reader/widgets/common/anx_button.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -128,121 +129,135 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Provider Name
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: l10n.settingsAiProviderName,
-                border: const OutlineInputBorder(),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: AiProviderLogo(
-                    provider: AiProvider(
-                      id: widget.providerId ?? 'preview',
-                      title: _nameController.text,
-                      url: _urlController.text,
-                      model: _modelController.text,
-                      protocol: _selectedProtocol,
+            SettingsSection.content(
+              title:
+                  Text(ModuStrings.text(context, '服务连接', 'Service connection')),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Provider Name
+                    TextField(
+                      controller: _nameController,
+                      decoration: InputDecoration(
+                        labelText: l10n.settingsAiProviderName,
+                        border: const OutlineInputBorder(),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: AiProviderLogo(
+                            provider: AiProvider(
+                              id: widget.providerId ?? 'preview',
+                              title: _nameController.text,
+                              url: _urlController.text,
+                              model: _modelController.text,
+                              protocol: _selectedProtocol,
+                            ),
+                            size: 28,
+                          ),
+                        ),
+                      ),
                     ),
-                    size: 28,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-            // Protocol Type
-            Text(l10n.settingsAiProviderProtocol,
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            AnxSegmentedButton<AiProtocol>(
-              selected: {_selectedProtocol},
-              segments: [
-                SegmentButtonItem(
-                  value: AiProtocol.openai,
-                  label: l10n.settingsAiProviderProtocolOpenai,
-                ),
-                SegmentButtonItem(
-                  value: AiProtocol.claude,
-                  label: l10n.settingsAiProviderProtocolClaude,
-                ),
-                SegmentButtonItem(
-                  value: AiProtocol.gemini,
-                  label: l10n.settingsAiProviderProtocolGemini,
-                ),
-              ],
-              onSelectionChanged: (Set<AiProtocol> selection) {
-                setState(() {
-                  _selectedProtocol = selection.first;
-                  _isModified = true;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // API URL
-            TextField(
-              controller: _urlController,
-              decoration: InputDecoration(
-                labelText: l10n.settingsAiProviderUrl,
-                border: const OutlineInputBorder(),
-                helperText: _selectedProtocol == AiProtocol.openai
-                    ? l10n.settingsAiProviderUrlHint
-                    : null,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Model
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _modelController,
-                    decoration: InputDecoration(
-                      labelText: l10n.settingsAiProviderModel,
-                      border: const OutlineInputBorder(),
+                    // Protocol Type
+                    Text(l10n.settingsAiProviderProtocol,
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    AnxSegmentedButton<AiProtocol>(
+                      selected: {_selectedProtocol},
+                      segments: [
+                        SegmentButtonItem(
+                          value: AiProtocol.openai,
+                          label: l10n.settingsAiProviderProtocolOpenai,
+                        ),
+                        SegmentButtonItem(
+                          value: AiProtocol.claude,
+                          label: l10n.settingsAiProviderProtocolClaude,
+                        ),
+                        SegmentButtonItem(
+                          value: AiProtocol.gemini,
+                          label: l10n.settingsAiProviderProtocolGemini,
+                        ),
+                      ],
+                      onSelectionChanged: (Set<AiProtocol> selection) {
+                        setState(() {
+                          _selectedProtocol = selection.first;
+                          _isModified = true;
+                        });
+                      },
                     ),
-                  ),
-                ),
-                if (_selectedProtocol == AiProtocol.openai) ...[
-                  const SizedBox(width: 8),
-                  AnxButton(
-                    key: _fetchButtonKey,
-                    onPressed: _isFetchingModels ? null : _fetchModels,
-                    isLoading: _isFetchingModels,
-                    child: Text(l10n.settingsAiProviderFetchModels),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-            _buildAdvancedSettingsCard(context),
+                    // API URL
+                    TextField(
+                      controller: _urlController,
+                      decoration: InputDecoration(
+                        labelText: l10n.settingsAiProviderUrl,
+                        border: const OutlineInputBorder(),
+                        helperText: _selectedProtocol == AiProtocol.openai
+                            ? l10n.settingsAiProviderUrlHint
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Model
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _modelController,
+                            decoration: InputDecoration(
+                              labelText: l10n.settingsAiProviderModel,
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        if (_selectedProtocol == AiProtocol.openai) ...[
+                          const SizedBox(width: 8),
+                          AnxButton(
+                            key: _fetchButtonKey,
+                            onPressed: _isFetchingModels ? null : _fetchModels,
+                            isLoading: _isFetchingModels,
+                            child: Text(l10n.settingsAiProviderFetchModels),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ]),
+            ),
+
+            SettingsSectionTitle(
+                child: Text(
+                    ModuStrings.text(context, '模型参数', 'Model parameters'))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _buildAdvancedSettingsCard(context),
+            ),
             const SizedBox(height: 16),
 
             // API Keys Section
-            Row(
+            SettingsSectionTitle(
+                child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l10n.settingsAiProviderApiKeys,
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(l10n.settingsAiProviderApiKeys),
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: _addApiKey,
                   tooltip: l10n.settingsAiProviderAddKey,
                 ),
               ],
-            ),
+            )),
             const SizedBox(height: 8),
 
             if (_apiKeys.isEmpty)
               FilledContainer(
-                margin: const EdgeInsets.symmetric(vertical: 8),
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -378,32 +393,20 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ModuStrings.text(context, '模型参数', 'Model parameters'),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    ModuStrings.format(
-                      context,
-                      '温度 {temperature} · 最大 {tokens} Token · {turns} 轮',
-                      'Temperature {temperature} · {tokens} tokens · {turns} turns',
-                      values: {
-                        'temperature': _temperature.toStringAsFixed(1),
-                        'tokens': _maxTokens,
-                        'turns': _contextTurns
-                      },
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+              child: Text(
+                ModuStrings.format(
+                  context,
+                  '温度 {temperature} · 最大 {tokens} Token · {turns} 轮',
+                  'Temperature {temperature} · {tokens} tokens · {turns} turns',
+                  values: {
+                    'temperature': _temperature.toStringAsFixed(1),
+                    'tokens': _maxTokens,
+                    'turns': _contextTurns
+                  },
+                ),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -550,7 +553,7 @@ class _AiProviderDetailPageState extends ConsumerState<AiProviderDetailPage> {
     bool obscureKey = true;
 
     return FilledContainer(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(

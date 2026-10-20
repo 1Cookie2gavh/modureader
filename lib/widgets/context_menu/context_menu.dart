@@ -24,6 +24,8 @@ Future<void> showContextMenu(
     bool footnote,
     Axis axis,
     {String? contextText,
+    bool allowAnnotations = true,
+    Future<void> Function()? onNarrate,
     Rect? readerViewport,
     List<int> annotationIds = const []}) async {
   final playerKey = epubPlayerKey.currentState;
@@ -31,7 +33,10 @@ Future<void> showContextMenu(
   final parentRoute = ModalRoute.of(context);
   bool isNewNote = false;
 
-  if (Prefs().autoMarkSelection && annoId == null && annotationIds.isEmpty) {
+  if (allowAnnotations &&
+      Prefs().autoMarkSelection &&
+      annoId == null &&
+      annotationIds.isEmpty) {
     // Auto-highlight logic
     final String type = Prefs().annotationType;
     final String color = Prefs().annotationColor;
@@ -165,6 +170,8 @@ Future<void> showContextMenu(
       bookId: playerKey.book.id,
       footnote: footnote,
       contextText: contextText,
+      allowAnnotations: allowAnnotations,
+      onNarrate: onNarrate,
       decoration: decoration,
       onClose: onClose,
       menuConstraints: menuConstraints,
@@ -270,6 +277,8 @@ class _ContextMenuOverlay extends StatefulWidget {
     required this.bookId,
     required this.footnote,
     this.contextText,
+    this.allowAnnotations = true,
+    this.onNarrate,
     required this.decoration,
     required this.onClose,
     required this.menuConstraints,
@@ -291,6 +300,8 @@ class _ContextMenuOverlay extends StatefulWidget {
   final List<int> annotationIds;
   final int bookId;
   final bool footnote;
+  final bool allowAnnotations;
+  final Future<void> Function()? onNarrate;
   final String? contextText;
   final BoxDecoration decoration;
   final VoidCallback onClose;
@@ -551,6 +562,8 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
                                     annoCfi: widget.annoCfi,
                                     annoContent: widget.annoContent,
                                     contextText: widget.contextText,
+                                    allowAnnotations: widget.allowAnnotations,
+                                    onNarrate: widget.onNarrate,
                                     id: _noteId,
                                     bookId: widget.bookId,
                                     annotationIds: widget.annotationIds,

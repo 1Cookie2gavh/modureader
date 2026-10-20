@@ -9,11 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Fonts extends Fonts {
+  _Fonts({this.atkinson = false});
+  final bool atkinson;
   @override
   Future<List<RemoteFontModel>> build() async => [
-        const RemoteFontModel(
+        RemoteFontModel(
           id: 'test',
-          name: 'Atkinson Hyperlegible Next',
+          name: atkinson ? 'Atkinson Hyperlegible Next' : 'Another font',
           files: ['font.ttf'],
           size: 100,
           preview: 'test-preview.png',
@@ -90,7 +92,8 @@ void main() {
         expect(list.center.dx, closeTo(size.width / 2, 1));
         final preview =
             tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage));
-        expect(preview.height, lessThanOrEqualTo(220));
+        expect(preview.height, lessThanOrEqualTo(140));
+        expect(preview.width, lessThanOrEqualTo(480));
         expect(preview.width, lessThanOrEqualTo(list.width));
         expect(preview.fit, BoxFit.contain);
         await tester.drag(find.byType(ListView), const Offset(0, -1200));
@@ -98,5 +101,45 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  }
+
+  for (final width in [320.0, 1200.0]) {
+    testWidgets(
+        'Atkinson shows real Latin specimen without broken image at $width',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final container = ProviderContainer(overrides: [
+        fontsProvider.overrideWith(() => _Fonts(atkinson: true)),
+        fontDownloadsProvider
+            .overrideWith(() => _Downloads(DownloadStatus.none)),
+      ]);
+      addTearDown(container.dispose);
+      await container.read(fontsProvider.future);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: L10n.localizationsDelegates,
+          supportedLocales: L10n.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(1.8)),
+            child: child!,
+          ),
+          home: const FontsSettingPage(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(CachedNetworkImage), findsNothing);
+      final specimen = find.text('ABCDEFGHIJK abcdefghijk\n0123456789');
+      expect(
+          tester.widget<Text>(specimen).style!.fontFamily, 'AtkinsonPreview');
+      expect(tester.getSize(specimen).width, lessThan(width));
+      expect(find.text('Atkinson Hyperlegible Next'), findsOneWidget);
+      expect(find.byIcon(Icons.download), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   }
 }

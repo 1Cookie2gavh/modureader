@@ -1,7 +1,29 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+
+Future<bool> confirmColorReset(BuildContext context, String message) async =>
+    await showDialog<bool>(
+      context: context,
+      animationStyle: AppMotion.style,
+      builder: (context) => AlertDialog(
+        title: Text(ModuStrings.text(context, '恢复默认', 'Restore default')),
+        content: Text(message),
+        actions: [
+          TextButton(
+              key: const ValueKey('cancel-color-reset'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(ModuStrings.text(context, '取消', 'Cancel'))),
+          TextButton(
+              key: const ValueKey('confirm-color-reset'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(ModuStrings.text(context, '确认恢复', 'Restore'))),
+        ],
+      ),
+    ) ??
+    false;
 
 /// Reusable RGB color picker dialog.
 /// Returns selected color as RGB int (0xRRGGBB), alpha is always 0xFF when displaying.

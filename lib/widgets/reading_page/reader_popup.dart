@@ -66,7 +66,13 @@ class ReaderQuickStylePanel extends StatelessWidget {
         constraints: BoxConstraints(maxHeight: ReaderPopup.height(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [Flexible(child: content), toolbar],
+          children: [
+            Flexible(
+                child: ListTileTheme.merge(
+                    subtitleTextStyle: Theme.of(context).textTheme.bodySmall,
+                    child: content)),
+            toolbar
+          ],
         ),
       ));
 }
@@ -84,7 +90,7 @@ Future<void> showReaderPopup(BuildContext context,
     isScrollControlled: true,
     enableDrag: enableDrag,
     showDragHandle: false,
-    clipBehavior: Clip.hardEdge,
+    clipBehavior: Clip.antiAlias,
     builder: (context) {
       route = ModalRoute.of(context);
       return ReaderPopup(child: content);

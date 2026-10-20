@@ -62,6 +62,35 @@ void main() {
     expect(await bookDao.selectReview(1), '');
   });
 
+  test(
+      'adopting WeRead metadata never replaces personal review, rating or progress',
+      () async {
+    await bookDao.updateReview(1, '我的书评');
+    await db.update(
+        'tb_books',
+        {
+          'rating': 4.5,
+          'current_round': 3,
+          'last_read_position': 'local-cfi',
+          'reading_percentage': 0.8,
+        },
+        where: 'id = 1');
+    await bookDao.updateExternalMetadata(1, description: '外部简介');
+    var current = await bookDao.selectBookById(1);
+    expect(current.description, '外部简介');
+    expect(current.review, '我的书评');
+    expect(current.rating, 4.5);
+    expect(current.currentRound, 3);
+    expect(current.lastReadPosition, 'local-cfi');
+    expect(current.readingPercentage, 0.8);
+    await bookDao.updateExternalMetadata(1, coverPath: 'cover/confirmed.png');
+    current = await bookDao.selectBookById(1);
+    expect(current.coverPath, 'cover/confirmed.png');
+    expect(current.description, '外部简介');
+    expect(current.review, '我的书评');
+    expect(current.rating, 4.5);
+  });
+
   test('a stale Book instance cannot clobber a saved review', () async {
     final stale = await bookDao.selectBookById(1);
     await bookDao.updateReview(1, 'keep me');

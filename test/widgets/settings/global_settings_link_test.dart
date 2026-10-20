@@ -93,6 +93,7 @@ void main() {
           scrollable: find.byType(Scrollable).first);
     }
     await tester.ensureVisible(finder);
+    await tester.pump();
   }
 
   Future<void> tap(WidgetTester tester, String text) async {

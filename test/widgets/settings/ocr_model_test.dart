@@ -73,6 +73,23 @@ Future<void> show(
 }
 
 void main() {
+  for (final width in [390.0, 1200.0]) {
+    testWidgets('model frames use equal widths at $width', (tester) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await show(tester, FakeOcrStore.new);
+      final cards = find.byType(Card);
+      expect(cards, findsNWidgets(OcrModels.all.length));
+      final first = tester.getRect(cards.first);
+      for (var i = 1; i < cards.evaluate().length; i++) {
+        final rect = tester.getRect(cards.at(i));
+        expect(rect.left, closeTo(first.left, .01));
+        expect(rect.right, closeTo(first.right, .01));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
       'offline import explains pinned files and cancels without changes',
       (tester) async {

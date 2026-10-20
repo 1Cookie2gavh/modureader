@@ -11,6 +11,15 @@ from patch_app import ANCHOR_COUNTS, PATCHES, install, plan
 
 
 class AppCompatibilityTest(unittest.TestCase):
+    def test_removed_onboarding_leaves_one_changelog_sheet_per_entry(self):
+        self.assertFalse((ROOT / 'lib/page/onboarding_screen.dart').exists())
+        for relative in ('lib/service/initialization_check.dart',
+                         'lib/page/settings_page/advanced.dart'):
+            source = (ROOT / relative).read_text()
+            self.assertEqual(source.count('showCupertinoSheet('), 1)
+            self.assertEqual(ANCHOR_COUNTS[relative], 1)
+            self.assertNotIn('OnboardingScreen', source)
+
     def test_sheet_adapter_retains_contents_without_unused_controller(self):
         edits = plan(ROOT)
         for relative in ('lib/widgets/home_navigation_shell.dart',

@@ -105,7 +105,26 @@ Future<void> exportSavedDocumentText(
     BuildContext context, DocumentReflowStore store) async {
   String t(String zh, String en) => ModuStrings.text(context, zh, en);
   try {
-    final text = await store.exportTxt();
+    final format = await showDialog<DocumentTextExportFormat>(
+        context: context,
+        builder: (context) => SimpleDialog(
+              title: Text(t('选择导出格式', 'Choose export format')),
+              children: [
+                for (final format in DocumentTextExportFormat.values)
+                  SimpleDialogOption(
+                    key: ValueKey('export-format-${format.extension}'),
+                    onPressed: () => Navigator.pop(context, format),
+                    child: Text(format == DocumentTextExportFormat.txt
+                        ? 'TXT (.txt)'
+                        : 'Markdown (.md)'),
+                  ),
+                SimpleDialogOption(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(t('取消', 'Cancel'))),
+              ],
+            ));
+    if (format == null || !context.mounted) return;
+    final text = await store.exportText(format: format);
     if (!context.mounted) return;
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,11 +133,13 @@ Future<void> exportSavedDocumentText(
     }
     final path = await saveFileToDownload(
         bytes: Uint8List.fromList(utf8.encode(text)),
-        fileName: 'Modu-OCR-${DateTime.now().millisecondsSinceEpoch}.txt',
-        mimeType: 'text/plain');
+        fileName:
+            'Modu-OCR-${DateTime.now().millisecondsSinceEpoch}.${format.extension}',
+        mimeType: format.mimeType);
     if (path != null && context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t('TXT 已导出', 'TXT exported'))));
+      final label = format == DocumentTextExportFormat.txt ? 'TXT' : 'Markdown';
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t('$label 已导出', '$label exported'))));
     }
   } catch (_) {
     if (context.mounted) {

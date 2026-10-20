@@ -37,12 +37,14 @@ class _OcrPrecacheSettingsState extends State<OcrPrecacheSettings> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(ModuStrings.text(
                     context, '后台预缓存 OCR', 'Background OCR cache')),
-                subtitle: Text(ModuStrings.text(
-                    context,
-                    '原页和重排阅读时，按原书页码逐页预处理，含当前页，最多 5 页；保留已有识别和编辑结果。需要已安装的本地模型。',
-                    'Prefetch in original and reflow views by source page, up to 5 pages including the current page. Keeps saved text and edits; uses an installed local model.')),
                 value: Prefs().ocrPrecacheEnabled,
                 onChanged: _saving ? null : (value) => _save(enabled: value)),
+            Text(
+                ModuStrings.text(
+                    context,
+                    '原页和重排阅读时，按原书页码逐页预处理，含当前页，最多 5 页；保留已有识别和编辑结果。需要已安装的本地模型。',
+                    'Prefetch in original and reflow views by source page, up to 5 pages including the current page. Keeps saved text and edits; uses an installed local model.'),
+                style: Theme.of(context).textTheme.bodySmall),
             if (Prefs().ocrPrecacheEnabled)
               Row(children: [
                 Expanded(
@@ -88,7 +90,8 @@ class _OcrPrecacheSettingsState extends State<OcrPrecacheSettings> {
                     return Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                            '$message\n${cache.running ? ModuStrings.text(context, '正在处理第 ${cache.currentPage! + 1} 页${cache.progress == null ? '' : '（${cache.progress!.$1}/${cache.progress!.$2}）'}；不会因普通翻页重来。', 'Processing page ${cache.currentPage! + 1}${cache.progress == null ? '' : ' (${cache.progress!.$1}/${cache.progress!.$2})'}; normal navigation does not restart it.') : ModuStrings.text(context, '已有缓存和校对稿直接跳过；当前任务完成后，按最新页码和缓存页数处理缺失页。', 'Saved OCR and edits are skipped. After the current task finishes, missing pages follow the latest page and cache window.')}'));
+                            '$message\n${cache.running ? ModuStrings.text(context, '正在处理第 ${cache.currentPage! + 1} 页${cache.progress == null ? '' : '（${cache.progress!.$1}/${cache.progress!.$2}）'}；不会因普通翻页重来。', 'Processing page ${cache.currentPage! + 1}${cache.progress == null ? '' : ' (${cache.progress!.$1}/${cache.progress!.$2})'}; normal navigation does not restart it.') : ModuStrings.text(context, '已有缓存和校对稿直接跳过；当前任务完成后，按最新页码和缓存页数处理缺失页。', 'Saved OCR and edits are skipped. After the current task finishes, missing pages follow the latest page and cache window.')}',
+                            style: Theme.of(context).textTheme.bodySmall));
                   }),
           ]));
 }

@@ -1,4 +1,5 @@
 import 'package:anx_reader/l10n/modu_strings.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -27,31 +28,32 @@ class QqCommunity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card.outlined(
+    return SettingsSection.content(
+      title: Text(ModuStrings.text(
+          context, 'Modu 默读交流反馈 · QQ 群', 'Modu community & feedback · QQ')),
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-                ModuStrings.text(context, 'Modu 默读交流反馈 · QQ 群',
-                    'Modu community & feedback · QQ'),
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            const SelectableText(groupNumber),
-            const SizedBox(height: 4),
-            Text(ModuStrings.text(context, '在 QQ 搜索群号申请加入。',
-                'Search for the group number in QQ to request to join.')),
-            Wrap(spacing: 8, children: [
-              TextButton.icon(
-                onPressed: () => _copy(context),
-                icon: const Icon(Icons.copy_outlined),
-                label: Text(
-                    ModuStrings.text(context, '复制群号', 'Copy group number')),
-              ),
-            ]),
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SelectableText(groupNumber),
+              const SizedBox(height: 4),
+              Text(ModuStrings.text(context, '在 QQ 搜索群号申请加入。',
+                  'Search for the group number in QQ to request to join.')),
+              Wrap(spacing: 8, children: [
+                TextButton.icon(
+                  onPressed: () => _copy(context),
+                  icon: const Icon(Icons.copy_outlined),
+                  label: Text(
+                      ModuStrings.text(context, '复制群号', 'Copy group number')),
+                ),
+              ]),
+            ],
+          ),
         ),
       ),
     );

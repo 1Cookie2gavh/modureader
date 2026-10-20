@@ -42,6 +42,16 @@ class TtsPageSource {
   void clearHighlight() => onHighlight?.call(null);
   void rewind() => _index = 0;
 
+  /// Start at the sentence containing a selected word, within this page only.
+  void seekToOffset(int offset) {
+    if (!valid) return;
+    _index = 0;
+    while (_index + 1 < _sentences.length &&
+        _offsets[_index] + _sentences[_index].text.length <= offset) {
+      _index++;
+    }
+  }
+
   String currentText() {
     if (!valid) return '';
     if (_index >= _sentences.length) rewind();

@@ -4,6 +4,8 @@ import 'package:anx_reader/enums/ai_panel_position.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/page/settings_page/ai_provider_list_page.dart';
+import 'package:anx_reader/page/settings_page/ai_reading_skills.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'package:anx_reader/providers/ai_providers.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
@@ -93,6 +95,29 @@ class _AISettingsState extends ConsumerState<AISettings> {
           //     );
           //   },
           // ),
+        ],
+      ),
+      SettingsSection(
+        title: Text(ModuStrings.text(context, 'AI 阅读技能', 'AI Reading Skills')),
+        tiles: [
+          SettingsTile.navigation(
+            key: const ValueKey('ai-reading-skills-settings'),
+            leading: const Icon(Icons.extension_outlined),
+            title: Text(ModuStrings.text(
+                context, '阅读技能与提示词', 'Reading skills and prompts')),
+            description: Text(ModuStrings.text(context, '内置技能、自定义技能与功能提示词',
+                'Built-in skills, custom skills and feature prompts')),
+            onPressed: (context) => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsPageBody(
+                  title:
+                      ModuStrings.text(context, 'AI 阅读技能', 'AI Reading Skills'),
+                  isMobile: true,
+                  sections: const AiReadingSkillsSettings(),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       SettingsSection(

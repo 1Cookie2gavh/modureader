@@ -3,27 +3,21 @@ import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/page/settings_page/ai.dart';
-import 'package:anx_reader/page/settings_page/ai_reading_skills.dart';
 import 'package:anx_reader/page/settings_page/advanced.dart';
 import 'package:anx_reader/page/settings_page/appearance.dart';
-import 'package:anx_reader/page/settings_page/bug_report.dart';
 import 'package:anx_reader/page/settings_page/developer/developer_options_page.dart';
 import 'package:anx_reader/page/settings_page/narrate.dart';
 import 'package:anx_reader/page/settings_page/reading.dart';
 import 'package:anx_reader/page/settings_page/settings_page.dart';
-import 'package:anx_reader/page/settings_page/storege.dart';
 import 'package:anx_reader/page/settings_page/sync.dart';
-import 'package:anx_reader/page/settings_page/global_settings.dart';
 import 'package:anx_reader/page/settings_page/remote_library.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
-import 'package:anx_reader/page/settings_page/dictionaries.dart';
-import 'package:anx_reader/page/settings_page/selection_search.dart';
 import 'package:anx_reader/page/settings_page/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/css_settings.dart';
-import 'package:anx_reader/page/settings_page/vector_model.dart';
-import 'package:anx_reader/page/settings_page/ocr_model.dart';
+import 'package:anx_reader/page/settings_page/models.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/widgets/settings/about.dart';
+import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 
@@ -136,31 +130,14 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
               },
               {
                 "title":
-                    ModuStrings.text(context, '自定义字典', 'Custom dictionaries'),
-                "icon": Icons.menu_book_outlined,
-                "sections": const DictionarySettings(),
-                "subtitles": [
-                  ModuStrings.text(context, '本地导入 · 离线选词查询',
-                      'Local import · Offline word lookup')
-                ],
-              },
-              {
-                "title": ModuStrings.text(context, '选词搜索', 'Selection search'),
-                "icon": Icons.travel_explore,
-                "sections": const SelectionSearchSettings(),
-                "subtitles": [
-                  ModuStrings.text(context, '内置浏览器 · 自定义搜索引擎',
-                      'In-app browser · Custom search engines')
-                ],
-              },
-              {
-                "title":
                     ModuStrings.text(context, '划词工具栏', 'Selection toolbar'),
                 "icon": Icons.touch_app_outlined,
                 "sections": const SelectionToolbarSettings(),
                 "subtitles": [
-                  ModuStrings.text(context, '按钮开关 · 排序 · AI 划词模板',
-                      'Actions · Order · AI selection templates')
+                  ModuStrings.text(
+                      context,
+                      '按钮开关 · 排序 · 选词搜索 · 自定义字典 · AI 划词模板',
+                      'Actions · Order · Selection search · Dictionaries · AI templates')
                 ],
               },
               if (EnvVar.enableAIFeature)
@@ -172,37 +149,16 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                     L10n.of(context).settingsAiServices,
                     ModuStrings.text(
                         context, '模型参数、显示与工具', 'Models, display and tools'),
-                  ],
-                },
-              if (EnvVar.enableAIFeature)
-                {
-                  "title":
-                      ModuStrings.text(context, 'AI 阅读技能', 'AI Reading Skills'),
-                  "icon": Icons.extension_outlined,
-                  "sections": const AiReadingSkillsSettings(),
-                  "subtitles": [
-                    ModuStrings.text(context, '内置技能、自定义技能与提示词',
-                        'Built-in, custom skills and prompts'),
+                    ModuStrings.text(context, 'AI 阅读技能', 'AI Reading Skills'),
                   ],
                 },
               {
-                "title": ModuStrings.text(context, '向量模型', 'Vector Model'),
+                "title": ModuStrings.text(context, '模型设置', 'Model settings'),
                 "icon": Icons.hub_outlined,
-                "sections": const VectorModelSettings(),
+                "sections": const ModelSettings(),
                 "subtitles": [
-                  ModuStrings.text(
-                      context, '语义搜索与 RAG', 'Semantic search and RAG'),
-                  ModuStrings.text(
-                      context, '本地或远程嵌入模型', 'Local or remote embeddings'),
-                ],
-              },
-              {
-                "title": ModuStrings.text(context, 'OCR 模型', 'OCR model'),
-                "icon": Icons.document_scanner_outlined,
-                "sections": const OcrModelSettings(),
-                "subtitles": [
-                  ModuStrings.text(context, '文字识别、模型下载与下载源',
-                      'Text recognition, models and download sources')
+                  ModuStrings.text(context, '向量模型 · OCR 模型 · 下载来源',
+                      'Vector models · OCR models · Download sources'),
                 ],
               },
               {
@@ -215,22 +171,13 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                 ],
               },
               {
-                "title": L10n.of(context).settingsSync,
+                "title": ModuStrings.text(context, '同步与备份', 'Sync and backup'),
                 "icon": Icons.sync_outlined,
                 "sections": const SyncSetting(),
                 "subtitles": [
                   L10n.of(context).settingsSyncWebdav,
                   ModuStrings.text(context, '数据库备份', 'Database backup'),
-                ],
-              },
-              {
-                "title": ModuStrings.text(
-                    context, '全局设置备份', 'Global settings backup'),
-                "icon": Icons.settings_backup_restore,
-                "sections": const GlobalSettingsPage(),
-                "subtitles": [
-                  ModuStrings.text(context, '文件与 modu 链接 · 可选迁移账号密钥',
-                      'Files and modu links · Optional credentials')
+                  ModuStrings.text(context, '全局设置备份', 'Global settings backup'),
                 ],
               },
               {
@@ -239,8 +186,8 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                 "icon": Icons.folder_shared_outlined,
                 "sections": const RemoteLibrarySettings(),
                 "subtitles": [
-                  ModuStrings.text(context, '远程文件浏览与书籍下载（独立于同步）',
-                      'Browse and download books (separate from sync)')
+                  ModuStrings.text(
+                      context, '远程文件浏览与书籍下载', 'Browse and download books')
                 ],
               },
               {
@@ -253,34 +200,16 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                 ],
               },
               {
-                "title": L10n.of(context).storage,
-                "icon": Icons.storage_outlined,
-                "sections": const StorageSettings(),
-                "subtitles": [
-                  L10n.of(context).storageInfo,
-                  L10n.of(context).storageDataFileDetails,
-                ],
-              },
-              {
                 "title": L10n.of(context).settingsAdvanced,
                 "icon": Icons.shield_outlined,
                 "sections": const AdvancedSetting(),
                 "subtitles": [
+                  L10n.of(context).storage,
                   L10n.of(context).chapterSplitting,
                   L10n.of(context).settingsAdvancedLog,
                   L10n.of(context).duplicateFile,
                   L10n.of(context).settingsAdvancedJavascript,
                   L10n.of(context).settingsAdvancedNetwork,
-                ],
-              },
-              {
-                "title": ModuStrings.text(
-                    context, '问题反馈与功能建议', 'Bug reports and feature requests'),
-                "icon": Icons.bug_report_outlined,
-                "sections": const BugReportSettings(),
-                "subtitles": [
-                  ModuStrings.text(context, 'Bug、功能建议与处理进度',
-                      'Bugs, feature requests and issue status'),
                 ],
               },
             ];
@@ -316,21 +245,28 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                     subTitles: settings[index]["subtitles"],
                   ),
                 if (showDeveloper)
-                  ListTile(
-                    leading: Icon(Icons.developer_mode,
-                        color: Theme.of(context).colorScheme.primary),
-                    title: const Text('Developer Options'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MotionCupertinoPageRoute(
-                          builder: (context) => const DeveloperOptionsPage(),
-                        ),
-                      );
-                    },
+                  FilledContainer(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: ListTile(
+                      leading: Icon(Icons.developer_mode,
+                          color: Theme.of(context).colorScheme.primary),
+                      title: const Text('Developer Options'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MotionCupertinoPageRoute(
+                            builder: (context) => const DeveloperOptionsPage(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                const About(leadingColor: true),
+                const FilledContainer(
+                  margin: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: About(leadingColor: true),
+                ),
               ];
 
               return ListView(

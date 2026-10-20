@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -206,13 +207,17 @@ class _TtsWidgetState extends State<TtsWidget> {
                 pitch(),
                 rate(),
                 if (_pageSource != null)
-                  Text(ModuStrings.text(context, '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
-                      'Read this reflow page only, then stop. Changing pages or leaving reflow stops narration.'))
+                  Text(
+                      ModuStrings.text(context, '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
+                          'Read this reflow page only, then stop. Changing pages or leaving reflow stops narration.'),
+                      style: Theme.of(context).textTheme.bodySmall)
                 else if (tts_svc.getTtsService(Prefs().ttsService).isOnline)
-                  Text(ModuStrings.text(
-                      context,
-                      '连贯朗读：同段相邻句合成，高亮和前后跳转按小段；长段自动拆分。',
-                      'Continuous narration: adjacent sentences are grouped. Highlighting and Previous/Next follow each group; long paragraphs are split.')),
+                  Text(
+                      ModuStrings.text(
+                          context,
+                          '连贯朗读：同段相邻句合成，高亮和前后跳转按小段；长段自动拆分。',
+                          'Continuous narration: adjacent sentences are grouped. Highlighting and Previous/Next follow each group; long paragraphs are split.'),
+                      style: Theme.of(context).textTheme.bodySmall),
                 Row(
                   children: [
                     Text(L10n.of(context).ttsType),
@@ -227,8 +232,9 @@ class _TtsWidgetState extends State<TtsWidget> {
                             return FractionallySizedBox(
                               heightFactor: 0.7,
                               child: Padding(
-                                padding: const EdgeInsets.only(top: 16.0),
-                                child: const NarrateSettings(),
+                                padding: const EdgeInsets.all(16.0),
+                                child: const ReaderMenuGroup(
+                                    child: NarrateSettings()),
                               ),
                             );
                           },
@@ -388,12 +394,14 @@ class _TtsWidgetState extends State<TtsWidget> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               widgetTitle(
                 L10n.of(context).ttsNarrator,
                 ReadingSettings.style,
               ),
-              buttons(),
+              ReaderMenuGroup(
+                  padding: const EdgeInsets.all(12), child: buttons()),
               if (_startupError case final String error)
                 Text(error,
                     style:
@@ -402,9 +410,10 @@ class _TtsWidgetState extends State<TtsWidget> {
                 Text(error,
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error)),
-              const Divider(),
-              stopTimerWidget(),
-              sliders(),
+              ReaderMenuGroup(
+                  padding: const EdgeInsets.all(12), child: stopTimerWidget()),
+              ReaderMenuGroup(
+                  padding: const EdgeInsets.all(12), child: sliders()),
             ],
           ),
         );

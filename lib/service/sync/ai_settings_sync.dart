@@ -13,6 +13,8 @@ const String _aiSettingsRecordId = 'ai-service-settings-v1';
 const int _aiSettingsPayloadVersion = 1;
 
 const Set<String> _aiSettingsPreferenceKeys = {
+  // WeRead credentials share the existing explicitly enabled encrypted channel.
+  'wereadApiKey',
   // AI chat providers and model parameters.
   'aiProviders',
   'selectedAiService',
@@ -59,7 +61,7 @@ bool isAiSettingsSyncPreference(String key) {
       _aiSettingsPreferencePrefixes.any(key.startsWith);
 }
 
-/// Returns only AI-related provider settings and credentials. General app
+/// Returns only sensitive service settings and credentials. General app
 /// preferences and WebDAV credentials are deliberately excluded.
 Map<String, Object?> collectAiSettingsForSync(SharedPreferences preferences) {
   final result = SplayTreeMap<String, Object?>();
@@ -84,7 +86,9 @@ Future<void> applyAiSettingsFromSync(
 ) async {
   for (final entry in values.entries) {
     if (!isAiSettingsSyncPreference(entry.key) ||
-        !_isSupportedPreferenceValue(entry.value)) {
+        !_isSupportedPreferenceValue(entry.value) ||
+        (entry.key == 'wereadApiKey' &&
+            (entry.value is! String || (entry.value as String).length > 512))) {
       throw const FormatException('同步数据库中的 AI 设置格式无效');
     }
   }
@@ -92,6 +96,9 @@ Future<void> applyAiSettingsFromSync(
   final localKeys =
       preferences.getKeys().where(isAiSettingsSyncPreference).toList();
   for (final key in localKeys) {
+    // Older devices/snapshots do not know this key. Absence must not erase it;
+    // an explicit empty string still propagates the user's clear operation.
+    if (key == 'wereadApiKey' && !values.containsKey(key)) continue;
     await preferences.remove(key);
   }
   for (final entry in values.entries) {

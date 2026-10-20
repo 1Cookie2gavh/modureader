@@ -169,6 +169,52 @@ void main() {
 
   for (final background in [true, false]) {
     testWidgets(
+        '${background ? 'background' : 'text'} reset requires confirmation and preserves the other colour',
+        (tester) async {
+      var saves = 0;
+      ReadTheme? applied;
+      final current = theme();
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: ThemeChangeWidget(
+        readTheme: current,
+        setCurrentPage: (_) {},
+        saveTheme: (_) async => saves++,
+        applyTheme: (value) => applied = value,
+      ))));
+      for (final key in ['reading-background-color', 'reading-text-color']) {
+        final button = find.byKey(ValueKey(key));
+        expect(tester.widget(button), isA<OutlinedButton>());
+        expect(find.descendant(of: button, matching: find.byType(Text)),
+            findsOneWidget);
+      }
+      await tester.tap(find.byKey(ValueKey(
+          background ? 'reading-background-color' : 'reading-text-color')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reset-reading-color')));
+      await tester.pumpAndSettle();
+      expect(saves, 0);
+      await tester.tap(find.byKey(const ValueKey('cancel-color-reset')));
+      await tester.pumpAndSettle();
+      expect(saves, 0);
+      expect(current.backgroundColor, 'fffafafa');
+      expect(current.textColor, 'ff123456');
+      await tester.tap(find.byKey(const ValueKey('reset-reading-color')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-color-reset')));
+      await tester.pumpAndSettle();
+      expect(saves, 1);
+      expect(applied!.backgroundColor,
+          background ? ReadTheme.defaultBackgroundColor : 'fffafafa');
+      expect(applied!.textColor,
+          background ? 'ff123456' : ReadTheme.defaultTextColor);
+      expect(
+          Prefs().bgimg.type, background ? BgimgType.none : BgimgType.assets);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
         'confirmed ${background ? 'background' : 'text'} colour is saved and applied immediately',
         (tester) async {
       ReadTheme? saved;

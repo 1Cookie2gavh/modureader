@@ -6,6 +6,22 @@ abstract class AbstractSettingsSection extends StatelessWidget {
   const AbstractSettingsSection({super.key});
 }
 
+class SettingsSectionTitle extends StatelessWidget {
+  const SettingsSectionTitle({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(24, 12, 24, 5),
+        child: DefaultTextStyle(
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+          child: child,
+        ),
+      );
+}
+
 class SettingsSection extends AbstractSettingsSection {
   const SettingsSection({
     super.key,
@@ -13,6 +29,19 @@ class SettingsSection extends AbstractSettingsSection {
     this.margin,
     this.title,
   });
+
+  SettingsSection.content({
+    Key? key,
+    required Widget title,
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  }) : this(
+          key: key,
+          title: title,
+          tiles: [
+            CustomSettingsTile(child: Padding(padding: padding, child: child))
+          ],
+        );
 
   final List<AbstractSettingsTile> tiles;
   final EdgeInsetsDirectional? margin;
@@ -24,30 +53,12 @@ class SettingsSection extends AbstractSettingsSection {
   }
 
   Widget buildSectionBody(BuildContext context) {
-    const scaleFactor = 0.5;
     final tileList = buildTileList();
 
-    if (title == null) {
-      return tileList;
-    }
-
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.only(
-            top: 24 * scaleFactor,
-            bottom: 10 * scaleFactor,
-            start: 24,
-            end: 24,
-          ),
-          child: DefaultTextStyle(
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-            ),
-            child: title!,
-          ),
-        ),
+        if (title != null) SettingsSectionTitle(child: title!),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: FilledContainer(
@@ -61,6 +72,7 @@ class SettingsSection extends AbstractSettingsSection {
 
   Widget buildTileList() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: tiles,
     );
   }

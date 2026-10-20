@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'reader_menu_group.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -211,106 +212,127 @@ class _DocumentEnhancementPanelState extends State<DocumentEnhancementPanel> {
                         child: ListView(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             children: [
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            key: ValueKey('paper-mode-${_draft.paperMode}'),
-                            initialValue: _draft.paperMode,
-                            decoration: InputDecoration(
-                                labelText: tr('漂白策略', 'Whitening strategy')),
-                            items: [
-                              DropdownMenuItem(
-                                  value: 'preserve',
-                                  child: Text(
-                                      tr('漫画保色', 'Preserve comic colours'),
-                                      overflow: TextOverflow.ellipsis)),
-                              DropdownMenuItem(
-                                  value: 'text',
-                                  child: Text(
-                                      tr('文字扫描净底', 'Clean text scan paper'),
-                                      overflow: TextOverflow.ellipsis)),
-                            ],
-                            onChanged: _saving
-                                ? null
-                                : (value) {
-                                    if (value == null) return;
-                                    setState(() {
-                                      _draft = _draft.withPaperMode(value);
-                                      _original = false;
-                                    });
-                                    _schedule();
-                                  },
+                          ReaderMenuGroup(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  isExpanded: true,
+                                  key: ValueKey(
+                                      'paper-mode-${_draft.paperMode}'),
+                                  initialValue: _draft.paperMode,
+                                  decoration: InputDecoration(
+                                      labelText:
+                                          tr('漂白策略', 'Whitening strategy')),
+                                  items: [
+                                    DropdownMenuItem(
+                                        value: 'preserve',
+                                        child: Text(
+                                            tr('漫画保色',
+                                                'Preserve comic colours'),
+                                            overflow: TextOverflow.ellipsis)),
+                                    DropdownMenuItem(
+                                        value: 'text',
+                                        child: Text(
+                                            tr('文字扫描净底',
+                                                'Clean text scan paper'),
+                                            overflow: TextOverflow.ellipsis)),
+                                  ],
+                                  onChanged: _saving
+                                      ? null
+                                      : (value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _draft =
+                                                _draft.withPaperMode(value);
+                                            _original = false;
+                                          });
+                                          _schedule();
+                                        },
+                                ),
+                                Text(tr(
+                                    '选择策略后调整漂白强度；文字净底会淡化纸色，也可能影响浅色插图，请对照原图。',
+                                    'Adjust whitening strength after selecting a strategy. Text cleanup removes paper colour and may alter pale illustrations; compare the original.')),
+                              ],
+                            ),
                           ),
-                          Text(tr('选择策略后调整漂白强度；文字净底会淡化纸色，也可能影响浅色插图，请对照原图。',
-                              'Adjust whitening strength after selecting a strategy. Text cleanup removes paper colour and may alter pale illustrations; compare the original.')),
                           for (final entry
                               in DocumentEnhancement.limits.entries)
-                            DocumentControlRow(
-                              label: switch (entry.key) {
-                                'ink' => tr('文字加黑', 'Stroke strength'),
-                                'contrast' => tr('对比度', 'Contrast'),
-                                'darken' => tr('加黑', 'Darken'),
-                                'whiten' => tr('漂白', 'Paper whitening'),
-                                'watermark' =>
-                                  tr('扫描水印减淡', 'Scan watermark fading'),
-                                _ => tr('锐化', 'Sharpen'),
-                              },
-                              child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                return Row(children: [
-                                  SizedBox(
-                                      width: 36,
-                                      child: Text(
-                                          '${_draft.values[entry.key]!.round()}',
-                                          textAlign: TextAlign.center)),
-                                  IconButton(
-                                      tooltip: tr('减少', 'Decrease'),
-                                      onPressed: _saving
-                                          ? null
-                                          : () => _change(
-                                              entry.key,
-                                              (_draft.values[entry.key]! - 1)
-                                                  .clamp(entry.value.$1,
-                                                      entry.value.$2)),
-                                      icon: const Icon(Icons.remove)),
-                                  Expanded(
-                                      child: Slider(
-                                          key: ValueKey(
-                                              'enhancement-${entry.key}'),
-                                          value: _draft.values[entry.key]!,
-                                          min: entry.value.$1,
-                                          max: entry.value.$2,
-                                          divisions:
-                                              (entry.value.$2 - entry.value.$1)
-                                                  .round(),
-                                          onChanged: _saving
+                            ReaderMenuGroup(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                child: DocumentControlRow(
+                                  label: switch (entry.key) {
+                                    'ink' => tr('文字加黑', 'Stroke strength'),
+                                    'contrast' => tr('对比度', 'Contrast'),
+                                    'darken' => tr('加黑', 'Darken'),
+                                    'whiten' => tr('漂白', 'Paper whitening'),
+                                    'watermark' =>
+                                      tr('扫描水印减淡', 'Scan watermark fading'),
+                                    _ => tr('锐化', 'Sharpen'),
+                                  },
+                                  child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                    return Row(children: [
+                                      SizedBox(
+                                          width: 36,
+                                          child: Text(
+                                              '${_draft.values[entry.key]!.round()}',
+                                              textAlign: TextAlign.center)),
+                                      IconButton(
+                                          tooltip: tr('减少', 'Decrease'),
+                                          onPressed: _saving
                                               ? null
-                                              : (v) => _change(entry.key, v))),
-                                  IconButton(
-                                      tooltip: tr('增加', 'Increase'),
-                                      onPressed: _saving
-                                          ? null
-                                          : () => _change(
-                                              entry.key,
-                                              (_draft.values[entry.key]! + 1)
-                                                  .clamp(entry.value.$1,
-                                                      entry.value.$2)),
-                                      icon: const Icon(Icons.add)),
-                                  if (constraints.maxWidth >= 540)
-                                    OutlinedButton(
-                                        onPressed: _saving
-                                            ? null
-                                            : () => _change(entry.key, 0),
-                                        child: Text(tr('恢复默认', 'Reset')))
-                                  else
-                                    IconButton(
-                                        tooltip: tr('恢复默认', 'Reset'),
-                                        onPressed: _saving
-                                            ? null
-                                            : () => _change(entry.key, 0),
-                                        icon: const Icon(Icons.restart_alt)),
-                                ]);
-                              }),
-                            ),
+                                              : () => _change(
+                                                  entry.key,
+                                                  (_draft.values[entry.key]! -
+                                                          1)
+                                                      .clamp(entry.value.$1,
+                                                          entry.value.$2)),
+                                          icon: const Icon(Icons.remove)),
+                                      Expanded(
+                                          child: Slider(
+                                              key: ValueKey(
+                                                  'enhancement-${entry.key}'),
+                                              value: _draft.values[entry.key]!,
+                                              min: entry.value.$1,
+                                              max: entry.value.$2,
+                                              divisions: (entry.value.$2 -
+                                                      entry.value.$1)
+                                                  .round(),
+                                              onChanged: _saving
+                                                  ? null
+                                                  : (v) =>
+                                                      _change(entry.key, v))),
+                                      IconButton(
+                                          tooltip: tr('增加', 'Increase'),
+                                          onPressed: _saving
+                                              ? null
+                                              : () => _change(
+                                                  entry.key,
+                                                  (_draft.values[entry.key]! +
+                                                          1)
+                                                      .clamp(entry.value.$1,
+                                                          entry.value.$2)),
+                                          icon: const Icon(Icons.add)),
+                                      if (constraints.maxWidth >= 540)
+                                        OutlinedButton(
+                                            onPressed: _saving
+                                                ? null
+                                                : () => _change(entry.key, 0),
+                                            child: Text(tr('恢复默认', 'Reset')))
+                                      else
+                                        IconButton(
+                                            tooltip: tr('恢复默认', 'Reset'),
+                                            onPressed: _saving
+                                                ? null
+                                                : () => _change(entry.key, 0),
+                                            icon:
+                                                const Icon(Icons.restart_alt)),
+                                    ]);
+                                  }),
+                                )),
                           Text(tr('只改变显示，不修改原文件。漂白主要净化浅色纸张；复杂背景请保留原图。',
                               'Display only; the source file stays unchanged. Whitening targets light paper. Keep the original for complex backgrounds.')),
                           Text(tr(

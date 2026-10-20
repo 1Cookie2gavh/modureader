@@ -6,6 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'document_text_reflow.dart';
 import 'document_text_geometry.dart';
 
+enum DocumentTextExportFormat {
+  txt('txt', 'text/plain'),
+  markdown('md', 'text/markdown');
+
+  const DocumentTextExportFormat(this.extension, this.mimeType);
+  final String extension, mimeType;
+}
+
 /// Not an EPUB CFI: never pass these positions to the original PDF renderer.
 class DocumentReflowAnchor {
   const DocumentReflowAnchor(
@@ -408,7 +416,12 @@ class DocumentReflowStore {
         if (jsonEncode(local) != jsonEncode(merged)) await _write(root, merged);
       });
 
-  Future<String> exportTxt() => _locked((root) async {
+  Future<String> exportTxt() => exportText();
+
+  Future<String> exportText({
+    DocumentTextExportFormat format = DocumentTextExportFormat.txt,
+  }) =>
+      _locked((root) async {
         final data = await _book(root);
         final numbers = (data['pages'] as Map)
             .keys
@@ -416,6 +429,12 @@ class DocumentReflowStore {
             .toList()
           ..sort();
         const separator = '────────────────────';
+        if (format == DocumentTextExportFormat.markdown) {
+          return numbers
+              .map((number) =>
+                  '## 第${number + 1}页\n\n${_page(data, number)!.text}\n')
+              .join('\n---\n\n');
+        }
         return numbers
             .map((number) =>
                 '第${number + 1}页\n$separator\n${_page(data, number)!.text}\n$separator')

@@ -3,6 +3,7 @@ import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
 import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:anx_reader/widgets/reading_page/reader_settings_scroll_view.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/reading_page/reader_menu_group.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,7 +16,9 @@ void main() {
       Widget items(BuildContext context, int level) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(key: ValueKey('content-$level'), height: 48),
+              ReaderMenuGroup(
+                  key: ValueKey('content-$level'),
+                  child: const SizedBox(height: 48)),
               if (level < 3)
                 TextButton(
                     child: Text('Open ${level + 1}'),

@@ -2,6 +2,7 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/reader_progress.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:flutter/material.dart';
+import 'reader_menu_group.dart';
 
 class ProgressWidget extends StatelessWidget {
   const ProgressWidget({super.key, required this.epubPlayerKey});
@@ -74,9 +75,10 @@ class _ReadingProgressControlsState extends State<ReadingProgressControls> {
           onPressed: progress.isReady ? action : null,
         );
 
-    return Padding(
+    return ReaderMenuGroup(
       key: const ValueKey('reader-progress-panel'),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const SizedBox(height: 10),
         Text(

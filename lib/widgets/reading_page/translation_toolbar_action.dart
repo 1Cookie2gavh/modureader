@@ -29,6 +29,7 @@ class TranslationToolbarAction extends StatelessWidget {
       );
     }
     return PopupMenuButton<bool>(
+      clipBehavior: Clip.antiAlias,
       popUpAnimationStyle: AppMotion.style,
       key: const ValueKey('reader-translation-button'),
       tooltip: tooltip,

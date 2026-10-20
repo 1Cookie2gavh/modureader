@@ -578,6 +578,7 @@ class _NarrateSettingsState extends ConsumerState<NarrateSettings>
                       padding: const EdgeInsets.all(8.0),
                       child: _showVoiceList
                           ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [..._buildVoiceListContent()],
                             )
                           : Center(
@@ -791,7 +792,7 @@ class _NarrateSettingsState extends ConsumerState<NarrateSettings>
   Widget _buildCurrentModelSection() {
     // Reuse existing UI logic
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: FilledContainer(
         child: InkWell(
           onTap: _scrollToSelectedModel,
@@ -904,6 +905,7 @@ class _NarrateSettingsState extends ConsumerState<NarrateSettings>
 
       voiceModelList.add(
         Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             FilledContainer(
               radius: 5,

@@ -23,6 +23,7 @@ class ChineseConversionButton extends StatelessWidget {
       builder: (context, _) {
         final selected = Prefs().readingRules.convertChineseMode;
         return PopupMenuButton<ConvertChineseMode>(
+          clipBehavior: Clip.antiAlias,
           tooltip: l10n.readingPageConvertChinese,
           initialValue: selected,
           onSelected: (mode) {

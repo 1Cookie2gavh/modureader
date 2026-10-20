@@ -3,6 +3,7 @@ import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/widgets/reading_page/widgets/book_toc.dart';
 import 'package:anx_reader/widgets/reading_page/widgets/bookmark.dart';
 import 'package:flutter/material.dart';
+import 'reader_menu_group.dart';
 
 class TocWidget extends StatefulWidget {
   const TocWidget({
@@ -50,13 +51,15 @@ class _TocWidgetState extends State<TocWidget>
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                buildBookToc(),
-                buildBookmarkList(),
-              ],
-            ),
+            child: ReaderMenuGroup(
+                margin: EdgeInsets.zero,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    buildBookToc(),
+                    buildBookmarkList(),
+                  ],
+                )),
           ),
         ),
       ],

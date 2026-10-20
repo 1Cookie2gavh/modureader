@@ -33,6 +33,9 @@ abstract class BaseRoundedContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BorderRadiusGeometry borderRadius = _borderRadius;
+    final cardTheme = Theme.of(context).cardTheme;
+    final baseDecoration = decoration(context, borderRadius);
+    final hasShadow = (cardTheme.elevation ?? 0) > 0;
 
     return AnimatedContainer(
       duration: AppMotion.duration(animationDuration),
@@ -41,12 +44,36 @@ abstract class BaseRoundedContainer extends StatelessWidget {
       width: width,
       height: height,
       constraints: constraints,
-      decoration: decoration(context, borderRadius),
+      decoration: ShapeDecoration(
+        // Cover the shadow inside the shape with the same page colour.
+        color: hasShadow
+            ? Color.alphaBlend(baseDecoration.color ?? Colors.transparent,
+                Theme.of(context).colorScheme.surface)
+            : baseDecoration.color,
+        image: baseDecoration.image,
+        gradient: baseDecoration.gradient,
+        shape: baseDecoration.shape,
+        shadows: hasShadow
+            ? [
+                BoxShadow(
+                  color: cardTheme.shadowColor ?? Colors.transparent,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                  // Outer blur cuts a displaced hole, leaving a second rim.
+                  blurStyle: BlurStyle.normal,
+                ),
+              ]
+            : const [],
+      ),
       child: ClipRSuperellipse(
         borderRadius: borderRadius,
-        child: Container(
-          padding: padding,
-          child: child,
+        child: Material(
+          type: MaterialType.transparency,
+          textStyle: DefaultTextStyle.of(context).style,
+          child: Container(
+            padding: padding,
+            child: child,
+          ),
         ),
       ),
     );

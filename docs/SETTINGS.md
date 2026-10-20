@@ -1,10 +1,10 @@
-# Modu 1.2.5 settings and features
+# Modu 1.3.0 settings and features
 
 English · [简体中文](SETTINGS_zh.md) · [Home](../README_EN.md) · [Documentation](README.md)
 
-For stable **1.2.5+10102**, updated 2026-10-10. Phones usually open settings one page at a time; wide desktop windows use a two-column layout. Some capabilities depend on the operating system, reader engine and selected service.
+For stable **1.3.0+10151**, updated 2026-10-20. Phones usually open settings one page at a time; wide desktop windows use a two-column layout. Some capabilities depend on the operating system, reader engine and selected service.
 
-The source review includes the changes in [1.2.5](https://github.com/sobranie2406/modureader/tree/v1.2.5). See the [detailed feature guide](FEATURES.md) for workflows, defaults and boundaries. Source and automated checks are distinct from device acceptance on every platform.
+The current entry points below include [1.3.0](https://github.com/sobranie2406/modureader/tree/v1.3.0). See the [detailed feature guide](FEATURES.md) for workflows, defaults and boundaries. Source and automated checks are distinct from device acceptance on every platform.
 
 ## Settings entry points
 
@@ -16,23 +16,26 @@ Open **Settings** from the home navigation. The app language can follow the syst
 
 | Category | Purpose |
 | --- | --- |
-| Appearance | Theme, colors, OLED / E-Ink, language, covers and navigation |
+| Appearance | Theme, colors, OLED / E-Ink, language, covers, navigation and optional WeRead connection |
 | Reading | Fonts, layout, page turning and long-press word/paragraph selection |
 | CSS settings | Named profiles, visual controls, custom CSS and regex highlights |
-| Custom dictionaries | Import and query MDX / StarDict offline |
-| Selection search | In-app browser, search engines and custom URLs |
-| Selection toolbar | Action switches, drag sorting, annotation colors and AI selection templates |
-| AI Settings | Providers, model parameters, display and tool permissions |
-| AI Reading Skills | Visibility, unified sorting, prompts and restoring defaults |
-| Vector Model / Embedding Models | Local or remote embeddings, automatic indexing, downloads and stopping tasks |
-| OCR model | Lightweight recognition models, download sources, selection and deletion |
+| Selection toolbar | Action switches, sorting, colors, AI selection templates, selection search and custom dictionaries |
+| AI Settings | Providers, model parameters, display, tool permissions and AI Reading Skills |
+| Model settings | Vector/embedding and OCR models, sources, download/import, selection and deletion |
 | Narrate | Engine, voice, speed and editable narration-style templates |
-| Sync | WebDAV / S3-compatible object storage, automatic sync, encrypted credential sync and database backup |
-| Global settings backup | Settings files or modu links, with optional credentials |
+| Sync and backup | WebDAV / S3, automatic and encrypted credential sync, database backup and global settings files/links |
 | Remote library settings | Separate WebDAV browsing and book downloads |
 | Translation | Engine, target language, AI and DeepL / DeepLX |
-| Storage / Advanced | Data, cache, TXT chapter splitting, ANX backup import, logs and network |
-| Bug reports and feature requests / About | Reports, project links, licenses and app updates |
+| Advanced | Storage, cache, TXT chapter splitting, ANX backup import, logs and network |
+| About Modu | Bug reports and feature requests, project links, community, licenses and app updates |
+
+WeRead: enable the connection under Appearance and enter your own official API Key. In book details, search and confirm the edition before linking. Its metadata/ratings/reviews stay separate from personal data; public cached data syncs with downloaded books, while keys require explicit sensitive-settings opt-in. See [WeRead](WEREAD.md).
+
+Menus use page-coloured rounded groups with content-driven heights and matching light/dark themes; E-Ink retains its flat monochrome style. New installations go directly to the bookshelf. The reader moon button changes both reading mode and app theme.
+
+The default light theme uses paper white and jade green; format and indexing badges retain their distinct colours. Appearance → Theme colour → Restore default resets only the app accent after confirmation. The outlined Background / Text colour controls in reader styles each offer a confirmed reset of that colour without overwriting the other.
+
+Text/OCR reflow provides page-local narration and current-page translation (corrected text first), translation-only/bilingual views and the shared selection toolbar. Original PDF/scanned pages do not narrate. Text → Export saved book text offers TXT or Markdown in original page order.
 
 ### First-use defaults
 
@@ -106,7 +109,7 @@ The brightness panel's moon button inverts PDF page colours and turns the surrou
 - PDF reading prepares nearby cropped/enhanced pages automatically. It starts one reading panel ahead, increasing to two after fast processing samples when device hints allow. Continuous mode also retains nearby content for reverse scrolling; full-panel backing images are capped at 2MP and the window at seven frames. Zoomed details are refined separately. This is an in-memory optimization, not an offline conversion of the whole book; rapid jumps or expensive pages can still require waiting.
 - Processing does not rewrite the source book. Controls follow the app theme; manual / every-N-pages refresh appears only in E-Ink mode and requires a supported device interface.
 - Text reflow uses the page's text layer; OCR reflow recognizes image text. Both process the current page, or the whole cropped page when cropping is enabled, and display the result directly in the reader.
-- Reflow and extraction results reuse ebook menus and quick styles, including fonts, spacing, colors and backgrounds. Styles save for this book; menus fit their content up to 80% of screen height without resizing the text viewport. The header returns to the source page or changes reflow mode; PDF page arrows automatically reflow adjacent pages using the existing lookahead/cache. Region, whole-page and batch recognition and AI drafts remain available. PDF/OCR reflow has no narration controls or speech shortcuts; ordinary ebook narration is unchanged.
+- Reflow and extraction results reuse ebook menus and quick styles, including fonts, spacing, colors and backgrounds. Styles save for this book; menus fit their content up to 80% of screen height without resizing the text viewport. The header returns to the source page or changes reflow mode; PDF page arrows automatically reflow adjacent pages using the existing lookahead/cache. Region, whole-page and batch recognition and AI drafts remain available. Text/OCR reflow narrates only the current page, stops on page change or exit, and shares speech providers without changing ordinary ebook narration.
 - Paragraphs and first-line indents follow detected source geometry, not every printed line. New reflow notes retain the original page and image regions: **View original** opens these saved locations. Re-recognition preserves existing notes and text revisions; legacy notes are kept without guessed coordinates.
 - E-Ink locks both the app and reader to pure white backgrounds and black text. Dark mode is unavailable while E-Ink is on; turning it off restores saved palettes and backgrounds.
 - Reflowed text supports styling, selection, annotations and AI tools. The PDF panel's gear opens the relevant text-style controls.

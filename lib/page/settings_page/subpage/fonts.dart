@@ -39,25 +39,52 @@ class FontsSettingPage extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (font.preview.isNotEmpty)
-                          LayoutBuilder(
-                              builder: (context, constraints) =>
-                                  CachedNetworkImage(
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                    imageUrl:
-                                        'https://fonts.anxcye.com/${font.preview}',
-                                    width: constraints.maxWidth,
-                                    height: (constraints.maxWidth * 0.32)
-                                        .clamp(120.0, 220.0),
-                                    fit: BoxFit.contain,
-                                    placeholder: (context, url) => const Center(
-                                      child: EinkStaticIndicator(
-                                          child: CircularProgressIndicator()),
-                                    ),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(Icons.error),
-                                  )),
+                        // This upstream specimen contains missing CJK glyphs.
+                        // Use the actual bundled face, not a system-font stand-in.
+                        if (font.name.trim().toLowerCase() ==
+                            'atkinson hyperlegible next')
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Center(
+                              child: Text(
+                                'ABCDEFGHIJK abcdefghijk\n0123456789',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'AtkinsonPreview',
+                                  fontSize: 28,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (font.preview.isNotEmpty)
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 480),
+                              child: LayoutBuilder(
+                                  builder: (context, constraints) =>
+                                      CachedNetworkImage(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                        imageUrl:
+                                            'https://fonts.anxcye.com/${font.preview}',
+                                        width: constraints.maxWidth,
+                                        height: (constraints.maxWidth * 0.28)
+                                            .clamp(96.0, 140.0),
+                                        fit: BoxFit.contain,
+                                        placeholder: (context, url) =>
+                                            const Center(
+                                          child: EinkStaticIndicator(
+                                              child:
+                                                  CircularProgressIndicator()),
+                                        ),
+                                        errorWidget: (context, url, error) =>
+                                            const Icon(Icons.error),
+                                      )),
+                            ),
+                          ),
                         const Divider(),
                         Padding(
                           padding: const EdgeInsets.all(16.0),

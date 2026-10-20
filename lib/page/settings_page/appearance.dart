@@ -5,6 +5,7 @@ import 'package:anx_reader/l10n/app_language.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
+import 'package:anx_reader/widgets/common/color_picker_sheet.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
 import 'package:anx_reader/widgets/settings/theme_mode.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/enums/bookshelf_folder_style.dart';
+import 'package:anx_reader/page/settings_page/weread_settings.dart';
 
 const List<Map<String, String>> languageOptions = [
   {'system': 'System'},
@@ -281,6 +283,21 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               // ),
             ]),
         SettingsSection(
+          title: Text(ModuStrings.text(context, '书籍资料', 'Book information')),
+          tiles: [
+            SettingsTile.navigation(
+              leading: const Icon(Icons.link),
+              title: Text(
+                  ModuStrings.text(context, '关联微信读书', 'WeRead connection')),
+              description: Text(ModuStrings.text(context, '开关、API Key 与书籍资料来源',
+                  'Connection, API Key and external book information')),
+              onPressed: (context) => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const WereadSettingsPage())),
+            ),
+          ],
+        ),
+        SettingsSection(
           title: Text(L10n.of(context).settingsAppearanceBottomNavigatorShow),
           tiles: [
             if (EnvVar.enableAIFeature)
@@ -374,6 +391,22 @@ Future<void> showColorPickerDialog(BuildContext context) async {
           ),
         ),
         actions: <Widget>[
+          TextButton.icon(
+            key: const ValueKey('reset-theme-color'),
+            icon: const Icon(Icons.restore),
+            label: Text(L10n.of(context).cssRestoreDefault),
+            onPressed: () async {
+              if (!await confirmColorReset(
+                  context,
+                  ModuStrings.text(context, '恢复默认主题颜色？其他外观设置不会改变。',
+                      'Restore the default theme colour? Other appearance settings will not change.'))) {
+                return;
+              }
+              if (!context.mounted) return;
+              await prefsProvider.resetThemeColor();
+              if (context.mounted) Navigator.of(context).pop();
+            },
+          ),
           TextButton(
             child: Text(L10n.of(context).commonCancel),
             onPressed: () {

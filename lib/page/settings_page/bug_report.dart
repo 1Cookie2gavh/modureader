@@ -8,6 +8,7 @@ import 'package:anx_reader/service/feedback/crash_diagnostics.dart';
 import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/services.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -378,187 +379,189 @@ class _BugReportSettingsState extends State<BugReportSettings> {
     return Material(
       color: Colors.transparent,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_tr('问题反馈与功能建议', 'Bug reports and feature requests'),
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(_tr(
-                  '填写问题并预览后，前往默读 GitHub 仓库确认提交（需要 GitHub 账号）。截图可在 GitHub 页面添加。',
-                  'Describe and preview your report, then confirm it in the Modu GitHub repository (GitHub account required). Attach screenshots on GitHub.')),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    key: const ValueKey('feedback-type-bug'),
-                    avatar: const Icon(Icons.bug_report_outlined, size: 18),
-                    label: Text(_tr('提交 Bug', 'Report a bug')),
-                    selected: _type == FeedbackType.bug,
-                    onSelected:
-                        _busy ? null : (_) => _selectType(FeedbackType.bug),
-                  ),
-                  ChoiceChip(
-                    key: const ValueKey('feedback-type-feature'),
-                    avatar: const Icon(Icons.lightbulb_outline, size: 18),
-                    label: Text(_tr('功能建议', 'Feature request')),
-                    selected: _type == FeedbackType.feature,
-                    onSelected:
-                        _busy ? null : (_) => _selectType(FeedbackType.feature),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(_type == FeedbackType.bug
-                  ? _tr('已有功能出错请选择 Bug；希望新增或改进功能请选择功能建议。',
-                      'Choose Bug for a broken feature, or Feature request for a new or improved capability.')
-                  : _tr('描述使用场景和希望实现的效果，无需填写重现步骤或附带崩溃日志。',
-                      'Describe your use case and the desired feature. Reproduction steps and crash logs are not needed.')),
-              if (_type == FeedbackType.bug)
+        padding: const EdgeInsets.only(bottom: 20),
+        child: SettingsSection.content(
+          title: Text(_tr('反馈内容', 'Feedback details')),
+          child: Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(_tr(
-                    'Bug 报告默认附带崩溃诊断与脱敏运行日志，可分别取消。运行日志来自“高级 → 日志”，仅提取本次启动的安全诊断字段，省略原始消息、正文、地址和凭据。提交前请预览；长日志可导出 TXT 后手动附加到 GitHub，不自动上传。提交后公开可见。',
-                    'Bug reports include crash and sanitized runtime logs by default; each can be unchecked. Runtime logs use Advanced > Logs, extracting safe diagnostic fields from this session only, excluding raw messages, content, addresses and credentials. Preview before submission; export long logs as TXT and attach on GitHub manually. Nothing uploads automatically. Submitted reports are public.')),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TextButton.icon(
-                    onPressed: _busy
-                        ? null
-                        : () => _open(FeedbackReport.searchUri(_title.text)),
-                    icon: const Icon(Icons.search),
-                    label: Text(_tr('查看已有问题', 'Existing issues')),
-                  ),
-                  TextButton.icon(
-                    onPressed:
-                        _busy ? null : () => _open(BugReport.myIssuesUri),
-                    icon: const Icon(Icons.forum_outlined),
-                    label: Text(_tr('我的反馈（GitHub）', 'My reports (GitHub)')),
-                  ),
-                ],
-              ),
-              _field(_title, _tr('标题', 'Title'), maxLength: 100),
-              if (_type == FeedbackType.bug) ...[
-                _field(_description, _tr('问题描述', 'Description'), lines: 3),
-                _field(_steps, _tr('重现步骤', 'Steps to reproduce'),
-                    lines: 3,
-                    hint: _tr('按顺序列出操作；无法稳定复现时，说明出错前的操作与发生频率。',
-                        'List the steps in order. If intermittent, describe what happened before the error and how often it occurs.')),
-                _field(_actual, _tr('实际结果', 'Actual behavior'), lines: 2),
-                _field(_expected, _tr('预期行为', 'Expected behavior'), lines: 2),
-                _field(_additional,
-                    _tr('补充信息（可选）', 'Additional context (optional)'),
-                    lines: 2, required: false),
-              ] else ...[
-                _field(_description, _tr('使用场景与需求', 'Problem or use case'),
-                    lines: 3),
-                _field(_expected, _tr('希望实现的功能', 'Proposed solution'),
-                    lines: 3),
-                _field(
-                    _additional,
-                    _tr('替代方案与补充信息（可选）',
-                        'Alternatives and additional context (optional)'),
-                    lines: 2,
-                    required: false),
-              ],
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                    _tr('附带设备与运行环境', 'Include device and environment info')),
-                subtitle: Text(_environment),
-                value: _draft.includeEnvironment,
-                onChanged: _busy
-                    ? null
-                    : (value) =>
-                        setState(() => _draft.includeEnvironment = value),
-              ),
-              if (_type == FeedbackType.bug)
-                CheckboxListTile(
-                  key: const ValueKey('include-crash-log'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(_tr(
-                      '附带崩溃日志（可选）', 'Include crash diagnostics (optional)')),
-                  subtitle: Text(_tr(
-                      '包含当前平台可用的退出原因、内存采样、向量化进度和脱敏原生堆栈。Apple 报告可能延迟；Linux 需要系统保留记录。强制退出不保证有堆栈。提交后公开，请先预览。',
-                      'Includes available exit reasons, memory samples, index checkpoints and sanitized native frames. Apple delivery can be delayed; Linux requires retained system records. Force-kills may have no stack. Preview before public submission.')),
-                  value: _includeCrashLog,
-                  onChanged:
-                      _busy ? null : (value) => _toggleCrashLog(value ?? false),
-                ),
-              if (_loadingCrashLog)
-                const EinkStaticIndicator(child: LinearProgressIndicator()),
-              if (_includeCrashLog && _crashLog != null)
-                ExpansionTile(
-                  title: Text(
-                      _tr('查看将附带的崩溃日志', 'Preview attached crash diagnostics')),
+                    '填写问题并预览后，前往默读 GitHub 仓库确认提交（需要 GitHub 账号）。截图可在 GitHub 页面添加。',
+                    'Describe and preview your report, then confirm it in the Modu GitHub repository (GitHub account required). Attach screenshots on GitHub.')),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
-                    Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: SelectableText(_crashLog!))
+                    ChoiceChip(
+                      key: const ValueKey('feedback-type-bug'),
+                      avatar: const Icon(Icons.bug_report_outlined, size: 18),
+                      label: Text(_tr('提交 Bug', 'Report a bug')),
+                      selected: _type == FeedbackType.bug,
+                      onSelected:
+                          _busy ? null : (_) => _selectType(FeedbackType.bug),
+                    ),
+                    ChoiceChip(
+                      key: const ValueKey('feedback-type-feature'),
+                      avatar: const Icon(Icons.lightbulb_outline, size: 18),
+                      label: Text(_tr('功能建议', 'Feature request')),
+                      selected: _type == FeedbackType.feature,
+                      onSelected: _busy
+                          ? null
+                          : (_) => _selectType(FeedbackType.feature),
+                    ),
                   ],
                 ),
-              if (_type == FeedbackType.bug)
-                CheckboxListTile(
-                  key: const ValueKey('include-runtime-log'),
+                const SizedBox(height: 8),
+                Text(_type == FeedbackType.bug
+                    ? _tr('已有功能出错请选择 Bug；希望新增或改进功能请选择功能建议。',
+                        'Choose Bug for a broken feature, or Feature request for a new or improved capability.')
+                    : _tr('描述使用场景和希望实现的效果，无需填写重现步骤或附带崩溃日志。',
+                        'Describe your use case and the desired feature. Reproduction steps and crash logs are not needed.')),
+                if (_type == FeedbackType.bug)
+                  Text(_tr(
+                      'Bug 报告默认附带崩溃诊断与脱敏运行日志，可分别取消。运行日志来自“高级 → 日志”，仅提取本次启动的安全诊断字段，省略原始消息、正文、地址和凭据。提交前请预览；长日志可导出 TXT 后手动附加到 GitHub，不自动上传。提交后公开可见。',
+                      'Bug reports include crash and sanitized runtime logs by default; each can be unchecked. Runtime logs use Advanced > Logs, extracting safe diagnostic fields from this session only, excluding raw messages, content, addresses and credentials. Preview before submission; export long logs as TXT and attach on GitHub manually. Nothing uploads automatically. Submitted reports are public.')),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => _open(FeedbackReport.searchUri(_title.text)),
+                      icon: const Icon(Icons.search),
+                      label: Text(_tr('查看已有问题', 'Existing issues')),
+                    ),
+                    TextButton.icon(
+                      onPressed:
+                          _busy ? null : () => _open(BugReport.myIssuesUri),
+                      icon: const Icon(Icons.forum_outlined),
+                      label: Text(_tr('我的反馈（GitHub）', 'My reports (GitHub)')),
+                    ),
+                  ],
+                ),
+                _field(_title, _tr('标题', 'Title'), maxLength: 100),
+                if (_type == FeedbackType.bug) ...[
+                  _field(_description, _tr('问题描述', 'Description'), lines: 3),
+                  _field(_steps, _tr('重现步骤', 'Steps to reproduce'),
+                      lines: 3,
+                      hint: _tr('按顺序列出操作；无法稳定复现时，说明出错前的操作与发生频率。',
+                          'List the steps in order. If intermittent, describe what happened before the error and how often it occurs.')),
+                  _field(_actual, _tr('实际结果', 'Actual behavior'), lines: 2),
+                  _field(_expected, _tr('预期行为', 'Expected behavior'), lines: 2),
+                  _field(_additional,
+                      _tr('补充信息（可选）', 'Additional context (optional)'),
+                      lines: 2, required: false),
+                ] else ...[
+                  _field(_description, _tr('使用场景与需求', 'Problem or use case'),
+                      lines: 3),
+                  _field(_expected, _tr('希望实现的功能', 'Proposed solution'),
+                      lines: 3),
+                  _field(
+                      _additional,
+                      _tr('替代方案与补充信息（可选）',
+                          'Alternatives and additional context (optional)'),
+                      lines: 2,
+                      required: false),
+                ],
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(_tr(
-                      '附带运行日志（可选）', 'Include runtime diagnostics (optional)')),
-                  subtitle: Text(_tr(
-                      '包含本次运行的事件摘要及最近最多 1000 条脱敏详细日志（256 Ki 字符上限）：错误类型、已识别原因、HTTP 状态、数据库错误码及代码堆栈。未识别的私人消息省略；每次重启自动清空。长日志在提交预览中导出 TXT。',
-                      'Session events plus up to 1,000 sanitized detailed log entries (256 Ki characters): error types, recognized causes, HTTP status, database codes and code frames. Unrecognized private messages are omitted. Cleared on every restart. Export long logs as TXT in the submission preview.')),
-                  value: _includeRuntimeLog,
+                  title: Text(
+                      _tr('附带设备与运行环境', 'Include device and environment info')),
+                  subtitle: Text(_environment),
+                  value: _draft.includeEnvironment,
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() {
-                            _includeRuntimeLog = value ?? false;
-                            _runtimeLog =
-                                _includeRuntimeLog ? _readRuntimeLog() : null;
-                          }),
+                      : (value) =>
+                          setState(() => _draft.includeEnvironment = value),
                 ),
-              if (_includeRuntimeLog && _runtimeLog != null)
-                ExpansionTile(
-                  title: Text(_tr(
-                      '查看将附带的运行日志', 'Preview attached runtime diagnostics')),
+                if (_type == FeedbackType.bug)
+                  CheckboxListTile(
+                    key: const ValueKey('include-crash-log'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(_tr(
+                        '附带崩溃日志（可选）', 'Include crash diagnostics (optional)')),
+                    subtitle: Text(_tr(
+                        '包含当前平台可用的退出原因、内存采样、向量化进度和脱敏原生堆栈。Apple 报告可能延迟；Linux 需要系统保留记录。强制退出不保证有堆栈。提交后公开，请先预览。',
+                        'Includes available exit reasons, memory samples, index checkpoints and sanitized native frames. Apple delivery can be delayed; Linux requires retained system records. Force-kills may have no stack. Preview before public submission.')),
+                    value: _includeCrashLog,
+                    onChanged: _busy
+                        ? null
+                        : (value) => _toggleCrashLog(value ?? false),
+                  ),
+                if (_loadingCrashLog)
+                  const EinkStaticIndicator(child: LinearProgressIndicator()),
+                if (_includeCrashLog && _crashLog != null)
+                  ExpansionTile(
+                    title: Text(_tr(
+                        '查看将附带的崩溃日志', 'Preview attached crash diagnostics')),
+                    children: [
+                      Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: SelectableText(_crashLog!))
+                    ],
+                  ),
+                if (_type == FeedbackType.bug)
+                  CheckboxListTile(
+                    key: const ValueKey('include-runtime-log'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(_tr('附带运行日志（可选）',
+                        'Include runtime diagnostics (optional)')),
+                    subtitle: Text(_tr(
+                        '包含本次运行的事件摘要及最近最多 1000 条脱敏详细日志（256 Ki 字符上限）：错误类型、已识别原因、HTTP 状态、数据库错误码及代码堆栈。未识别的私人消息省略；每次重启自动清空。长日志在提交预览中导出 TXT。',
+                        'Session events plus up to 1,000 sanitized detailed log entries (256 Ki characters): error types, recognized causes, HTTP status, database codes and code frames. Unrecognized private messages are omitted. Cleared on every restart. Export long logs as TXT in the submission preview.')),
+                    value: _includeRuntimeLog,
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() {
+                              _includeRuntimeLog = value ?? false;
+                              _runtimeLog =
+                                  _includeRuntimeLog ? _readRuntimeLog() : null;
+                            }),
+                  ),
+                if (_includeRuntimeLog && _runtimeLog != null)
+                  ExpansionTile(
+                    title: Text(_tr(
+                        '查看将附带的运行日志', 'Preview attached runtime diagnostics')),
+                    children: [
+                      Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: SelectableText(_runtimeLog!))
+                    ],
+                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
-                    Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: SelectableText(_runtimeLog!))
+                    OutlinedButton.icon(
+                      onPressed: _busy || _loadingCrashLog
+                          ? null
+                          : () => _copy(_report.markdown),
+                      icon: const Icon(Icons.copy_outlined),
+                      label: Text(_tr('复制报告', 'Copy report')),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _busy || _loadingCrashLog ? null : _preview,
+                      icon: Icon(_type == FeedbackType.bug
+                          ? Icons.bug_report_outlined
+                          : Icons.lightbulb_outline),
+                      label: Text(_tr('预览并提交', 'Preview and submit')),
+                    ),
                   ],
                 ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _busy || _loadingCrashLog
-                        ? null
-                        : () => _copy(_report.markdown),
-                    icon: const Icon(Icons.copy_outlined),
-                    label: Text(_tr('复制报告', 'Copy report')),
+                if (_status != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(_status!,
+                        key: const ValueKey('bug-report-status')),
                   ),
-                  FilledButton.icon(
-                    onPressed: _busy || _loadingCrashLog ? null : _preview,
-                    icon: Icon(_type == FeedbackType.bug
-                        ? Icons.bug_report_outlined
-                        : Icons.lightbulb_outline),
-                    label: Text(_tr('预览并提交', 'Preview and submit')),
-                  ),
-                ],
-              ),
-              if (_status != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child:
-                      Text(_status!, key: const ValueKey('bug-report-status')),
-                ),
-              const SizedBox(height: 20),
-              SelectableText(_report.templateUri.toString()),
-            ],
+                const SizedBox(height: 20),
+                SelectableText(_report.templateUri.toString()),
+              ],
+            ),
           ),
         ),
       ),

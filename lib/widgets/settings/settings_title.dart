@@ -2,6 +2,7 @@ import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/common/container/filled_container.dart';
 
 Widget settingsTitle({
   required Icon icon,
@@ -14,23 +15,25 @@ Widget settingsTitle({
   required List<String> subtitle,
 }) {
   BuildContext context = navigatorKey.currentContext!;
-  return ListTile(
-    leading: icon,
-    title: Text(title),
-    trailing: const Icon(Icons.chevron_right),
-    selected: !isMobile && selectedIndex == id,
-    subtitle: Text(subtitle.join(' • ')),
-    onTap: () {
-      if (!isMobile) {
-        setDetail(subPage, id);
-        return;
-      }
-      Navigator.push(
-        context,
-        MotionCupertinoPageRoute(builder: (context) => subPage),
-      );
-    },
-  );
+  return FilledContainer(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: ListTile(
+        leading: icon,
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        selected: !isMobile && selectedIndex == id,
+        subtitle: Text(subtitle.join(' • ')),
+        onTap: () {
+          if (!isMobile) {
+            setDetail(subPage, id);
+            return;
+          }
+          Navigator.push(
+            context,
+            MotionCupertinoPageRoute(builder: (context) => subPage),
+          );
+        },
+      ));
 }
 
 Widget settingsSections({

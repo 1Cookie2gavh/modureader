@@ -61,7 +61,7 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.2.12** — adds original/reflow split-view comparison, page-local reflow narration and sentence highlighting; extends PDF/scanned-page zoom to 8× with improved panning and viewport memory; adds reading rounds, synced book reviews and daily check-in goals. Sync moves to protocol v9: upgrade all syncing devices together.
+**Latest release: 1.3.0** — adds optional WeRead metadata linking and sync, current-page reflow translation with selection tools, and TXT/Markdown export of saved text. Unifies light/dark menus and settings and fixes macOS transition flicker while retaining animations. WeRead keys transfer only with explicit sensitive-settings opt-in; personal ratings/reviews stay independent. Sync remains on protocol v9.
 
 Reader shortcut settings are restored and hardware-keyboard playback controls are improved. iOS adds optional in-place book access; HarmonyOS gains a reader wakelock bridge and corrected log-export path validation. See the [release notes](docs/RELEASE_NOTES.md) for device-validation scope, limitations and installation requirements.
 

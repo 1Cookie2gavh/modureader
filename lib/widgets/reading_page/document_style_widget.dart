@@ -1,4 +1,4 @@
-import 'ocr_precache_settings.dart';
+import 'document_text_menu.dart';
 import 'widget_title.dart';
 import 'document_saved_text_actions.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
@@ -7,6 +7,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/book_player/document_layout_store.dart';
 import 'package:anx_reader/models/document_page_layout.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
+import 'reader_menu_group.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_region_preview.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_reading_controls.dart';
@@ -148,49 +149,15 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
   @override
   Widget build(BuildContext context) {
     if (widget.textOnly) {
-      String text(String zh, String en) => ModuStrings.text(context, zh, en);
-      return DocumentPanelTheme(
-          child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: ReaderSettingsScrollView(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            widgetTitle(text('文字', 'Text'), null),
-            ListTile(
-                leading: const Icon(Icons.article_outlined),
-                title: Text(text('文字重排', 'Reflow text')),
-                subtitle: Text(text('优先使用文字层，无文字时自动 OCR',
-                    'Use embedded text, or OCR when no text is available')),
-                onTap: widget.openReflow == null
-                    ? null
-                    : () => widget.openReflow!(false)),
-            if (widget.onComparisonChanged != null)
-              SwitchListTile(
-                  key: const ValueKey('document-comparison-switch'),
-                  title: Text(text('原页对照重排', 'Compare original and reflow')),
-                  subtitle: Text(text('竖屏上下，横屏左右',
-                      'Top/bottom in portrait, side by side in landscape')),
-                  value: widget.comparison,
-                  onChanged: widget.onComparisonChanged),
-            ListTile(
-                leading: const Icon(Icons.crop_free),
-                title: Text(
-                    text('框选提取与连续识别', 'Region extraction and continuous OCR')),
-                subtitle: Text(text('保留识别缓存、编辑和导出 TXT',
-                    'Includes cached results, editing and TXT export')),
-                onTap: widget.openExtraction),
-            OcrPrecacheSettings(cache: widget.player.ocrPrecache),
-            ListTile(
-                key: const ValueKey('export-saved-txt'),
-                leading: const Icon(Icons.file_download_outlined),
-                title: Text(text('导出本书已保存文字 TXT', 'Export saved pages as TXT')),
-                subtitle: Text(text('按原始页码排列，优先导出编辑结果',
-                    'Original page order; edited text takes priority')),
-                onTap: _savedTextBusy ? null : _exportSavedText),
-          ],
-        )),
-      ));
+      return DocumentTextMenu(
+        openReflow:
+            widget.openReflow == null ? null : () => widget.openReflow!(false),
+        openExtraction: widget.openExtraction,
+        comparison: widget.comparison,
+        onComparisonChanged: widget.onComparisonChanged,
+        cache: widget.player.ocrPrecache,
+        exportText: _savedTextBusy ? null : _exportSavedText,
+      );
     }
     final cropControls = ListTile(
       contentPadding: EdgeInsets.zero,
@@ -209,8 +176,6 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
           'Auto crop, margins, comics and columns are adjusted in the separate preview')),
     );
     return DocumentPanelTheme(
-        child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ReaderSettingsScrollView(
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -219,9 +184,11 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
             listenable: Prefs(),
             builder: (context, _) =>
                 Prefs().eInkMode && widget.player.supportsDocumentImages
-                    ? EinkRefreshControls(
-                        supported: widget.player.einkRefresh.supported,
-                        refresh: widget.player.refreshEinkScreen)
+                    ? ReaderMenuGroup(
+                        padding: const EdgeInsets.all(12),
+                        child: EinkRefreshControls(
+                            supported: widget.player.einkRefresh.supported,
+                            refresh: widget.player.refreshEinkScreen))
                     : const SizedBox.shrink(),
           ),
           if (widget.player.supportsDocumentImages == true)
@@ -258,6 +225,6 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
             ),
         ]),
       ),
-    ));
+    );
   }
 }

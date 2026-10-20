@@ -6,6 +6,7 @@ import 'package:anx_reader/widgets/dictionary/dictionary_sources.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:path/path.dart' as p;
 
 // Android's MIME allowlist cannot represent MDX/IFO/IDX/DICT/SYN reliably.
@@ -187,81 +188,92 @@ class _DictionarySettingsState extends State<DictionarySettings> {
 
   @override
   Widget build(BuildContext context) =>
-      ListView(padding: const EdgeInsets.all(24), children: [
-        Text(ModuStrings.text(context, '自定义字典', 'Custom dictionaries'),
-            style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
-        Text(ModuStrings.text(
-            context,
-            '不预装本地词典数据。请导入有权使用的字典；可选择一本或多本进行离线查询，也可按需启用免费在线词典。本地字典及查询来源选择不参加 WebDAV 同步或设置备份。',
-            'No local dictionary data is bundled. Import dictionaries you are licensed to use; select one or more for offline lookup, or opt into free online dictionaries. Local dictionaries and source selections are excluded from WebDAV sync and settings backups.')),
-        TextButton.icon(
-            onPressed: _busy || _loading
-                ? null
-                : () => showDictionarySources(context, _items),
-            icon: const Icon(Icons.checklist),
-            label: Text(ModuStrings.text(context, '查询来源 / 在线字典',
-                'Query sources / online dictionaries'))),
-        const SizedBox(height: 12),
-        Text(ModuStrings.text(
-            context,
-            '支持 MDX 1/2（非 LZO、非加密正文，≤256 MiB），可同时选择同名 MDD、图片、音频、CSS、JS；有子目录时请使用 ZIP 保留目录结构。原版内容在隔离窗口显示，只加载已导入资源，音频需点击播放；旧词典需重新导入。StarDict 2.4.2/3.0.0 仍显示文字释义；暂不支持 DSL。',
-            'Supports MDX 1/2 (no LZO or encrypted records, ≤256 MiB), with matching MDD, images, audio, CSS and JS. Use ZIP to preserve subdirectories. Original content opens in isolation using imported resources only; tap to play audio. Reimport old dictionaries. StarDict 2.4.2/3.0.0 remains text-only; DSL is unsupported.')),
-        const SizedBox(height: 16),
-        FilledButton.icon(
-            onPressed: _busy || _loading ? null : _import,
-            icon: const Icon(Icons.file_open_outlined),
-            label:
-                Text(ModuStrings.text(context, '导入字典', 'Import dictionary'))),
-        if (_busy) ...[
-          const SizedBox(height: 12),
-          const EinkStaticIndicator(child: LinearProgressIndicator()),
-          Text(ModuStrings.format(context, '正在处理字典，已导入 {count} 条…',
-              'Processing dictionary: {count} entries…',
-              values: {'count': _count}))
-        ],
-        if (_error != null)
-          Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(_error!,
-                  style:
-                      TextStyle(color: Theme.of(context).colorScheme.error))),
-        if (_loading)
-          const Center(
-              child: EinkStaticIndicator(child: CircularProgressIndicator())),
-        if (!_loading && _items.isEmpty)
-          Padding(
-              padding: const EdgeInsets.only(top: 24),
+      ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+        SettingsSection.content(
+          title: Text(ModuStrings.text(
+              context, '字典来源与导入', 'Dictionary sources and import')),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(ModuStrings.text(
+                context,
+                '不预装本地词典数据。请导入有权使用的字典；可选择一本或多本进行离线查询，也可按需启用免费在线词典。本地字典及查询来源选择不参加 WebDAV 同步或设置备份。',
+                'No local dictionary data is bundled. Import dictionaries you are licensed to use; select one or more for offline lookup, or opt into free online dictionaries. Local dictionaries and source selections are excluded from WebDAV sync and settings backups.')),
+            TextButton.icon(
+                onPressed: _busy || _loading
+                    ? null
+                    : () => showDictionarySources(context, _items),
+                icon: const Icon(Icons.checklist),
+                label: Text(ModuStrings.text(context, '查询来源 / 在线字典',
+                    'Query sources / online dictionaries'))),
+            const SizedBox(height: 12),
+            Text(ModuStrings.text(
+                context,
+                '支持 MDX 1/2（非 LZO、非加密正文，≤256 MiB），可同时选择同名 MDD、图片、音频、CSS、JS；有子目录时请使用 ZIP 保留目录结构。原版内容在隔离窗口显示，只加载已导入资源，音频需点击播放；旧词典需重新导入。StarDict 2.4.2/3.0.0 仍显示文字释义；暂不支持 DSL。',
+                'Supports MDX 1/2 (no LZO or encrypted records, ≤256 MiB), with matching MDD, images, audio, CSS and JS. Use ZIP to preserve subdirectories. Original content opens in isolation using imported resources only; tap to play audio. Reimport old dictionaries. StarDict 2.4.2/3.0.0 remains text-only; DSL is unsupported.')),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+                onPressed: _busy || _loading ? null : _import,
+                icon: const Icon(Icons.file_open_outlined),
+                label: Text(
+                    ModuStrings.text(context, '导入字典', 'Import dictionary'))),
+            if (_busy) ...[
+              const SizedBox(height: 12),
+              const EinkStaticIndicator(child: LinearProgressIndicator()),
+              Text(ModuStrings.format(context, '正在处理字典，已导入 {count} 条…',
+                  'Processing dictionary: {count} entries…',
+                  values: {'count': _count}))
+            ],
+            if (_error != null)
+              Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error))),
+            if (_loading)
+              const Center(
+                  child:
+                      EinkStaticIndicator(child: CircularProgressIndicator())),
+            if (!_loading && _items.isEmpty)
+              Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text(ModuStrings.text(
+                      context, '尚未导入字典', 'No dictionaries imported'))),
+          ]),
+        ),
+        if (_items.isNotEmpty)
+          SettingsSectionTitle(
               child: Text(ModuStrings.text(
-                  context, '尚未导入字典', 'No dictionaries imported'))),
+                  context, '已安装字典', 'Installed dictionaries'))),
         for (final item in _items)
           Card(
+              margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
               child: Column(children: [
-            SwitchListTile(
-                value: item.enabled,
-                onChanged: _busy
-                    ? null
-                    : (enabled) => _run(() => store.enable(item.id, enabled)),
-                title: Text(item.name),
-                subtitle: Text(
-                    '${item.format} · ${item.count} ${ModuStrings.text(context, '条词目', 'entries')}')),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final name = await _name(item.name);
-                          if (name != null && mounted) {
-                            await _run(() => store.rename(item.id, name));
-                          }
-                        },
-                  icon: const Icon(Icons.edit_outlined),
-                  label: Text(ModuStrings.text(context, '改名', 'Rename'))),
-              TextButton.icon(
-                  onPressed: _busy ? null : () => _delete(item),
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text(ModuStrings.text(context, '删除', 'Delete'))),
-            ]),
-          ])),
+                SwitchListTile(
+                    value: item.enabled,
+                    onChanged: _busy
+                        ? null
+                        : (enabled) =>
+                            _run(() => store.enable(item.id, enabled)),
+                    title: Text(item.name),
+                    subtitle: Text(
+                        '${item.format} · ${item.count} ${ModuStrings.text(context, '条词目', 'entries')}')),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  TextButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              final name = await _name(item.name);
+                              if (name != null && mounted) {
+                                await _run(() => store.rename(item.id, name));
+                              }
+                            },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(ModuStrings.text(context, '改名', 'Rename'))),
+                  TextButton.icon(
+                      onPressed: _busy ? null : () => _delete(item),
+                      icon: const Icon(Icons.delete_outline),
+                      label: Text(ModuStrings.text(context, '删除', 'Delete'))),
+                ]),
+              ])),
       ]);
 }

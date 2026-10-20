@@ -8,7 +8,7 @@ this adapter after an audited Flutter OH upgrade supports onReorderItem.
 Flutter OH also lacks Hero.curve/reverseCurve. Omit those arguments in this
 temporary checkout while retaining the shared cover transition and gestures.
 
-The five Cupertino sheet callbacks do not consume the newer controller;
+The three Cupertino sheet callbacks do not consume the newer controller;
 adapt them to the older builder API in the OHOS checkout only.
 """
 import os
@@ -46,8 +46,8 @@ PATCHES = {
 }
 
 ANCHOR_COUNTS = {
-    'lib/service/initialization_check.dart': 2,
-    'lib/page/settings_page/advanced.dart': 2,
+    'lib/service/initialization_check.dart': 1,
+    'lib/page/settings_page/advanced.dart': 1,
 }
 
 

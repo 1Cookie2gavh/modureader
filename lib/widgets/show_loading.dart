@@ -8,6 +8,7 @@ void showLoading() {
   SmartDialog.show(
     builder: (context) => Center(
         child: FilledContainer(
+            fill: true,
             child: EinkStaticIndicator(child: CircularProgressIndicator()))),
   );
 }

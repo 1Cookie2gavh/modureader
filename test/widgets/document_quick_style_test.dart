@@ -171,8 +171,10 @@ void main() {
       final export = find.byKey(const ValueKey('export-saved-txt'));
       expect(export, findsOneWidget);
       await tester.ensureVisible(export);
+      await tester.runAsync(() => tester.tap(export));
+      await tester.pumpAndSettle();
       await tester.runAsync(() async {
-        await tester.tap(export);
+        await tester.tap(find.byKey(const ValueKey('export-format-txt')));
         await Future<void>.delayed(const Duration(milliseconds: 200));
       });
       await tester.pumpAndSettle();

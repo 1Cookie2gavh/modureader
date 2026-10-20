@@ -3,6 +3,7 @@ import 'package:anx_reader/enums/sync_protocol.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart' show navigatorKey;
 import 'package:anx_reader/page/settings_page/sync.dart';
+import 'package:anx_reader/page/settings_page/global_settings.dart';
 import 'package:anx_reader/providers/sync.dart';
 import 'package:anx_reader/widgets/bookshelf/sync_status_bottom_sheet.dart';
 import 'package:anx_reader/widgets/settings/database_backup_section.dart';
@@ -54,6 +55,23 @@ void main() {
     )));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+      'global settings backup opens from sync without enabling sync or credentials',
+      (tester) async {
+    final syncBefore = Prefs().getSyncInfo(SyncProtocol.webdav);
+    await open(tester);
+    await tester.tap(find.byKey(const ValueKey('global-settings-backup')));
+    await tester.pumpAndSettle();
+    expect(find.byType(GlobalSettingsPage), findsOneWidget);
+    expect(Prefs().webdavStatus, isFalse);
+    expect(Prefs().syncAiSettingsToWebdav, isFalse);
+    expect(Prefs().getSyncInfo(SyncProtocol.webdav), syncBefore);
+    Navigator.of(tester.element(find.byType(GlobalSettingsPage))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(SyncSetting), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
       'database export uses the renamed dialog and cancellation unlocks actions',

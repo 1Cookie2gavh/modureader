@@ -86,6 +86,14 @@ void main() {
     expect(find.text('测试推理'), findsNWidgets(4));
     expect(find.text('下载并使用'), findsNothing);
     expect(store.calls, 0);
+    final cards = find.byType(Card);
+    expect(cards, findsNWidgets(4));
+    final first = tester.getRect(cards.first);
+    for (var i = 1; i < cards.evaluate().length; i++) {
+      final rect = tester.getRect(cards.at(i));
+      expect(rect.left, closeTo(first.left, .01));
+      expect(rect.right, closeTo(first.right, .01));
+    }
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

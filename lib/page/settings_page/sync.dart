@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:anx_reader/widgets/settings/reading_sync_settings.dart';
 import 'package:anx_reader/widgets/settings/database_backup_section.dart';
 import 'package:anx_reader/widgets/settings/settings_export_dialog.dart';
+import 'package:anx_reader/page/settings_page/global_settings.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/service/local_data/backup_safety.dart';
@@ -58,6 +60,29 @@ class _SyncSettingState extends ConsumerState<SyncSetting> {
     final canConfigure = !Prefs().webdavStatus;
     return settingsSections(
       sections: [
+        SettingsSection(
+          title: Text(
+              ModuStrings.text(context, '全局设置备份', 'Global settings backup')),
+          tiles: [
+            SettingsTile.navigation(
+              key: const ValueKey('global-settings-backup'),
+              leading: const Icon(Icons.settings_backup_restore),
+              title: Text(ModuStrings.text(
+                  context, '全局设置导入导出', 'Import and export global settings')),
+              description: Text(ModuStrings.text(
+                  context,
+                  '文件与 modu 链接 · 可选迁移账号密钥',
+                  'Files and modu links · Optional credentials')),
+              onPressed: (context) => Navigator.of(context).push(
+                  MotionCupertinoPageRoute(
+                      builder: (context) => SettingsPageBody(
+                          title: ModuStrings.text(
+                              context, '全局设置备份', 'Global settings backup'),
+                          isMobile: true,
+                          sections: const GlobalSettingsPage()))),
+            ),
+          ],
+        ),
         CustomSettingsSection(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -219,8 +244,8 @@ class _SyncSettingState extends ConsumerState<SyncSetting> {
                 Prefs().syncAiSettingsToWebdav
                     ? ModuStrings.text(
                         context,
-                        '已开启：AI、翻译、向量、在线语音及远程书库配置（含密钥和书库密码）加密后随当前云端服务同步。不包含 WebDAV / 对象存储的连接凭据。',
-                        'Enabled: AI, translation, vector, online speech and remote library settings (including keys and library passwords) are encrypted and synced through the selected cloud service. WebDAV / object-storage connection credentials are excluded.')
+                        '已开启：AI、翻译、向量、在线语音、微信读书 API Key 及远程书库配置（含密钥和书库密码）加密后随当前云端服务同步。不包含 WebDAV / 对象存储的连接凭据。',
+                        'Enabled: AI, translation, vector, online speech, WeRead API Key and remote library settings (including keys and library passwords) are encrypted and synced through the selected cloud service. WebDAV / object-storage connection credentials are excluded.')
                     : ModuStrings.text(
                         context,
                         '默认关闭。开启需设置独立同步加密密码并确认风险；此密码不是 WebDAV 密码或对象存储密钥。两种同步方式共用此开关。',
@@ -706,8 +731,8 @@ class _AiSyncPasswordDialogState extends State<_AiSyncPasswordDialog> {
               Text(
                 ModuStrings.text(
                     context,
-                    '开启后，AI、翻译、向量、在线语音服务的配置及 API Key，以及远程书库配置和密码，会使用 AES-256-GCM 加密并随当前云端服务同步。不包含 WebDAV / 对象存储连接凭据。此开关及加密密码为两种同步方式共用。',
-                    'AI, translation, vector, online speech and remote library settings, API keys and library passwords are encrypted with AES-256-GCM and synced through the selected cloud service. WebDAV / object-storage credentials are excluded. Both backends share this switch and encryption password.'),
+                    '开启后，AI、翻译、向量、在线语音服务的配置及 API Key、微信读书 API Key，以及远程书库配置和密码，会使用 AES-256-GCM 加密并随当前云端服务同步。不包含 WebDAV / 对象存储连接凭据。此开关及加密密码为两种同步方式共用。',
+                    'AI, translation, vector, online speech, WeRead API Key and remote library settings, API keys and library passwords are encrypted with AES-256-GCM and synced through the selected cloud service. WebDAV / object-storage credentials are excluded. Both backends share this switch and encryption password.'),
               ),
               const SizedBox(height: 10),
               Text(

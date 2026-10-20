@@ -3,12 +3,14 @@ import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/selection_search.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
 import 'package:anx_reader/page/settings_page/narrate.dart';
 import 'package:anx_reader/page/settings_page/dictionaries.dart';
 import 'package:anx_reader/widgets/context_menu/selection_toolbar_labels.dart';
 import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 
 Future<void> showSelectionToolbarSettings(BuildContext context) =>
     showReaderPopup(context,
@@ -159,7 +161,7 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
   Widget _list(List<SelectionToolbarItem> items, bool annotations,
           {bool optional = false}) =>
       SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 9),
           sliver: SliverReorderableList(
               key: ValueKey(annotations
                   ? 'selection-annotation-order'
@@ -175,7 +177,6 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
                 return Card(
                     key: ValueKey('toolbar-item-${item.id}'),
                     margin: const EdgeInsets.symmetric(vertical: 5),
-                    elevation: 0,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
@@ -267,6 +268,16 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
       child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: child));
 
+  void _openLookupSettings(String title, Widget page) {
+    Navigator.of(context).push(MotionCupertinoPageRoute<void>(
+      builder: (context) => SettingsPageBody(
+        title: title,
+        isMobile: true,
+        sections: Material(type: MaterialType.transparency, child: page),
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
       animation: Prefs(),
@@ -280,88 +291,138 @@ class _SelectionToolbarSettingsState extends State<SelectionToolbarSettings> {
           key: const ValueKey('selection-toolbar-scroll'),
           primary: false,
           slivers: [
-            _section(
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(ModuStrings.text(
-                  context,
-                  '自定义划词菜单的按钮显示和顺序。长按卡片或拖动左侧手柄排序，点击编辑图标调整参数。',
-                  'Choose which selection actions appear and in what order. Hold a card or drag its handle; edit parameters using the pencil.')),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                  key: const ValueKey('selection-toolbar-enabled'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(ModuStrings.text(context, '选中文字时显示工具栏',
-                      'Show toolbar when selecting text')),
-                  value: config.enabled,
-                  onChanged: _busy
-                      ? null
-                      : (value) => _save(config.copyWith(enabled: value))),
-              ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(ModuStrings.text(
-                      context, '直接显示的按钮数量', 'Visible action count')),
-                  subtitle: Text(ModuStrings.text(
-                      context,
-                      '其余已启用按钮放入“更多”，小屏幕会自动减少直接显示数量。',
-                      'Remaining enabled actions appear under More. Smaller screens fit fewer buttons.')),
-                  trailing: DropdownButton<int>(
-                      key: const ValueKey('selection-toolbar-visible-count'),
-                      value: config.visibleCount,
-                      items: [
-                        for (var n = 1; n <= 8; n++)
-                          DropdownMenuItem(value: n, child: Text('$n'))
-                      ],
-                      onChanged: _busy
-                          ? null
-                          : (value) =>
-                              _save(config.copyWith(visibleCount: value)))),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                FilledButton.icon(
-                    key: const ValueKey('toolbar-add-ai'),
-                    icon: const Icon(Icons.add),
-                    label: Text(ModuStrings.text(
-                        context, '新建 AI 命令', 'New AI command')),
-                    onPressed: _busy ||
-                            config.items
-                                    .where((i) =>
-                                        i.isCustom &&
-                                        !SelectionToolbarConfig.templateItems
-                                            .any((p) => p.id == i.id))
-                                    .length >=
-                                24
-                        ? null
-                        : () => _edit()),
-                OutlinedButton.icon(
-                    key: const ValueKey('toolbar-restore'),
-                    icon: const Icon(Icons.restore),
-                    label: Text(
-                        ModuStrings.text(context, '恢复默认', 'Restore defaults')),
-                    onPressed: _busy ? null : _restore),
-              ]),
-              if (_error != null)
-                Text(_error!,
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error)),
-              const SizedBox(height: 24),
-              Text(
-                  ModuStrings.text(
-                      context, '常用工具（默认开启）', 'Common tools (on by default)'),
-                  style: Theme.of(context).textTheme.titleLarge),
-            ])),
+            SliverToBoxAdapter(
+                child: SettingsSection.content(
+                    title: Text(
+                        ModuStrings.text(context, '工具栏设置', 'Toolbar settings')),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ModuStrings.text(
+                              context,
+                              '自定义划词菜单的按钮显示和顺序。长按卡片或拖动左侧手柄排序，点击编辑图标调整参数。',
+                              'Choose which selection actions appear and in what order. Hold a card or drag its handle; edit parameters using the pencil.')),
+                          const SizedBox(height: 12),
+                          SwitchListTile(
+                              key: const ValueKey('selection-toolbar-enabled'),
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(ModuStrings.text(
+                                  context,
+                                  '选中文字时显示工具栏',
+                                  'Show toolbar when selecting text')),
+                              value: config.enabled,
+                              onChanged: _busy
+                                  ? null
+                                  : (value) =>
+                                      _save(config.copyWith(enabled: value))),
+                          ListTile(
+                              key: const ValueKey('selection-search-settings'),
+                              textColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                              iconColor: Theme.of(context).colorScheme.primary,
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.travel_explore),
+                              title: Text(ModuStrings.text(
+                                  context, '选词搜索', 'Selection search')),
+                              subtitle: Text(ModuStrings.text(
+                                  context,
+                                  '内置浏览器 · 自定义搜索引擎',
+                                  'In-app browser · Custom search engines')),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _openLookupSettings(
+                                  ModuStrings.text(
+                                      context, '选词搜索', 'Selection search'),
+                                  const SelectionSearchSettings())),
+                          ListTile(
+                              key: const ValueKey(
+                                  'selection-dictionary-settings'),
+                              textColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                              iconColor: Theme.of(context).colorScheme.primary,
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.menu_book_outlined),
+                              title: Text(ModuStrings.text(
+                                  context, '自定义字典', 'Custom dictionaries')),
+                              subtitle: Text(ModuStrings.text(
+                                  context,
+                                  '本地导入 · 查询来源 · 离线选词查询',
+                                  'Local import · Query sources · Offline lookup')),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _openLookupSettings(
+                                  ModuStrings.text(
+                                      context, '自定义字典', 'Custom dictionaries'),
+                                  const DictionarySettings())),
+                          ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(ModuStrings.text(context, '直接显示的按钮数量',
+                                  'Visible action count')),
+                              subtitle: Text(ModuStrings.text(
+                                  context,
+                                  '其余已启用按钮放入“更多”，小屏幕会自动减少直接显示数量。',
+                                  'Remaining enabled actions appear under More. Smaller screens fit fewer buttons.')),
+                              trailing: DropdownButton<int>(
+                                  key: const ValueKey(
+                                      'selection-toolbar-visible-count'),
+                                  value: config.visibleCount,
+                                  items: [
+                                    for (var n = 1; n <= 8; n++)
+                                      DropdownMenuItem(
+                                          value: n, child: Text('$n'))
+                                  ],
+                                  onChanged: _busy
+                                      ? null
+                                      : (value) => _save(config.copyWith(
+                                          visibleCount: value)))),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            FilledButton.icon(
+                                key: const ValueKey('toolbar-add-ai'),
+                                icon: const Icon(Icons.add),
+                                label: Text(ModuStrings.text(
+                                    context, '新建 AI 命令', 'New AI command')),
+                                onPressed: _busy ||
+                                        config.items
+                                                .where((i) =>
+                                                    i.isCustom &&
+                                                    !SelectionToolbarConfig
+                                                        .templateItems
+                                                        .any((p) =>
+                                                            p.id == i.id))
+                                                .length >=
+                                            24
+                                    ? null
+                                    : () => _edit()),
+                            OutlinedButton.icon(
+                                key: const ValueKey('toolbar-restore'),
+                                icon: const Icon(Icons.restore),
+                                label: Text(ModuStrings.text(
+                                    context, '恢复默认', 'Restore defaults')),
+                                onPressed: _busy ? null : _restore),
+                          ]),
+                          if (_error != null)
+                            Text(_error!,
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error)),
+                        ]))),
+            SliverToBoxAdapter(
+                child: SettingsSectionTitle(
+                    child: Text(ModuStrings.text(context, '常用工具（默认开启）',
+                        'Common tools (on by default)')))),
             _list(config.items.where((i) => primaryIds.contains(i.id)).toList(),
                 false),
-            _section(
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(ModuStrings.text(context, '批注工具', 'Annotation tools'),
-                  style: Theme.of(context).textTheme.titleLarge),
-              Text(ModuStrings.text(context, '单独控制批注栏的按钮和顺序，不影响已有笔记。',
-                  'Configure the annotation row without changing existing notes.')),
-            ])),
-            _list(config.annotations, true),
+            SliverToBoxAdapter(
+                child: SettingsSectionTitle(
+                    child: Text(ModuStrings.text(
+                        context, '批注工具', 'Annotation tools')))),
             _section(Text(
-                ModuStrings.text(context, '可选工具与 AI 模板（默认关闭）',
-                    'Optional tools and AI templates (off by default)'),
-                style: Theme.of(context).textTheme.titleLarge)),
+                ModuStrings.text(context, '单独控制批注栏的按钮和顺序，不影响已有笔记。',
+                    'Configure the annotation row without changing existing notes.'),
+                style: Theme.of(context).textTheme.bodySmall)),
+            _list(config.annotations, true),
+            SliverToBoxAdapter(
+                child: SettingsSectionTitle(
+                    child: Text(ModuStrings.text(context, '可选工具与 AI 模板（默认关闭）',
+                        'Optional tools and AI templates (off by default)')))),
             _list(
                 config.items.where((i) => !primaryIds.contains(i.id)).toList(),
                 false,

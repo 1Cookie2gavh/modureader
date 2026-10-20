@@ -1,5 +1,6 @@
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/widgets/settings/qq_community.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -31,7 +32,9 @@ class CommunityLinks extends StatelessWidget {
         children: [
           const QqCommunity(),
           const SizedBox(height: 8),
-          Card.outlined(
+          SettingsSection.content(
+            title: const Text('Telegram'),
+            padding: EdgeInsets.zero,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

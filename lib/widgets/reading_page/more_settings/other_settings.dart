@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/platform_utils.dart';
+import '../reader_menu_group.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/page_turn_mode.dart';
@@ -22,8 +23,10 @@ class OtherSettings extends StatefulWidget {
   const OtherSettings(
       {super.key,
       this.showKeyboardShortcuts = false,
-      this.documentMode = false});
+      this.documentMode = false,
+      this.readerMenu = false});
   final bool documentMode;
+  final bool readerMenu;
 
   final bool showKeyboardShortcuts;
 
@@ -318,54 +321,71 @@ class _OtherSettingsState extends State<OtherSettings> {
       );
     }
 
+    Widget group(List<Widget> children) {
+      final content = Column(children: children);
+      return widget.readerMenu
+          ? ReaderMenuGroup(padding: const EdgeInsets.all(12), child: content)
+          : content;
+    }
+
     return Container(
-      padding: const EdgeInsets.all(8.0),
+      padding: EdgeInsets.symmetric(
+          horizontal: widget.readerMenu ? 9 : 8, vertical: 8),
       child: Column(
+        crossAxisAlignment: widget.readerMenu
+            ? CrossAxisAlignment.stretch
+            : CrossAxisAlignment.center,
         children: [
-          fullScreen(),
-          if (AnxPlatform.isAndroid || AnxPlatform.isIOS) keyboardTurnPage(),
-          // if (PageTurnMode.fromCode(Prefs().pageTurnMode) ==
-          //     PageTurnMode.simple)
-          ebookOnly(swapPageTurnArea()),
-          ebookOnly(showMenuOnHover()),
-          autoAdjustReadingTheme(),
-          ebookOnly(autoTranslateSelection()),
-          ebookOnly(autoMarkSelection()),
-          LongPressSelectionTile(
-            value: Prefs().longPressSelectParagraph,
-            onChanged: (value) {
-              setState(() => Prefs().longPressSelectParagraph = value);
-              if (!widget.documentMode) {
-                epubPlayerKey.currentState?.changeStyle(null);
-              }
-            },
-          ),
-          screenTimeout(),
-          ebookOnly(pageTurningControl()),
-          if (widget.showKeyboardShortcuts)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                  ModuStrings.text(context, '自定义按键', 'Keyboard shortcuts')),
-              subtitle: Text(ModuStrings.text(context, '翻页、菜单和朗读控制 · 支持多个按键',
-                  'Pages, menu and narration · multiple bindings')),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ReaderShortcutsSettings())),
+          group([
+            fullScreen(),
+            if (AnxPlatform.isAndroid || AnxPlatform.isIOS) keyboardTurnPage(),
+            // if (PageTurnMode.fromCode(Prefs().pageTurnMode) ==
+            //     PageTurnMode.simple)
+            ebookOnly(swapPageTurnArea()),
+            ebookOnly(showMenuOnHover()),
+            autoAdjustReadingTheme(),
+            ebookOnly(autoTranslateSelection()),
+            ebookOnly(autoMarkSelection()),
+          ]),
+          group([
+            LongPressSelectionTile(
+              value: Prefs().longPressSelectParagraph,
+              onChanged: (value) {
+                setState(() => Prefs().longPressSelectParagraph = value);
+                if (!widget.documentMode) {
+                  epubPlayerKey.currentState?.changeStyle(null);
+                }
+              },
             ),
-          ebookOnly(ContinuousScrollTile(onChanged: (value) {
-            epubPlayerKey.currentState?.changeContinuousScroll(value);
-          })),
-          ebookOnly(ScrollPagePercentTile(onChanged: (value) {
-            epubPlayerKey.currentState?.changeScrollPagePercent(value);
-          })),
-          ebookOnly(TapOnlyPageTurnTile(
-            value: Prefs().tapOnlyPageTurn,
-            onChanged: (value) {
-              setState(() => Prefs().tapOnlyPageTurn = value);
-              epubPlayerKey.currentState?.changeStyle(null);
-            },
-          )),
+            screenTimeout(),
+            ebookOnly(pageTurningControl()),
+            if (widget.showKeyboardShortcuts)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                    ModuStrings.text(context, '自定义按键', 'Keyboard shortcuts')),
+                subtitle: Text(ModuStrings.text(context, '翻页、菜单和朗读控制 · 支持多个按键',
+                    'Pages, menu and narration · multiple bindings')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const ReaderShortcutsSettings())),
+              ),
+          ]),
+          group([
+            ebookOnly(ContinuousScrollTile(onChanged: (value) {
+              epubPlayerKey.currentState?.changeContinuousScroll(value);
+            })),
+            ebookOnly(ScrollPagePercentTile(onChanged: (value) {
+              epubPlayerKey.currentState?.changeScrollPagePercent(value);
+            })),
+            ebookOnly(TapOnlyPageTurnTile(
+              value: Prefs().tapOnlyPageTurn,
+              onChanged: (value) {
+                setState(() => Prefs().tapOnlyPageTurn = value);
+                epubPlayerKey.currentState?.changeStyle(null);
+              },
+            )),
+          ]),
         ],
       ),
     );

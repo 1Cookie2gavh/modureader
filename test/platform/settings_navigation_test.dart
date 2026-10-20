@@ -3,15 +3,51 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-      'bug and feature reporting is a settings category before the final About entry',
+  test('macOS transition workaround is scoped to its renderer configuration',
       () {
+    final mac = File('macos/Runner/Info.plist').readAsStringSync();
+    expect(mac, matches(RegExp(r'<key>FLTEnableImpeller</key>\s*<false/>')));
+    final android =
+        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    expect(android, isNot(contains('EnableImpeller')));
+    final ios = File('ios/Runner/Info.plist').readAsStringSync();
+    expect(ios, isNot(contains('FLTEnableImpeller')));
+  });
+
+  test('feedback is in About instead of a top-level settings category', () {
     final source = File('lib/page/settings_page/more_settings_page.dart')
         .readAsStringSync();
-    expect(source, contains('"sections": const BugReportSettings()'));
-    expect(source, contains('问题反馈与功能建议'));
-    expect(source.indexOf('const BugReportSettings()'),
-        lessThan(source.indexOf('const About(leadingColor: true)')));
+    final about = File('lib/widgets/settings/about.dart').readAsStringSync();
+    expect(source, isNot(contains('BugReportSettings')));
+    expect(about, contains("ValueKey('about-feedback')"));
+    expect(about, contains('sections: const BugReportSettings()'));
+  });
+
+  test('settings categories consolidate without replacing existing pages', () {
+    final settings = File('lib/page/settings_page/more_settings_page.dart')
+        .readAsStringSync();
+    for (final removed in [
+      'SelectionSearchSettings',
+      'DictionarySettings',
+      'GlobalSettingsPage',
+      'StorageSettings'
+    ]) {
+      expect(settings, isNot(contains(removed)));
+    }
+    expect(settings, contains('同步与备份'));
+    expect(settings, isNot(contains('独立于同步')));
+    expect(settings, isNot(contains('separate from sync')));
+    final toolbar = File('lib/page/settings_page/selection_toolbar.dart')
+        .readAsStringSync();
+    final sync = File('lib/page/settings_page/sync.dart').readAsStringSync();
+    final advanced =
+        File('lib/page/settings_page/advanced.dart').readAsStringSync();
+    expect(toolbar, contains('const SelectionSearchSettings()'));
+    expect(toolbar, contains("'selection-dictionary-settings'"));
+    expect(toolbar, contains('const DictionarySettings()'));
+    expect(sync, contains('sections: const GlobalSettingsPage()'));
+    expect(sync, contains('DatabaseBackupSection('));
+    expect(advanced, contains('sections: const StorageSettings()'));
   });
   test('unsupported system speech is disabled with an explicit privacy notice',
       () {
@@ -53,12 +89,13 @@ void main() {
     expect(sync, contains('webdavSwitch(context, setState, ref)'));
     expect(settings, isNot(contains('IAPPage')));
 
-    final aboutIndex = settings.indexOf('const About(leadingColor: true)');
+    final aboutIndex = settings.indexOf('About(leadingColor: true)');
     final developerIndex = settings.indexOf("const Text('Developer Options')");
     expect(aboutIndex, greaterThan(developerIndex));
   });
 
-  test('AI reading skills are merged into their own settings category', () {
+  test('AI reading skills live inside AI settings and retain existing controls',
+      () {
     final home = File('lib/page/home_page.dart').readAsStringSync();
     final settings = File('lib/page/settings_page/more_settings_page.dart')
         .readAsStringSync();
@@ -70,8 +107,9 @@ void main() {
 
     expect(home, isNot(contains("'identifier': 'skills'")));
     expect(home, isNot(contains('SkillsPage(')));
-    expect(settings, contains('AiReadingSkillsSettings'));
-    expect(settings, contains('AI 阅读技能'));
+    expect(settings, isNot(contains('AiReadingSkillsSettings')));
+    expect(ai, contains("ValueKey('ai-reading-skills-settings')"));
+    expect(ai, contains('sections: const AiReadingSkillsSettings()'));
     expect(ai, isNot(contains('userPromptsTile()')));
     expect(ai, isNot(contains('AiPrompts.summaryTheChapter')));
     expect(
@@ -88,5 +126,19 @@ void main() {
         matches(RegExp(
             r'if\s*\(!compact\s*&&\s*widget\.showSkillControls\s*&&\s*_isReaderSkills\s*&&\s*_showSkillPrompts\)')));
     expect(aiChat, contains('_buildSkillPicker(context)'));
+  });
+
+  test('one model category links to unchanged vector and OCR settings', () {
+    final settings = File('lib/page/settings_page/more_settings_page.dart')
+        .readAsStringSync();
+    final models =
+        File('lib/page/settings_page/models.dart').readAsStringSync();
+    expect(settings, contains('"sections": const ModelSettings()'));
+    expect(settings, isNot(contains('const VectorModelSettings()')));
+    expect(settings, isNot(contains('const OcrModelSettings()')));
+    expect(models, contains('sections: const VectorModelSettings()'));
+    expect(models, contains('sections: const OcrModelSettings()'));
+    expect(models, contains("ValueKey('model-settings-vector')"));
+    expect(models, contains("ValueKey('model-settings-ocr')"));
   });
 }

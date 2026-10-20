@@ -118,10 +118,25 @@ void main() {
         '第1页\n────────────────────\n校对繁體𠀀\n第二行\n────────────────────\n\n'
         '第4页\n────────────────────\n原文3\n────────────────────\n\n'
         '第11页\n────────────────────\n原文10\n────────────────────');
+    final before = await reopened.syncSnapshot();
+    expect(
+        await reopened.exportText(format: DocumentTextExportFormat.markdown),
+        '## 第1页\n\n校对繁體𠀀\n第二行\n\n---\n\n'
+        '## 第4页\n\n原文3\n\n---\n\n'
+        '## 第11页\n\n原文10\n');
+    expect(await reopened.syncSnapshot(), before,
+        reason: 'Neither export format changes cached pages or revisions');
     final files =
         directory.listSync(recursive: true).whereType<File>().toList();
     expect(files.length, 1);
     expect(files.single.path, endsWith('/book.json'));
+  });
+
+  test('empty saved text exports nothing in either format', () async {
+    final store = DocumentReflowStore('empty', directory: directory);
+    for (final format in DocumentTextExportFormat.values) {
+      expect(await store.exportText(format: format), isEmpty);
+    }
   });
 
   test('concurrent page saves and stale edits cannot overwrite unrelated work',

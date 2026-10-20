@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'reader_setting_availability.dart';
 import '../reader_settings_scroll_view.dart';
+import '../reader_menu_group.dart';
 
 enum ReadingSettings { theme, style }
 
@@ -75,13 +76,15 @@ class _ReaderMoreSettingsState extends State<ReaderMoreSettings> {
                 absorbing: _saving,
                 child: TabBarView(children: [
                   ReaderSettingsScrollView(
-                      child: ReadingMoreSettings(documentMode: _document)),
+                      child: ReadingMoreSettings(
+                          readerMenu: true, documentMode: _document)),
                   ReaderSettingsScrollView(
                       child: StyleSettings(
+                          readerMenu: true,
                           documentStyle: _documentStyle,
                           saveDocumentStyle: _save)),
                   ReaderSettingsScrollView(
-                      child: Padding(
+                      child: ReaderMenuGroup(
                     padding: const EdgeInsets.all(8),
                     child: ReaderSettingAvailability(
                         enabled: !_document,
@@ -89,7 +92,8 @@ class _ReaderMoreSettingsState extends State<ReaderMoreSettings> {
                             key: ValueKey(bookKey), bookKey: bookKey)),
                   )),
                   ReaderSettingsScrollView(
-                      child: OtherSettings(documentMode: _document)),
+                      child: OtherSettings(
+                          readerMenu: true, documentMode: _document)),
                 ]))),
       ]),
     );

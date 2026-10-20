@@ -48,6 +48,23 @@ void main() {
     OnlineTts.clearCachedAudio();
   });
 
+  test('selection seeks to its sentence and stops at the same page end', () {
+    const text = '第一句。\n\n𠀀第二句！第三句？';
+    final page = TtsPageSource(text, chapter: 'Page 4');
+    page.seekToOffset(text.indexOf('第二'));
+    expect(page.currentText(), '𠀀第二句！');
+    expect(page.collect(10).map((s) => s.text), ['𠀀第二句！', '第三句？']);
+    expect(page.nextText(), '第三句？');
+    expect(page.nextText(), isEmpty);
+    page.seekToOffset(4); // Whitespace before the next sentence.
+    expect(page.currentText(), '𠀀第二句！');
+    page.seekToOffset(0);
+    expect(page.currentText(), '第一句。');
+    page.invalidate();
+    page.seekToOffset(text.indexOf('第三'));
+    expect(page.currentText(), isEmpty);
+  });
+
   test('page cursor bounds, prefetch snapshots, replay and invalidation', () {
     final positions = <int>[];
     final page = TtsPageSource('第一句。第二句！\n\n第三句？',

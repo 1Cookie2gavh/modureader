@@ -3,7 +3,6 @@ import 'package:anx_reader/widgets/reading_page/more_settings/other_settings.dar
 import 'package:anx_reader/widgets/reading_page/more_settings/reading_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
-import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,16 +17,21 @@ class ReadingSettings extends ConsumerStatefulWidget {
 class _ReadingSettingsState extends ConsumerState<ReadingSettings> {
   @override
   Widget build(BuildContext context) {
+    CustomSettingsSection section(String title, Widget child) =>
+        CustomSettingsSection(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SettingsSectionTitle(child: Text(title)),
+            child,
+          ]),
+        );
     return settingsSections(sections: [
-      SettingsSection(title: Text(L10n.of(context).readingPageReading), tiles: [
-        CustomSettingsTile(child: ReadingMoreSettings()),
-      ]),
-      SettingsSection(title: Text(L10n.of(context).readingPageStyle), tiles: [
-        CustomSettingsTile(child: StyleSettings()),
-      ]),
-      SettingsSection(title: Text(L10n.of(context).readingPageOther), tiles: [
-        CustomSettingsTile(child: OtherSettings(showKeyboardShortcuts: true)),
-      ]),
+      section(L10n.of(context).readingPageReading,
+          const ReadingMoreSettings(readerMenu: true)),
+      section(L10n.of(context).readingPageStyle,
+          const StyleSettings(readerMenu: true)),
+      section(L10n.of(context).readingPageOther,
+          const OtherSettings(readerMenu: true, showKeyboardShortcuts: true)),
     ]);
   }
 }

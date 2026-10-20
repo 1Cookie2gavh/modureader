@@ -458,6 +458,7 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final model in LocalEmbeddingModels.all) ...[
             _buildLocalModelCard(model, selectedId == model.id),
@@ -489,8 +490,6 @@ class _VectorModelSettingsState extends State<VectorModelSettings> {
     final colors = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 0,
-      color: selected ? colors.primaryContainer.withAlpha(90) : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(

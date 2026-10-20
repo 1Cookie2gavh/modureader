@@ -48,7 +48,7 @@ pageFooterLeftMargin pageFooterRightMargin pageFooterFontSize aiPanelWidth aiPan
             .split(RegExp(r'\s+')))
       key: 'double',
     for (final key
-        in '''locale themeMode readStyle readTheme annotationType annotationColor ttsService ttsBufferSettings
+        in '''wereadApiKey locale themeMode readStyle readTheme annotationType annotationColor ttsService ttsBufferSettings
 pageTurnStyle translateService translateFrom translateTo fullTextTranslateService fullTextTranslateFrom
 fullTextTranslateTo translationAiService readingRules chapterSplitCustomRules chapterSplitSelectedRuleId
 selectedAiService vectorModelMode vectorLocalModelId vectorModelDownloadSource vectorModelConfig aiProviders ocrModelId ocrModelDownloadSource

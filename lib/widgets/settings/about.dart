@@ -7,6 +7,8 @@ import 'package:anx_reader/config/app_identity.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/page/settings_page/developer/developer_options_page.dart';
+import 'package:anx_reader/page/settings_page/bug_report.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/check_update.dart';
@@ -15,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:anx_reader/utils/app_version.dart';
 import 'package:anx_reader/widgets/settings/community_links.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class About extends StatefulWidget {
@@ -124,45 +127,79 @@ Future<void> openAboutDialog() async {
                   ),
                 ),
                 const Divider(),
-                ListTile(
-                  title: Text(L10n.of(context).appVersion),
-                  subtitle: Text(version + (kDebugMode ? ' (debug)' : '')),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: version));
-                    AnxToast.show(L10n.of(context).notesPageCopied);
-                    _handleDeveloperUnlockTap(context);
-                  },
+                SettingsSection.content(
+                  key: const ValueKey('about-app-frame'),
+                  title: Text(ModuStrings.text(context, '应用信息', 'Application')),
+                  padding: EdgeInsets.zero,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    ListTile(
+                      title: Text(L10n.of(context).appVersion),
+                      subtitle: Text(version + (kDebugMode ? ' (debug)' : '')),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: version));
+                        AnxToast.show(L10n.of(context).notesPageCopied);
+                        _handleDeveloperUnlockTap(context);
+                      },
+                    ),
+                    if (EnvVar.enableCheckUpdate)
+                      ListTile(
+                          leading: const Icon(Icons.system_update_outlined),
+                          title: Text(ModuStrings.text(
+                              context, '版本检查与更新', 'App updates')),
+                          subtitle: Text(ModuStrings.text(
+                              context,
+                              '检查版本 · 下载 · 安装',
+                              'Check version · Download · Install')),
+                          onTap: () => checkUpdate(true)),
+                    ListTile(
+                      key: const ValueKey('about-feedback'),
+                      leading: const Icon(Icons.bug_report_outlined),
+                      title: Text(ModuStrings.text(context, '问题反馈与功能建议',
+                          'Bug reports and feature requests')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        final navigator = Navigator.of(context);
+                        navigator.pop();
+                        navigator.push(MotionCupertinoPageRoute(
+                            builder: (context) => SettingsPageBody(
+                                title: ModuStrings.text(context, '问题反馈与功能建议',
+                                    'Bug reports and feature requests'),
+                                isMobile: true,
+                                sections: const BugReportSettings())));
+                      },
+                    ),
+                  ]),
                 ),
-                if (EnvVar.enableCheckUpdate)
-                  ListTile(
-                      leading: const Icon(Icons.system_update_outlined),
-                      title: Text(
-                          ModuStrings.text(context, '版本检查与更新', 'App updates')),
-                      subtitle: Text(ModuStrings.text(context, '检查版本 · 下载 · 安装',
-                          'Check version · Download · Install')),
-                      onTap: () => checkUpdate(true)),
-                ListTile(
+                SettingsSection.content(
+                  key: const ValueKey('about-credits-frame'),
                   title: Text(ModuStrings.text(
-                      context, '开源项目与来源', 'Open-source projects and credits')),
-                  subtitle: Text(ModuStrings.text(
-                      context,
-                      '默读基于 Anx Reader 与 ReadAny 开发，\n以 GPL-3.0-or-later 发布，非上游官方发行版。',
-                      'Modu is based on Anx Reader and ReadAny.\nReleased under GPL-3.0-or-later; not an official upstream release.')),
-                  isThreeLine: true,
-                  onTap: () => launchUrl(
-                    Uri.parse('https://github.com/sobranie2406/modureader'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                ListTile(
-                  title: Text(L10n.of(context).appLicense),
-                  onTap: () {
-                    showLicensePage(
-                      context: context,
-                      applicationName: AppIdentity.globalDisplayName,
-                      applicationVersion: version,
-                    );
-                  },
+                      context, '开源与许可', 'Credits and licenses')),
+                  padding: EdgeInsets.zero,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    ListTile(
+                      title: Text(ModuStrings.text(context, '开源项目与来源',
+                          'Open-source projects and credits')),
+                      subtitle: Text(ModuStrings.text(
+                          context,
+                          '默读基于 Anx Reader 与 ReadAny 开发，\n以 GPL-3.0-or-later 发布，非上游官方发行版。',
+                          'Modu is based on Anx Reader and ReadAny.\nReleased under GPL-3.0-or-later; not an official upstream release.')),
+                      isThreeLine: true,
+                      onTap: () => launchUrl(
+                        Uri.parse('https://github.com/sobranie2406/modureader'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                    ListTile(
+                      title: Text(L10n.of(context).appLicense),
+                      onTap: () {
+                        showLicensePage(
+                          context: context,
+                          applicationName: AppIdentity.globalDisplayName,
+                          applicationVersion: version,
+                        );
+                      },
+                    ),
+                  ]),
                 ),
                 const CommunityLinks(),
                 const Divider(),

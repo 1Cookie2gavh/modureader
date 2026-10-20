@@ -7,8 +7,9 @@ import 'package:anx_reader/models/md5_statistics.dart';
 import 'package:anx_reader/page/settings_page/subpage/chapter_split_rules_page.dart';
 import 'package:anx_reader/page/settings_page/subpage/anx_backup_import_page.dart';
 import 'package:anx_reader/page/settings_page/subpage/log_page.dart';
+import 'package:anx_reader/page/settings_page/storege.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'package:anx_reader/page/changelog_screen.dart';
-import 'package:anx_reader/page/onboarding_screen.dart';
 import 'package:anx_reader/service/md5_service.dart';
 import 'package:anx_reader/service/network/http_proxy_overrides.dart';
 import 'package:anx_reader/utils/app_version.dart';
@@ -51,6 +52,24 @@ class _AdvancedSettingState extends State<AdvancedSetting> {
   Widget build(BuildContext context) {
     return settingsSections(
       sections: [
+        SettingsSection(
+          title: Text(L10n.of(context).storage),
+          tiles: [
+            SettingsTile.navigation(
+              key: const ValueKey('advanced-storage'),
+              leading: const Icon(Icons.storage_outlined),
+              title: Text(L10n.of(context).storage),
+              description: Text(
+                  '${L10n.of(context).storageInfo} · ${L10n.of(context).storageDataFileDetails}'),
+              onPressed: (context) => Navigator.of(context).push(
+                  MotionCupertinoPageRoute(
+                      builder: (context) => SettingsPageBody(
+                          title: L10n.of(context).storage,
+                          isMobile: true,
+                          sections: const StorageSettings()))),
+            ),
+          ],
+        ),
         SettingsSection(
           title: Text(ModuStrings.text(context, '数据迁移', 'Data migration')),
           tiles: [
@@ -232,11 +251,6 @@ class _AdvancedSettingState extends State<AdvancedSetting> {
               title: Text(L10n.of(context).viewChangelog),
               leading: const Icon(Icons.update),
               onPressed: _showChangelog,
-            ),
-            SettingsTile.navigation(
-              title: Text(L10n.of(context).viewOnboarding),
-              leading: const Icon(Icons.menu_book_outlined),
-              onPressed: _showOnboarding,
             ),
           ],
         ),
@@ -564,25 +578,6 @@ Future<void> _showChangelog(BuildContext context) async {
               Prefs().lastAppVersion = currentVersion;
               Navigator.pop(sheetContext);
             },
-          );
-      return widgetBuilder(context);
-    },
-  );
-}
-
-Future<void> _showOnboarding(BuildContext context) async {
-  final currentVersion = await getAppVersion();
-
-  showCupertinoSheet(
-    context: navigatorKey.currentContext ?? context,
-    scrollableBuilder: (BuildContext context, ScrollController controller) {
-      Widget widgetBuilder(BuildContext sheetContext) => Scaffold(
-            body: OnboardingScreen(
-              onComplete: () {
-                Prefs().lastAppVersion = currentVersion;
-                Navigator.pop(sheetContext);
-              },
-            ),
           );
       return widgetBuilder(context);
     },

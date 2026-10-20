@@ -1,4 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/pdf_reading_view.dart';
 import 'package:anx_reader/widgets/reading_page/document_enhancement_panel.dart';
@@ -66,12 +68,14 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
   Widget build(BuildContext context) {
     String text(String zh, String en) => ModuStrings.text(context, zh, en);
     Widget section(String title, IconData icon, List<Widget> children) =>
-        ExpansionTile(
+        ReaderMenuGroup(
+            child: ExpansionTile(
           title: Text(title),
           leading: Icon(icon),
-          tilePadding: EdgeInsets.zero,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
           children: children,
-        );
+        ));
     Widget button(IconData icon, String label, VoidCallback action) =>
         IconButton(
             tooltip: label, onPressed: _busy ? null : action, icon: Icon(icon));
@@ -83,11 +87,15 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
           children: [
             for (final option in options.entries)
               ChoiceChip(
-                selectedColor: Theme.of(context).colorScheme.primary,
-                checkmarkColor: Theme.of(context).colorScheme.onPrimary,
+                selectedColor: Prefs().eInkMode
+                    ? Colors.transparent
+                    : Theme.of(context).colorScheme.primary,
+                checkmarkColor: Prefs().eInkMode
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.onPrimary,
                 label: Text(option.value,
                     style: TextStyle(
-                        color: selected == option.key
+                        color: selected == option.key && !Prefs().eInkMode
                             ? Theme.of(context).colorScheme.onPrimary
                             : Theme.of(context).colorScheme.onSurface)),
                 selected: selected == option.key,
@@ -123,33 +131,39 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
           }, _view.fit, (v) => _apply(_view.copyWith(fit: v, zoom: 1))),
         ),
       ]),
-      if (widget.cropControls != null) widget.cropControls!,
+      if (widget.cropControls != null)
+        ReaderMenuGroup(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: widget.cropControls!),
       if (widget.preview != null)
-        DocumentControlRow(
-          label: text('图像增强', 'Image enhancement'),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            OutlinedButton.icon(
-                icon: const Icon(Icons.tune),
-                onPressed: _busy ? null : enhance,
-                label: Text(text('调整图像效果', 'Adjust image effects'))),
-            const SizedBox(height: 8),
-            Text(
-                {
-                  'ink': text('文字加黑', 'Stroke strength'),
-                  'contrast': text('对比度', 'Contrast'),
-                  'darken': text('加黑', 'Darken'),
-                  'whiten': text('漂白', 'Paper whitening'),
-                  'sharpen': text('锐化', 'Sharpen'),
-                  'watermark': text('扫描水印减淡', 'Scan watermark fading'),
-                }
-                    .entries
-                    .map((entry) =>
-                        '${entry.value} ${_view.enhancement.values[entry.key]!.round()}')
-                    .join(' · '),
-                style: Theme.of(context).textTheme.bodySmall),
-          ]),
-        ),
+        ReaderMenuGroup(
+            padding: const EdgeInsets.all(12),
+            child: DocumentControlRow(
+              label: text('图像增强', 'Image enhancement'),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                        icon: const Icon(Icons.tune),
+                        onPressed: _busy ? null : enhance,
+                        label: Text(text('调整图像效果', 'Adjust image effects'))),
+                    const SizedBox(height: 8),
+                    Text(
+                        {
+                          'ink': text('文字加黑', 'Stroke strength'),
+                          'contrast': text('对比度', 'Contrast'),
+                          'darken': text('加黑', 'Darken'),
+                          'whiten': text('漂白', 'Paper whitening'),
+                          'sharpen': text('锐化', 'Sharpen'),
+                          'watermark': text('扫描水印减淡', 'Scan watermark fading'),
+                        }
+                            .entries
+                            .map((entry) =>
+                                '${entry.value} ${_view.enhancement.values[entry.key]!.round()}')
+                            .join(' · '),
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ]),
+            )),
       section(text('旋屏', 'Rotation'), Icons.screen_rotation, [
         DocumentControlRow(
           label: text('旋屏', 'Rotation'),
@@ -179,12 +193,13 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
       if (_error != null)
         Text(_error!,
             style: TextStyle(color: Theme.of(context).colorScheme.error)),
-      ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.swipe),
-          title: Text(text('翻页与相关选项', 'Page turning and options')),
-          children: [
+      ReaderMenuGroup(
+          child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
+              leading: const Icon(Icons.swipe),
+              title: Text(text('翻页与相关选项', 'Page turning and options')),
+              children: [
             DocumentControlRow(
               label: text('翻页方式', 'Page turning'),
               child: choices({
@@ -207,7 +222,7 @@ class _PdfReadingControlsState extends State<PdfReadingControls> {
                       ? null
                       : (value) => _apply(_view.copyWith(
                           display: _view.display.change(entry.key, value)))),
-          ]),
+          ])),
     ]);
   }
 }

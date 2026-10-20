@@ -45,10 +45,8 @@ class AppUpdateDialog extends StatelessWidget {
                 ChoiceChip(
                   key: ValueKey('$id-${source.name}'),
                   selected: value == source,
-                  label: Text(source == UpdateSource.github
-                      ? ModuStrings.text(context, 'GitHub（默认，优先）',
-                          'GitHub (default, preferred)')
-                      : 'Gitee'),
+                  label:
+                      Text(source == UpdateSource.github ? 'GitHub' : 'Gitee'),
                   onSelected: controller.busy ? null : (_) => onChanged(source),
                 ),
             ],

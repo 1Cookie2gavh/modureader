@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/lang_list.dart';
@@ -14,10 +15,17 @@ class TranslationWidget extends StatefulWidget {
     super.key,
     required this.bookId,
     required this.epubPlayerKey,
+    this.pageTranslationMode,
+    this.onTranslatePage,
+    this.onStopPageTranslation,
   });
 
   final int bookId;
   final GlobalKey<EpubPlayerState> epubPlayerKey;
+  final ValueNotifier<TranslationModeEnum>? pageTranslationMode;
+  final Future<void> Function(TranslationModeEnum mode, bool force)?
+      onTranslatePage;
+  final VoidCallback? onStopPageTranslation;
 
   @override
   State<TranslationWidget> createState() => _TranslationWidgetState();
@@ -41,14 +49,20 @@ class _TranslationWidgetState extends State<TranslationWidget> {
   void initState() {
     super.initState();
     final savedMode = Prefs().getBookTranslationMode(widget.bookId);
-    _activeMode = widget.epubPlayerKey.currentState?.translationMode.value ??
+    _activeMode = widget.pageTranslationMode?.value ??
+        widget.epubPlayerKey.currentState?.translationMode.value ??
         TranslationModeEnum.off;
-    _displayMode = savedMode == TranslationModeEnum.translationOnly
+    _displayMode = (widget.pageTranslationMode != null &&
+                    _activeMode != TranslationModeEnum.off
+                ? _activeMode
+                : savedMode) ==
+            TranslationModeEnum.translationOnly
         ? TranslationModeEnum.translationOnly
         : TranslationModeEnum.bilingual;
     _activeService = Prefs().fullTextTranslateService;
     _activeTarget = Prefs().fullTextTranslateTo;
-    _mode = widget.epubPlayerKey.currentState?.translationMode;
+    _mode = widget.pageTranslationMode ??
+        widget.epubPlayerKey.currentState?.translationMode;
     _mode?.addListener(_syncMode);
   }
 
@@ -81,16 +95,18 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                 ),
               ),
             ),
-            RadioGroup<TranslateService>(
-                groupValue: Prefs().fullTextTranslateService,
-                onChanged: (value) => Navigator.pop(context, value),
-                child: Column(children: [
-                  for (final service in TranslateService.readAnyValues)
-                    RadioListTile<TranslateService>(
-                      value: service,
-                      title: Text(service.getLabel(context)),
-                    ),
-                ])),
+            ReaderMenuGroup(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: RadioGroup<TranslateService>(
+                    groupValue: Prefs().fullTextTranslateService,
+                    onChanged: (value) => Navigator.pop(context, value),
+                    child: Column(children: [
+                      for (final service in TranslateService.readAnyValues)
+                        RadioListTile<TranslateService>(
+                          value: service,
+                          title: Text(service.getLabel(context)),
+                        ),
+                    ]))),
             const SizedBox(height: 8),
           ],
         ),
@@ -127,19 +143,21 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                 ),
               ),
               Expanded(
-                child: RadioGroup<LangListEnum>(
-                    groupValue: Prefs().fullTextTranslateTo,
-                    onChanged: (value) => Navigator.pop(context, value),
-                    child: ListView.builder(
-                      itemCount: languages.length,
-                      itemBuilder: (context, index) {
-                        final language = languages[index];
-                        return RadioListTile<LangListEnum>(
-                          value: language,
-                          title: Text(language.nativeName),
-                        );
-                      },
-                    )),
+                child: ReaderMenuGroup(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: RadioGroup<LangListEnum>(
+                        groupValue: Prefs().fullTextTranslateTo,
+                        onChanged: (value) => Navigator.pop(context, value),
+                        child: ListView.builder(
+                          itemCount: languages.length,
+                          itemBuilder: (context, index) {
+                            final language = languages[index];
+                            return RadioListTile<LangListEnum>(
+                              value: language,
+                              title: Text(language.nativeName),
+                            );
+                          },
+                        ))),
               ),
             ],
           ),
@@ -157,7 +175,7 @@ class _TranslationWidgetState extends State<TranslationWidget> {
   Future<void> _translate() async {
     if (_translating) return;
     final player = widget.epubPlayerKey.currentState;
-    if (player == null) return;
+    if (player == null && widget.onTranslatePage == null) return;
 
     final operation = ++_operation;
 
@@ -171,13 +189,18 @@ class _TranslationWidgetState extends State<TranslationWidget> {
       _error = null;
     });
     try {
-      await player.translateCurrentChapter(
-        _displayMode,
-        force: needsFreshTranslation,
-      );
+      if (widget.onTranslatePage != null) {
+        await widget.onTranslatePage!(
+            _displayMode, needsFreshTranslation || _activeMode == _displayMode);
+      } else {
+        await player!.translateCurrentChapter(
+          _displayMode,
+          force: needsFreshTranslation,
+        );
+      }
       if (!mounted || operation != _operation) return;
       setState(() {
-        _activeMode = player.translationMode.value;
+        _activeMode = _mode?.value ?? TranslationModeEnum.off;
         _activeService = service;
         _activeTarget = target;
       });
@@ -199,6 +222,10 @@ class _TranslationWidgetState extends State<TranslationWidget> {
       _activeMode = TranslationModeEnum.off;
     });
     final player = widget.epubPlayerKey.currentState;
+    if (widget.onStopPageTranslation != null) {
+      widget.onStopPageTranslation!();
+      return;
+    }
     if (player == null) return;
     try {
       await player.setTranslationMode(TranslationModeEnum.off);
@@ -249,57 +276,67 @@ class _TranslationWidgetState extends State<TranslationWidget> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _ChoiceButton(
-                  label: ModuStrings.text(context, '翻译引擎', 'Engine'),
-                  value: service.getLabel(context),
-                  icon: Icons.translate_outlined,
-                  onTap: _translating ? null : _showServicePicker,
+          ReaderMenuGroup(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ChoiceButton(
+                        label: ModuStrings.text(context, '翻译引擎', 'Engine'),
+                        value: service.getLabel(context),
+                        icon: Icons.translate_outlined,
+                        onTap: _translating ? null : _showServicePicker,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ChoiceButton(
+                        label: ModuStrings.text(
+                            context, '目标语言', 'Target language'),
+                        value: target.nativeName,
+                        icon: Icons.language_outlined,
+                        onTap: _translating ? null : _showLanguagePicker,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ChoiceButton(
-                  label: ModuStrings.text(context, '目标语言', 'Target language'),
-                  value: target.nativeName,
-                  icon: Icons.language_outlined,
-                  onTap: _translating ? null : _showLanguagePicker,
+                const SizedBox(height: 14),
+                Text(
+                  ModuStrings.text(context, '显示方式', 'Display'),
+                  style: theme.textTheme.labelLarge,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            ModuStrings.text(context, '显示方式', 'Display'),
-            style: theme.textTheme.labelLarge,
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: AnxSegmentedButton<TranslationModeEnum>(
-              enabled: !_translating,
-              segments: [
-                SegmentButtonItem(
-                  label: ModuStrings.text(context, '仅译文', 'Translation only'),
-                  value: TranslationModeEnum.translationOnly,
-                  icon: const Icon(Icons.g_translate),
-                ),
-                SegmentButtonItem(
-                  label: ModuStrings.text(
-                      context, '原文 + 译文', 'Original + translation'),
-                  value: TranslationModeEnum.bilingual,
-                  icon: const Icon(Icons.compare_outlined),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: AnxSegmentedButton<TranslationModeEnum>(
+                    enabled: !_translating,
+                    segments: [
+                      SegmentButtonItem(
+                        label: ModuStrings.text(
+                            context, '仅译文', 'Translation only'),
+                        value: TranslationModeEnum.translationOnly,
+                        icon: const Icon(Icons.g_translate),
+                      ),
+                      SegmentButtonItem(
+                        label: ModuStrings.text(
+                            context, '原文 + 译文', 'Original + translation'),
+                        value: TranslationModeEnum.bilingual,
+                        icon: const Icon(Icons.compare_outlined),
+                      ),
+                    ],
+                    selected: {_displayMode},
+                    onSelectionChanged: (value) {
+                      setState(() {
+                        _displayMode = value.first;
+                        _error = null;
+                      });
+                    },
+                  ),
                 ),
               ],
-              selected: {_displayMode},
-              onSelectionChanged: (value) {
-                setState(() {
-                  _displayMode = value.first;
-                  _error = null;
-                });
-              },
             ),
           ),
           if (_error != null) ...[
@@ -345,10 +382,15 @@ class _TranslationWidgetState extends State<TranslationWidget> {
           ),
           const SizedBox(height: 8),
           Text(
-            ModuStrings.text(
-                context,
-                '仅在你启动后翻译可见段落，滚动时逐段加载，不会一次发送整章。可随时停止；关闭书籍后停止，重新打开不会自动继续。',
-                'Translate visible paragraphs only after you start; scrolling loads them one at a time. Stop at any time. Closing the book stops translation; reopening never resumes it automatically.'),
+            widget.onTranslatePage != null
+                ? ModuStrings.text(
+                    context,
+                    '仅翻译当前原书页，优先使用已保存的编辑稿，否则使用识别文字。翻页或停止后恢复原文；译文不会写入 OCR 缓存和笔记。内容会发送给所选翻译引擎。',
+                    'Translate only this source page, preferring saved edits over recognized text. Turning the page or stopping restores the original. Translation never overwrites OCR or notes. Text is sent to the selected translation service.')
+                : ModuStrings.text(
+                    context,
+                    '仅在你启动后翻译可见段落，滚动时逐段加载，不会一次发送整章。可随时停止；关闭书籍后停止，重新打开不会自动继续。',
+                    'Translate visible paragraphs only after you start; scrolling loads them one at a time. Stop at any time. Closing the book stops translation; reopening never resumes it automatically.'),
             style: theme.textTheme.bodySmall,
           ),
         ],

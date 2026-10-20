@@ -70,6 +70,7 @@ class _SettingsPageBodyState extends State<SettingsPageBody> {
     // callback, so an already-open page refreshes its navigation title.
     final title = widget.titleBuilder?.call(context) ?? widget.title;
     return CupertinoPageScaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       child: NestedScrollView(
         headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
           return widget.isMobile

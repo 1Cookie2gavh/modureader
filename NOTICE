@@ -12,6 +12,14 @@ ReadAny Team; see LICENSES/ReadAny-GPL-3.0-or-later.txt.
 Source: https://github.com/sobranie2406/modureader
 Third-party notices remain in their original source and dependency distributions.
 
+The font-download specimen uses an unmodified Atkinson Hyperlegible Next Regular
+font, Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors.
+Source: https://github.com/googlefonts/atkinson-hyperlegible-next
+File: fonts/ttf/AtkinsonHyperlegibleNext-Regular.ttf
+Git blob: d0982cdce554149011bec58b21ac4a1bf8ee9ff5
+Licensed under SIL Open Font License 1.1; see LICENSES/AtkinsonHyperlegibleNext-OFL.txt.
+This preview face does not replace the user's reading font or downloaded fonts.
+
 Edge Read Aloud v2 token generation is adapted from edge-tts 7.3.0 drm.py,
 Copyright (c) 2025- rany <rany@riseup.net>, licensed under LGPLv3.
 Modifications Copyright (c) 2026 Modu contributors; the Dart adaptation retains

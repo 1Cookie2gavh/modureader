@@ -1,4 +1,5 @@
 import 'package:anx_reader/l10n/modu_strings.dart';
+import '../reader_menu_group.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/convert_chinese_mode.dart';
 import 'package:anx_reader/enums/reading_info.dart';
@@ -15,8 +16,10 @@ import 'package:icons_plus/icons_plus.dart';
 import 'reader_setting_availability.dart';
 
 class ReadingMoreSettings extends StatefulWidget {
-  const ReadingMoreSettings({super.key, this.documentMode = false});
+  const ReadingMoreSettings(
+      {super.key, this.documentMode = false, this.readerMenu = false});
   final bool documentMode;
+  final bool readerMenu;
 
   @override
   State<ReadingMoreSettings> createState() => _ReadingMoreSettingsState();
@@ -754,27 +757,62 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(18.0),
-      child: Column(
-        children: [
+    if (!widget.readerMenu) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        child: Column(children: [
           downloadFonts(),
           const Divider(height: 20),
           dailyCheckIn(),
           const Divider(height: 20),
           ReaderSettingAvailability(
+            enabled: !widget.documentMode,
+            child: Column(children: [
+              writingMode(),
+              translationMode(),
+              columnCount(),
+              columnThreshold(),
+              convertChinese(),
+              const Divider(height: 15),
+              codeHighlightTheme(),
+              const Divider(height: 15),
+              readingInfo(),
+            ]),
+          ),
+        ]),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ReaderMenuGroup(
+              padding: const EdgeInsets.all(12), child: downloadFonts()),
+          ReaderMenuGroup(
+              padding: const EdgeInsets.all(12), child: dailyCheckIn()),
+          ReaderSettingAvailability(
               enabled: !widget.documentMode,
-              child: Column(children: [
-                writingMode(),
-                translationMode(),
-                columnCount(),
-                columnThreshold(),
-                convertChinese(),
-                const Divider(height: 15),
-                codeHighlightTheme(),
-                const Divider(height: 15),
-                readingInfo(),
-              ])),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ReaderMenuGroup(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(children: [
+                        writingMode(),
+                        translationMode(),
+                        columnCount(),
+                        columnThreshold(),
+                        convertChinese(),
+                      ]),
+                    ),
+                    ReaderMenuGroup(
+                        padding: const EdgeInsets.all(12),
+                        child: codeHighlightTheme()),
+                    ReaderMenuGroup(
+                        padding: const EdgeInsets.all(12),
+                        child: readingInfo()),
+                  ])),
           // const Divider(height: 8),
           // bionicReading(),
         ],

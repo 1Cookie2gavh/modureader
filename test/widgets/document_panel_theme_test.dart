@@ -47,9 +47,16 @@ void main() {
           expect(theme.sliderTheme, applicationTheme.sliderTheme);
           final chip = tester.widget<ChoiceChip>(
               find.widgetWithText(ChoiceChip, 'Single page'));
-          expect(chip.selectedColor, applicationTheme.colorScheme.primary);
-          expect((chip.label as Text).style!.color,
-              applicationTheme.colorScheme.onPrimary);
+          expect(
+              chip.selectedColor,
+              Prefs().eInkMode
+                  ? Colors.transparent
+                  : applicationTheme.colorScheme.primary);
+          expect(
+              (chip.label as Text).style!.color,
+              Prefs().eInkMode
+                  ? applicationTheme.colorScheme.onSurface
+                  : applicationTheme.colorScheme.onPrimary);
           final material = tester.widget<Material>(find
               .descendant(
                   of: find.byType(DocumentPanelTheme),

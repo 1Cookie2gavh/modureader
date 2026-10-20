@@ -94,6 +94,19 @@ class BookDao extends BaseDao {
     });
   }
 
+  /// Explicit external metadata adoption must never rewrite ratings, reviews,
+  /// rounds or progress from an older detail-page snapshot.
+  Future<void> updateExternalMetadata(int bookId,
+      {String? coverPath, String? description}) async {
+    if (coverPath == null && description == null) return;
+    final changed = await update(table, {
+      if (coverPath != null) 'cover_path': coverPath,
+      if (description != null) 'description': description,
+      'update_time': DateTime.now().toIso8601String(),
+    }, where: 'id = ? AND is_deleted = 0', whereArgs: [bookId]);
+    if (changed != 1) throw StateError('Book no longer available');
+  }
+
   Future<ReadingPositionSnapshot> readReadingPosition(int bookId) =>
       transaction((txn) => _readPosition(txn, bookId));
 

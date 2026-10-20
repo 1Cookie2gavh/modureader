@@ -29,7 +29,10 @@ class _ReaderSettingsScrollViewState extends State<ReaderSettingsScrollView> {
             controller: _controller,
             primary: false,
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: widget.child,
+            child: ListTileTheme.merge(
+              subtitleTextStyle: Theme.of(context).textTheme.bodySmall,
+              child: widget.child,
+            ),
           ),
         ),
       );

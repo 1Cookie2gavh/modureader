@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:anx_reader/enums/translation_mode.dart';
+import 'package:anx_reader/enums/lang_list.dart';
+import 'package:anx_reader/service/translate/index.dart';
 import 'package:anx_reader/service/tts/tts_page_source.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
@@ -60,6 +63,27 @@ class Model extends OcrModelStore {
   Future<bool> available() async => ready;
 }
 
+class PageTranslator extends TranslateServiceProvider {
+  PageTranslator({this.stream});
+  final Stream<String>? stream;
+  final requests = <String>[];
+  @override
+  TranslateService get service => TranslateService.microsoftFree;
+  @override
+  String getLabel(BuildContext context) => 'Test translation';
+  @override
+  Widget translate(String text, LangListEnum from, LangListEnum to,
+          {String? contextText}) =>
+      const SizedBox();
+  @override
+  Stream<String> translateStream(
+      String text, LangListEnum from, LangListEnum to,
+      {String? contextText, bool isFullText = false}) {
+    requests.add(text);
+    return stream ?? Stream.value('Translated $text');
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MemoryStore store;
@@ -89,6 +113,7 @@ void main() {
       Future<String> Function()? recognize,
       DocumentTextResult? sourceGeometry,
       ReflowSelection? selection,
+      ReflowTranslatedSelection? translatedSelection,
       Future<void> Function(int)? navigate,
       VoidCallback? close,
       VoidCallback? cancelRender,
@@ -123,6 +148,7 @@ void main() {
         home: Scaffold(
             body: DocumentReflowReader(
           key: key,
+          onTranslatedSelection: translatedSelection,
           onReaderKeyEvent: readerKeyEvent,
           onKeyboardEligibilityChanged: keyboardEligibilityChanged,
           onNarrationInvalidated: narrationInvalidated,
@@ -176,6 +202,185 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  testWidgets('current-page translation uses saved edits without modifying OCR',
+      (tester) async {
+    await open(tester);
+    final reader = key.currentState!;
+    final original = store.latest['0']!;
+    final edited = await store.saveEdit(original, 'Corrected paragraph.');
+    final translator = PageTranslator();
+    final task = reader.translateCurrentPage(TranslationModeEnum.bilingual,
+        provider: translator);
+    await tester.pumpAndSettle();
+    await task;
+    String translated() => tester
+        .widget<TextField>(find.byKey(const ValueKey('reflow-translated-text')))
+        .controller!
+        .text;
+    expect(translator.requests, ['Corrected paragraph.']);
+    expect(translated(),
+        'Corrected paragraph.\n\nTranslated Corrected paragraph.');
+    expect(reader.narrationSource!.currentText(), 'Corrected paragraph.');
+    expect(reader.narrationSourceFor(original.anchor(0, 2)), isNull);
+    final switchTask = reader.translateCurrentPage(
+        TranslationModeEnum.translationOnly,
+        provider: translator);
+    await tester.pumpAndSettle();
+    await switchTask;
+    expect(translated(), 'Translated Corrected paragraph.');
+    expect(translator.requests.length, 1);
+    expect(store.latest['0'], same(edited));
+    reader.stopTranslation();
+    await tester.pumpAndSettle();
+    expect(text(tester), original.text);
+    expect(reader.narrationSourceFor(original.anchor(0, 2)), isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'turning original page clears translation without translating next page',
+      (tester) async {
+    await open(tester);
+    final translator = PageTranslator();
+    final task = key.currentState!.translateCurrentPage(
+        TranslationModeEnum.translationOnly,
+        provider: translator);
+    await tester.pumpAndSettle();
+    await task;
+    final count = translator.requests.length;
+    await tester.tap(find.byKey(const ValueKey('reflow-next')));
+    await tester.pumpAndSettle();
+    expect(key.currentState!.translationMode.value, TranslationModeEnum.off);
+    expect(find.byKey(const ValueKey('reflow-translated-text')), findsNothing);
+    expect(text(tester), contains('第1页'));
+    expect(translator.requests.length, count);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('translation transport cancels on source-page navigation',
+      (tester) async {
+    await open(tester);
+    var cancelled = false;
+    final stream = StreamController<String>(onCancel: () => cancelled = true);
+    final translator = PageTranslator(stream: stream.stream);
+    final task = key.currentState!.translateCurrentPage(
+        TranslationModeEnum.translationOnly,
+        provider: translator);
+    await tester.pump();
+    expect(key.currentState!.narrationSource, isNull);
+    await tester.tap(find.byKey(const ValueKey('reflow-next')));
+    await tester.pumpAndSettle();
+    expect(key.currentState!.translationMode.value, TranslationModeEnum.off);
+    await task;
+    stream.add('Late translation');
+    unawaited(stream.close());
+    await tester.pumpAndSettle();
+    expect(cancelled, isTrue);
+    expect(translator.requests.length, 1);
+    expect(key.currentState!.translationMode.value, TranslationModeEnum.off);
+    expect(text(tester), contains('第1页'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'translated selection never produces original OCR anchors and search stays in translation',
+      (tester) async {
+    var selections = 0;
+    await open(tester,
+        selection: (_, __, ___, ____, _____) async => selections++);
+    final task = key.currentState!.translateCurrentPage(
+        TranslationModeEnum.translationOnly,
+        provider: PageTranslator());
+    await tester.pumpAndSettle();
+    await task;
+    final field = find.byKey(const ValueKey('reflow-translated-text'));
+    final controller = tester.widget<TextField>(field).controller!;
+    final translated = controller.text;
+    await tester.longPressAt(tester.getTopLeft(field) + const Offset(35, 12));
+    await tester.pumpAndSettle();
+    expect(controller.text, translated);
+    expect(selections, 0);
+    key.currentState!.clearSelection();
+    await key.currentState!.readerAction('search');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('reflow-search')), 'Translated');
+    await tester.tap(find.byKey(const ValueKey('reflow-find-next')));
+    await tester.pumpAndSettle();
+    expect(controller.selection.textInside(controller.text), 'Translated');
+    expect(controller.text, translated);
+    key.currentState!.stopTranslation();
+    await tester.pumpAndSettle();
+    expect(text(tester), store.latest['0']!.text);
+    expect(selections, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final mode in [
+    TranslationModeEnum.translationOnly,
+    TranslationModeEnum.bilingual,
+  ]) {
+    for (final ocr in [false, true]) {
+      testWidgets(
+          'translated $mode OCR=$ocr uses shared selection and exact handle range',
+          (tester) async {
+        var originalSelections = 0;
+        final selected = <String>[];
+        final contexts = <String>[];
+        final offsets = <int>[];
+        await open(tester,
+            ocr: ocr,
+            selection: (_, __, ___, ____, _____) async => originalSelections++,
+            translatedSelection: (value, context, rect, start) async {
+              selected.add(value);
+              contexts.add(context);
+              offsets.add(start);
+              expect(rect.isFinite, true);
+            });
+        final task = key.currentState!
+            .translateCurrentPage(mode, provider: PageTranslator());
+        await tester.pumpAndSettle();
+        await task;
+        final field = find.byKey(const ValueKey('reflow-translated-text'));
+        final controller = tester.widget<TextField>(field).controller!;
+        await tester
+            .longPressAt(tester.getTopLeft(field) + const Offset(35, 12));
+        await tester.pumpAndSettle();
+        expect(selected, isNotEmpty);
+        expect(selected.last, controller.selection.textInside(controller.text));
+        expect(contexts.last, contains(selected.last));
+        expect(offsets.last, controller.selection.start);
+        expect(originalSelections, 0);
+        expect(find.byType(AdaptiveTextSelectionToolbar), findsNothing);
+        final state =
+            tester.state<EditableTextState>(find.byType(EditableText));
+        expect(state.selectionOverlay?.handlesAreVisible, true);
+        final start = controller.text.indexOf('Translated');
+        final range =
+            TextSelection(baseOffset: start + 1, extentOffset: start + 4);
+        state.userUpdateTextEditingValue(
+            controller.value.copyWith(selection: range),
+            SelectionChangedCause.drag);
+        await tester.pumpAndSettle();
+        expect(controller.selection, range);
+        expect(selected.last, 'ran');
+        final source = key.currentState!.narrationSource!;
+        source.seekToOffset(range.start);
+        expect(source.currentText(), contains('Translated'));
+        while (!source.atEnd) {
+          source.nextText();
+        }
+        expect(pages, [0]); // Narration must not advance the original page.
+        key.currentState!.stopTranslation();
+        await tester.pumpAndSettle();
+        expect(source.valid, false);
+        expect(originalSelections, 0);
+        expect(text(tester), store.latest['0']!.text);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets(
       'reflow keys precede text navigation but preserve selection and editor focus',
@@ -522,6 +727,26 @@ void main() {
   }
 
   for (final ocr in [false, true]) {
+    testWidgets(
+        'selection narration rejects stale and original anchors: OCR=$ocr',
+        (tester) async {
+      await open(tester, ocr: ocr);
+      final page = store.latest['0']!;
+      final anchor = page.anchor(0, 2);
+      final source = key.currentState!.narrationSourceFor(anchor);
+      expect(source, same(key.currentState!.narrationSource));
+      expect(
+          key.currentState!.narrationSourceFor(
+              DocumentReflowAnchor.parse(anchor.originalReference)!),
+          isNull);
+      final stale = DocumentReflowPage(page: 0, ocr: ocr, rawText: '旧识别结果');
+      expect(key.currentState!.narrationSourceFor(stale.anchor(0, 2)), isNull);
+      await key.currentState!.turnOriginalPage(1);
+      await tester.pumpAndSettle();
+      expect(source!.valid, isFalse);
+      expect(key.currentState!.narrationSourceFor(anchor), isNull);
+    });
+
     testWidgets(
         'speech highlight preserves reflow text and selection: OCR=$ocr',
         (tester) async {
@@ -1025,6 +1250,52 @@ void main() {
     expect(wordCalls, 0); // A drag keeps its precise user-selected boundaries.
   }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
 
+  for (final mode in [
+    TranslationModeEnum.translationOnly,
+    TranslationModeEnum.bilingual,
+  ]) {
+    testWidgets('macOS translated $mode drag publishes exact display selection',
+        (tester) async {
+      final selected = <String>[];
+      var wordCalls = 0, cleared = 0;
+      messenger.setMockMethodCallHandler(wordChannel, (_) async {
+        wordCalls++;
+        return [0, 5];
+      });
+      await open(tester,
+          comparison: true,
+          clearMenu: () => cleared++,
+          translatedSelection: (value, context, rect, start) async =>
+              selected.add(value));
+      final task = key.currentState!
+          .translateCurrentPage(mode, provider: PageTranslator());
+      await tester.pumpAndSettle();
+      await task;
+      final controller = tester
+          .widget<TextField>(
+              find.byKey(const ValueKey('reflow-translated-text')))
+          .controller!;
+      final start = controller.text.indexOf('Translated');
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(textPoint(tester, start + 1));
+      await mouse.moveTo(textPoint(tester, start + 8));
+      await tester.pump();
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(controller.selection.isCollapsed, false);
+      expect(selected.last, controller.selection.textInside(controller.text));
+      expect(wordCalls, 0);
+      final before = cleared, count = selected.length;
+      await tester.tap(find.byKey(const ValueKey('reflow-next')));
+      await tester.pumpAndSettle();
+      expect(cleared, greaterThan(before));
+      expect(selected.length, count);
+      expect(
+          find.byKey(const ValueKey('reflow-translated-text')), findsNothing);
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+  }
+
   testWidgets(
       'Android initial OCR long press expands once and preserves handles',
       (tester) async {
@@ -1430,7 +1701,8 @@ void main() {
         context: tester.element(find.byType(EditableText)),
         style: const TextStyle(),
         withComposing: false);
-    expect(afterSpeech, span); // Temporary speech colour never overwrites notes.
+    expect(
+        afterSpeech, span); // Temporary speech colour never overwrites notes.
     expect(field.controller!.selection,
         const TextSelection(baseOffset: 2, extentOffset: 8));
     expect(

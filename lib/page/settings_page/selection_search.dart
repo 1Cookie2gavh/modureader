@@ -2,6 +2,7 @@ import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/selection_search.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/material.dart';
 
 class SelectionSearchSettings extends StatefulWidget {
@@ -76,56 +77,63 @@ class _SelectionSearchSettingsState extends State<SelectionSearchSettings> {
       builder: (context, _) {
         final config = Prefs().selectionSearchSettings;
         final zh = Localizations.localeOf(context).languageCode == 'zh';
-        return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-            children: [
-              Text(ModuStrings.text(
-                  context,
-                  '选词搜索将在默读内打开。选择默认引擎，也可以在搜索窗口中随时切换。关键词会发送给所选网站，网站可用性取决于网络。',
-                  'Selection search opens inside Modu. Choose a default or switch in the search window. The selected website receives your query; availability depends on your network.')),
-              const SizedBox(height: 16),
-              for (final engine in config.engines)
-                ListTile(
-                  leading: Icon(engine.id == config.selectedId
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_off),
-                  title: Text(engine.label(zh)),
-                  subtitle: Text(engine.template),
-                  onTap: _busy
-                      ? null
-                      : () => _save(SelectionSearchConfig(
-                          selectedId: engine.id, custom: config.custom)),
-                  trailing: config.custom.any((e) => e.id == engine.id)
-                      ? Row(mainAxisSize: MainAxisSize.min, children: [
-                          IconButton(
-                              tooltip: ModuStrings.text(context, '编辑', 'Edit'),
-                              onPressed: _busy ? null : () => _edit(engine),
-                              icon: const Icon(Icons.edit_outlined)),
-                          IconButton(
-                              tooltip:
-                                  ModuStrings.text(context, '删除', 'Delete'),
-                              onPressed: _busy ? null : () => _delete(engine),
-                              icon: const Icon(Icons.delete_outline)),
-                        ])
-                      : null,
-                ),
-              FilledButton.icon(
-                  onPressed: _busy || config.custom.length >= 20
-                      ? null
-                      : () => _edit(),
-                  icon: const Icon(Icons.add),
-                  label: Text(ModuStrings.text(
-                      context, '添加自定义搜索引擎', 'Add custom search engine'))),
-              const SizedBox(height: 12),
-              Text(ModuStrings.text(
-                  context,
-                  '可添加最多 20 个自定义引擎。使用 {query} 表示选中的文字，例如 https://www.baidu.com/s?wd={query}。配置可随全局设置导出。',
-                  'Add up to 20 engines. Use {query} for selected text, e.g. https://www.baidu.com/s?wd={query}. These settings are included in global settings exports.')),
-              if (_error != null)
-                Text(_error!,
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error)),
-            ]);
+        return ListView(padding: const EdgeInsets.only(bottom: 120), children: [
+          SettingsSection.content(
+            title: Text(ModuStrings.text(context, '搜索引擎', 'Search engines')),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(ModuStrings.text(
+                      context,
+                      '选词搜索将在默读内打开。选择默认引擎，也可以在搜索窗口中随时切换。关键词会发送给所选网站，网站可用性取决于网络。',
+                      'Selection search opens inside Modu. Choose a default or switch in the search window. The selected website receives your query; availability depends on your network.')),
+                  const SizedBox(height: 16),
+                  for (final engine in config.engines)
+                    ListTile(
+                      leading: Icon(engine.id == config.selectedId
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off),
+                      title: Text(engine.label(zh)),
+                      subtitle: Text(engine.template),
+                      onTap: _busy
+                          ? null
+                          : () => _save(SelectionSearchConfig(
+                              selectedId: engine.id, custom: config.custom)),
+                      trailing: config.custom.any((e) => e.id == engine.id)
+                          ? Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(
+                                  tooltip:
+                                      ModuStrings.text(context, '编辑', 'Edit'),
+                                  onPressed: _busy ? null : () => _edit(engine),
+                                  icon: const Icon(Icons.edit_outlined)),
+                              IconButton(
+                                  tooltip:
+                                      ModuStrings.text(context, '删除', 'Delete'),
+                                  onPressed:
+                                      _busy ? null : () => _delete(engine),
+                                  icon: const Icon(Icons.delete_outline)),
+                            ])
+                          : null,
+                    ),
+                  FilledButton.icon(
+                      onPressed: _busy || config.custom.length >= 20
+                          ? null
+                          : () => _edit(),
+                      icon: const Icon(Icons.add),
+                      label: Text(ModuStrings.text(
+                          context, '添加自定义搜索引擎', 'Add custom search engine'))),
+                  const SizedBox(height: 12),
+                  Text(ModuStrings.text(
+                      context,
+                      '可添加最多 20 个自定义引擎。使用 {query} 表示选中的文字，例如 https://www.baidu.com/s?wd={query}。配置可随全局设置导出。',
+                      'Add up to 20 engines. Use {query} for selected text, e.g. https://www.baidu.com/s?wd={query}. These settings are included in global settings exports.')),
+                  if (_error != null)
+                    Text(_error!,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error)),
+                ]),
+          ),
+        ]);
       });
 }
 

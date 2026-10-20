@@ -37,6 +37,8 @@ class ExcerptMenu extends StatefulWidget {
   final Future<void> Function(String cfi)? removeAnnotation;
   final Function() onClose;
   final bool footnote;
+  final bool allowAnnotations;
+  final Future<void> Function()? onNarrate;
   final BoxDecoration decoration;
   final Function() toggleTranslationMenu;
   final void Function({bool? show}) toggleReaderNoteMenu;
@@ -59,6 +61,8 @@ class ExcerptMenu extends StatefulWidget {
     this.removeAnnotation,
     required this.onClose,
     required this.footnote,
+    this.allowAnnotations = true,
+    this.onNarrate,
     required this.decoration,
     required this.toggleTranslationMenu,
     required this.toggleReaderNoteMenu,
@@ -86,9 +90,15 @@ class ExcerptMenuState extends State<ExcerptMenu> {
       widget.bookId ?? epubPlayerKey.currentState?.widget.book.id;
   bool get _hasDeletionTarget =>
       noteId != null || widget.annotationIds.isNotEmpty;
-  bool get _canNarrate =>
-      !widget.annoCfi.startsWith(DocumentReflowAnchor.prefix) &&
-      readingPageKey.currentState?.isReflowReading != true;
+  bool get _canNarrate {
+    if (widget.onNarrate != null) return true;
+    if (!widget.allowAnnotations) return false;
+    if (widget.annoCfi.startsWith(DocumentReflowAnchor.prefix)) {
+      final anchor = DocumentReflowAnchor.parse(widget.annoCfi);
+      return anchor != null && !anchor.original;
+    }
+    return readingPageKey.currentState?.isReflowReading != true;
+  }
 
   @override
   initState() {
@@ -100,6 +110,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   }
 
   Future<void> _initializeExistingNote() async {
+    if (!widget.allowAnnotations) return;
     final existingId = widget.id;
     if (existingId == null) {
       return;
@@ -228,6 +239,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   }
 
   Future<void> deleteHandler() async {
+    if (!widget.allowAnnotations) return;
     if (_deleting || _saving) return;
     setState(() => _deleting = true);
     widget.onDeletionVisibilityChanged?.call(true);
@@ -309,6 +321,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   }
 
   Future<void> onColorSelected(String color, {bool close = true}) async {
+    if (!widget.allowAnnotations) return;
     if (_saving || _deleting) return;
     setState(() => _saving = true);
     Prefs().annotationColor = color;
@@ -335,6 +348,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   }
 
   Future<void> onTypeSelected(String type) async {
+    if (!widget.allowAnnotations) return;
     if (_saving || _deleting) return;
     setState(() => _saving = true);
     Prefs().annotationType = type;
@@ -418,7 +432,28 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         break;
       case 'narrate':
         if (!_canNarrate) return;
+        if (widget.onNarrate != null) {
+          widget.onClose();
+          await widget.onNarrate!();
+          return;
+        }
         final cfi = widget.annoCfi;
+        final anchor = DocumentReflowAnchor.parse(cfi);
+        if (anchor != null) {
+          final source = reader?.reflowReader?.narrationSourceFor(anchor);
+          widget.onClose();
+          if (source == null) return;
+          await audioHandler.stop();
+          if (reader?.mounted != true || !source.valid) return;
+          source.seekToOffset(anchor.start);
+          await TtsHandler().init(
+              source.currentText, source.nextText, source.previousText,
+              pageSource: source);
+          if (reader?.mounted == true && source.valid) {
+            await audioHandler.play();
+          }
+          return;
+        }
         widget.onClose();
         final player = epubPlayerKey.currentState;
         if (player == null) return;
@@ -429,6 +464,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         await audioHandler.play();
         break;
       case 'note':
+        if (!widget.allowAnnotations) return;
         epubPlayerKey.currentState?.setSelectionClearLocked(true);
         await onColorSelected(annoColor, close: false);
         if (!mounted) return;
@@ -542,6 +578,8 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                           footnote: widget.footnote,
                           aiEnabled: EnvVar.enableAIFeature)
                       .where((item) => item.action != 'narrate' || _canNarrate)
+                      .where((item) =>
+                          item.action != 'note' || widget.allowAnnotations)
                       .toList(),
                   visibleCount: config.visibleCount,
                   axis: widget.axis,
@@ -557,7 +595,9 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(decoration: widget.decoration, child: menu),
-                    if (!widget.footnote && annotationItems.isNotEmpty) ...[
+                    if (widget.allowAnnotations &&
+                        !widget.footnote &&
+                        annotationItems.isNotEmpty) ...[
                       const SizedBox.square(dimension: 10),
                       SingleChildScrollView(
                         scrollDirection: widget.axis,

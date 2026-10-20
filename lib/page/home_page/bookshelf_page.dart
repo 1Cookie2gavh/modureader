@@ -698,25 +698,11 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop && _selectionMode) exitSelectionMode();
         },
-        child: Container(
-            decoration: Prefs().eInkMode
-                ? null
-                : BoxDecoration(
-                    gradient: RadialGradient(
-                      tileMode: TileMode.clamp,
-                      center: Alignment.topRight,
-                      radius: 1,
-                      colors: [
-                        Theme.of(context).colorScheme.primary.withAlpha(5),
-                        Theme.of(context).scaffoldBackgroundColor,
-                      ],
-                    ),
-                  ),
-            child: Scaffold(
-              backgroundColor: Colors.transparent,
-              appBar: appBar,
-              body: body,
-            )));
+        child: Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: appBar,
+          body: body,
+        ));
   }
 }
 

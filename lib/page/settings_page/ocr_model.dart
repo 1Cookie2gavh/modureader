@@ -295,7 +295,7 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
                   child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           if (_saveError != null) ...[
                             Text(_saveError!,
@@ -326,8 +326,6 @@ class _OcrModelSettingsState extends State<OcrModelSettings> {
     return Card(
       key: ValueKey('ocr-card-${model.id}'),
       margin: EdgeInsets.zero,
-      elevation: 0,
-      color: selected ? colors.primaryContainer.withAlpha(90) : null,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(

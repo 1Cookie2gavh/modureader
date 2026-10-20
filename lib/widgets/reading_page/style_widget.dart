@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/document_reading_mode.dart';
 import 'package:anx_reader/widgets/reading_page/document_style_widget.dart';
@@ -30,6 +31,7 @@ import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/widgets/reading_page/widgets/bgimg_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
+import 'package:anx_reader/widgets/common/color_picker_sheet.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 enum PageTurn {
@@ -135,49 +137,57 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   Widget _textBookStyle(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: ReaderSettingsScrollView(
-          child: Column(
-        children: [
-          widgetTitle(L10n.of(context).readingPageStyle,
-              _document ? null : ReadingSettings.theme,
-              onSettings: _document ? widget.onDocumentSettings : null),
-          sliders(),
-          const SizedBox(height: 10),
-          fontAndPageTurn(),
-          if (!_document && Prefs().pageTurnStyle == PageTurn.scroll) ...[
-            ContinuousScrollTile(onChanged: (value) {
-              widget.epubPlayerKey?.currentState?.changeContinuousScroll(value);
-            }),
-            ScrollPagePercentTile(onChanged: (value) {
-              widget.epubPlayerKey?.currentState
-                  ?.changeScrollPagePercent(value);
-            }),
-          ],
-          const SizedBox(height: 10),
-          if (!_document) englishFontSelector(),
-          const Divider(),
-          Row(
-            children: [
-              Expanded(child: themeSelector()),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                onPressed: () {
-                  widget.setCurrentPage(
-                      BgimgSelector(onChanged: _document ? () {} : null));
-                },
-                icon: const Icon(Icons.arrow_forward_ios),
-                iconAlignment: IconAlignment.end,
-                label: Text(L10n.of(context).readingPageStyleBackground),
-              )
+    return ReaderSettingsScrollView(
+        child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        widgetTitle(L10n.of(context).readingPageStyle,
+            _document ? null : ReadingSettings.theme,
+            onSettings: _document ? widget.onDocumentSettings : null),
+        ReaderMenuGroup(padding: const EdgeInsets.all(12), child: sliders()),
+        ReaderMenuGroup(
+          padding: const EdgeInsets.all(12),
+          child: Column(children: [
+            fontAndPageTurn(),
+            if (!_document && Prefs().pageTurnStyle == PageTurn.scroll) ...[
+              const SizedBox(height: 16),
+              ContinuousScrollTile(onChanged: (value) {
+                widget.epubPlayerKey?.currentState
+                    ?.changeContinuousScroll(value);
+              }),
+              const SizedBox(height: 12),
+              ScrollPagePercentTile(onChanged: (value) {
+                widget.epubPlayerKey?.currentState
+                    ?.changeScrollPagePercent(value);
+              }),
             ],
-          ),
-        ],
-      )),
-    );
+            if (!_document) ...[
+              const SizedBox(height: 20),
+              englishFontSelector(),
+            ],
+          ]),
+        ),
+        ReaderMenuGroup(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(child: themeSelector()),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  onPressed: () {
+                    widget.setCurrentPage(
+                        BgimgSelector(onChanged: _document ? () {} : null));
+                  },
+                  icon: const Icon(Icons.arrow_forward_ios),
+                  iconAlignment: IconAlignment.end,
+                  label: Text(L10n.of(context).readingPageStyleBackground),
+                )
+              ],
+            )),
+      ],
+    ));
   }
 
   List<FontModel> fonts() {
@@ -271,6 +281,7 @@ class StyleWidgetState extends State<StyleWidget> {
     }
 
     final pageTurn = DropdownMenu<PageTurn>(
+      key: const ValueKey('reader-page-turn'),
       label: Text(L10n.of(context).readingPagePageTurningMethod),
       initialSelection: _document ? PageTurn.scroll : Prefs().pageTurnStyle,
       enabled: !_document,
@@ -356,7 +367,7 @@ class StyleWidgetState extends State<StyleWidget> {
       if (constraints.maxWidth < 600) {
         return Column(children: [
           pageTurn,
-          const SizedBox(height: 10),
+          const SizedBox(height: 20),
           fontAndConversion,
         ]);
       }
@@ -486,12 +497,17 @@ class StyleWidgetState extends State<StyleWidget> {
                               : colors.outlineVariant,
                       width: selected && enabled ? 1.5 : 1,
                     ),
-                    backgroundColor: selected ? colors.primaryContainer : null,
+                    backgroundColor: Prefs().eInkMode
+                        ? Colors.transparent
+                        : selected
+                            ? colors.primaryContainer
+                            : null,
                     foregroundColor: selected
                         ? colors.onPrimaryContainer
                         : colors.onSurfaceVariant,
-                    disabledBackgroundColor:
-                        colors.onSurface.withValues(alpha: 0.04),
+                    disabledBackgroundColor: Prefs().eInkMode
+                        ? Colors.transparent
+                        : colors.onSurface.withValues(alpha: 0.04),
                     disabledForegroundColor:
                         colors.onSurface.withValues(alpha: 0.38),
                   ),
@@ -770,7 +786,8 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
 
   Future<void> _editColor({required bool background}) async {
     final color = await showColorPickerDialog(
-        background ? readTheme.backgroundColor : readTheme.textColor);
+        background ? readTheme.backgroundColor : readTheme.textColor,
+        background: background);
     if (!mounted || color == null) return;
     final updated = ReadTheme(
       id: readTheme.id,
@@ -816,36 +833,42 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      IconButton(
-        onPressed: _saving ? null : () => _editColor(background: true),
-        icon: Icon(Icons.circle,
-            size: 80,
-            color: Color(int.parse('0x${readTheme.backgroundColor}'))),
-      ),
-      IconButton(
-          onPressed: _saving ? null : () => _editColor(background: false),
-          icon: Icon(Icons.text_fields,
-              size: 60, color: Color(int.parse('0x${readTheme.textColor}')))),
-      const Expanded(
-        child: SizedBox(),
-      ),
-      if (widget.allowDelete)
-        IconButton(
-          onPressed: () {
-            themeDao.deleteTheme(readTheme.id!);
-            widget.setCurrentPage(const SizedBox(height: 1));
-            // setState(() {});
-          },
-          icon: const Icon(
-            Icons.delete,
-            size: 40,
+    return ReaderMenuGroup(
+        margin: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(8),
+        child: Wrap(spacing: 12, runSpacing: 12, children: [
+          OutlinedButton.icon(
+            key: const ValueKey('reading-background-color'),
+            onPressed: _saving ? null : () => _editColor(background: true),
+            label: Text(ModuStrings.text(context, '背景颜色', 'Background colour')),
+            icon: Icon(Icons.circle,
+                size: 32,
+                color: Color(int.parse('0x${readTheme.backgroundColor}'))),
           ),
-        ),
-    ]);
+          OutlinedButton.icon(
+              key: const ValueKey('reading-text-color'),
+              onPressed: _saving ? null : () => _editColor(background: false),
+              label: Text(ModuStrings.text(context, '文字颜色', 'Text colour')),
+              icon: Icon(Icons.text_fields,
+                  size: 32,
+                  color: Color(int.parse('0x${readTheme.textColor}')))),
+          if (widget.allowDelete)
+            IconButton(
+              onPressed: () {
+                themeDao.deleteTheme(readTheme.id!);
+                widget.setCurrentPage(const SizedBox(height: 1));
+                // setState(() {});
+              },
+              icon: const Icon(
+                Icons.delete,
+                size: 40,
+              ),
+            ),
+        ]));
   }
 
-  Future<String?> showColorPickerDialog(String currColor) async {
+  Future<String?> showColorPickerDialog(String currColor,
+      {required bool background}) async {
     Color pickedColor = Color(int.parse('0x$currColor'));
 
     return showDialog<String>(
@@ -855,6 +878,9 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
         return ScrollConfiguration(
             behavior: const AppScrollBehavior(symmetricGutter: true),
             child: AlertDialog(
+              title: Text(background
+                  ? ModuStrings.text(context, '背景颜色', 'Background colour')
+                  : ModuStrings.text(context, '文字颜色', 'Text colour')),
               content: SingleChildScrollView(
                 child: ColorPicker(
                   hexInputBar: true,
@@ -866,14 +892,34 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
                 ),
               ),
               actions: <Widget>[
+                TextButton.icon(
+                  key: const ValueKey('reset-reading-color'),
+                  icon: const Icon(Icons.restore),
+                  label: Text(
+                      ModuStrings.text(context, '恢复默认', 'Restore default')),
+                  onPressed: () async {
+                    final confirmed = await confirmColorReset(
+                        context,
+                        background
+                            ? ModuStrings.text(context, '恢复默认背景颜色？文字颜色保持不变。',
+                                'Restore the default background colour? Text colour will not change.')
+                            : ModuStrings.text(context, '恢复默认文字颜色？背景颜色保持不变。',
+                                'Restore the default text colour? Background colour will not change.'));
+                    if (confirmed && context.mounted) {
+                      Navigator.of(context).pop(background
+                          ? ReadTheme.defaultBackgroundColor
+                          : ReadTheme.defaultTextColor);
+                    }
+                  },
+                ),
                 TextButton(
-                  child: const Text('Cancel'),
+                  child: Text(ModuStrings.text(context, '取消', 'Cancel')),
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
                 ),
                 TextButton(
-                  child: const Text('OK'),
+                  child: Text(ModuStrings.text(context, '确定', 'OK')),
                   onPressed: () {
                     Navigator.of(context).pop(pickedColor
                         .toARGB32()

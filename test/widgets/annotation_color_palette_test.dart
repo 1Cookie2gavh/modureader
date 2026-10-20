@@ -28,8 +28,8 @@ void main() {
     await Prefs().initPrefs();
   });
 
-  for (final reflow in [false, true]) {
-    testWidgets('selection narration is excluded only for reflow: $reflow',
+  for (final mode in ['ebook', 'reflow', 'original', 'invalid']) {
+    testWidgets('selection narration respects the reading surface: $mode',
         (tester) async {
       final config = Prefs().selectionToolbar;
       await Prefs().saveSelectionToolbar(config.copyWith(items: [
@@ -37,11 +37,16 @@ void main() {
           item.action == 'narrate' ? item.copyWith(enabled: true) : item,
       ]));
       final saved = Prefs().selectionToolbar.encode();
+      final page = DocumentReflowPage(page: 0, ocr: true, rawText: '测试正文');
+      final anchor = page.anchor(0, 2);
       await tester.pumpWidget(app(AxisFlex(axis: Axis.horizontal, children: [
         ExcerptMenu(
-          annoCfi: reflow
-              ? '${DocumentReflowAnchor.prefix}test'
-              : 'epubcfi(/6/4!/4/2,/1:0,/1:12)',
+          annoCfi: switch (mode) {
+            'reflow' => anchor.encode(),
+            'original' => anchor.originalReference,
+            'invalid' => '${DocumentReflowAnchor.prefix}test',
+            _ => 'epubcfi(/6/4!/4/2,/1:0,/1:12)',
+          },
           annoContent: '测试正文',
           onClose: () {},
           footnote: false,
@@ -58,12 +63,58 @@ void main() {
       final actions = tester
           .widget<SelectionActionToolbar>(find.byType(SelectionActionToolbar))
           .items;
-      expect(actions.any((item) => item.action == 'narrate'), !reflow);
+      expect(actions.any((item) => item.action == 'narrate'),
+          mode == 'ebook' || mode == 'reflow');
       expect(actions.any((item) => item.action == 'copy'), isTrue);
       expect(Prefs().selectionToolbar.encode(), saved);
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('transient translated text reuses toolbar without source notes',
+      (tester) async {
+    final config = Prefs().selectionToolbar;
+    await Prefs().saveSelectionToolbar(config.copyWith(items: [
+      for (final item in config.items) item.copyWith(enabled: true),
+    ]));
+    final saved = Prefs().selectionToolbar.encode();
+    var narrations = 0, closed = 0;
+    await tester.pumpWidget(app(AxisFlex(axis: Axis.horizontal, children: [
+      ExcerptMenu(
+        annoCfi: '',
+        annoContent: 'Translated selection',
+        allowAnnotations: false,
+        onNarrate: () async => narrations++,
+        onClose: () => closed++,
+        footnote: false,
+        decoration: const BoxDecoration(),
+        toggleTranslationMenu: () {},
+        toggleReaderNoteMenu: ({bool? show}) => fail('No translated note'),
+        openReaderNoteMenu: (_) async => fail('No translated note'),
+        onNoteCreated: (_) => fail('No translated note'),
+        axis: Axis.horizontal,
+        reverse: false,
+      )
+    ])));
+    await tester.pumpAndSettle();
+    final toolbar = tester
+        .widget<SelectionActionToolbar>(find.byType(SelectionActionToolbar));
+    final actions = toolbar.items.map((item) => item.action).toList();
+    expect(actions, containsAll(['copy', 'query', 'search', 'narrate']));
+    expect(actions, isNot(contains('note')));
+    expect(find.byKey(const ValueKey('annotation-action-highlight')),
+        findsNothing);
+    final menu = tester.state<ExcerptMenuState>(find.byType(ExcerptMenu));
+    await menu.onColorSelected('FF0000');
+    await menu.onTypeSelected('underline');
+    await menu.deleteHandler();
+    toolbar.onAction(toolbar.items.firstWhere((i) => i.action == 'narrate'));
+    await tester.pumpAndSettle();
+    expect(narrations, 1);
+    expect(closed, 1);
+    expect(Prefs().selectionToolbar.encode(), saved);
+    expect(tester.takeException(), isNull);
+  });
 
   test(
       'original colours remain unchanged and every new colour is included in note filters',

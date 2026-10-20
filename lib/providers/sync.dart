@@ -33,6 +33,7 @@ import 'package:anx_reader/service/sync/local_book_download.dart';
 import 'package:anx_reader/service/sync/converted_book_checksum.dart';
 import 'package:anx_reader/service/sync/book_file_sync.dart';
 import 'package:anx_reader/service/sync/document_reflow_sync.dart';
+import 'package:anx_reader/service/sync/weread_metadata_sync.dart';
 import 'package:anx_reader/service/sync/reading_round_sync.dart';
 import 'package:anx_reader/service/sync/sync_asset_listing.dart';
 import 'package:anx_reader/service/sync/sync_maintenance_schedule.dart';
@@ -401,6 +402,11 @@ class Sync extends _$Sync {
         cache: await getAnxCacheDir(),
         durableDirectory: await getAnxDataBasesDir(),
       ).sync(await bookDao.selectNotDeleteBooks());
+      await WereadMetadataSync(
+        client: client,
+        cache: await getAnxCacheDir(),
+        durableDirectory: await getAnxDataBasesDir(),
+      ).sync(await bookDao.selectNotDeleteBooks());
       await this
           .ref
           .read(syncStatusProvider.notifier)
@@ -689,6 +695,11 @@ class Sync extends _$Sync {
     Future<void> deleteLocalBook() async {
       final client = _syncClient;
       if (client != null) {
+        await WereadMetadataSync(
+          client: client,
+          cache: await getAnxCacheDir(),
+          durableDirectory: await getAnxDataBasesDir(),
+        ).sync([book]);
         await DocumentReflowSync(
           client: client,
           cache: await getAnxCacheDir(),
@@ -778,6 +789,20 @@ class Sync extends _$Sync {
       final remotePath = SyncPaths.data(book.filePath);
       final localPath = getBasePath(book.filePath);
       await downloadFile(remotePath, localPath, expectedMd5: book.md5);
+      try {
+        final client = _syncClient;
+        if (client != null) {
+          await WereadMetadataSync(
+            client: client,
+            cache: await getAnxCacheDir(),
+            durableDirectory: await getAnxDataBasesDir(),
+          ).sync([book]);
+        }
+      } catch (_) {
+        await _pendingSync.request();
+        _retryPendingSyncLater();
+        AnxLog.warning('WeRead metadata transfer deferred');
+      }
       try {
         final client = _syncClient;
         if (client != null) {

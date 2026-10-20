@@ -222,6 +222,44 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   Widget _buildDocumentReflow() {
     final player = epubPlayerKey.currentState!;
     final styles = DocumentTextStyleStore(Prefs().prefs);
+    Future<void> showReflowSelection(String text, String contextText, Rect rect,
+        {DocumentReflowAnchor? anchor,
+        List<int> ids = const [],
+        int start = 0}) async {
+      if (!mounted || !isReflowReading) return;
+      final box = _reflowKey.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize || box.size.isEmpty) return;
+      final origin = box.localToGlobal(Offset.zero);
+      final source = anchor == null ? reflowReader?.narrationSource : null;
+      await showContextMenu(
+          context,
+          (rect.left - origin.dx) / box.size.width,
+          (rect.top - origin.dy) / box.size.height,
+          (rect.right - origin.dx) / box.size.width,
+          (rect.bottom - origin.dy) / box.size.height,
+          text,
+          anchor?.encode() ?? '',
+          null,
+          false,
+          Axis.horizontal,
+          readerViewport: origin & box.size,
+          contextText: contextText,
+          annotationIds: ids,
+          allowAnnotations: anchor != null,
+          onNarrate: source == null
+              ? null
+              : () async {
+                  if (!mounted || !source.valid) return;
+                  await audioHandler.stop();
+                  if (!mounted || !source.valid) return;
+                  source.seekToOffset(start);
+                  await TtsHandler().init(
+                      source.currentText, source.nextText, source.previousText,
+                      pageSource: source);
+                  if (mounted && source.valid) await audioHandler.play();
+                });
+    }
+
     return DocumentReflowReader(
       key: _reflowKey,
       onReaderKeyEvent: _handleReaderKeyEvent,
@@ -241,6 +279,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         showBottomBar();
       },
       onCloseReaderMenu: hideBottomBar,
+      onOpenTranslationSettings: () {
+        _activateDocumentPane(true);
+        showBottomBar();
+        translationHandler();
+      },
       onOpenReaderPanel: (panel) {
         _activateDocumentPane(true);
         showBottomBar();
@@ -316,26 +359,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         await player.goToDocumentPage(page);
       },
       loadNotes: () => bookNoteDao.selectBookNotesByBookId(player.book.id),
-      onSelection: (anchor, text, contextText, rect, ids) async {
-        if (!mounted || !isReflowReading) return;
-        final box = _reflowKey.currentContext?.findRenderObject();
-        if (box is! RenderBox || !box.hasSize || box.size.isEmpty) return;
-        final origin = box.localToGlobal(Offset.zero);
-        await showContextMenu(
-            context,
-            (rect.left - origin.dx) / box.size.width,
-            (rect.top - origin.dy) / box.size.height,
-            (rect.right - origin.dx) / box.size.width,
-            (rect.bottom - origin.dy) / box.size.height,
-            text,
-            anchor.encode(),
-            null,
-            false,
-            Axis.horizontal,
-            readerViewport: origin & box.size,
-            contextText: contextText,
-            annotationIds: ids);
-      },
+      onSelection: (anchor, text, contextText, rect, ids) =>
+          showReflowSelection(text, contextText, rect,
+              anchor: anchor, ids: ids),
+      onTranslatedSelection: (text, contextText, rect, start) =>
+          showReflowSelection(text, contextText, rect, start: start),
     );
   }
 
@@ -1121,14 +1149,16 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void translationHandler() {
-    if (isReflowActive) {
-      unawaited(reflowReader?.readerAction('translate'));
-      return;
-    }
+    final reflow = isReflowActive ? reflowReader : null;
     setState(() {
       _currentPage = TranslationWidget(
         bookId: _book.id,
         epubPlayerKey: epubPlayerKey,
+        pageTranslationMode: reflow?.translationMode,
+        onTranslatePage: reflow == null
+            ? null
+            : (mode, force) => reflow.translateCurrentPage(mode, force: force),
+        onStopPageTranslation: reflow?.stopTranslation,
       );
     });
   }
@@ -1637,10 +1667,14 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                       if (EnvVar.enableAIFeature) aiButton,
                       TranslationToolbarAction(
                         mode: isReflowActive
-                            ? null
+                            ? reflowReader?.translationMode
                             : epubPlayerKey.currentState?.translationMode,
                         onOpenSettings: translationHandler,
                         onStop: () async {
+                          if (isReflowActive) {
+                            reflowReader?.stopTranslation();
+                            return;
+                          }
                           try {
                             await epubPlayerKey.currentState
                                 ?.setTranslationMode(TranslationModeEnum.off);
@@ -1683,6 +1717,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                         ),
                       if (compactToolbar)
                         PopupMenuButton<String>(
+                          clipBehavior: Clip.antiAlias,
                           popUpAnimationStyle: AppMotion.style,
                           icon: const Icon(EvaIcons.more_vertical),
                           onSelected: (action) {

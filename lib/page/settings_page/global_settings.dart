@@ -16,6 +16,7 @@ import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/widgets/settings/settings_export_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -272,65 +273,70 @@ class _GlobalSettingsPageState extends ConsumerState<GlobalSettingsPage> {
   Widget build(BuildContext context) => Material(
       color: Colors.transparent,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+        padding: const EdgeInsets.only(bottom: 120),
         children: [
-          Text(
-              ModuStrings.text(context, '全局设置导入导出', 'Global settings transfer'),
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          Text(ModuStrings.text(
-              context,
-              '一次迁移全部全局设置，支持设置文件和 modu 链接，推荐使用文件备份。兼容旧版 AI、朗读、同步及书库链接，导入前会显示实际包含的设置。',
-              'Transfer all global settings via settings files or modu links. Files are recommended for backups. Older AI, speech, sync and library links remain supported; actual contents are shown before import.')),
-          const SizedBox(height: 12),
-          Text(ModuStrings.text(
-              context,
-              '包含外观、阅读排版、CSS 方案、AI 技能、朗读、翻译及其他通用设置。不包含书籍、笔记、聊天记录、阅读进度、字体/背景图片文件、字典或向量模型。',
-              'Export appearance, reading layout, CSS profiles, AI skills, speech, translation and general preferences. Books, notes, chats, reading progress, fonts/background files, dictionaries and vector models are not included.')),
-          const SizedBox(height: 16),
-          SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(ModuStrings.text(context, '包含账号、密码和 API Key',
-                  'Include accounts, passwords and API keys')),
-              subtitle: Text(ModuStrings.text(
-                  context,
-                  '默认关闭：导出时排除、导入时跳过含凭据的 API 供应商和服务器配置，保留本机已有账号与密钥。开启后会一并迁移，文件和 modu 链接包含可还原的明文凭据，请勿公开分享。此开关不改变同步加密设置，同步加密密码不导出。自定义 CSS、提示词及网址请勿填写私密凭据。',
-                  'Off by default: omit credential-bearing API/server configurations on export and skip them on import, preserving local accounts and keys. When enabled, transfers contain plaintext credentials. Keep them private. Sync encryption is unchanged and its password is never exported. Do not place private credentials in custom CSS, prompts or URLs.')),
-              value: _includeSecrets,
-              onChanged:
-                  _busy ? null : (v) => setState(() => _includeSecrets = v)),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-              onPressed: _busy ? null : _export,
-              icon: const Icon(Icons.upload_file),
-              label: Text(ModuStrings.text(
-                  context, '导出全局设置文件', 'Export global settings file'))),
-          OutlinedButton.icon(
-              onPressed: _busy ? null : () => _export(asLink: true),
-              icon: const Icon(Icons.link),
-              label: Text(
-                  ModuStrings.text(context, '导出 modu 链接', 'Export modu link'))),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-              onPressed: _busy ? null : _import,
-              icon: const Icon(Icons.settings_backup_restore),
-              label: Text(ModuStrings.text(
-                  context, '从文件恢复设置', 'Restore settings from file'))),
-          OutlinedButton.icon(
-              onPressed: _busy ? null : _importLink,
-              icon: const Icon(Icons.link),
-              label: Text(ModuStrings.text(
-                  context, '粘贴 modu 链接恢复', 'Restore from modu link'))),
-          if (_busy)
-            const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(
-                    child: EinkStaticIndicator(
-                        child: CircularProgressIndicator()))),
-          if (_status != null)
-            Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: SelectableText(_status!)),
+          SettingsSection.content(
+            title:
+                Text(ModuStrings.text(context, '备份与恢复', 'Backup and restore')),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(ModuStrings.text(
+                      context,
+                      '一次迁移全部全局设置，支持设置文件和 modu 链接，推荐使用文件备份。兼容旧版 AI、朗读、同步及书库链接，导入前会显示实际包含的设置。',
+                      'Transfer all global settings via settings files or modu links. Files are recommended for backups. Older AI, speech, sync and library links remain supported; actual contents are shown before import.')),
+                  const SizedBox(height: 12),
+                  Text(ModuStrings.text(
+                      context,
+                      '包含外观、阅读排版、CSS 方案、AI 技能、朗读、翻译及其他通用设置。不包含书籍、笔记、聊天记录、阅读进度、字体/背景图片文件、字典或向量模型。',
+                      'Export appearance, reading layout, CSS profiles, AI skills, speech, translation and general preferences. Books, notes, chats, reading progress, fonts/background files, dictionaries and vector models are not included.')),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(ModuStrings.text(context, '包含账号、密码和 API Key',
+                          'Include accounts, passwords and API keys')),
+                      subtitle: Text(ModuStrings.text(
+                          context,
+                          '默认关闭：导出时排除、导入时跳过含凭据的 API 供应商和服务器配置，保留本机已有账号与密钥。开启后会一并迁移，文件和 modu 链接包含可还原的明文凭据，请勿公开分享。此开关不改变同步加密设置，同步加密密码不导出。自定义 CSS、提示词及网址请勿填写私密凭据。',
+                          'Off by default: omit credential-bearing API/server configurations on export and skip them on import, preserving local accounts and keys. When enabled, transfers contain plaintext credentials. Keep them private. Sync encryption is unchanged and its password is never exported. Do not place private credentials in custom CSS, prompts or URLs.')),
+                      value: _includeSecrets,
+                      onChanged: _busy
+                          ? null
+                          : (v) => setState(() => _includeSecrets = v)),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                      onPressed: _busy ? null : _export,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text(ModuStrings.text(
+                          context, '导出全局设置文件', 'Export global settings file'))),
+                  OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _export(asLink: true),
+                      icon: const Icon(Icons.link),
+                      label: Text(ModuStrings.text(
+                          context, '导出 modu 链接', 'Export modu link'))),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                      onPressed: _busy ? null : _import,
+                      icon: const Icon(Icons.settings_backup_restore),
+                      label: Text(ModuStrings.text(
+                          context, '从文件恢复设置', 'Restore settings from file'))),
+                  OutlinedButton.icon(
+                      onPressed: _busy ? null : _importLink,
+                      icon: const Icon(Icons.link),
+                      label: Text(ModuStrings.text(
+                          context, '粘贴 modu 链接恢复', 'Restore from modu link'))),
+                  if (_busy)
+                    const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(
+                            child: EinkStaticIndicator(
+                                child: CircularProgressIndicator()))),
+                  if (_status != null)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: SelectableText(_status!)),
+                ]),
+          ),
         ],
       ));
 }

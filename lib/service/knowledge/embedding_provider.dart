@@ -257,7 +257,7 @@ class EmbeddingProviderFactory {
 
   static void requireEnabled() {
     if (!Prefs().vectorModelEnabled) {
-      throw StateError('向量模型未启用，请前往「设置 → 向量模型」开启后再向量化');
+      throw StateError('向量模型未启用，请前往「设置 → 模型设置 → 向量模型」开启后再向量化');
     }
   }
 
@@ -276,7 +276,7 @@ class EmbeddingProviderFactory {
       if (provider is LocalOnnxEmbeddingProvider) {
         if (!await provider.store.isDownloaded(provider.model)) {
           throw StateError(
-            '本地模型 ${provider.model.name} 尚未下载或文件损坏，请前往「设置 → 向量模型」下载后重试',
+            '本地模型 ${provider.model.name} 尚未下载或文件损坏，请前往「设置 → 模型设置 → 向量模型」下载后重试',
           );
         }
       } else {

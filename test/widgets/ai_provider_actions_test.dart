@@ -6,6 +6,7 @@ import 'package:anx_reader/page/settings_page/ai_provider_detail_page.dart';
 import 'package:anx_reader/page/settings_page/ai_provider_list_page.dart';
 import 'package:anx_reader/providers/ai_providers.dart';
 import 'package:anx_reader/service/ai/ai_services.dart';
+import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,31 @@ void main() {
     container.read(aiProvidersProvider);
   });
   tearDown(() => container.dispose());
+
+  for (final width in [390.0, 1200.0]) {
+    testWidgets('connection, parameters and API key frames align at $width',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      notifier.addProvider(custom);
+      final providerId = container.read(aiProvidersProvider).last.id;
+      await tester.pumpWidget(
+          app(container, AiProviderDetailPage(providerId: providerId)));
+      await tester.pumpAndSettle();
+      final frames = find.byType(FilledContainer);
+      expect(frames, findsNWidgets(3));
+      Rect surface(int i) => tester.getRect(find
+          .descendant(of: frames.at(i), matching: find.byType(Material))
+          .first);
+      final first = surface(0);
+      for (var i = 1; i < 3; i++) {
+        expect(surface(i).left, closeTo(first.left, .01));
+        expect(surface(i).right, closeTo(first.right, .01));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('model parameters auto-save without committing connection drafts',
       (tester) async {

@@ -378,16 +378,22 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                   'CSS profile for this book (this device)'),
           style: Theme.of(context).textTheme.titleSmall),
       const SizedBox(height: 8),
-      DropdownButton<int>(
+      Wrap(
         key: const ValueKey('css-profile-picker'),
-        value: _index,
-        isExpanded: true,
-        items: [
+        spacing: 8,
+        runSpacing: 8,
+        children: [
           for (var i = 0; i < profiles.length; i++)
             if (!profiles[i].isEmpty || i == _index)
-              DropdownMenuItem(
-                  value: i,
-                  child: Text(
+              ChoiceChip(
+                  key: ValueKey('css-profile-$i'),
+                  selected: i == _index,
+                  onSelected: _busy
+                      ? null
+                      : (selected) {
+                          if (selected) _select(i);
+                        },
+                  label: Text(
                       profiles[i].name.isEmpty
                           ? ModuStrings.text(context, '自定义 CSS', 'Custom CSS')
                           : profiles[i]
@@ -395,11 +401,6 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis))
         ],
-        onChanged: _busy
-            ? null
-            : (i) {
-                if (i != null) _select(i);
-              },
       ),
       const SizedBox(height: 8),
       Text(
@@ -433,23 +434,12 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         TextButton(
             onPressed: _busy ? null : _import,
             child: Text(ModuStrings.text(context, '导入', 'Import'))),
-        PopupMenuButton<bool>(
-            popUpAnimationStyle: AppMotion.style,
-            enabled: !_busy,
-            onSelected: _export,
-            itemBuilder: (_) => [
-                  PopupMenuItem(
-                      value: false,
-                      child: Text(ModuStrings.text(
-                          context, '导出当前方案', 'Export current'))),
-                  PopupMenuItem(
-                      value: true,
-                      child: Text(
-                          ModuStrings.text(context, '导出全部方案', 'Export all'))),
-                ],
-            child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(ModuStrings.text(context, '导出', 'Export')))),
+        TextButton(
+            onPressed: _busy ? null : () => _export(false),
+            child: Text(ModuStrings.text(context, '导出当前方案', 'Export current'))),
+        TextButton(
+            onPressed: _busy ? null : () => _export(true),
+            child: Text(ModuStrings.text(context, '导出全部方案', 'Export all'))),
         TextButton(
             onPressed: _busy ? null : _delete,
             child: Text(ModuStrings.text(context, '删除', 'Delete'))),
@@ -480,7 +470,7 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
             value: _active.contains(_index),
             onChanged: _busy ? null : _toggleSlot,
           )),
-      Wrap(spacing: 8, children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
         ChoiceChip(
             label: Text(ModuStrings.text(context, '排版 CSS', 'Layout CSS')),
             selected: !_highlight,
@@ -521,29 +511,30 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                 labelText: ModuStrings.text(context, '正则表达式（JavaScript，无需 / /）',
                     'Regular expression (JavaScript, no / /)'))),
       ],
-      DropdownButton<String>(
-          value: _scope,
-          isExpanded: true,
-          items: [
-            DropdownMenuItem(
-                value: 'all',
-                child:
-                    Text(ModuStrings.text(context, '作用范围：全部', 'Scope: All'))),
-            DropdownMenuItem(
-                value: 'title',
-                child: Text(
-                    ModuStrings.text(context, '作用范围：标题', 'Scope: Headings'))),
-            DropdownMenuItem(
-                value: 'body',
-                child:
-                    Text(ModuStrings.text(context, '作用范围：正文', 'Scope: Body'))),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) {
-                  setState(() => _scope = value!);
-                  _autoSave();
-                }),
+      const SizedBox(height: 12),
+      Text(ModuStrings.text(context, '作用范围', 'Scope'),
+          style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final scope in [
+          ('all', ModuStrings.text(context, '全部', 'All')),
+          ('title', ModuStrings.text(context, '标题', 'Headings')),
+          ('body', ModuStrings.text(context, '正文', 'Body')),
+        ])
+          ChoiceChip(
+            key: ValueKey('css-scope-${scope.$1}'),
+            label: Text(scope.$2),
+            selected: _scope == scope.$1,
+            onSelected: _busy
+                ? null
+                : (selected) {
+                    if (!selected) return;
+                    setState(() => _scope = scope.$1);
+                    _autoSave();
+                  },
+          ),
+      ]),
+      const SizedBox(height: 12),
       IgnorePointer(
           ignoring: _busy,
           child: CssVisualControls(

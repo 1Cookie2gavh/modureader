@@ -13,7 +13,7 @@ class FilledContainer extends BaseRoundedContainer {
     super.margin,
     this.color,
     this.fill = false,
-    super.radius,
+    super.radius = 12,
     super.constraints,
     super.animationDuration,
     super.animationCurve,
@@ -26,6 +26,7 @@ class FilledContainer extends BaseRoundedContainer {
   Widget build(BuildContext context) {
     if (Prefs().eInkMode && !fill) {
       return OutlinedContainer(
+        color: Colors.transparent,
         width: width,
         height: height,
         padding: padding,
@@ -46,13 +47,14 @@ class FilledContainer extends BaseRoundedContainer {
     BuildContext context,
     BorderRadiusGeometry borderRadius,
   ) {
+    final colors = Theme.of(context).colorScheme;
     final Color effectiveColor =
-        color ?? Theme.of(context).colorScheme.surfaceContainer;
+        color ?? (fill ? colors.surface : Colors.transparent);
 
     return buildShapeDecoration(
       color: effectiveColor,
-      borderSide: const BorderSide(
-          color: Colors.transparent,
+      borderSide: BorderSide(
+          color: colors.outlineVariant,
           width: 1,
           strokeAlign: BorderSide.strokeAlignOutside),
       borderRadius: borderRadius,

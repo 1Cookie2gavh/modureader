@@ -61,44 +61,50 @@ class _AiReadingSkillsSettingsState
     return ReorderableListView.builder(
       key: const ValueKey('reading-skills-order-list'),
       buildDefaultDragHandles: false,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      header: Material(
-        color: Colors.transparent,
-        child: Column(children: [
-          SwitchListTile(
-            key: const ValueKey('reading-skills-visible-switch'),
-            title: Text(ModuStrings.value(Localizations.localeOf(context),
-                'reading_skills_visible', 'Show reading skills by default')),
-            value: Prefs().aiReadingSkillsVisible,
-            onChanged: (value) =>
-                setState(() => Prefs().aiReadingSkillsVisible = value),
-          ),
-          SkillTemplateDraftTile(
-              screen: widget.draftScreen, legacyDefault: widget.draftDefault),
-          _hint(ModuStrings.value(
-              Localizations.localeOf(context),
-              'reading_skills_layout_help',
-              'Reorder built-in and custom skills together and enable each independently.')),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(spacing: 12, runSpacing: 8, children: [
-              FilledButton.icon(
-                key: const ValueKey('add-custom-reading-skill'),
-                onPressed: () => _showCustomSkillDialog(),
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(ModuStrings.text(context, '新建技能', '新建技能')),
-              ),
-              TextButton.icon(
-                key: const ValueKey('reset-reading-skill-order'),
-                onPressed: () => setState(() => Prefs().readAnySkillOrder = []),
-                icon: const Icon(Icons.sort),
-                label: Text(ModuStrings.value(Localizations.localeOf(context),
-                    'reading_skills_reset_order', 'Restore default order')),
-              ),
-            ]),
-          ),
-        ]),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      header: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SettingsSection.content(
+          title: Text(ModuStrings.text(context, '技能设置', 'Skill settings')),
+          padding: EdgeInsets.zero,
+          child: Column(children: [
+            SwitchListTile(
+              key: const ValueKey('reading-skills-visible-switch'),
+              title: Text(ModuStrings.value(Localizations.localeOf(context),
+                  'reading_skills_visible', 'Show reading skills by default')),
+              value: Prefs().aiReadingSkillsVisible,
+              onChanged: (value) =>
+                  setState(() => Prefs().aiReadingSkillsVisible = value),
+            ),
+            SkillTemplateDraftTile(
+                screen: widget.draftScreen, legacyDefault: widget.draftDefault),
+            _hint(ModuStrings.value(
+                Localizations.localeOf(context),
+                'reading_skills_layout_help',
+                'Reorder built-in and custom skills together and enable each independently.')),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(spacing: 12, runSpacing: 8, children: [
+                FilledButton.icon(
+                  key: const ValueKey('add-custom-reading-skill'),
+                  onPressed: () => _showCustomSkillDialog(),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(ModuStrings.text(context, '新建技能', '新建技能')),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('reset-reading-skill-order'),
+                  onPressed: () =>
+                      setState(() => Prefs().readAnySkillOrder = []),
+                  icon: const Icon(Icons.sort),
+                  label: Text(ModuStrings.value(Localizations.localeOf(context),
+                      'reading_skills_reset_order', 'Restore default order')),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+        SettingsSectionTitle(
+            child: Text(ModuStrings.text(context, '阅读技能', 'Reading skills'))),
+      ]),
       itemCount: entries.length,
       onReorderItem: (oldIndex, newIndex) {
         final moved = entries.removeAt(oldIndex);
@@ -108,9 +114,17 @@ class _AiReadingSkillsSettingsState
       },
       itemBuilder: (context, index) {
         final entry = entries[index];
-        return Material(
+        return Card(
           key: ValueKey('reading-skill-entry-${entry.id}'),
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          margin: const EdgeInsets.symmetric(horizontal: 9),
+          color: Theme.of(context).cardTheme.color,
+          elevation: Theme.of(context).cardTheme.elevation ?? 0,
+          shadowColor: Theme.of(context).cardTheme.shadowColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side:
+                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
           child: Row(children: [
             ReorderableDragStartListener(
               key: ValueKey('reading-skill-drag-${entry.id}'),

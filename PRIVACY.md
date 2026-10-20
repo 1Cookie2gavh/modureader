@@ -2,7 +2,7 @@
 
 English · [简体中文](PRIVACY_zh.md) · [Home](README_EN.md) · [Settings guide](docs/SETTINGS.md)
 
-For **Modu 1.2.5+10102**, updated 2026-10-10. This document explains storage and network behavior. Third-party services have their own privacy policies.
+For **Modu 1.3.0+10151**, updated 2026-10-20. This document explains storage and network behavior. Third-party services have their own privacy policies.
 
 ## Local data and scanned books
 
@@ -15,6 +15,14 @@ Custom dictionaries are imported, parsed and queried locally. Text results remai
 In 1.2.5, optional online dictionary lookup is off by default. Enabling Chinese/English Wiktionary sends the query (which may be selected book text), IP address and normal request metadata to the selected service, not surrounding passages or the book file. Responses are rendered as text with source and license links; no remote scripts, images or audio are loaded. Results are cached only in memory for the lookup window. Local dictionary selections and online opt-in stay on this device and are excluded from settings transfer. Service availability and privacy policies are controlled by their providers.
 
 Custom CSS can contain remote resource URLs and make network requests when enabled. Use book JavaScript, external links and webpage content only from trusted sources.
+
+## Optional WeRead metadata
+
+Appearance → Link WeRead is off by default and uses your own official API Key. Searches send the title/author query; detail, review and highlight requests send the confirmed WeRead book ID to the official gateway. Cover requests use WeRead's CDN. These services receive normal network metadata, not your local book contents, notes or personal reviews. Replacing a local cover or description requires confirmation.
+
+Links and loaded public metadata are cached locally and can sync as separate book sidecars only for downloaded originals. The enable switch stays device-local. The API Key is stored in private application preferences and excluded from book sidecars and logs. It transfers only when credentials are explicitly included in global settings exports (recoverable plaintext) or through the existing encrypted sensitive-settings sync with its independent password. See [WeRead details](docs/WEREAD.md). Disabling queries does not erase existing caches or previously synced credentials.
+
+Current-page reflow translation sends the current page's corrected text, or recognized text when no correction exists, to the selected translation service. It does not request translation of the entire book.
 
 ## AI, translation, search and narration
 

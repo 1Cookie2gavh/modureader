@@ -4,6 +4,7 @@ import 'package:anx_reader/models/reader_shortcuts.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:anx_reader/widgets/settings/settings_section.dart';
 
 class ReaderShortcutsSettings extends StatefulWidget {
   const ReaderShortcutsSettings({super.key});
@@ -70,28 +71,22 @@ class _ReaderShortcutsSettingsState extends State<ReaderShortcutsSettings> {
           Text(t('用于桌面端和安卓实体键盘。每项最多绑定 8 个按键；输入文字、选词或弹窗时不触发。朗读按键只控制已启动的朗读。',
               'For desktop and Android physical keyboards. Assign up to 8 shortcuts per action. Inactive while editing, selecting text or using dialogs. Narration controls require an active narration session.')),
           for (final action in ReaderAction.values)
-            Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(t(action.zh, action.en),
-                          style: Theme.of(context).textTheme.titleSmall),
-                      Wrap(spacing: 8, runSpacing: 4, children: [
-                        for (final key in shortcuts.bindings[action]!)
-                          InputChip(
-                              label: Text(key.label),
-                              onDeleted: () {
-                                shortcuts.bindings[action]!.remove(key);
-                                save();
-                              }),
-                        if (shortcuts.bindings[action]!.length < 8)
-                          ActionChip(
-                              avatar: const Icon(Icons.add, size: 18),
-                              label: Text(t('添加按键', 'Add shortcut')),
-                              onPressed: () => add(action)),
-                      ]),
-                    ])),
+            SettingsSection.content(
+                title: Text(t(action.zh, action.en)),
+                child: Wrap(spacing: 8, runSpacing: 4, children: [
+                  for (final key in shortcuts.bindings[action]!)
+                    InputChip(
+                        label: Text(key.label),
+                        onDeleted: () {
+                          shortcuts.bindings[action]!.remove(key);
+                          save();
+                        }),
+                  if (shortcuts.bindings[action]!.length < 8)
+                    ActionChip(
+                        avatar: const Icon(Icons.add, size: 18),
+                        label: Text(t('添加按键', 'Add shortcut')),
+                        onPressed: () => add(action)),
+                ])),
           TextButton(
               onPressed: () async {
                 final confirmed = await showDialog<bool>(

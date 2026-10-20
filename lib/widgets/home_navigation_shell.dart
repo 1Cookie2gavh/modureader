@@ -157,11 +157,13 @@ class _HomeNavigationShellState extends State<HomeNavigationShell> {
                       bottom: false,
                       child: FilledContainer(
                         margin: const EdgeInsets.all(16),
-                        color: ElevationOverlay.applySurfaceTint(
-                          Theme.of(context).colorScheme.surface,
-                          Theme.of(context).colorScheme.primary,
-                          3,
-                        ),
+                        color: Prefs().eInkMode
+                            ? ElevationOverlay.applySurfaceTint(
+                                Theme.of(context).colorScheme.surface,
+                                Theme.of(context).colorScheme.primary,
+                                3,
+                              )
+                            : Theme.of(context).scaffoldBackgroundColor,
                         radius: 20,
                         child: SafeArea(
                           child: NavigationRail(

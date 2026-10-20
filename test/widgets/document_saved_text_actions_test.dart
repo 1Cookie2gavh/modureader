@@ -12,8 +12,16 @@ import 'document_reflow_reader_test.dart' as fixture;
 
 class _ExportStore extends fixture.MemoryStore {
   String output = '第4页\n────────────────────\n校对𠀀\n────────────────────';
+  final formats = <DocumentTextExportFormat>[];
+  bool fail = false;
   @override
-  Future<String> exportTxt() async => output;
+  Future<String> exportText({
+    DocumentTextExportFormat format = DocumentTextExportFormat.txt,
+  }) async {
+    formats.add(format);
+    if (fail) throw StateError('export read failed');
+    return output;
+  }
 }
 
 class _Picker extends FilePicker {
@@ -37,39 +45,98 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+    FilePicker.platform = _Picker();
   });
-  testWidgets(
-      'TXT export writes UTF-8; cancelling does not alter saved content',
-      (tester) async {
-    final store = _ExportStore();
-    final picker = _Picker();
-    FilePicker.platform = picker;
-    final directory = await tester.runAsync(
-        () => Directory.systemTemp.createTemp('modu-ocr-export-test-'));
-    addTearDown(() => directory!.delete(recursive: true));
-    picker.path = '${directory!.path}/saved.txt';
-    Future<void>? pending;
-    await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-            body: Builder(
-                builder: (context) => TextButton(
-                    onPressed: () =>
-                        pending = exportSavedDocumentText(context, store),
-                    child: const Text('Export'))))));
-    await tester.runAsync(() async {
+  for (final format in DocumentTextExportFormat.values) {
+    testWidgets(
+        '${format.extension} export writes UTF-8; cancelling does not alter saved content',
+        (tester) async {
+      final store = _ExportStore();
+      if (format == DocumentTextExportFormat.markdown) {
+        store.output = '## 第4页\n\n校对𠀀\n';
+      }
+      final picker = _Picker();
+      final oldPicker = FilePicker.platform;
+      addTearDown(() => FilePicker.platform = oldPicker);
+      FilePicker.platform = picker;
+      final directory = await tester.runAsync(
+          () => Directory.systemTemp.createTemp('modu-ocr-export-test-'));
+      addTearDown(() => directory!.delete(recursive: true));
+      picker.path = '${directory!.path}/saved.${format.extension}';
+      Future<void>? pending;
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: Builder(
+                  builder: (context) => TextButton(
+                      onPressed: () =>
+                          pending = exportSavedDocumentText(context, store),
+                      child: const Text('Export'))))));
+      await tester.runAsync(() => tester.tap(find.text('Export')));
+      await tester.pumpAndSettle();
+      expect(store.formats, isEmpty);
+      await tester.runAsync(() async {
+        await tester
+            .tap(find.byKey(ValueKey('export-format-${format.extension}')));
+        await pending;
+        expect(
+            utf8.decode(await File(picker.path!).readAsBytes()), store.output);
+      });
+      await tester.pumpAndSettle();
+      expect(picker.suggestedName, endsWith('.${format.extension}'));
+      final label = format == DocumentTextExportFormat.txt ? 'TXT' : 'Markdown';
+      expect(find.text('$label exported'), findsOneWidget);
+      expect(store.formats, [format]);
+      picker.path = null;
+      await tester.runAsync(() => tester.tap(find.text('Export')));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester
+            .tap(find.byKey(ValueKey('export-format-${format.extension}')));
+        await pending;
+      });
+      await tester.pumpAndSettle();
+      expect(store.output, contains('校对𠀀'));
+      expect(store.formats, [format, format]);
       await tester.tap(find.text('Export'));
-      await pending;
-      expect(utf8.decode(await File(picker.path!).readAsBytes()), store.output);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(store.formats, [format, format],
+          reason: 'Cancelling the format picker must not read or export pages');
+      expect(tester.takeException(), isNull);
+    }, skip: !(Platform.isMacOS || Platform.isLinux));
+  }
+
+  for (final fail in [false, true]) {
+    testWidgets('empty or failed export preserves pages (failure=$fail)',
+        (tester) async {
+      final store = _ExportStore()..fail = fail;
+      if (!fail) store.output = '';
+      final picker = _Picker();
+      final oldPicker = FilePicker.platform;
+      FilePicker.platform = picker;
+      addTearDown(() => FilePicker.platform = oldPicker);
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+        body: Builder(
+            builder: (context) => TextButton(
+                  onPressed: () => exportSavedDocumentText(context, store),
+                  child: const Text('Export'),
+                )),
+      )));
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('export-format-md')));
+      await tester.pumpAndSettle();
+      expect(
+          find.text(fail
+              ? 'Export failed; saved text is unchanged'
+              : 'No saved pages yet'),
+          findsOneWidget);
+      expect(picker.suggestedName, isNull);
+      expect(tester.takeException(), isNull);
     });
-    await tester.pumpAndSettle();
-    expect(picker.suggestedName, endsWith('.txt'));
-    expect(find.text('TXT exported'), findsOneWidget);
-    picker.path = null;
-    await tester.tap(find.text('Export'));
-    await tester.pumpAndSettle();
-    expect(store.output, contains('校对𠀀'));
-    expect(tester.takeException(), isNull);
-  }, skip: !(Platform.isMacOS || Platform.isLinux));
+  }
 
   for (final size in [const Size(360, 640), const Size(740, 360)]) {
     testWidgets('page editor fits $size with large text', (tester) async {

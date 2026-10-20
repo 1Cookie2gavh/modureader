@@ -1,5 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:anx_reader/dao/book.dart';
@@ -27,6 +28,8 @@ import 'package:anx_reader/widgets/common/tag_chip.dart';
 import 'package:anx_reader/widgets/highlight_digit.dart';
 import 'package:anx_reader/widgets/hint/hint_banner.dart';
 import 'package:anx_reader/widgets/book_review/book_review_card.dart';
+import 'package:anx_reader/widgets/weread/weread_book_card.dart';
+import 'package:anx_reader/widgets/book_detail_typography.dart';
 import 'package:anx_reader/widgets/reading_round/reading_rounds_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -72,6 +75,52 @@ class _BookDetailState extends ConsumerState<BookDetail> {
     ref.read(bookListProvider.notifier).refresh();
   }
 
+  Future<void> _adoptWereadMetadata(
+      {String? description, Uint8List? cover}) async {
+    String? coverPath;
+    File? created;
+    if (cover != null) {
+      // Persist a real PNG rather than relying on a remote filename or format.
+      final codec = await instantiateImageCodec(cover);
+      try {
+        final frame = await codec.getNextFrame();
+        try {
+          final png = await frame.image.toByteData(format: ImageByteFormat.png);
+          if (png == null) throw StateError('Invalid cover');
+          coverPath =
+              'cover/weread-${_book.id}-${DateTime.now().microsecondsSinceEpoch}.png';
+          created = File(getBasePath(coverPath));
+          await created.parent.create(recursive: true);
+          await created.writeAsBytes(png.buffer.asUint8List(), flush: true);
+        } finally {
+          frame.image.dispose();
+        }
+      } finally {
+        codec.dispose();
+      }
+    }
+    try {
+      await bookDao.updateExternalMetadata(_book.id,
+          coverPath: coverPath, description: description);
+    } catch (_) {
+      if (created != null && await created.exists()) await created.delete();
+      rethrow;
+    }
+    if (!mounted) return;
+    setState(() {
+      if (coverPath != null) {
+        _book.coverPath = coverPath;
+        widget.book.coverPath = coverPath;
+      }
+      if (description != null) {
+        _book.description = description;
+        widget.book.description = description;
+      }
+    });
+    ref.read(bookListProvider.notifier).refresh();
+    Sync().syncData(SyncDirection.upload, ref, trigger: SyncTrigger.auto);
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget buildBackground() {
@@ -107,17 +156,8 @@ class _BookDetailState extends ConsumerState<BookDetail> {
     }
 
     Widget buildBookBaseDetail(double width) {
-      TextStyle bookTitleStyle = TextStyle(
-        fontSize: 24,
-        fontFamily: 'SourceHanSerif',
-        fontWeight: FontWeight.bold,
-        color: Theme.of(context).textTheme.bodyLarge!.color,
-      );
-      TextStyle bookAuthorStyle = TextStyle(
-        fontSize: 15,
-        fontFamily: 'SourceHanSerif',
-        color: Theme.of(context).textTheme.bodyLarge!.color,
-      );
+      final bookTitleStyle = BookDetailTypography.title(context);
+      final bookAuthorStyle = BookDetailTypography.author(context);
       double top = 60;
 
       return SizedBox(
@@ -847,6 +887,9 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                                       bookId: _book.id,
                                       bookTitle: _book.title,
                                     ),
+                                    WereadBookCard(
+                                        book: _book,
+                                        onAdopt: _adoptWereadMetadata),
                                   ],
                                 ),
                               ),
@@ -877,6 +920,8 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                                 bookId: _book.id,
                                 bookTitle: _book.title,
                               ),
+                              WereadBookCard(
+                                  book: _book, onAdopt: _adoptWereadMetadata),
                               const SizedBox(height: 15),
                               buildMoreDetail(),
                             ],

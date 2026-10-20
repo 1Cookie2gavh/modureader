@@ -9,6 +9,8 @@ import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/enums/text_alignment.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/reader_setting_availability.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/reading_settings.dart';
+import 'package:anx_reader/widgets/reading_page/reader_menu_group.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +20,35 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
   });
+
+  for (final readerMenu in [false, true]) {
+    for (final section in ['reading', 'style', 'other']) {
+      testWidgets('$section groups are reader-only: $readerMenu',
+          (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: L10n.localizationsDelegates,
+          supportedLocales: L10n.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: switch (section) {
+                'reading' => ReadingMoreSettings(readerMenu: readerMenu),
+                'style' => StyleSettings(readerMenu: readerMenu),
+                _ => OtherSettings(readerMenu: readerMenu),
+              },
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.byType(ReaderMenuGroup),
+            readerMenu ? findsWidgets : findsNothing);
+        if (!readerMenu && section != 'other') {
+          expect(find.byType(Divider), findsWidgets);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('header and footer margins name their actual edges',
       (tester) async {
@@ -29,6 +60,11 @@ void main() {
           body: ReaderMoreSettings(settings: ReadingSettings.theme)),
     ));
     await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<ReadingMoreSettings>(find.byType(ReadingMoreSettings))
+            .readerMenu,
+        isTrue);
     expect(find.text('上边距'), findsOneWidget);
     expect(find.text('下边距'), findsOneWidget);
     expect(find.text('边距'), findsNothing);

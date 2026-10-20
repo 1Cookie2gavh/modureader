@@ -164,6 +164,7 @@ void main() {
     await tester.tap(night);
     await tester.pumpAndSettle();
     expect(Prefs().readingNightMode, isTrue);
+    expect(Prefs().themeMode, ThemeMode.dark);
     expect(tester.widget<IconButton>(night).isSelected, isTrue);
     expect(c.followSystem, isTrue);
     expect(c.level, 0.6);
@@ -175,6 +176,7 @@ void main() {
     await tester.tap(night);
     await tester.pumpAndSettle();
     expect(Prefs().readingNightMode, isFalse);
+    expect(Prefs().themeMode, ThemeMode.light);
     expect(c.followSystem, isFalse);
     expect(c.level, 0.6);
     expect(refreshes, 2);
@@ -182,12 +184,53 @@ void main() {
     Prefs().eInkMode = true;
     await tester.pumpAndSettle();
     expect(tester.widget<IconButton>(night).onPressed, isNull);
+    expect(Prefs().themeMode, ThemeMode.light);
     expect(tester.widget<IconButton>(night).isSelected, isFalse);
     expect(Prefs().readingNightMode, isTrue);
     Prefs().eInkMode = false;
     await tester.pumpAndSettle();
     expect(tester.widget<IconButton>(night).onPressed, isNotNull);
     expect(tester.widget<IconButton>(night).isSelected, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('moon updates the open app theme in both directions',
+      (tester) async {
+    final c = await create();
+    final dayTheme = Prefs().readTheme;
+    final autoReading = Prefs().autoAdjustReadingTheme;
+    var refreshes = 0;
+    await tester.pumpWidget(ListenableBuilder(
+      listenable: Prefs(),
+      builder: (context, _) => MaterialApp(
+        theme: ThemeData.light(),
+        darkTheme: ThemeData.dark(),
+        themeMode: Prefs().themeMode,
+        localizationsDelegates: L10n.localizationsDelegates,
+        supportedLocales: L10n.supportedLocales,
+        home: Scaffold(
+          body: BrightnessWidget(
+            controller: c,
+            onNightModeChanged: () => refreshes++,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final moon = find.byKey(const ValueKey('brightness-night'));
+    for (final dark in [true, false]) {
+      await tester.tap(moon);
+      await tester.pumpAndSettle();
+      expect(Theme.of(tester.element(moon)).brightness,
+          dark ? Brightness.dark : Brightness.light);
+      expect(Prefs().prefs.getString('themeMode'), dark ? 'dark' : 'light');
+      expect(Prefs().readingNightMode, dark);
+      expect(Prefs().readTheme.backgroundColor, dayTheme.backgroundColor);
+      expect(Prefs().readTheme.textColor, dayTheme.textColor);
+      expect(Prefs().autoAdjustReadingTheme, autoReading);
+      expect(c.followSystem, isTrue);
+    }
+    expect(refreshes, 2);
     expect(tester.takeException(), isNull);
   });
 

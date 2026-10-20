@@ -288,6 +288,7 @@ class _SelectionSearchBrowserState extends State<SelectionSearchBrowser> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis)),
                               PopupMenuButton<int>(
+                                clipBehavior: Clip.antiAlias,
                                 popUpAnimationStyle: AppMotion.style,
                                 key: const ValueKey('search-page-zoom'),
                                 tooltip: ModuStrings.text(

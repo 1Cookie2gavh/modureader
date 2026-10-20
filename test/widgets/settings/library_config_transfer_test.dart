@@ -1,4 +1,5 @@
 import 'package:anx_reader/page/settings_page/remote_library.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/remote_library/webdav_library.dart';
 import 'package:anx_reader/widgets/settings/config_transfer_tile.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues(
         {'sync-config-sentinel': 'unchanged'});
+    await Prefs().initPrefs();
     await LibraryConnectionStore.clear();
     await LibraryConnectionStore.save(original);
   });
@@ -24,7 +26,8 @@ void main() {
     await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: RemoteLibrarySettings())));
     await tester.pumpAndSettle();
-    expect(find.text('Remote library settings'), findsOneWidget);
+    expect(find.text('Library connection'), findsOneWidget);
+    expect(find.text('Remote library settings'), findsNothing);
     expect(find.text('Library WebDAV'), findsNothing);
   }
 

@@ -1,4 +1,5 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import '../reader_menu_group.dart';
 import 'package:anx_reader/enums/text_alignment.dart';
 import 'package:anx_reader/enums/writing_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -63,9 +64,14 @@ class StyleSlider extends StatelessWidget {
 }
 
 class StyleSettings extends StatefulWidget {
-  const StyleSettings({super.key, this.documentStyle, this.saveDocumentStyle});
+  const StyleSettings(
+      {super.key,
+      this.documentStyle,
+      this.saveDocumentStyle,
+      this.readerMenu = false});
   final DocumentTextStyle? documentStyle;
   final Future<void> Function(DocumentTextStyle)? saveDocumentStyle;
+  final bool readerMenu;
 
   @override
   State<StyleSettings> createState() => _StyleSettingsState();
@@ -386,10 +392,10 @@ class _StyleSettingsState extends State<StyleSettings> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      child: Column(
-        children: [
+    if (!widget.readerMenu) {
+      return Container(
+        padding: const EdgeInsets.all(8),
+        child: Column(children: [
           ReaderSettingAvailability(
               enabled: !_document, child: useBookStylesSwitch()),
           const Divider(),
@@ -397,6 +403,21 @@ class _StyleSettingsState extends State<StyleSettings> {
           const SizedBox(height: 16),
           const Divider(),
           textAlignment(),
+        ]),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ReaderMenuGroup(
+              padding: const EdgeInsets.all(12),
+              child: ReaderSettingAvailability(
+                  enabled: !_document, child: useBookStylesSwitch())),
+          ReaderMenuGroup(padding: const EdgeInsets.all(12), child: sliders()),
+          ReaderMenuGroup(
+              padding: const EdgeInsets.all(12), child: textAlignment()),
         ],
       ),
     );

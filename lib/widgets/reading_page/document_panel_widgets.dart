@@ -9,8 +9,11 @@ class DocumentPanelTheme extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ScrollConfiguration(
       behavior: const AppScrollBehavior(symmetricGutter: true),
-      child:
-          Material(color: Theme.of(context).colorScheme.surface, child: child));
+      child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          child: ListTileTheme.merge(
+              subtitleTextStyle: Theme.of(context).textTheme.bodySmall,
+              child: child)));
 }
 
 /// Aligned label column on tablets/desktops; stacked at phone widths or large

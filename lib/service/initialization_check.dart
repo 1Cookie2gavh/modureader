@@ -3,10 +3,8 @@ import 'package:anx_reader/enums/version_check_type.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/utils/app_version.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:anx_reader/page/onboarding_screen.dart';
 import 'package:anx_reader/page/changelog_screen.dart';
 import 'package:anx_reader/utils/log/common.dart';
-import 'package:flutter/material.dart';
 
 class InitializationCheck {
   static String? _lastVersion;
@@ -30,7 +28,8 @@ class InitializationCheck {
     final result = await _checkVersion();
     AnxLog.info('Version check result: $result');
     if (result == VersionCheckType.firstLaunch) {
-      _handleFirstLaunch();
+      Prefs().lastAppVersion = _currentVersion;
+      _handleNormalStartup();
     } else if (result == VersionCheckType.updated) {
       _handleUpdateAvailable();
     } else {
@@ -50,28 +49,6 @@ class InitializationCheck {
         return VersionCheckType.normal;
       }
     }
-  }
-
-  static Future<void> _handleFirstLaunch() async {
-    AnxLog.info('First launch detected, showing onboarding');
-    final cv = await currentVersion;
-    // wait 0.8 seconds to ensure the app is ready
-    Future.delayed(const Duration(milliseconds: 800), () {
-      showCupertinoSheet(
-        context: navigatorKey.currentContext!,
-        scrollableBuilder: (BuildContext context, ScrollController controller) {
-          Widget widgetBuilder(BuildContext context) => Scaffold(
-                body: OnboardingScreen(
-                  onComplete: () async {
-                    Prefs().lastAppVersion = cv;
-                    Navigator.pop(context);
-                  },
-                ),
-              );
-          return widgetBuilder(context);
-        },
-      );
-    });
   }
 
   static Future<void> _handleUpdateAvailable() async {

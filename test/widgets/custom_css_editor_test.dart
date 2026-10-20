@@ -130,8 +130,7 @@ void main() {
       (tester) async {
     await show(tester);
     await tap(tester, find.byKey(const ValueKey('css-option-color')));
-    await tap(tester, find.byKey(const ValueKey('css-profile-picker')));
-    await tap(tester, find.text(customCssTemplates[1].name).last);
+    await tap(tester, find.byKey(const ValueKey('css-profile-9')));
     expect(Prefs().customCssProfiles[8].visual!.values['color'], '#a05000');
     expect(Prefs().customCssProfiles[9].visual!.values.containsKey('color'),
         isFalse);
@@ -143,6 +142,50 @@ void main() {
     expect(copy.compiledCss, original.compiledCss);
     expect(copy.name, endsWith('copy'));
     expect(Prefs().customCssSelection().activeIndices, isNot(contains(0)));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('CSS tags select drafts and scope without enabling profiles',
+      (tester) async {
+    await show(tester);
+    expect(find.byType(DropdownButton<int>), findsNothing);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    expect(find.byType(PopupMenuButton<bool>), findsNothing);
+    final selection = Prefs().customCssSelection();
+    await tap(tester, find.byKey(const ValueKey('css-scope-body')));
+    expect(Prefs().customCssProfiles[8].scope, 'body');
+    await tap(tester, find.byKey(const ValueKey('css-profile-9')));
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('css-profile-9')))
+            .selected,
+        isTrue);
+    await tap(tester, find.byKey(const ValueKey('css-scope-title')));
+    expect(Prefs().customCssProfiles[9].scope, 'title');
+    await tap(tester, find.byKey(const ValueKey('css-profile-8')));
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('css-scope-body')))
+            .selected,
+        isTrue);
+    expect(Prefs().customCssSelection().enabled, selection.enabled);
+    expect(Prefs().customCssSelection().activeIndices, selection.activeIndices);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('invalid CSS still prevents switching with tags', (tester) async {
+    await Prefs().saveCustomCssProfile(
+        0, const CustomCssProfile(name: 'Legacy', css: 'p {}'));
+    await show(tester);
+    await tester.enterText(
+        find.byKey(const ValueKey('custom-css-code')), 'p {');
+    await tap(tester, find.byKey(const ValueKey('css-profile-8')));
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('css-profile-0')))
+            .selected,
+        isTrue);
+    expect(Prefs().customCssProfiles[0].css, 'p {}');
     expect(tester.takeException(), isNull);
   });
 }

@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:core';
 
 class ReadTheme {
+  static const defaultBackgroundColor = 'FFFBFBF3';
+  static const defaultTextColor = 'FF343434';
+
   int? id;
   String backgroundColor;
   String textColor;
@@ -44,8 +47,9 @@ class ReadTheme {
   factory ReadTheme.fromDb(Map<String, dynamic> map) {
     return ReadTheme(
       id: map['id'] as int?,
-      backgroundColor: map['background_color'] as String? ?? 'FFFBFBF3',
-      textColor: map['text_color'] as String? ?? 'FF343434',
+      backgroundColor:
+          map['background_color'] as String? ?? defaultBackgroundColor,
+      textColor: map['text_color'] as String? ?? defaultTextColor,
       backgroundImagePath: map['background_image_path'] as String? ?? '',
     );
   }

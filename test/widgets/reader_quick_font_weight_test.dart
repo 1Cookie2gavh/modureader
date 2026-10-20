@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:anx_reader/widgets/reading_page/reader_menu_group.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -71,6 +72,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.byType(StyleWidget), findsOneWidget);
+    expect(find.byType(ReaderMenuGroup), findsNWidgets(3));
     expect(find.byKey(const ValueKey('reading-font-weight-slider')),
         findsOneWidget);
   }
