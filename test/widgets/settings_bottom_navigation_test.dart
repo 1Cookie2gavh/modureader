@@ -133,7 +133,20 @@ void main() {
           final feedback = find.byKey(const ValueKey('about-feedback'));
           await tester.ensureVisible(feedback);
           await tester.pumpAndSettle();
-          await tester.tap(feedback);
+          // Linux diagnostics starts a real process; let its I/O finish outside
+          // FakeAsync before waiting for the loading animation to settle.
+          await tester.runAsync(() async {
+            await tester.tap(feedback);
+            for (var attempt = 0; attempt < 300; attempt++) {
+              await tester.pump(const Duration(milliseconds: 50));
+              if (find.byType(BugReportSettings).evaluate().isNotEmpty &&
+                  find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+                break;
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+            }
+          });
+          expect(find.byType(LinearProgressIndicator), findsNothing);
           await tester.pumpAndSettle();
           expect(find.byType(AlertDialog), findsNothing);
           expect(find.byType(BugReportSettings), findsOneWidget);

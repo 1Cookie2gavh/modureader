@@ -42,6 +42,8 @@ Older sections retain their original version scope; they are not current accepta
 
 - Fix(macos): Avoid Flutter 3.47 settings-transition flicker and rendering corruption with the tested Skia backend, retaining navigation animations. Android and iOS renderer settings are unchanged.
 
+- Ci(test): Await real Linux diagnostics I/O in settings-navigation tests before checking that loading has finished; retain navigation and layout assertions without changing app behavior.
+
 ### 简体中文
 
 - Feat(settings): 选词搜索、自定义字典并入划词工具栏，AI 阅读技能并入 AI 设置，向量／OCR 合并到模型设置，全局设置备份并入同步与备份，存储并入高级，反馈并入关于默读。
@@ -75,6 +77,8 @@ Older sections retain their original version scope; they are not current accepta
 - Fix(settings): 分组框统一宽度、高度随内容变化，统一标题和间距，QQ群信息左对齐，缩短滑块竖条，CSS 选项改用标签；新安装直接进入书架，不再显示欢迎及设置引导。
 
 - Fix(macos): 使用对照复测通过的 Skia 后端修正 Flutter 3.47 设置转场频闪和画面异常，保留过渡动画，不改安卓及 iOS 渲染配置。
+
+- Ci(test): 设置导航测试等待 Linux 真实诊断 I/O 完成后再检查加载结束，保留导航及布局断言，不修改程序功能。
 
 ## 1.2.12
 
