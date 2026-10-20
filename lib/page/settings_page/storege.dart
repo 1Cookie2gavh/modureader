@@ -224,17 +224,57 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
                   title: Text(L10n.of(context).storageLogFile),
                   trailing: fileSizeTriling(storageInfoAsync.value?.logSizeStr),
                 ),
+                Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                          ModuStrings.text(context, '本地模型', 'Local models')),
+                      trailing: fileSizeTriling(
+                          storageInfoAsync.value?.localModelsSizeStr),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20.0),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            title: Text(ModuStrings.text(
+                                context, '向量模型', 'Vector model')),
+                            trailing: fileSizeTriling(
+                                storageInfoAsync.value?.modelSizeStr),
+                          ),
+                          ListTile(
+                            title: Text(ModuStrings.text(
+                                context, 'OCR 模型', 'OCR model')),
+                            trailing: fileSizeTriling(
+                                storageInfoAsync.value?.ocrModelSizeStr),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
                 for (final item in [
-                  ('本地向量模型', storageInfoAsync.value?.modelSize),
-                  ('书籍向量索引', storageInfoAsync.value?.indexSize),
-                  ('AI 对话历史', storageInfoAsync.value?.aiHistorySize),
-                  ('阅读背景', storageInfoAsync.value?.backgroundSize),
+                  (
+                    '书籍向量索引',
+                    'Book vector index',
+                    storageInfoAsync.value?.indexSize
+                  ),
+                  (
+                    'AI 对话历史',
+                    'AI chat history',
+                    storageInfoAsync.value?.aiHistorySize
+                  ),
+                  (
+                    '阅读背景',
+                    'Reading backgrounds',
+                    storageInfoAsync.value?.backgroundSize
+                  ),
                 ])
                   ListTile(
-                    title: Text(item.$1),
-                    trailing: fileSizeTriling(item.$2 == null
+                    title: Text(ModuStrings.text(context, item.$1, item.$2)),
+                    trailing: fileSizeTriling(item.$3 == null
                         ? null
-                        : storageInfoAsync.value!.formatSize(item.$2!)),
+                        : storageInfoAsync.value!.formatSize(item.$3!)),
                   ),
                 ListTile(
                   title: Text(L10n.of(context).storageCacheFile),
