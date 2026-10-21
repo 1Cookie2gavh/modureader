@@ -39,7 +39,7 @@ Please submit bugs and feature requests through [GitHub Issues](https://github.c
 
 A green **Indexed** badge appears at the top left of indexed covers. Color-coded badges at the bottom left show the original file format, such as EPUB, PDF, TXT, MD or FB2; books identified or manually set as scans also show **Scanned**. TXT and Markdown imports retain their original-format labels after conversion to EPUB.
 
-![Reading settings on iPhone and two-column reading on Mac](docs/images/showcase/v1.3.0/reading-en.png)
+![Reading settings on iPhone and single-column reading on Mac](docs/images/showcase/v1.3.0/reading-en.png)
 
 > **Local reading does not require an AI account.** AI, online translation and online speech are optional; availability and costs depend on your chosen providers. See [Releases](https://github.com/sobranie2406/modureader/releases) for version updates and usage notes.
 
@@ -103,7 +103,7 @@ A library for your books, a workspace for your thoughts, and tools you can make 
 | [Sync & database backup](#data) | Sync through WebDAV or S3-compatible storage and export or restore library backups |
 | [Global settings backup](#backup) | Transfer preferences by file or link, with credentials controlled separately |
 
-Images combine real Mac and iPhone interfaces, cropped and resized without redrawing controls. Reading uses original demo books; WeRead shows authorized public book information, not personal notes, reviews or credentials. Both language editions show the same captured UI, with localized headings. Try [The Quiet Reader](docs/examples/modu-reading-demo-en.epub). See the [source-checked detailed feature guide](docs/FEATURES.md) for workflows, defaults and limits, and the [settings guide](docs/SETTINGS.md) for entry points.
+Feature images combine phone screenshot references with Mac promotional renderings based on the actual application, using a consistent light-theme presentation. Reading uses original demo content; WeRead shows authorized public book information, not personal notes, reviews or credentials. Headings are localized; the illustrated application language remains Chinese. Try [The Quiet Reader](docs/examples/modu-reading-demo-en.epub). See the [source-checked detailed feature guide](docs/FEATURES.md) for workflows, defaults and limits, and the [settings guide](docs/SETTINGS.md) for entry points.
 
 <a id="scanned-books"></a>
 
@@ -199,7 +199,7 @@ Bring EPUB, PDF, MOBI, AZW3, FB2, TXT, Markdown and text UMD books into one libr
 - Switch between thumbnails and a cover-free list. Long press or desktop right-click enters selection mode and reveals book menus.
 - On iOS, optionally add supported files/folders in place without copying originals. Originals are not automatically uploaded or included in backups; formats requiring conversion still use ordinary import.
 
-![An iPhone demo bookshelf and a Mac book folder](docs/images/showcase/v1.3.0/bookshelf-en.png)
+![Demo bookshelves on iPhone and Mac](docs/images/showcase/v1.3.0/bookshelf-en.png)
 
 <details>
 <summary>Remote library and migration details</summary>
@@ -246,7 +246,7 @@ Choose an app language or follow the system in Settings → Appearance. Bundled 
 
 ## Your CSS rules, visible on the page
 
-Start with visual presets for colors, spacing and underlines, then add custom CSS when you want finer control. The phone shows profile configuration; the Mac shows the actual reading layout.
+Start with visual presets for colors, spacing and underlines, then add custom CSS when you want finer control. The phone shows profile configuration; the Mac illustrates dialogue colors, underlines and keyword highlights.
 
 ![CSS profiles on iPhone and a Mac reading page](docs/images/showcase/v1.3.0/css-en.png)
 
@@ -305,7 +305,7 @@ Ask about a passage, summarize a chapter, examine an argument or organize ideas 
 - Continue with follow-up questions in the current conversation or a restored historical conversation.
 - View mind maps full screen, zoom and pan, collapse branches, and export them.
 
-![AI skill configuration on iPhone and in-book skill entry points on Mac](docs/images/showcase/v1.3.0/skills-en.png)
+![AI skill configuration on iPhone and a demo-chapter summary in the Mac dialog](docs/images/showcase/v1.3.0/skills-en.png)
 
 <details>
 <summary>Models, skills and conversation context</summary>
@@ -417,7 +417,7 @@ Vector indexing turns book passages into searchable representations of their mea
 2. Download or import the matching model and tokenizer offline, verify their size and SHA-256, then index a book from its menu.
 3. Follow the background indexing task; use the resulting index for retrieval.
 
-![Embedding model settings on iPhone and Mac in-book AI entry points](docs/images/showcase/v1.3.0/vector-en.png)
+![Embedding model settings on iPhone and the Mac in-book AI dialog](docs/images/showcase/v1.3.0/vector-en.png)
 
 <details>
 <summary>Local models, downloads and privacy</summary>

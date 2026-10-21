@@ -39,7 +39,7 @@
 
 封面左上角显示绿色「已索引」状态，左下角用不同颜色标注 EPUB、PDF、TXT、MD、FB2 等原始文件格式；识别为扫描版或手动设为扫描图片书籍时，还会显示「扫描版」标签。TXT、Markdown 等转换为 EPUB 后，仍保留原始导入格式标签。
 
-![iPhone 阅读设置与 Mac 双栏阅读](docs/images/showcase/v1.3.0/reading-zh.png)
+![iPhone 阅读设置与 Mac 单栏阅读](docs/images/showcase/v1.3.0/reading-zh.png)
 
 > **本地阅读不需要 AI 账号。** AI、在线翻译和在线语音按需配置，费用与可用性取决于所选服务。各版本更新与使用说明见 [Releases](https://github.com/sobranie2406/modureader/releases)。
 
@@ -103,7 +103,7 @@
 | [同步与数据库备份](#data) | WebDAV / S3 兼容对象存储同步、书库 ZIP 备份与恢复 |
 | [全局设置备份与导出](#backup) | 文件与链接迁移设置，账号密钥独立控制 |
 
-以下图片来自当前 Mac 与 iPhone 实际界面，只做裁切和组合，不重绘控件。阅读使用原创示例书；微信读书部分展示已授权的公开书籍资料，不包含个人笔记、书评或账号凭据。可下载 [《阅读，让思考慢下来》](docs/examples/modu-reading-demo.epub) 体验。操作流程、默认值和功能边界见[按代码核对的详细功能介绍](docs/FEATURES_zh.md)，设置入口见[设置指南](docs/SETTINGS_zh.md)。
+以下配图结合手机界面截图与基于实际程序的 Mac 效果展示，统一呈现浅色主题与功能入口。阅读使用原创示例内容；微信读书部分展示已授权的公开书籍资料，不包含个人笔记、书评或账号凭据。可下载 [《阅读，让思考慢下来》](docs/examples/modu-reading-demo.epub) 体验。操作流程、默认值和功能边界见[按代码核对的详细功能介绍](docs/FEATURES_zh.md)，设置入口见[设置指南](docs/SETTINGS_zh.md)。
 
 <a id="scanned-books"></a>
 
@@ -199,7 +199,7 @@ PDF 和扫描书可开启**「原页对照重排」**：竖屏上方原页、下
 - 工具栏切换缩略图或无封面列表；长按或桌面右键进入选择模式后显示书籍菜单。
 - iOS 可选原位添加支持的书籍文件／文件夹，不复制原书；原书不会自动上传或纳入备份，需转换的格式仍走普通导入。
 
-![iPhone 示例书架与 Mac 文件夹整理](docs/images/showcase/v1.3.0/bookshelf-zh.png)
+![iPhone 与 Mac 示例书架](docs/images/showcase/v1.3.0/bookshelf-zh.png)
 
 <details>
 <summary>远程书库与迁移说明</summary>
@@ -243,7 +243,7 @@ ANX 备份导入会校验并合并支持的数据，保留已有默读记录，�
 
 ## CSS 自定义，让效果出现在书页上
 
-不用先写代码，也能从预设开始调整颜色、字体、间距和下划线；需要更细的控制时，再填写自定义 CSS。手机展示方案配置入口，Mac 展示实际阅读排版。
+不用先写代码，也能从预设开始调整颜色、字体、间距和下划线；需要更细的控制时，再填写自定义 CSS。手机展示方案配置入口，Mac 展示对话配色、下划线与关键词高亮等排版效果。
 
 ![iPhone CSS 方案设置与 Mac 阅读页面](docs/images/showcase/v1.3.0/css-zh.png)
 
@@ -302,7 +302,7 @@ Edge、MiMo、OpenAI 兼容与 DashScope 按自然段合并相邻句子，长段
 - 当前对话与历史对话均可继续追问，沿用已有上下文。
 - 思维导图支持全屏、缩放、移动、节点展开/收回和多格式导出。
 
-![iPhone AI 阅读技能设置与 Mac 书内技能入口](docs/images/showcase/v1.3.0/skills-zh.png)
+![iPhone AI 阅读技能设置与 Mac 弹窗中的示例章节总结](docs/images/showcase/v1.3.0/skills-zh.png)
 
 <details>
 <summary>模型、技能与对话上下文</summary>
@@ -414,7 +414,7 @@ Edge、MiMo、OpenAI 兼容与 DashScope 按自然段合并相邻句子，长段
 2. 按需下载或离线导入对应版本的模型与分词器，通过大小和 SHA-256 校验后，在书籍菜单中建立索引。
 3. 后台队列继续处理，可查看任务进度，完成后用于语义检索。
 
-![iPhone 向量模型设置与 Mac 书内 AI 工具入口](docs/images/showcase/v1.3.0/vector-zh.png)
+![iPhone 向量模型设置与 Mac 书内 AI 对话弹窗](docs/images/showcase/v1.3.0/vector-zh.png)
 
 <details>
 <summary>本地模型、下载与隐私</summary>
