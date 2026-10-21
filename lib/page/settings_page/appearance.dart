@@ -45,6 +45,7 @@ class AppearanceSetting extends StatefulWidget {
 class _AppearanceSettingState extends State<AppearanceSetting> {
   @override
   Widget build(BuildContext context) {
+    final localeKey = appLocaleKey(Localizations.localeOf(context));
     final languageSubtitle = Prefs().locale == null
         ? ModuStrings.text(context, '跟随系统', 'Follow system')
         : languageOptions
@@ -300,6 +301,32 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
         SettingsSection(
           title: Text(L10n.of(context).settingsAppearanceBottomNavigatorShow),
           tiles: [
+            SettingsTile.switchTile(
+              title: Text(switch (localeKey) {
+                'zh-CN' => '远程',
+                'zh-TW' || 'zh-LZH' => '遠程',
+                _ => ModuStrings.text(context, '远程', 'Remote'),
+              }),
+              initialValue: Prefs().bottomNavigatorShowRemote,
+              onToggle: (bool value) {
+                setState(() {
+                  Prefs().bottomNavigatorShowRemote = value;
+                });
+              },
+            ),
+            SettingsTile.switchTile(
+              title: Text(switch (localeKey) {
+                'zh-CN' => '历史',
+                'zh-TW' || 'zh-LZH' => '歷史',
+                _ => L10n.of(context).navBarStatistics,
+              }),
+              initialValue: Prefs().bottomNavigatorShowStatistics,
+              onToggle: (bool value) {
+                setState(() {
+                  Prefs().bottomNavigatorShowStatistics = value;
+                });
+              },
+            ),
             if (EnvVar.enableAIFeature)
               SettingsTile.switchTile(
                 title: Text(L10n.of(context).navBarAI),
@@ -310,15 +337,6 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                   });
                 },
               ),
-            SettingsTile.switchTile(
-              title: Text(L10n.of(context).navBarStatistics),
-              initialValue: Prefs().bottomNavigatorShowStatistics,
-              onToggle: (bool value) {
-                setState(() {
-                  Prefs().bottomNavigatorShowStatistics = value;
-                });
-              },
-            ),
             SettingsTile.switchTile(
               title: Text(L10n.of(context).navBarNotes),
               initialValue: Prefs().bottomNavigatorShowNote,

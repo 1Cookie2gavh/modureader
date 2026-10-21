@@ -3,6 +3,7 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/widgets/home_navigation_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icons_plus/icons_plus.dart';
 import 'package:provider/provider.dart' as provider;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -88,6 +89,40 @@ void main() {
     Prefs().bottomNavigatorShowAI = true;
     await tester.pump();
     expect(rail(tester).destinations.length, 6);
+  });
+
+  testWidgets('remote switch hides and restores the remote destination',
+      (tester) async {
+    await pumpHome(tester, const Size(1200, 800));
+    expect(rail(tester).destinations.length, 6);
+    expect(find.byIcon(Icons.cloud_download_outlined), findsOneWidget);
+
+    Prefs().bottomNavigatorShowRemote = false;
+    await tester.pump();
+    expect(rail(tester).destinations.length, 5);
+    expect(find.byIcon(Icons.cloud_download_outlined), findsNothing);
+
+    Prefs().bottomNavigatorShowRemote = true;
+    await tester.pump();
+    expect(rail(tester).destinations.length, 6);
+    expect(find.byIcon(Icons.cloud_download_outlined), findsOneWidget);
+  });
+
+  testWidgets('bookshelf and settings remain when every optional tab is off',
+      (tester) async {
+    Prefs().bottomNavigatorShowRemote = false;
+    Prefs().bottomNavigatorShowStatistics = false;
+    Prefs().bottomNavigatorShowAI = false;
+    Prefs().bottomNavigatorShowNote = false;
+    await pumpHome(tester, const Size(1200, 800));
+
+    expect(rail(tester).destinations.length, 2);
+    expect(find.byIcon(Icons.cloud_download_outlined), findsNothing);
+    expect(find.byIcon(Icons.history), findsNothing);
+    expect(find.byIcon(Icons.auto_awesome), findsNothing);
+    expect(find.byIcon(Icons.note), findsNothing);
+    expect(find.byIcon(EvaIcons.book_open), findsOneWidget);
+    expect(find.byIcon(EvaIcons.settings_2), findsOneWidget);
   });
 
   testWidgets('wide rail falls back when the selected tab is switched off',
