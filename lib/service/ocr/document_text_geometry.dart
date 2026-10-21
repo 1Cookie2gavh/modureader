@@ -37,13 +37,25 @@ class DocumentTextRegion {
   Map<String, Object> toJson() =>
       {'start': start, 'end': end, 'rect': rect.toJson()};
   static DocumentTextRegion? decode(dynamic value, int length) {
-    if (value is! Map || value['start'] is! int || value['end'] is! int) {
+    if (value is! Map) {
       return null;
     }
-    final start = value['start'] as int, end = value['end'] as int;
+    final start = value['start'], end = value['end'];
+    // WKWebView may return integral JavaScript offsets as doubles.
+    if (start is! num ||
+        end is! num ||
+        !start.isFinite ||
+        !end.isFinite ||
+        start < 0 ||
+        end <= start ||
+        end > length ||
+        start != start.toInt() ||
+        end != end.toInt()) {
+      return null;
+    }
     final rect = DocumentImageRect.decode(value['rect']);
-    if (rect == null || start < 0 || end <= start || end > length) return null;
-    return DocumentTextRegion(start, end, rect);
+    if (rect == null) return null;
+    return DocumentTextRegion(start.toInt(), end.toInt(), rect);
   }
 }
 

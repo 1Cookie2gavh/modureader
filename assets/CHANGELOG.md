@@ -6,6 +6,16 @@ Latest stable: **1.3.0+10151**. Updated 2026-10-20.
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
+## Unreleased
+
+### English
+
+- Fix(ocr): Accept finite, integral text-region offsets returned as doubles by Apple's web bridge. Restore PDF text-layer reflow, split-view loading and background prefetch without rounding fractional offsets or weakening geometry validation; preserve existing corrections and anchors.
+
+### 简体中文
+
+- Fix(ocr): 兼容 Apple 网页桥接返回的小数类型整数字符位置，修复 PDF 文字层重排、分屏加载及后台预缓存失败；继续拒绝非整数、非有限值和越界坐标，保留已有校对稿和笔记定位。
+
 ## 1.3.0
 
 ### English

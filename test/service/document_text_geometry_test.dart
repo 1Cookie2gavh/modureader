@@ -8,6 +8,67 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const first = DocumentImageRect(.1, .2, .3, .05);
   const second = DocumentImageRect(.6, .3, .2, .08);
+  test('accepts integral Apple bridge offsets and preserves UTF16 anchors', () {
+    for (final offsets in [
+      [1, 3],
+      [1.0, 3.0],
+      [1, 3.0]
+    ]) {
+      final result = DocumentTextResult.decode({
+        'text': '甲🌱乙',
+        'regions': [
+          {'start': offsets[0], 'end': offsets[1], 'rect': first.toJson()}
+        ]
+      });
+      expect(result.regions.single.start, 1);
+      expect(result.regions.single.end, 3);
+      expect(result.toJson()['regions'], [
+        {'start': 1, 'end': 3, 'rect': first.toJson()}
+      ]);
+      expect(DocumentTextResult.decode(result.toJson()).text, '甲🌱乙');
+    }
+  });
+  test('rejects malformed bridge offsets without rounding or coercion', () {
+    for (final invalid in <Object?>[
+      null,
+      true,
+      '1',
+      -1,
+      .5,
+      double.nan,
+      double.infinity,
+      double.negativeInfinity,
+      1e100,
+      5,
+    ]) {
+      for (final field in ['start', 'end']) {
+        expect(
+            () => DocumentTextResult.decode({
+                  'text': '甲🌱乙',
+                  'regions': [
+                    {
+                      'start': 0,
+                      'end': 4,
+                      'rect': first.toJson(),
+                      field: invalid
+                    }
+                  ]
+                }),
+            throwsFormatException,
+            reason: '$field=$invalid');
+      }
+    }
+    for (final offsets in [
+      [2.0, 2.0],
+      [3.0, 1.0]
+    ]) {
+      expect(
+          DocumentTextRegion.decode(
+              {'start': offsets[0], 'end': offsets[1], 'rect': first.toJson()},
+              4),
+          isNull);
+    }
+  });
   test(
       'reflow maps joined lines, indent, hyphenation and UTF16 without guessing characters',
       () {

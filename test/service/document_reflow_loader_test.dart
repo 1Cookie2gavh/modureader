@@ -30,7 +30,7 @@ void main() {
   });
 
   Future<DocumentReflowPage> load(Map<String, dynamic> info,
-          {bool scanned = false}) =>
+          {bool scanned = false, bool bridgeRegions = false}) =>
       loadDocumentReflowPage(
         info: info,
         store: store,
@@ -39,7 +39,17 @@ void main() {
         extract: (request) async {
           expect(request['page'], isA<int>());
           stages.add('extract');
-          return {'text': scanned ? '' : 'Text layer'};
+          return {
+            'text': scanned ? '' : 'Text layer',
+            if (bridgeRegions)
+              'regions': [
+                {
+                  'start': 0.0,
+                  'end': 10.0,
+                  'rect': [.1, .2, .3, .1]
+                }
+              ],
+          };
         },
         render: (request) async {
           expect(request['page'], isA<int>());
@@ -80,6 +90,20 @@ void main() {
     expect(result.ocr, isTrue);
     expect(stages, ['extract', 'render', 'recognize']);
     expect((await store.read(73, ''))!.text, 'Recognized text');
+  });
+
+  test('Apple text-layer offsets load, persist and reuse without OCR',
+      () async {
+    final info = {'page': 0.0, 'total': 3.0};
+    final result = await load(info, bridgeRegions: true);
+    expect(result.ocr, isFalse);
+    expect(stages, ['extract']);
+    expect(result.rawRegions.single.start, 0);
+    expect(result.rawRegions.single.end, 10);
+    expect((await store.read(0, ''))!.rawRegions.single.end, 10);
+    stages.clear();
+    expect((await load(info, bridgeRegions: true)).text, 'Text layer');
+    expect(stages, isEmpty);
   });
 
   for (final invalid in <Object?>[
