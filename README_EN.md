@@ -5,7 +5,7 @@
 <p align="center">
   <a href="README.md">简体中文</a> · <a href="README_EN.md">English</a>
 </p>
-<p align="center">An open-source, cross-platform reader for ebooks, PDFs and scanned books. Crop and enhance pages, use on-device OCR and split-view comparison, translate, listen aloud and explore reading tools. Link public WeRead information and sync reading data through WebDAV or S3-compatible storage, with optional local or remote semantic indexing.</p>
+<p align="center">An open-source, cross-platform reader for ebooks, PDFs and scanned books. Crop and enhance pages, use on-device OCR and split-view comparison, translate, listen aloud and explore reading tools. Sync reading data through WebDAV or S3-compatible storage, with optional local or remote semantic indexing.</p>
 
 <p align="center">
   <a href="https://github.com/sobranie2406/modureader/releases/latest"><img src="https://img.shields.io/github/v/release/sobranie2406/modureader?style=flat-square&amp;color=356858" alt="Latest release"></a>
@@ -35,8 +35,6 @@ Connect with the Modu Reader community on Telegram or QQ:
 
 Please submit bugs and feature requests through [GitHub Issues](https://github.com/sobranie2406/modureader/issues/new/choose). If you cannot use GitHub, use the [feedback form](https://docs.qq.com/smartsheet/form/dxaiuhjrhCar%2Ft00i2h%2FvI8Bvs?tab=t00i2h). Describe one issue or idea per report and include the Modu version, OS and device, reproduction steps and expected behavior. Do not share keys, passwords, private books or unredacted logs.
 
-![Original demo books on the iPhone bookshelf and in a Mac folder](docs/images/showcase/v1.3.0/bookshelf-en.png)
-
 A green **Indexed** badge appears at the top left of indexed covers. Color-coded badges at the bottom left show the original file format, such as EPUB, PDF, TXT, MD or FB2; books identified or manually set as scans also show **Scanned**. TXT and Markdown imports retain their original-format labels after conversion to EPUB.
 
 ![Reading settings on iPhone and single-column reading on Mac](docs/images/showcase/v1.3.0/reading-en.png)
@@ -61,7 +59,7 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.3.0** — adds optional WeRead metadata linking and sync, current-page reflow translation with selection tools, and TXT/Markdown export of saved text. Unifies light/dark menus and settings and fixes macOS transition flicker while retaining animations. WeRead keys transfer only with explicit sensitive-settings opt-in; personal ratings/reviews stay independent. Sync remains on protocol v9.
+**Latest release: 1.3.0** — adds current-page reflow translation with selection tools and TXT/Markdown export of saved text. Unifies light/dark menus and settings and fixes macOS transition flicker while retaining animations. Credentials transfer only with explicit sensitive-settings opt-in; personal ratings and reviews remain independent. Sync remains on protocol v9.
 
 Reader shortcut settings are restored and hardware-keyboard playback controls are improved. iOS adds optional in-place book access; HarmonyOS gains a reader wakelock bridge and corrected log-export path validation. See the [release notes](docs/RELEASE_NOTES.md) for device-validation scope, limitations and installation requirements.
 
@@ -89,7 +87,6 @@ A library for your books, a workspace for your thoughts, and tools you can make 
 | [PDF & scanned books](#scanned-books) | Crop margins, set panel order and enhance original pages |
 | [On-device OCR](#ocr) | Download lightweight models, reflow recognized text and extract passages for AI |
 | [Original/reflow comparison](#reflow-compare) | Stacked in portrait, side by side in landscape, with independent controls |
-| [WeRead connection](#weread) | Confirm an edition and link its metadata, ratings, reviews and popular highlights |
 | [Custom CSS](#css) | Visual rules, custom code, multiple profiles and visible effects on the page |
 | [Listening](#listening) | Choose a voice, edit narration prompts and listen at up to 4× speed |
 | [AI reading](#ai) | Ask about chapters, customize skills and continue conversations |
@@ -103,7 +100,7 @@ A library for your books, a workspace for your thoughts, and tools you can make 
 | [Sync & database backup](#data) | Sync through WebDAV or S3-compatible storage and export or restore library backups |
 | [Global settings backup](#backup) | Transfer preferences by file or link, with credentials controlled separately |
 
-Feature images combine phone screenshot references with Mac promotional renderings based on the actual application, using a consistent light-theme presentation. Reading uses original demo content; WeRead shows authorized public book information, not personal notes, reviews or credentials. Headings are localized; the illustrated application language remains Chinese. Try [The Quiet Reader](docs/examples/modu-reading-demo-en.epub). See the [source-checked detailed feature guide](docs/FEATURES.md) for workflows, defaults and limits, and the [settings guide](docs/SETTINGS.md) for entry points.
+Feature images pair English iPhone settings with Mac presentations based on the actual application, using English demo books and a consistent light-theme design. Controls and result dialogs come from real screenshots; page artwork follows the app's reading layout. Try [The Quiet Reader](docs/examples/modu-reading-demo-en.epub). See the [source-checked detailed feature guide](docs/FEATURES.md) for workflows, defaults and limits, and the [settings guide](docs/SETTINGS.md) for entry points.
 
 <a id="scanned-books"></a>
 
@@ -173,20 +170,6 @@ PDFs and scanned books can display the original page alongside its reflowed text
 
 ![Top-and-bottom comparison on iPhone and side-by-side comparison on Mac](docs/images/showcase/v1.3.0/reflow-compare-en.png)
 
-<a id="weread"></a>
-
-## Link WeRead book information
-
-Enable **Settings → Appearance → Connect WeRead** and enter the API Key for the official Skills interfaces. Then link a book from its details page: search by title and author, check ISBN, translator and edition, and confirm the match yourself. You can change the link later.
-
-- View the cover, description, publication information, WeRead rating, reader reviews and popular highlights. **These remain separate from your own rating and review.**
-- Expand reviews or highlights to load them on demand. Cached results show their source and update time, with an **Open in WeRead** link.
-- Replacing a local cover or description requires separate confirmation. External highlights are not assigned to local page numbers or text selections.
-- Links and loaded metadata sync alongside downloaded books, not ahead of the book download. The API Key transfers only through explicitly enabled sensitive-settings sync or credential export; the query switch stays device-local.
-- Book contents are not uploaded to WeRead, and lookup failures do not interrupt local reading.
-
-![WeRead settings on iPhone and public cover, description, publication details and rating on Mac](docs/images/showcase/v1.3.0/weread-en.png)
-
 <a id="library"></a>
 
 ## Your library, your way
@@ -198,8 +181,6 @@ Bring EPUB, PDF, MOBI, AZW3, FB2, TXT, Markdown and text UMD books into one libr
 - Import an ANX Reader ZIP backup through the migration entry in Advanced settings.
 - Switch between thumbnails and a cover-free list. Long press or desktop right-click enters selection mode and reveals book menus.
 - On iOS, optionally add supported files/folders in place without copying originals. Originals are not automatically uploaded or included in backups; formats requiring conversion still use ordinary import.
-
-![Demo bookshelves on iPhone and Mac](docs/images/showcase/v1.3.0/bookshelf-en.png)
 
 <details>
 <summary>Remote library and migration details</summary>
@@ -223,12 +204,6 @@ Adjust fonts, font thickness, line spacing, paragraph spacing and margins. Use s
 
 ![iPhone reading settings and the Mac style menu](docs/images/showcase/v1.3.0/styles-en.png)
 
-### A rhythm for vertical reading
-
-Switch suitable books to vertical typesetting, with optional frames and column rules.
-
-![Writing-direction settings on iPhone and vertical reading on Mac](docs/images/showcase/v1.3.0/vertical-en.png)
-
 <details>
 <summary>Typography, navigation and CSS details</summary>
 
@@ -236,7 +211,7 @@ Settings → CSS settings provides 32 named profiles and 13 editable presets. De
 
 Font thickness ranges from 0.5 to 2.0 in 0.1 steps. The optional Simulated bold control can add weight to fixed-weight fonts above 1.0; it cannot make a fixed bold face thinner. PDF and other fixed-layout pages are not re-typeset.
 
-Scrolling page steps can be set from 80% to 100%. Long-press selection can expand to a word or paragraph, then be adjusted with the selection handles. Footnotes open within the reader. Vertical typesetting supports optional frames and column rules for suitable books.
+Scrolling page steps can be set from 80% to 100%. Long-press selection can expand to a word or paragraph, then be adjusted with the selection handles. Footnotes open within the reader.
 
 Choose an app language or follow the system in Settings → Appearance. Bundled AI prompts follow that language; your edited prompts keep their original text.
 
@@ -258,7 +233,7 @@ Start with visual presets for colors, spacing and underlines, then add custom CS
 <details>
 <summary>Presets, scope and file exchange</summary>
 
-Presets cover novels, vertical spacing, images, centered headings, long-form text, English paragraphs, poetry, tables, dialogue colors/wavy lines, keyword/date highlights and heading underlines. Choose all text, headings or body scope; set your own keyword in the rule.
+Presets cover novels, images, centered headings, long-form text, English paragraphs, poetry, tables, dialogue colors/wavy lines, keyword/date highlights and heading underlines. Choose all text, headings or body scope; set your own keyword in the rule.
 
 Page CSS controls layout. Regex highlights style matching text with colors, backgrounds and underlines without changing the book text or annotation positions. JSON preserves visual parameters, expressions and scope. Import only trusted CSS: remote resource URLs may make network requests. See [CSS profiles](docs/CSS_PRESETS.md).
 
@@ -272,7 +247,7 @@ Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or 
 
 **Start with a template, then make the voice your own.** Choose natural narration, bedtime reading, fiction performance, knowledge explanation, classical recitation or news reading. Edit the description and append suggestions for articulation, pauses, tone and pace.
 
-![Voice settings on iPhone and narration highlighting with playback controls on Mac](docs/images/showcase/v1.3.0/listening-en.png)
+![Voice settings on iPhone and the actual Narrator control panel on Mac](docs/images/showcase/v1.3.0/listening-en.png)
 
 - MiMo offers preset voices and voice design through descriptions of timbre, tone and delivery.
 - OpenAI-compatible speech settings offer an instructions switch, templates and an editable prompt.
@@ -347,7 +322,7 @@ Open the reader's translation controls, choose an engine and target language, th
 - Selection translation also offers embedded webpages, including Baidu and Youdao; these are separate from inline full-text translation.
 - Selection search with Baidu, Bing, Google, Baidu Baike, Wikipedia or a custom engine in the built-in browser.
 
-The image shows selection-tool configuration and a translation lookup for “思考”. Inline translation and selection translation have separate entry points. Online translation sends the requested text to the selected provider.
+The image shows selection-tool configuration and an English-to-Spanish passage lookup. Inline translation and selection translation have separate entry points. Online translation sends the requested text to the selected provider.
 
 <a id="dictionary"></a>
 
@@ -355,9 +330,9 @@ The image shows selection-tool configuration and a translation lookup for “思
 
 Select a word and read its definition right beside the book. Imported MDX and StarDict dictionaries work offline, with no AI account required.
 
-![Dictionary import on iPhone and an actual definition lookup on Mac](docs/images/showcase/v1.3.0/dictionary-en.png)
+![English dictionary-import settings on iPhone and Mac](docs/images/showcase/v1.3.0/dictionary-en.png)
 
-Name, enable, disable or remove dictionaries in Settings → Selection toolbar → Custom dictionaries. Query one or several dictionaries, with sources and explicit no-entry results, or opt into Chinese/English Wiktionary. Newly imported MDX dictionaries can use MDD/local resources to display original images, audio and script-generated content inline. Older text-only imports need reimporting to add these resources. Dictionary files are not bundled; the picture shows an actual lookup in an installed dictionary.
+Name, enable, disable or remove dictionaries in Settings → Selection toolbar → Custom dictionaries. Query one or several dictionaries, with sources and explicit no-entry results, or opt into Chinese/English Wiktionary. Newly imported MDX dictionaries can use MDD/local resources to display original images, audio and script-generated content inline. Older text-only imports need reimporting to add these resources. Dictionary files are not bundled; the picture shows the import and source-selection settings.
 
 <a id="unified-query"></a>
 
@@ -448,9 +423,9 @@ Use your own WebDAV server or S3-compatible object storage to sync books, notes,
 - ZIP database backup export/import with a visible save location.
 - Backup includes local books, covers, notes, reading records, AI chat history and general settings.
 - Sensitive service settings are excluded by default; backup export can optionally include them with encryption.
-- Personal ratings/reviews, reading rounds and loaded WeRead metadata can sync. OCR cache and corrections follow their source book rather than downloading ahead of it.
+- Personal ratings/reviews and reading rounds can sync. OCR cache and corrections follow their source book rather than downloading ahead of it.
 
-![Sync settings on iPhone and paused narration highlighting on Mac](docs/images/showcase/v1.3.0/sync-en.png)
+![Sync settings on iPhone and English reading on Mac](docs/images/showcase/v1.3.0/sync-en.png)
 
 <details>
 <summary>Restore behavior and sync security</summary>

@@ -35,8 +35,6 @@
 
 问题与功能建议优先通过 [GitHub Issues](https://github.com/sobranie2406/modureader/issues/new/choose) 提交；不方便使用 GitHub 时，可填写[在线反馈表](https://docs.qq.com/smartsheet/form/dxaiuhjrhCar%2Ft00i2h%2FvI8Bvs?tab=t00i2h)。每条反馈只描述一个问题或建议，并提供默读版本、系统与设备、复现步骤和预期结果。请勿提交密钥、密码、私人书籍或未脱敏日志。
 
-![原创示例书在 iPhone 书架与 Mac 文件夹中展示](docs/images/showcase/v1.3.0/bookshelf-zh.png)
-
 封面左上角显示绿色「已索引」状态，左下角用不同颜色标注 EPUB、PDF、TXT、MD、FB2 等原始文件格式；识别为扫描版或手动设为扫描图片书籍时，还会显示「扫描版」标签。TXT、Markdown 等转换为 EPUB 后，仍保留原始导入格式标签。
 
 ![iPhone 阅读设置与 Mac 单栏阅读](docs/images/showcase/v1.3.0/reading-zh.png)
@@ -198,8 +196,6 @@ PDF 和扫描书可开启**「原页对照重排」**：竖屏上方原页、下
 - 在高级设置中导入 ANX Reader 的 ZIP 备份，迁移已有书库。
 - 工具栏切换缩略图或无封面列表；长按或桌面右键进入选择模式后显示书籍菜单。
 - iOS 可选原位添加支持的书籍文件／文件夹，不复制原书；原书不会自动上传或纳入备份，需转换的格式仍走普通导入。
-
-![iPhone 与 Mac 示例书架](docs/images/showcase/v1.3.0/bookshelf-zh.png)
 
 <details>
 <summary>远程书库与迁移说明</summary>
