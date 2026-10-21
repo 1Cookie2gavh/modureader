@@ -55,6 +55,7 @@ void main() {
     await File('${cache.path}/temporary').writeAsString('disposable');
     for (final relative in [
       'models/embeddings/model.onnx',
+      'ocr/ppocr-v4-mobile-1/det.onnx',
       'knowledge/1.json',
       'bgimg/image.png',
       'file/book.epub'
@@ -73,6 +74,8 @@ void main() {
     expect((await AiHistoryStore.readHistory()).single.id, 'fixture');
     final info = await container.read(storageInfoProvider.future);
     expect(info.modelSize, 10);
+    expect(info.ocrModelSize, 10);
+    expect(info.localModelsSizeStr, info.formatSize(20));
     expect(info.indexSize, 10);
     expect(info.backgroundSize, 10);
     expect(info.booksSize, 10);
