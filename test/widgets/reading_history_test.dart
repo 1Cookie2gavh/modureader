@@ -26,10 +26,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _Access extends ReadingHistoryBookAccess {
   Book? current;
   Book? opened;
+  Book? detailBook;
   int calls = 0;
   Completer<void>? pending;
   bool fail = false;
   bool showReader = false;
+  bool detailsOpened = false;
   String? openedHeroTag;
 
   @override
@@ -55,6 +57,13 @@ class _Access extends ReadingHistoryBookAccess {
       ));
     }
     await pending?.future;
+  }
+
+  @override
+  Future<void> openDetails(BuildContext context, Book book) async {
+    detailsOpened = true;
+    detailBook = book;
+    opened = book;
   }
 }
 
@@ -191,6 +200,24 @@ void main() {
     await tester.tap(find.byType(BookCover));
     await tester.pump();
     expect(access.calls, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('history entry opens book details when the setting is enabled',
+      (tester) async {
+    Prefs().historyOpensBookDetail = true;
+    final book = fixture();
+    final access = _Access()..current = book;
+    await tester.pumpWidget(
+        app(BookStatisticItem(book: book, readingTime: 120), access: access));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(BookCover));
+    await tester.pump();
+
+    expect(access.detailsOpened, isTrue);
+    expect(access.detailBook, same(book));
+    expect(access.calls, 0);
     expect(tester.takeException(), isNull);
   });
 

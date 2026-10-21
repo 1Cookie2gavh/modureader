@@ -327,6 +327,22 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                 });
               },
             ),
+            if (Prefs().bottomNavigatorShowStatistics)
+              SettingsTile.switchTile(
+                key: const ValueKey('history-open-book-detail'),
+                title: Text(ModuStrings.text(
+                    context, '历史条目打开书籍详情', 'Open book details from History')),
+                description: Text(ModuStrings.text(
+                    context,
+                    '关闭时点击历史条目直接进入阅读界面。',
+                    'When off, tapping a history entry opens the reader.')),
+                initialValue: Prefs().historyOpensBookDetail,
+                onToggle: (bool value) {
+                  setState(() {
+                    Prefs().historyOpensBookDetail = value;
+                  });
+                },
+              ),
             if (EnvVar.enableAIFeature)
               SettingsTile.switchTile(
                 title: Text(L10n.of(context).navBarAI),

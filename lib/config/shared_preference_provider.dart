@@ -1808,6 +1808,15 @@ class Prefs extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get historyOpensBookDetail {
+    return prefs.getBool('historyOpensBookDetail') ?? false;
+  }
+
+  set historyOpensBookDetail(bool status) {
+    prefs.setBool('historyOpensBookDetail', status);
+    notifyListeners();
+  }
+
   set syncCompletedToast(bool status) {
     prefs.setBool('syncCompletedToast', status);
     notifyListeners();

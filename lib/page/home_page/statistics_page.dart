@@ -1,3 +1,4 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/enums/chart_mode.dart';
@@ -327,6 +328,7 @@ class BookStatisticItem extends StatelessWidget {
     return ReadingHistoryBookLink(
       book: book,
       heroTag: heroTag,
+      openDetails: Prefs().historyOpensBookDetail,
       child: FilledContainer(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(8.0),

@@ -5,7 +5,7 @@ const settingsModuleKeys = <String, String>{
       '''wereadApiKey locale themeMode themeColor trueDarkMode eInkMode eInkDisableAnimations
 useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle bookshelfListMode showBookFormatBadge showBookIndexBadge showBookTitleOnDefaultCover
 showAuthorOnDefaultCover openBookAnimation bottomNavigatorShowNote
-bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI sortField sortOrder''',
+bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI historyOpensBookDetail sortField sortOrder''',
   'reading':
       '''readStyle readTheme hideStatusBar readerFullscreen autoHideBottomBar
 awakeTime dailyCheckInMinutes pageTurningType pageTurnStyle readingRules chapterSplitCustomRules

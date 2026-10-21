@@ -1,6 +1,7 @@
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/page/book_detail.dart';
 import 'package:anx_reader/service/book.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,12 @@ class ReadingHistoryBookAccess {
   Future<void> open(WidgetRef ref, BuildContext context, Book book,
           {required String heroTag}) =>
       pushToReadingPage(ref, context, book, heroTag: heroTag);
+
+  Future<void> openDetails(BuildContext context, Book book) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => BookDetail(book: book)),
+    );
+  }
 }
 
 final readingHistoryBookAccessProvider =
@@ -30,12 +37,17 @@ class ReadingHistoryBookLink extends ConsumerStatefulWidget {
     required this.heroTag,
     required this.child,
     this.enabled = true,
+    this.openDetails = false,
   });
 
   final Book book;
   final String heroTag;
   final Widget child;
   final bool enabled;
+
+  /// When true, tapping opens the book detail sheet/page instead of the
+  /// reader. Used by the History tab's date-grouped book list.
+  final bool openDetails;
 
   @override
   ConsumerState<ReadingHistoryBookLink> createState() =>
@@ -59,7 +71,11 @@ class _ReadingHistoryBookLinkState
             SnackBar(content: Text(L10n.of(context).bookDeleted)));
         return;
       }
-      await access.open(ref, context, book, heroTag: widget.heroTag);
+      if (widget.openDetails) {
+        await access.openDetails(context, book);
+      } else {
+        await access.open(ref, context, book, heroTag: widget.heroTag);
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
