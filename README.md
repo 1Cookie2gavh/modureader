@@ -26,7 +26,7 @@
 
 支持 Android、iOS、macOS、Windows、Linux 与原生鸿蒙。本地阅读无需 AI 账号，在线功能按需选用。
 
-![iPhone 阅读设置与 Mac 单栏阅读](docs/images/showcase/v1.3.0/reading-zh.webp)
+![iPhone 与 Mac 单栏阅读及带进度条的阅读菜单](docs/images/showcase/v1.3.0/reading-zh.webp)
 
 <a id="downloads"></a>
 
@@ -48,7 +48,7 @@
 
 保留原书版式，自动裁去多余留白。分格阅读、旋转缩放与图像增强，让扫描书在小屏幕上也能看清细节。
 
-![iPhone 页面菜单与 Mac 原版页面](docs/images/showcase/v1.3.0/scanned-pdf-zh.webp)
+![iPhone 与 Mac 展示同一份中文示例 PDF 原页](docs/images/showcase/v1.3.0/scanned-pdf-zh.webp)
 
 <a id="ocr"></a>
 
@@ -56,7 +56,7 @@
 
 把扫描页变成可排版、可选词的文字，继续翻译、标注、记笔记。轻量 OCR 模型在设备上运行，下载后即可离线使用。
 
-![iPhone 文字重排与后台 OCR 设置，Mac 原页与重排对照](docs/images/showcase/v1.3.0/ocr-zh.webp)
+![iPhone 与 Mac 展示同一份中文示例 PDF 的重排文字](docs/images/showcase/v1.3.0/ocr-zh.webp)
 
 <a id="reflow-compare"></a>
 
@@ -72,7 +72,7 @@
 
 为本地书籍关联封面、简介、出版信息和评分。看看读者书评与热门划线，为阅读多添一个视角。
 
-![iPhone 关联设置与 Mac 微信读书公开资料：封面、简介、出版信息和推荐值](docs/images/showcase/v1.3.0/weread-zh.webp)
+![iPhone 与 Mac 展示同一本书的微信读书公开资料：封面、简介、出版信息和推荐值](docs/images/showcase/v1.3.0/weread-zh.webp)
 
 <a id="library"></a>
 
@@ -80,7 +80,7 @@
 
 支持 EPUB、PDF、MOBI、AZW3、FB2、TXT、Markdown 和文字 UMD。用文件夹、筛选、排序与置顶整理书库，批量导入或从 WebDAV 远程书库下载，也能迁移 ANX Reader 备份。
 
-![书架](docs/images/showcase/v1.3.0/bookshelf-zh.webp)
+![中文经典书架：格式标签与已索引、向量化和排队状态](docs/images/showcase/v1.3.0/bookshelf-zh.webp)
 
 <a id="reading"></a>
 
@@ -88,13 +88,13 @@
 
 字体、粗细、间距、页边距，都能调成喜欢的样子。支持翻页与滚动、浅色与深色主题，以及 OLED、墨水屏模式。
 
-![iPhone 阅读设置与 Mac 样式菜单](docs/images/showcase/v1.3.0/styles-zh.webp)
+![iPhone 与 Mac 阅读页中的实际样式菜单](docs/images/showcase/v1.3.0/styles-zh.webp)
 
 #### 竖排阅读
 
 切换竖排，搭配边框与栏线，找回传统书页的阅读节奏。
 
-![iPhone 写作方向设置与 Mac 竖排阅读](docs/images/showcase/v1.3.0/vertical-zh.webp)
+![iPhone 与 Mac 竖排阅读同一章原创示例书，完整显示页角与栏线](docs/images/showcase/v1.3.0/vertical-zh.webp)
 
 <a id="css"></a>
 
@@ -102,7 +102,7 @@
 
 从预设和图形调节开始，也可以用 CSS 精细调整。对白配色、关键词高亮、多套样式切换，让不同的书有自己的样子。
 
-![iPhone CSS 方案设置与 Mac 阅读页面](docs/images/showcase/v1.3.0/css-zh.webp)
+![iPhone 与 Mac 展示相同 CSS 方案的阅读效果](docs/images/showcase/v1.3.0/css-zh.webp)
 
 <a id="listening"></a>
 
@@ -110,7 +110,7 @@
 
 支持系统朗读、Edge TTS、小米 MiMo、OpenAI 兼容服务和 DashScope。选择音色与语速，搭配支持的声音风格描述，让故事用喜欢的声音继续；普通文字书支持跨章续读和朗读高亮。
 
-![iPhone 语音设置与 Mac 朗读高亮及播放栏](docs/images/showcase/v1.3.0/listening-zh.webp)
+![iPhone 与 Mac 朗读同一段文字，展示高亮与完整播放栏](docs/images/showcase/v1.3.0/listening-zh.webp)
 
 <a id="ai"></a>
 
@@ -118,7 +118,7 @@
 
 解释选文、总结章节、梳理论证、追踪人物，或生成思维导图。接入自己的 AI 服务，自定义阅读技能，围绕书中内容继续追问。
 
-![iPhone AI 阅读技能设置与 Mac 弹窗中的示例章节总结](docs/images/showcase/v1.3.0/skills-zh.webp)
+![iPhone 与 Mac AI 对话弹窗中的示例章节总结](docs/images/showcase/v1.3.0/skills-zh.webp)
 
 <a id="selection"></a>
 
@@ -126,31 +126,15 @@
 
 选中文字，就能复制、标注、翻译、查询或交给 AI。工具按钮自由排序，常用命令随手可用。
 
-![iPhone 划词工具栏设置与 Mac 实际选词工具栏](docs/images/showcase/v1.3.0/selection-zh.webp)
-
-<a id="translation"></a>
-
-### 翻译与搜索
-
-原文与译文逐段对照，也可只看译文连续阅读。支持 Google、AI、DeepL／DeepLX 翻译，并可在内置浏览器查询网页与百科。
-
-![iPhone 划词工具设置与 Mac 选词翻译结果](docs/images/showcase/v1.3.0/translation-zh.webp)
-
-<a id="dictionary"></a>
-
-### 离线词典
-
-导入 MDX 或 StarDict 词典，在书页旁查看释义。支持词典图文与音频资源，离线也能查词。
-
-![iPhone 本地词典导入入口与 Mac 实际释义查询](docs/images/showcase/v1.3.0/dictionary-zh.webp)
+![iPhone 与 Mac 选中同一段文字并显示实际划词工具栏](docs/images/showcase/v1.3.0/selection-zh.webp)
 
 <a id="unified-query"></a>
 
 ### 综合查询
 
-在一个窗口查看词典、百科、翻译和 AI 知识。比较不同来源的解释，不必来回切换应用。
+在「综合」页查看字典释义、选词翻译和 AI 知识，不用离开书页。支持导入 MDX、StarDict 词典离线查词，翻译与 AI 来源按需配置。
 
-![iPhone 工具配置与 Mac 综合查询中的翻译和百科结果](docs/images/showcase/v1.3.0/unified-query-zh.webp)
+![iPhone 与 Mac 查询同一内容，综合页展示字典、翻译与 AI 知识卡片](docs/images/showcase/v1.3.0/unified-query-zh.webp)
 
 <a id="notes"></a>
 
@@ -158,7 +142,7 @@
 
 标记喜欢的句子，写下当时的想法。按书籍和章节回顾笔记，导出 Markdown、TXT 或 CSV，也能从笔记链接回到原文。
 
-![iPhone 标注工具配置与 Mac 示例书笔记入口](docs/images/showcase/v1.3.0/notes-zh.webp)
+![iPhone 与 Mac 笔记面板：根据示例书正文生成的摘录与批注](docs/images/showcase/v1.3.0/notes-zh.webp)
 
 <a id="statistics"></a>
 
@@ -166,15 +150,7 @@
 
 用时长趋势、热力图和打卡目标记录阅读习惯。查看最近阅读、单本书进度与多轮阅读记录，看见日积月累的收获。
 
-![iPhone 与 Mac 的每日阅读打卡目标设置](docs/images/showcase/v1.3.0/statistics-zh.webp)
-
-<a id="vector"></a>
-
-### 语义检索
-
-不只搜索关键词，也能找到意思相关的段落，为 AI 回答提供原文依据。支持本地向量模型和远程嵌入服务。
-
-![iPhone 向量模型设置与 Mac 书内 AI 对话弹窗](docs/images/showcase/v1.3.0/vector-zh.webp)
+![iPhone 与 Mac 历史界面：使用书架经典书籍和模拟阅读记录](docs/images/showcase/v1.3.0/statistics-zh.webp)
 
 <a id="data"></a>
 
@@ -182,7 +158,7 @@
 
 通过自己的 WebDAV 或 S3 兼容存储，同步书籍、笔记、书签和阅读位置。换一台设备，接着读，也能接着听。
 
-![iPhone 同步设置与 Mac 暂停状态的朗读高亮](docs/images/showcase/v1.3.0/sync-zh.webp)
+![iPhone 与 Mac 的同步设置，不包含私人服务器地址或账号](docs/images/showcase/v1.3.0/sync-zh.webp)
 
 <a id="backup"></a>
 
