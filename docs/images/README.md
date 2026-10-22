@@ -1,49 +1,43 @@
-# Display assets
+# Homepage screenshots
 
-## Current: Modu 1.2.8+10124
+## Modu 1.3.0
 
-Feature claims follow the source prepared for `v1.2.8`. The default Chinese homepage is [README.md](../../README.md); the English homepage is [README_EN.md](../../README_EN.md). `README_zh.md` keeps the previous Chinese URL working. The 2026-10-13 refresh replaces twelve assets: paired bookshelf-home, OCR, vector-model, listening, sync and scanned-PDF images; the remaining gallery assets are retained.
+The current homepages use 20 Chinese and 18 English panels from `showcase/v1.3.0/`, all 1536 × 1024. The artwork combines an ivory/sage background, localized headings, actual phone screenshots, and Mac presentations based on the running application. Ordinary demo prose and CSS effects are rendered illustrations; interface controls, query results, metadata and AI dialogs are composited from real screenshots, not regenerated. Chinese panels use Chinese UI and reading material; English panels use English UI and reading material. Vertical reading and WeRead are shown only on the Chinese homepage.
 
-The 35 images in `showcase/cross-platform/` are the current homepage set, including later documentation artwork for the stable features. A macOS window sits behind an overlapping foreground iPhone, with a clear headline, light backdrop and soft shadows. Each major feature has its own image beside its description; Chinese artwork also includes framed vertical reading.
+The composition uses a large, approximately 1.3:1 Mac window beside a foreground phone. Ordinary prose is single-column; PDF original/reflow comparison keeps two panes. AI and query interfaces retain their actual centered popup presentation. WeRead uses only the authorized public metadata panel. Repeated mixed-language bookshelf artwork is no longer used. Raw captures are not published because areas outside approved crops may contain personal information.
 
-Artwork uses actual interfaces and code-supported behavior as its basis, with composition/redrawing by the built-in image-generation tool. It is composed showcase imagery rather than an untouched device capture. Preserve the actual Mac interface structure and control relationships; replace private content only inside that layout. The iPhone retains its Dynamic Island, status bar, bottom home indicator and iOS-style typography. Desktop recording markers and mouse cursors are removed.
-
-Feature configuration/result pairs use phone configuration → Mac result. The phone stays in the foreground and shows controls or editing; the larger Mac window shows the resulting behavior. Bookshelf-home overviews instead show the library on both devices. Keep EN and ZH as separate localized assets (`*-en` and `*-zh`), matching labels, prose and language-specific examples. Do not mix the two languages into a single showcase panel.
-
-| Assets | Phone configuration | Mac result |
+| Panel | Phone | Mac |
 | --- | --- | --- |
-| `bookshelf-home-*` | Bookshelf home with fictional books and index/format labels | Bookshelf home with Indexed, original-format and Scanned badges |
-| `library-*` | Create a folder for selected books | Stacked folder covers, translucent menus and indexed/format badges on individual books; Reading history navigation |
-| `styles-*` | Font, thickness and spacing | Comfortable book typography |
-| `scanned-pdf-*` | PDF crop/panel and image-enhancement controls | Continuous original pages with enhanced text |
-| `ocr-*` | Optional OCR model cards, V4 recommended, model source and offline file import | Current-page reflowed text with selection handles and reader toolbar |
-| `css-*` | Visual CSS and highlight rules | Colored dialogue, wavy underlines and keyword highlights |
-| `listening-*` | Narration template and voice description | Passage highlighting and the current single-row narration controls |
-| `skills-*` | A chapter-summary prompt | A reader AI answer and follow-up input |
-| `selection-*` | Custom AI action and scope | Selection handles, toolbar and annotation controls |
-| `translation-*` | Full-text engine, target language and bilingual display | Multiple inline translated paragraphs: English–Spanish for EN, English–Chinese for ZH |
-| `dictionary-*` | Imported dictionary enabled | An offline word definition beside the book |
-| `notes-*` | Highlight and comment editing | Saved book notes |
-| `statistics-*` | Add a dashboard card | Reading charts and records |
-| `vector-*` | Local embedding model with offline import | An AI answer citing retrieved chapter excerpts |
-| `sync-*` | Record sync and database backup | Restored narration position/highlight, paused, without vector-index transfer |
-| `backup-*` | Global settings export | Export completion and saved file location |
+| reading / styles | Reading preferences | Single-column demo prose / actual style popup |
+| vertical | Writing-direction controls | Actual vertical reading with column rules |
+| scanned-pdf | Page controls | Original PDF page |
+| ocr | Text reflow and background OCR controls | Original and reflow comparison |
+| reflow-compare | Portrait, top and bottom | Landscape, left and right |
+| weread | Connection settings, API Key masked | Authorized public metadata for 《毒堇之杯》 |
+| css | Profile configuration | Illustrated dialogue colors, underlines and keyword highlights supported by the app |
+| listening | Voice description settings | Chinese: narration highlight and complete playback toolbar; English: actual Narrator popup |
+| skills | Skill configuration | Actual centered AI dialog with a genuine DeepSeek summary of the original demo chapter |
+| selection | Toolbar configuration | Actual toolbar pixels over illustrated selected demo prose |
+| translation | Selection-tool configuration | Chinese term lookup / English-to-Spanish passage translation |
+| dictionary | Dictionary import entry | Chinese: actual definition; English: import and source settings |
+| unified-query | Toolbar configuration | Translation and encyclopedia results |
+| notes | Annotation-tool configuration | Demo book's empty notes panel; no personal or invented notes |
+| vector | Local model settings | Actual demo-chapter AI summary dialog, not a vector-retrieval benchmark |
+| sync | Sync off; any server address redacted | Chinese paused narration / English reading; not evidence of a cross-device sync test |
+| backup | Settings export/import, credentials off | The corresponding settings-backup page |
+| settings | Settings overview | Appearance controls |
+| statistics | Daily reading-goal setting | Daily reading-goal setting; no personal history shown |
 
-The opening `reading-*` banners and `vertical-zh` show reading layouts directly. PDF and OCR layouts were previously checked against the local Mac app and use original demonstration prose. PDF page surfaces must be white in both language variants, including the phone's original-page preview and Mac reading result; device backdrops can remain light. Crop settings show the original page and rectangle while the Mac shows that page's cropped result, without implying source-file overwrite.
+The reading material is supplied by the original [demo books](../examples/README.md). WeRead content is third-party public book information displayed with the user's approval; it is separate from personal ratings and reviews. No private bookshelf, private note, personal review, service endpoint, unmasked credential or private AI conversation is published. Settings shown are demonstration states, not necessarily factory defaults.
 
-OCR artwork shows Text Reflow/OCR Reflow directly in the reader for the current original page or its whole saved crop. It must not depict a region-selection popup as the reflow reader: only Extract opens that editor and can fill an editable AI input without automatically sending. Model downloads are optional; V4 is recommended, V5 upstream is ModelScope, and V3/V4 upstream is Hugging Face, with Gitee alternatives. Artwork is not an OCR accuracy measurement. Ordinary text books retain their normal controls; E-Ink refresh claims apply only to supported devices.
+The user authorized sending the original demo chapter to DeepSeek for the pictured summary. No private book or note was sent for this demonstration. The screenshot preserves the returned answer rather than substituting an invented response.
 
-Only selected final assets are tracked; prompt drafts and discarded variants remain outside the published source tree. The 2026-10-10 update adds `bookshelf-home-zh.png` and `bookshelf-home-en.png` using the built-in image-generation tool, matching the existing Mac-window/iPhone composition. Unlike configuration/result pairs, both screens show the bookshelf home. Badge positions, labels and colors were checked against `book_item.dart` and `book_type_badges.dart`: green indexed status at the top left, colored original-format labels at the bottom left, plus an orange scanned label where applicable. All books, covers and progress values are fictional. These are illustrative images, not untouched device screenshots; no new application/device testing is claimed.
+## Composition brief
 
-Reading examples use the original [Chinese demonstration book](../examples/modu-reading-demo.epub) and [The Quiet Reader](../examples/modu-reading-demo-en.epub), plus original sample passages and dictionary definitions written for artwork. Source/redistribution terms are in [example books](../examples/README.md). Statistics, notes, retrieval excerpts and AI answers are illustrative data, not private accounts or performance benchmarks. No private bookshelf, notes, AI conversation or credentials are included. Settings illustrate features and are not necessarily factory defaults.
+The built-in image-generation tool supplied the approved background and Chinese demo-page renderings. Final assembly and English demo-page typography used user-authorized deterministic compositing. Brief: pale ivory with soft sage foliage shadows, bold black heading at upper left, black Modu wordmark at upper right, larger Mac view, phone settings at left, soft shadows, readable single-column prose, and no invented controls, credentials or personal results. CSS demonstrates supported styling; PDF comparison remains split; AI/query results use real centered dialogs. English editions use separately captured English interfaces, not translated promotional headlines over Chinese screens.
 
-## Historical source archive
+## Historical assets
 
-Source images were removed from the current tracked tree on 2026-10-03 to avoid shipping unused, duplicate or upstream marketing material. They remain recoverable in [the previous Git revision](https://github.com/sobranie2406/modureader/tree/dae8ecc4ef7ac34cfe252f8039008716d5cee6ff/docs/images), and local copies are ignored rather than deleted:
+Unreferenced historical artwork and unused v1.3.0 variants were removed during the 2026-10-22 cleanup. Images still referenced by documentation are retained, including historical `showcase/cross-platform/` examples; they must not be presented as current Modu UI. Previously tracked artwork remains available in Git history.
 
-- `showcase/*.png`: previous iPhone-only renders used to compose the current artwork.
-- `v1.1.9/`: Android and Mac Modu `1.1.9+10063` captures from 2026-10-01, including original demo books/settings.
-- Seven older `*-macos.jpg` files: Modu `1.1.1+10033` captures from 2026-09-21, including the then-approved vertical-reading example.
-- `Anx-logo.jpg`, `main.jpg`, `wide*.png`, `mobile*.png` and `zh/`: inherited Anx Reader promotional assets, not current Modu UI.
-
-These retired assets retain local copies and Git history for recovery/design work. Do not republish upstream screenshots as current Modu. Dependencies' licenses, copyrights and provenance are outside this asset-cleanup scope.
+Only reviewed final compositions are published. Local source captures and intermediate contact sheets remain outside the tracked documentation set.

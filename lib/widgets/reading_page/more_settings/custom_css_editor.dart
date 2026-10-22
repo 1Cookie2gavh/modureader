@@ -41,14 +41,29 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
   String? _error;
   CssVisualStyle _visual = const CssVisualStyle();
   Future<void> _autoWrites = Future.value();
+  Locale? _locale;
+  String _storedName = '';
+  String _displayName = '';
 
-  String _text(String zh, String en) =>
-      Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
+  String _text(String zh, String en) => ModuStrings.text(context, zh, en);
 
   @override
   void initState() {
     super.initState();
     _loadSelection();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locale = Localizations.localeOf(context);
+    if (_locale == locale) return;
+    _locale = locale;
+    // Translate only an untouched bundled name, never an unsaved user edit.
+    if (_nameController.text == _displayName) {
+      _displayName = CustomCssProfile(name: _storedName).localizedName(locale);
+      _nameController.text = _displayName;
+    }
   }
 
   void _loadSelection() {
@@ -66,7 +81,10 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
   void _loadProfile() {
     final profile = Prefs().customCssProfiles[_index];
     _cssController.text = profile.css;
-    _nameController.text = profile.name;
+    _storedName = profile.name;
+    _displayName =
+        _locale == null ? profile.name : profile.localizedName(_locale!);
+    _nameController.text = _displayName;
     _patternController.text = profile.pattern;
     _highlight = profile.isHighlight;
     _scope = profile.scope;
@@ -99,7 +117,9 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
   }
 
   CustomCssProfile get _draft => CustomCssProfile(
-      name: _nameController.text.trim(),
+      name: _nameController.text == _displayName
+          ? _storedName
+          : _nameController.text.trim(),
       css: _cssController.text,
       pattern: _highlight ? _patternController.text : '',
       scope: _scope,
@@ -260,7 +280,8 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
                     for (final p in customCssTemplates)
                       SimpleDialogOption(
                         onPressed: () => Navigator.pop(context, p),
-                        child: Text(p.name),
+                        child: Text(
+                            p.localizedName(Localizations.localeOf(context))),
                       )
                   ],
                 )));
@@ -274,7 +295,8 @@ class _CustomCSSEditorState extends State<CustomCSSEditor> {
         final p = Prefs().customCssProfiles[_index];
         await _append([
           CustomCssProfile(
-              name: '${p.name} ${ModuStrings.text(context, '副本', 'copy')}',
+              name:
+                  '${p.localizedName(Localizations.localeOf(context))} ${ModuStrings.text(context, '副本', 'copy')}',
               css: p.css,
               pattern: p.pattern,
               scope: p.scope,

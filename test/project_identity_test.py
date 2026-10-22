@@ -26,13 +26,18 @@ class ProjectIdentityTest(unittest.TestCase):
         self.assertIn("(README_EN.md)", redirect)
         self.assertLess(len(redirect), 500)
 
-    def test_homepage_local_links_and_fictional_bookshelf_artwork(self):
+    def test_homepage_local_links_and_localized_screenshots(self):
         for name, language in (("README.md", "zh"), ("README_EN.md", "en")):
             text = (ROOT / name).read_text()
             self.assertIn('href="README.md">简体中文', text)
             self.assertIn('href="README_EN.md">English', text)
-            self.assertIn(f"bookshelf-home-{language}.png", text)
-            self.assertIn("虚构" if language == "zh" else "fictional", text)
+            self.assertIn(f"showcase/v1.3.0/reading-{language}.png", text)
+            images = re.findall(r'!\[[^\]]*\]\((docs/images/[^)]+)\)', text)
+            self.assertGreater(len(images), 0)
+            self.assertEqual(len(images), len(set(images)))
+            self.assertTrue(all(path.endswith(f"-{language}.png") for path in images))
+            if language == "en":
+                self.assertFalse(any("weread-" in path or "vertical-" in path for path in images))
             targets = re.findall(r'\]\(([^)]+)\)|(?:href|src)="([^"]+)"', text)
             for markdown, html in targets:
                 target = markdown or html

@@ -27,7 +27,7 @@ class GlobalSettingsTransfer {
   static final Map<String, String> _types = {
     for (final key
         in '''quickMarkShowMenu clearLogWhenStart useOriginalCoverRatio hideStatusBar readerFullscreen
-autoHideBottomBar trueDarkMode eInkMode eInkDisableAnimations autoTranslateSelection autoMarkSelection vectorModelEnabled
+autoHideBottomBar trueDarkMode eInkMode eInkDisableAnimations autoTranslateSelection autoMarkSelection vectorModelEnabled historyOpenBookDirectly
 autoVectorizeOnImport autoSummaryPreviousContent autoAdjustReadingTheme readingNightMode volumeKeyTurnPage
 keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showBookFormatBadge showBookIndexBadge showBookTitleOnDefaultCover
 showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote

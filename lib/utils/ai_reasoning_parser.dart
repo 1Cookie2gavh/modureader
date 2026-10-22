@@ -20,6 +20,13 @@ class ParsedReasoning {
 
   final List<ParsedReasoningEntry> timeline;
 
+  /// Copy answers only; never fall back to raw reasoning or tool payloads.
+  String get copyableAnswer => answerTimeline
+      .where((entry) => entry.type == ParsedReasoningEntryType.reply)
+      .map((entry) => entry.text?.trim() ?? '')
+      .where((text) => text.isNotEmpty)
+      .join('\n\n');
+
   List<ParsedReasoningEntry> get reasoningTimeline => timeline
       .where((entry) => entry.section == ParsedReasoningSection.reasoning)
       .toList(growable: false);

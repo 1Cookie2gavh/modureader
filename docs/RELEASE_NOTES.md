@@ -1,78 +1,62 @@
-# Modu 1.3.0
+# Modu 1.3.1
 
-Build / 构建：**10151** · Stable / 正式版
+Build / 构建：**10152** · Stable / 正式版
 
 ### English
 
-- Feat(settings): Consolidate selection search and custom dictionaries into Selection toolbar, AI reading skills into AI settings, vector/OCR models into Model settings, global settings backup into Sync and backup, storage into Advanced, and feedback into About.
+- Feat(appearance): Make the Remote library navigation tab optional and reorder navigation visibility switches. Thanks [@1Cookie2gavh](https://github.com/1Cookie2gavh) for [#57](https://github.com/sobranie2406/modureader/pull/57).
 
-- Feat(translation): Translate only the current original page in text/OCR reflow, preferring saved corrections over recognized text. Support translation-only and bilingual display with the shared selection toolbar, lookup, copying, AI and page-local selected-text speech.
+- Feat(settings): Move CSS settings into Reading and rename Model settings to Offline local model settings; make built-in CSS template labels follow the app language without changing user-created names or CSS.
 
-- Feat(weread): Add an optional official WeRead API connection under Appearance. Search by title/author and confirm the edition before linking; show WeRead ratings, reviews, popular highlights, cover, description and publication information separately from personal ratings/reviews.
+- Feat(history): Add a book-tap preference while editing History: open book details or read directly. Hide the option after editing, preserve save/discard behavior and restore the blurred long-press preview for details mode.
 
-- Feat(sync): Sync WeRead links and loaded public metadata alongside downloaded books. Include its API Key only in explicitly enabled credential exports or encrypted sensitive-settings sync; keep the query switch device-local and never upload book contents to WeRead.
+- Fix(ocr): Accept finite, integral text offsets returned as doubles by Apple's web bridge, restoring PDF text-layer reflow, split-view loading and prefetch while retaining geometry validation and saved corrections.
 
-- Feat(weread): Load reviews and highlights when expanded, cache results with source/update information, and retain Open in WeRead. Replacing a local cover or description requires individual confirmation; external highlights are not mapped to local page positions.
+- Fix(storage): Include downloaded OCR models in storage usage and model cleanup. Thanks [@RuizeSun](https://github.com/RuizeSun) for [#56](https://github.com/sobranie2406/modureader/pull/56).
 
-- Feat(ocr): Export saved book text as TXT or Markdown in original page order, preferring corrected text.
+- Fix(windows): Synchronize embedded WebView2 visibility with window hiding, minimization and restoration, including retained readers and background-created views; preserve explicit page suspension. Thanks [@ndd200](https://github.com/ndd200) for reporting [#54](https://github.com/sobranie2406/modureader/issues/54).
 
-- Feat(appearance): Unify menus and settings with softly shadowed rounded groups; brighten the light theme with paper-white backgrounds and jade accents. Preserve the dark palette and E-Ink's monochrome, unfilled, shadow-free styling, with distinct book-format and indexing-status colours.
+- Fix(tts): Exclude invisible chapter notes from visible-page calculations so narration can turn from the first page within the current paragraph instead of waiting for the next highlight.
 
-- Feat(appearance): Add confirmation before restoring the default app accent, reader text colour or reader background colour. Label and outline both reader colour controls so they remain visible against matching backgrounds.
+- Fix(reader): Align chapter-opening prose to the normal bottom margin while preserving heading styling and spacing; keep natural spacing on short endings, title-only pages and complex layouts.
 
-- Fix(reader): Apply top-margin changes immediately. Thanks [@RuizeSun](https://github.com/RuizeSun) for [#51](https://github.com/sobranie2406/modureader/pull/51).
+- Fix(history): Keep short history lists stable during elastic overscroll instead of jumping back to the top. Thanks [@ndd200](https://github.com/ndd200) for reporting [#58](https://github.com/sobranie2406/modureader/issues/58).
 
-- Fix(tts): Preserve playback speed across synthesized sentences and restore selected-text narration in reflow without turning pages. Thanks [@1Cookie2gavh](https://github.com/1Cookie2gavh) for the playback-rate fix in [#52](https://github.com/sobranie2406/modureader/pull/52).
+- Fix(ai): Reduce repeated passage scans for long retrieval prompts, bound local query preprocessing and limit optional reader retrieval to eight seconds before continuing with existing context. Preserve full chat prompts and existing indexes.
 
-- Fix(appearance): Refresh home navigation tabs immediately when settings change. Thanks [@RuizeSun](https://github.com/RuizeSun) for [#53](https://github.com/sobranie2406/modureader/pull/53).
+- Fix(ai): Copy only the AI answer, excluding reasoning and tool output; disable copying while generating or when no answer is available, without changing saved conversations.
 
-- Fix(reader): Match ebook, PDF/scanned and reflow menus, including submenus, to the grouped layout; preserve heading fonts and existing controls, clip backgrounds to rounded corners and remove doubled shadow rims.
+- Fix(bookshelf): Keep search-entry press feedback inside its rounded surface, removing the rectangular grey overlay while preserving the soft outer shadow.
 
-- Fix(reader): Make the brightness panel's moon button switch both reader night mode and the app theme across ebooks, PDF/scanned books and reflow; keep E-Ink behavior unchanged.
-
-- Fix(fonts): Replace the broken Atkinson preview with real Latin/digit glyphs, keep previews compact and preserve download controls and font licenses.
-
-- Fix(settings): Align group widths while sizing heights to content; standardize headings and spacing, left-align QQ information, shorten slider handles and use tags for CSS choices. Fresh installations open the bookshelf without welcome/setup screens.
-
-- Fix(macos): Avoid Flutter 3.47 settings-transition flicker and rendering corruption with the tested Skia backend, retaining navigation animations. Android and iOS renderer settings are unchanged.
-
-- Ci(test): Await real Linux diagnostics I/O in settings-navigation tests before checking that loading has finished; retain navigation and layout assertions without changing app behavior.
+- Ci(release): Accept verified release-branch QQ notifications; refresh regression checks for bounded retrieval and the localized homepage gallery.
 
 ### 简体中文
 
-- Feat(settings): 选词搜索、自定义字典并入划词工具栏，AI 阅读技能并入 AI 设置，向量／OCR 合并到模型设置，全局设置备份并入同步与备份，存储并入高级，反馈并入关于默读。
+- Feat(appearance): 远程书库导航标签支持独立隐藏，并调整导航显示开关的排列顺序。感谢 [@1Cookie2gavh](https://github.com/1Cookie2gavh) 贡献 [#57](https://github.com/sobranie2406/modureader/pull/57)。
 
-- Feat(translation): 文字／OCR 重排仅翻译当前原书页，优先使用已校对文字，其次使用识别结果；支持仅译文与原译对照，复用划词工具栏的查询、复制、AI 及本页选词朗读。
+- Feat(settings): CSS 设置并入阅读，模型设置更名为离线本地模型设置；内置 CSS 模板名称随应用语言切换，保留用户自定义名称与 CSS 内容。
 
-- Feat(weread): 外观中新增可选的微信读书官方 API 关联，按书名／作者搜索并核对版本后确认绑定；独立展示微信读书评分、书评、热门划线、封面、简介及出版资料，不覆盖个人评分／书评。
+- Feat(history): 历史页编辑模式新增书籍点击行为选择：进入书籍详情或直接阅读；退出编辑后隐藏选项，保留保存／放弃修改，并在详情模式恢复长按虚化预览。
 
-- Feat(sync): 微信读书关联及已加载公开资料随已下载原书同步；API Key 仅纳入明确开启的凭据导出或加密敏感设置同步，查询开关按设备保留，不向微信读书上传书籍正文。
+- Fix(ocr): 兼容 Apple 网页桥接返回的小数类型整数字符位置，恢复 PDF 文字层重排、分屏加载与预缓存；继续校验几何位置并保留已保存的校对稿。
 
-- Feat(weread): 展开书评／热门划线即自动加载，缓存结果并显示来源与更新时间，保留“在微信读书打开”；替换本地封面和简介分别确认，外部划线不映射到本地页码。
+- Fix(storage): 存储统计与模型清理纳入已下载的 OCR 模型。感谢 [@RuizeSun](https://github.com/RuizeSun) 贡献 [#56](https://github.com/sobranie2406/modureader/pull/56)。
 
-- Feat(ocr): 已保存书籍文字支持导出 TXT 或 Markdown，按原页码排列并优先采用校对稿。
+- Fix(windows): 内嵌 WebView2 随窗口隐藏、最小化与恢复同步显示状态，覆盖保留的阅读页及后台创建的页面，保留页面主动暂停状态。感谢 [@ndd200](https://github.com/ndd200) 报告 [#54](https://github.com/sobranie2406/modureader/issues/54)。
 
-- Feat(appearance): 菜单及设置统一柔和阴影圆角分组，浅色采用更明亮的清纸白底与青玉绿强调色；保持深色和 E-Ink 黑白、无填色、无阴影样式，保留书籍格式与索引状态的区分色。
+- Fix(tts): 分页可见范围不再计入隐藏的章末脚注，修复章节首页朗读跨页时必须等到下一段高亮才翻页的问题。
 
-- Feat(appearance): 软件主题色、阅读文字色和背景色均可经二次确认恢复默认；两个阅读颜色入口增加边框和标签，避免与页面同色时无法辨认。
+- Fix(reader): 章节首页正文对齐正常下边距，保留标题样式及标题下方间距；短尾页、纯标题页和复杂图文页保持自然留白。
 
-- Fix(reader): 阅读上边距调整即时生效。感谢 [@RuizeSun](https://github.com/RuizeSun) 贡献 [#51](https://github.com/sobranie2406/modureader/pull/51)。
+- Fix(history): 修复历史页短列表触底后继续弹性滑动突然回到顶部的问题。感谢 [@ndd200](https://github.com/ndd200) 报告 [#58](https://github.com/sobranie2406/modureader/issues/58)。
 
-- Fix(tts): 修复合成语句切换后语速重置，恢复重排划词朗读且不触发翻页。感谢 [@1Cookie2gavh](https://github.com/1Cookie2gavh) 在 [#52](https://github.com/sobranie2406/modureader/pull/52) 中贡献语速修复。
+- Fix(ai): 优化长提示词检索的重复原文扫描与本地查询预处理；可选检索等待超过八秒后使用已有上下文继续，保留完整 AI 提示词和现有索引文件。
 
-- Fix(appearance): 首页导航标签随设置修改即时刷新。感谢 [@RuizeSun](https://github.com/RuizeSun) 贡献 [#53](https://github.com/sobranie2406/modureader/pull/53)。
+- Fix(ai): 复制仅包含 AI 正文，不附带思考和工具输出；生成中或没有正文时禁用复制，不改变已保存的对话。
 
-- Fix(reader): 普通书籍、PDF／扫描书与重排菜单及子菜单统一分组布局，保留原有标题字体和功能；修正圆角外露出直角背景及阴影重叠轮廓。
+- Fix(bookshelf): 搜索入口点击反馈限制在圆角内部，消除矩形灰影，保留外部柔和阴影。
 
-- Fix(reader): 普通书籍、PDF／扫描书及重排页的月亮按钮同时切换阅读夜间模式与软件主题，E-Ink 行为不变。
-
-- Fix(fonts): Atkinson 预览改用真实英文字母／数字字形，去除缺字方框；预览区域保持紧凑，保留下载操作与字体许可。
-
-- Fix(settings): 分组框统一宽度、高度随内容变化，统一标题和间距，QQ群信息左对齐，缩短滑块竖条，CSS 选项改用标签；新安装直接进入书架，不再显示欢迎及设置引导。
-
-- Fix(macos): 使用对照复测通过的 Skia 后端修正 Flutter 3.47 设置转场频闪和画面异常，保留过渡动画，不改安卓及 iOS 渲染配置。
-
-- Ci(test): 设置导航测试等待 Linux 真实诊断 I/O 完成后再检查加载结束，保留导航及布局断言，不修改程序功能。
+- Ci(release): 支持已验证发布分支的 QQ 通知，同步更新限时检索及中英文首页图片的回归检查。
 
 ## Downloads / 下载
 
@@ -89,4 +73,4 @@ Back up first, then upgrade without uninstalling or clearing your library. Sync 
 
 建议先备份，再覆盖升级，不要卸载或清空书库。同步协议仍为 v9；使用新增微信读书字段时，请一起升级参与同步的设备。安卓沿用项目签名；macOS 为临时签名、未公证；Windows 需要 WebView2；Linux 面向 Debian 13；iOS 应用及分享扩展需自行签名，鸿蒙 HAP 需使用有效证书和配置签名安装。模型按需下载或离线导入，不内嵌安装包。
 
-[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.0) · [Changes / 变更](https://github.com/sobranie2406/modureader/compare/v1.2.12...v1.3.0) · [Licenses / 许可](https://github.com/sobranie2406/modureader/blob/v1.3.0/NOTICE)
+[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.1) · [Changes / 变更](https://github.com/sobranie2406/modureader/compare/v1.3.1...v1.3.1) · [Licenses / 许可](https://github.com/sobranie2406/modureader/blob/v1.3.1/NOTICE)

@@ -5,6 +5,25 @@ import 'package:anx_reader/service/knowledge/knowledge_chapter_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('long queries preserve lexical counts without rescanning each token',
+      () {
+    final words = List.generate(2000, (i) => 'term$i');
+    final chunks = List.generate(
+        1000,
+        (i) => KnowledgeChunk(
+            id: '$i',
+            bookId: 'b',
+            chapterId: 'c',
+            text: '${words.take(100).join(' ')} term0 term0'));
+    final watch = Stopwatch()..start();
+    final results = Bm25Index(chunks).search('${words.join(' ')} term0 term0');
+    watch.stop();
+    expect(results, hasLength(1000));
+    expect(results.every((r) => r.score == 102), isTrue);
+    // Diagnostic only: correctness must not depend on the CI machine's speed.
+    print('Long-query lexical search: ${watch.elapsedMilliseconds}ms');
+  });
+
   test('chunks content without losing source locations', () {
     const content = '第一段内容。\n\n第二段内容。\n\n第三段内容。';
     final chunks = TextChunker(maxCharacters: 8).chunk(

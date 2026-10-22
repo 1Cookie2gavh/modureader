@@ -32,6 +32,7 @@ import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
 import 'package:anx_reader/widgets/page_router/reader_cover_hero.dart';
 import 'package:anx_reader/widgets/page_router/reading_route.dart';
 import 'package:anx_reader/widgets/bookshelf/book_embedding_model_dialog.dart';
+import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -223,6 +224,34 @@ void main() {
       }
     });
     await tester.pumpAndSettle();
+  }
+
+  for (final eink in [false, true]) {
+    testWidgets('shelf search ink stays inside its rounded surface eink=$eink',
+        (tester) async {
+      Prefs().eInkMode = eink;
+      await mount(tester, shelf: true, shelfBooks: []);
+      final label = find.text(
+          L10n.of(tester.element(find.byType(BookshelfPage)))
+              .searchBooksOrNotes);
+      final inkFinder =
+          find.ancestor(of: label, matching: find.byType(InkWell)).first;
+      final inkContext = tester.element(inkFinder);
+      final ancestors = <Widget>[];
+      inkContext.visitAncestorElements((element) {
+        ancestors.add(element.widget);
+        return element.widget is! FilledContainer;
+      });
+      expect(ancestors.whereType<FilledContainer>(), hasLength(1));
+      expect(ancestors.whereType<ClipRSuperellipse>(), hasLength(1));
+      expect(ancestors.whereType<Material>().single.type,
+          MaterialType.transparency);
+      final gesture = await tester.startGesture(tester.getCenter(label));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+    });
   }
 
   List<BookAction> actions(WidgetTester tester) => tester

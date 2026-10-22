@@ -1232,8 +1232,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                     _error ??
-                        t('本页需要 OCR，请先在模型设置中下载模型。识别在本机完成。',
-                            'This page needs OCR. Download a model in settings; recognition runs locally.'),
+                        t('本页需要 OCR，请先在离线本地模型设置中下载模型。识别在本机完成。',
+                            'This page needs OCR. Download a model in Offline local model settings; recognition runs locally.'),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: foreground))),

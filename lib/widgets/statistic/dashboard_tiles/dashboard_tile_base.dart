@@ -242,6 +242,35 @@ class DashboardTileShell extends ConsumerWidget {
     final notifier = ref.read(dashboardTilesProvider.notifier);
     final heroTag = 'dashboard_tile_${tileType.name}';
 
+    void showDetail() {
+      if (state.isEditing) return;
+      if (!tile.canFlip) {
+        tile.onTap(context, ref);
+        return;
+      }
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          transitionDuration:
+              AppMotion.duration(const Duration(milliseconds: 300)),
+          reverseTransitionDuration:
+              AppMotion.duration(const Duration(milliseconds: 300)),
+          opaque: false,
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                return DashboardTileDetailView(
+                  tile: tile,
+                  heroTag: heroTag,
+                  animationValue: animation.value,
+                );
+              },
+            );
+          },
+        ),
+      );
+    }
+
     return MotionHeroine(
       tag: heroTag,
       flightShuttleBuilder: const FlipShuttleBuilder(
@@ -253,33 +282,10 @@ class DashboardTileShell extends ConsumerWidget {
         duration: const Duration(milliseconds: 500),
       ),
       child: GestureDetector(
-        onTap: () {
-          if (!tile.canFlip) {
-            tile.onTap(context, ref);
-            return;
-          }
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              transitionDuration:
-                  AppMotion.duration(const Duration(milliseconds: 300)),
-              reverseTransitionDuration:
-                  AppMotion.duration(const Duration(milliseconds: 300)),
-              opaque: false,
-              pageBuilder: (context, animation, secondaryAnimation) {
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (context, child) {
-                    return DashboardTileDetailView(
-                      tile: tile,
-                      heroTag: heroTag,
-                      animationValue: animation.value,
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        },
+        onTap: state.isEditing ? null : showDetail,
+        onLongPress: !state.isEditing && !state.savedOpenBookDirectly
+            ? showDetail
+            : null,
         child: Stack(
           children: [
             tile.buildTile(context, ref),

@@ -232,7 +232,10 @@ class AiChat extends _$AiChat {
     } else if (homeRequest != null) {
       requestMessages = homeRequest.messages;
     } else {
-      final knowledgeContext = await _loadKnowledgeContext(widgetRef, message);
+      final knowledgeContext = await _loadKnowledgeContext(widgetRef, message,
+          isCancelled: () =>
+              requestRunner?.isCancelled == true ||
+              _currentSessionId != sessionId);
       requestMessages = knowledgeContext == null
           ? messages
           : [ChatMessage.system(knowledgeContext), ...messages];
@@ -670,7 +673,8 @@ class AiChat extends _$AiChat {
         '${normalized.substring(normalized.length - part)}';
   }
 
-  Future<String?> _loadKnowledgeContext(WidgetRef ref, String query) async {
+  Future<String?> _loadKnowledgeContext(WidgetRef ref, String query,
+      {bool Function()? isCancelled}) async {
     final reading = ref.read(currentReadingProvider);
     final book = reading.book;
     if (_scope != AiChatScope.reader ||
@@ -681,8 +685,9 @@ class AiChat extends _$AiChat {
       return null;
     }
 
-    return knowledgeContextFor(
-        await BookKnowledgeRetriever().search(book, query));
+    return knowledgeContextFor(await BookKnowledgeRetriever().search(
+        book, query,
+        timeBudget: const Duration(seconds: 8), isCancelled: isCancelled));
   }
 
   void clear() {

@@ -65,6 +65,7 @@ void main() {
     'excerptShareBgimgIndex': 3,
     'notesExportMergeChapters': false,
     'statisticsDashboardTiles': <String>['heatmap'],
+    'historyOpenBookDirectly': true,
     'httpProxyPort': 8888,
     'clearLogWhenStart': false,
   };

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 
 import 'package:anx_reader/models/book.dart';
@@ -27,7 +28,22 @@ class BookKnowledgeRetriever {
       BookKnowledgeIndexService().loadSnapshot(book);
 
   Future<List<SearchResult>> search(Book book, String query,
-      {int limit = 5}) async {
+      {int limit = 5, Duration? timeBudget, bool Function()? isCancelled}) {
+    var expired = false;
+    bool cancelled() => expired || (isCancelled?.call() ?? false);
+    final result = _search(book, query, limit, cancelled);
+    if (timeBudget == null) return result;
+    return result.timeout(timeBudget, onTimeout: () {
+      expired = true;
+      AnxLog.warning(
+          'AI optional retrieval timed out; using normal book context');
+      return const <SearchResult>[];
+    });
+  }
+
+  Future<List<SearchResult>> _search(
+      Book book, String query, int limit, bool Function() isCancelled) async {
+    if (isCancelled()) return const [];
     if (book.id <= 0 || book.isDeleted || query.trim().isEmpty || limit <= 0) {
       return const [];
     }
@@ -40,7 +56,9 @@ class BookKnowledgeRetriever {
       AnxLog.warning('AI index unavailable; using normal book context');
       return const [];
     }
-    if (snapshot == null || snapshot.bookId != book.id.toString()) {
+    if (isCancelled() ||
+        snapshot == null ||
+        snapshot.bookId != book.id.toString()) {
       return const [];
     }
 
@@ -56,7 +74,17 @@ class BookKnowledgeRetriever {
                 modelId: snapshot.embeddingModelId,
                 dimensions: snapshot.embeddingDimensions)) {
           requestedVector = true;
-          queryVector = await embedding.embed(query.trim());
+          // Bound local tokenization too, not the full lexical/chat prompt.
+          final embeddingQuery = embedding.mode == 'builtin'
+              ? String.fromCharCodes(query.trim().runes.take(4096))
+              : query.trim();
+          final vectors = await embedding.embedBatchCancellable(
+              [embeddingQuery],
+              isCancelled: isCancelled);
+          if (vectors.length != 1) {
+            throw const FormatException('Embedding response count mismatch');
+          }
+          queryVector = vectors.single;
         }
       }
     } catch (_) {
@@ -67,6 +95,7 @@ class BookKnowledgeRetriever {
         await embedding?.release();
       }
     }
+    if (isCancelled()) return const [];
     return _searchOffThread(snapshot, query.trim(), queryVector, limit);
   }
 }

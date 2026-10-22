@@ -41,7 +41,7 @@ readingTimedSync readingSyncMinutes''',
   'notes': '''quickMarkShowMenu autoMarkSelection annotationType annotationColor
 notesViewSortField notesViewSortDirection notesExportSortField notesExportSortDirection
 notesExportMergeChapters excerptShareTemplate excerptShareColorIndex excerptShareBgimgIndex''',
-  'statistics': 'statisticsDashboardTiles',
+  'statistics': 'statisticsDashboardTiles historyOpenBookDirectly',
   'network': 'httpProxyEnabled httpProxyHost httpProxyPort httpProxyTestUrl',
   'advanced': 'clearLogWhenStart enableJsForEpub',
 };

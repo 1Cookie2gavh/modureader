@@ -494,6 +494,14 @@ class Prefs extends ChangeNotifier {
     return mapped;
   }
 
+  bool get historyOpenBookDirectly =>
+      prefs.getBool('historyOpenBookDirectly') ?? false;
+
+  set historyOpenBookDirectly(bool value) {
+    prefs.setBool('historyOpenBookDirectly', value);
+    notifyListeners();
+  }
+
   set statisticsDashboardTiles(List<StatisticsDashboardTileType> tiles) {
     prefs.setStringList(
       _statisticsDashboardTilesKey,

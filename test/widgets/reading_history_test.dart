@@ -8,6 +8,9 @@ import 'package:anx_reader/providers/book_daily_reading_provider.dart';
 import 'package:anx_reader/providers/last_read_book_provider.dart';
 import 'package:anx_reader/providers/reading_insights.dart';
 import 'package:anx_reader/providers/statistic_data.dart';
+import 'package:anx_reader/providers/dashboard_tiles_provider.dart';
+import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_base.dart';
+import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_detail_view.dart';
 import 'package:anx_reader/service/statistic/reading_insights.dart';
 import 'package:anx_reader/main.dart' show navigatorKey;
 import 'package:anx_reader/page/home_page/statistics_page.dart';
@@ -27,6 +30,8 @@ class _Access extends ReadingHistoryBookAccess {
   Book? current;
   Book? opened;
   int calls = 0;
+  int detailCalls = 0;
+  Book? detailed;
   Completer<void>? pending;
   bool fail = false;
   bool showReader = false;
@@ -36,6 +41,13 @@ class _Access extends ReadingHistoryBookAccess {
   Future<Book?> load(int id) async {
     if (fail) throw Exception('offline database');
     return current;
+  }
+
+  @override
+  Future<void> openDetails(BuildContext context, Book book) async {
+    detailCalls++;
+    detailed = book;
+    await pending?.future;
   }
 
   @override
@@ -84,7 +96,7 @@ class _DailyReading extends BookDailyReading {
 
 void main() {
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'historyOpenBookDirectly': true});
     await Prefs().initPrefs();
     await L10n.delegate.load(const Locale('en'));
     await L10n.delegate.load(const Locale('zh'));
@@ -135,6 +147,35 @@ void main() {
     StatisticsDashboardTileType.recentReading,
     StatisticsDashboardTileType.mostAnnotatedBooks,
   ]) {
+    testWidgets(
+        'details choice routes history book links to current details: $type',
+        (tester) async {
+      Prefs().historyOpenBookDirectly = false;
+      final book = fixture();
+      final latest = fixture()..lastReadPosition = 'latest';
+      final access = _Access()..current = latest;
+      await tester.pumpWidget(app(
+          SizedBox(
+              height: 300,
+              child: type == null
+                  ? BookStatisticItem(book: book, readingTime: 120)
+                  : Consumer(
+                      builder: (context, ref, _) => dashboardTileRegistry[type]!
+                          .buildContent(context, ref))),
+          access: access,
+          dashboardBook: book));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(book.title).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BookCover));
+      await tester.pumpAndSettle();
+      expect(access.calls, 0);
+      expect(access.detailCalls, 2);
+      expect(access.detailed, same(latest));
+      expect(latest.lastReadPosition, 'latest');
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('title and cover fly to/from the reader: $type',
         (tester) async {
       final book = fixture();
@@ -193,6 +234,73 @@ void main() {
     expect(access.calls, 2);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('details lookup still rejects deleted books and repeated taps',
+      (tester) async {
+    Prefs().historyOpenBookDirectly = false;
+    final access = _Access()..current = (fixture()..isDeleted = true);
+    await tester.pumpWidget(app(
+        BookStatisticItem(book: fixture(), readingTime: 120),
+        access: access));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BookCover));
+    await tester.pumpAndSettle();
+    expect(access.detailCalls, 0);
+    access.current = fixture();
+    access.pending = Completer<void>();
+    await tester.tap(find.byType(BookCover));
+    await tester.pump();
+    await tester.tap(find.byType(BookCover));
+    await tester.pump();
+    expect(access.detailCalls, 1);
+    access.pending!.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('edit mode blocks book navigation', (tester) async {
+    final access = _Access()..current = fixture();
+    await tester.pumpWidget(app(
+        BookStatisticItem(book: fixture(), readingTime: 120),
+        access: access));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(ReadingHistoryBookLink)));
+    container.read(dashboardTilesProvider.notifier).startEditing();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BookCover));
+    await tester.pumpAndSettle();
+    expect(access.calls, 0);
+    expect(access.detailCalls, 0);
+  });
+
+  for (final eink in [false, true]) {
+    testWidgets('details mode restores long-press card preview (eink=$eink)',
+        (tester) async {
+      Prefs().historyOpenBookDirectly = false;
+      Prefs().eInkMode = eink;
+      final tile = dashboardTileRegistry[StatisticsDashboardTileType.topBook]!;
+      await tester.pumpWidget(app(
+          Center(
+              child: SizedBox(
+                  width: 450,
+                  height: 220,
+                  child: DashboardTileShell(
+                      tile: tile,
+                      tileType: StatisticsDashboardTileType.topBook,
+                      buildContent: tile.buildContent))),
+          dashboardBook: fixture(),
+          access: _Access()..current = fixture()));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byType(BookCover));
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardTileDetailView), findsOneWidget);
+      expect(find.byType(BackdropFilter), eink ? findsNothing : findsOneWidget);
+      navigatorKey.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardTileDetailView), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final missing in [false, true]) {
     testWidgets(

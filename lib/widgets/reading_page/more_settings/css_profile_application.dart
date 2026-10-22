@@ -62,8 +62,10 @@ class _CssProfileApplicationState extends State<CssProfileApplication> {
                     : (v) =>
                         change(v, selection.activeIndices, selection.index))
           ]),
-          Text(ModuStrings.text(context, '选择即应用，可叠加多套。参数与代码请在“设置 → CSS 设置”中调整。',
-              'Select to apply multiple templates. Edit parameters and code in Settings → CSS settings.')),
+          Text(ModuStrings.text(
+              context,
+              '选择即应用，可叠加多套。参数与代码请在“设置 → 阅读 → CSS 设置”中调整。',
+              'Select to apply multiple templates. Edit parameters and code in Settings → Reading → CSS settings.')),
           Wrap(spacing: 8, runSpacing: 4, children: [
             for (var i = 0; i < profiles.length; i++)
               if (!profiles[i].isEmpty)

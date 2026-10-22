@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:anx_reader/enums/hint_key.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/providers/dashboard_tiles_provider.dart';
 import 'package:anx_reader/widgets/hint/hint_banner.dart';
 import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_registry.dart';
@@ -26,7 +27,8 @@ class StatisticsDashboard extends ConsumerWidget {
             hintKey: HintKey.statisticsDashboardRearrange,
             margin: const EdgeInsets.only(bottom: 10),
             child: Text(
-              L10n.of(context).statisticsDashboardHint,
+              ModuStrings.text(context, '点击编辑可选择书籍打开方式、添加卡片；编辑时长按拖动卡片排序。',
+                  'Tap Edit to choose how books open or add cards. While editing, hold and drag cards to reorder them.'),
             )),
         workingTiles.isEmpty
             ? _buildEmptyState(context, () => notifier.reorder)
@@ -37,7 +39,7 @@ class StatisticsDashboard extends ConsumerWidget {
                   return StaggeredReorderableView.customer(
                     columnNum: crossAxisUnits,
                     spacing: 10,
-                    canDrag: true,
+                    canDrag: tilesState.isEditing,
                     children: _buildReorderableItems(
                       context,
                       workingTiles,

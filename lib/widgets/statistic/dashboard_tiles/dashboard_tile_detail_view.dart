@@ -1,5 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:ui';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 
 import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_base.dart';
 import 'package:flutter/material.dart';
@@ -93,15 +94,17 @@ class _DashboardTileDetailViewState
               color: Colors.black.withValues(
                   alpha: 0.4 * (widget.animationValue * _blurSigma / 10.0)),
             ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: _blurSigma,
-                sigmaY: _blurSigma,
-              ),
-              child: Container(
-                color: Colors.transparent,
-              ),
-            ),
+            child: Prefs().eInkMode
+                ? const SizedBox.expand()
+                : BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: _blurSigma,
+                      sigmaY: _blurSigma,
+                    ),
+                    child: Container(
+                      color: Colors.transparent,
+                    ),
+                  ),
           ),
         ),
 

@@ -167,7 +167,7 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
   const pageOf = r => Math.max(0, Math.floor((r.left - gap / 2 + 1) / stride))
   const pages = new Map()
   const pageAt = index => {
-    if (!pages.has(index)) pages.set(index, { runs: [], notes: [], unsafe: false })
+    if (!pages.has(index)) pages.set(index, { runs: [], notes: [], unsafe: false, headingBottom: null })
     return pages.get(index)
   }
   // Read all geometry before writing offsets: no repeated forced layouts.
@@ -184,8 +184,14 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
   const protectedBlocks = new Set([...state.protectedBlocks, ...publisherBlocks(doc)])
   for (const el of [...doc.body.querySelectorAll('img, svg, table, pre, ruby, math, video, figure'), ...protectedBlocks]) {
     if (isNote(el)) continue
-    for (const r of el.getClientRects())
-      if (r.width > 0 && r.height > 0) pageAt(pageOf(r)).unsafe = true
+    const rects = [...el.getClientRects()].filter(r => r.width > 0 && r.height > 0)
+    for (const r of rects) {
+      const index = pageOf(r), page = pageAt(index)
+      // Keep opening titles intact without disabling alignment of the prose below.
+      if (index === 0 && rects.length === 1 && el.matches('h1,h2,h3,h4,h5,h6'))
+        page.headingBottom = Math.max(page.headingBottom ?? -Infinity, r.bottom)
+      else page.unsafe = true
+    }
   }
   for (const el of state.notes) {
     const r = el.getBoundingClientRect()
@@ -227,8 +233,11 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
       row.bottom = Math.max(row.bottom, item.r.bottom)
       row.runs.push(item)
     }
+    if (page.headingBottom !== null && page.headingBottom > rows[0].top) continue
+    // Preserve the title-to-prose gap; only the remaining prose gaps may expand.
+    const top = page.headingBottom === null ? topMargin : rows[0].top
     // A skipped/blank column is an explicit layout boundary, not prose overflow.
-    const offsets = pageLineOffsets(rows, topMargin, height - bottomMargin,
+    const offsets = pageLineOffsets(rows, top, height - bottomMargin,
       index === last || !pages.has(index + 1))
     if (!offsets) continue
     for (const { el, r, oldTop } of page.notes) {

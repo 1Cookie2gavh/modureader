@@ -668,8 +668,8 @@ class _DocumentExtractionPanelState extends State<DocumentExtractionPanel> {
                 Padding(
                     padding: const EdgeInsets.all(8),
                     child: Text(t(
-                        '此区域需要 OCR。请先下载已选模型，再点击提取。可在设置 → 模型设置 → OCR 模型中选择模型及下载源；识别在本机进行，不上传书页。',
-                        'OCR is needed. Download the selected model, then extract again. Choose a model and source in Settings → Model settings → OCR model. Recognition stays on this device; book pages are not uploaded.'))),
+                        '此区域需要 OCR。请先下载已选模型，再点击提取。可在设置 → 离线本地模型设置 → OCR 模型中选择模型及下载源；识别在本机进行，不上传书页。',
+                        'OCR is needed. Download the selected model, then extract again. Choose a model and source in Settings → Offline local model settings → OCR model. Recognition stays on this device; book pages are not uploaded.'))),
               if (_error != null)
                 Text(
                     _activePage == null

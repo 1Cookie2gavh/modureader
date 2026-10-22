@@ -57,7 +57,7 @@ class Extract extends RecursiveAstVisitor<void> {
       if (zh != null && en != null) add(zh, en);
     }
     // Implicit constructor calls are parsed as method invocations without resolution.
-    if (['ReadAnySkill', 'SelectionToolbarItem']
+    if (['ReadAnySkill', 'SelectionToolbarItem', 'CustomCssProfile']
         .contains(node.methodName.name)) {
       _prompt(node.methodName.name, args);
     }

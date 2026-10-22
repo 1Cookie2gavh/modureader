@@ -221,6 +221,39 @@ namespace flutter_inappwebview_plugin
     }
   }
 
+  void InAppWebViewManager::handleHostWindowMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+  {
+    bool visible;
+    switch (message) {
+    case WM_SIZE:
+      visible = wParam != SIZE_MINIMIZED && IsWindowVisible(window);
+      break;
+    case WM_SHOWWINDOW:
+      // WM_SHOWWINDOW precedes the visibility-style change.
+      visible = wParam != FALSE && !IsIconic(window);
+      break;
+    case WM_WINDOWPOSCHANGED:
+      visible = IsWindowVisible(window) && !IsIconic(window);
+      if (lParam && (reinterpret_cast<WINDOWPOS*>(lParam)->flags & SWP_HIDEWINDOW)) {
+        visible = false;
+      }
+      break;
+    default:
+      return;
+    }
+
+    for (const auto& entry : webViews) {
+      if (entry.second && entry.second->view) {
+        entry.second->view->setHostWindowVisible(visible);
+      }
+    }
+    for (const auto& entry : keepAliveWebViews) {
+      if (entry.second && entry.second->view) {
+        entry.second->view->setHostWindowVisible(visible);
+      }
+    }
+  }
+
   bool InAppWebViewManager::isGraphicsCaptureSessionSupported()
   {
     HSTRING className;

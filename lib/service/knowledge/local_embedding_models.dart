@@ -174,7 +174,7 @@ class LocalEmbeddingModelStore {
     if (await isDownloaded(model)) return;
     if (await isBundled(model)) await download(model);
     if (!await isDownloaded(model)) {
-      throw StateError('本地模型 ${model.name} 尚未下载或文件损坏，请前往「设置 → 模型设置 → 向量模型」下载后重试');
+      throw StateError('本地模型 ${model.name} 尚未下载或文件损坏，请前往「设置 → 离线本地模型设置 → 向量模型」下载后重试');
     }
   }
 

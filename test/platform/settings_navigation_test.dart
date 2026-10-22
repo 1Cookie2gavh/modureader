@@ -134,11 +134,28 @@ void main() {
     final models =
         File('lib/page/settings_page/models.dart').readAsStringSync();
     expect(settings, contains('"sections": const ModelSettings()'));
+    expect(settings, contains('离线本地模型设置'));
+    expect(models, contains('离线本地模型设置'));
     expect(settings, isNot(contains('const VectorModelSettings()')));
     expect(settings, isNot(contains('const OcrModelSettings()')));
     expect(models, contains('sections: const VectorModelSettings()'));
     expect(models, contains('sections: const OcrModelSettings()'));
     expect(models, contains("ValueKey('model-settings-vector')"));
     expect(models, contains("ValueKey('model-settings-ocr')"));
+  });
+
+  test('CSS management is nested under Reading and reader guidance follows it',
+      () {
+    final settings = File('lib/page/settings_page/more_settings_page.dart')
+        .readAsStringSync();
+    final reading =
+        File('lib/page/settings_page/reading.dart').readAsStringSync();
+    final guidance = File(
+            'lib/widgets/reading_page/more_settings/css_profile_application.dart')
+        .readAsStringSync();
+    expect(settings, isNot(contains('const CssSettings()')));
+    expect(reading, contains("ValueKey('reading-css-settings')"));
+    expect(reading, contains('sections: const CssSettings()'));
+    expect(guidance, contains('Settings → Reading → CSS settings'));
   });
 }

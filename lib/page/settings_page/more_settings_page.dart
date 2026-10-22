@@ -13,7 +13,6 @@ import 'package:anx_reader/page/settings_page/sync.dart';
 import 'package:anx_reader/page/settings_page/remote_library.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
 import 'package:anx_reader/page/settings_page/selection_toolbar.dart';
-import 'package:anx_reader/page/settings_page/css_settings.dart';
 import 'package:anx_reader/page/settings_page/models.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/widgets/settings/about.dart';
@@ -116,16 +115,8 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                   L10n.of(context).readingPageReading,
                   L10n.of(context).downloadFonts,
                   L10n.of(context).readingPageStyle,
+                  ModuStrings.text(context, 'CSS 设置', 'CSS settings'),
                   L10n.of(context).readingPageOther,
-                ],
-              },
-              {
-                "title": ModuStrings.text(context, 'CSS 设置', 'CSS settings'),
-                "icon": Icons.tune,
-                "sections": const CssSettings(),
-                "subtitles": [
-                  ModuStrings.text(context, '预设模板 · 图形调节 · 自定义代码',
-                      'Templates · Visual controls · Custom code')
                 ],
               },
               {
@@ -153,7 +144,8 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                   ],
                 },
               {
-                "title": ModuStrings.text(context, '模型设置', 'Model settings'),
+                "title": ModuStrings.text(
+                    context, '离线本地模型设置', 'Offline local model settings'),
                 "icon": Icons.hub_outlined,
                 "sections": const ModelSettings(),
                 "subtitles": [

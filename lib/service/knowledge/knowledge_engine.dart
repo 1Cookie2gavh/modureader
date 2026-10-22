@@ -124,9 +124,9 @@ class Bm25Index {
     final scored = <SearchResult>[];
     for (final chunk in _chunks) {
       final tokens = _tokens(chunk.text);
-      final score = queryTokens.fold<double>(0, (sum, token) {
-        return sum + tokens.where((value) => value == token).length;
-      });
+      // Count each passage token once; long prompts must not rescan the passage.
+      final score = tokens.fold<double>(
+          0, (sum, token) => sum + (queryTokens.contains(token) ? 1 : 0));
       if (score > 0) scored.add(SearchResult(chunk: chunk, score: score));
     }
     scored.sort((a, b) => b.score.compareTo(a.score));
@@ -160,9 +160,13 @@ class VectorIndex {
     return scored;
   }
 
-  double _dot(List<double> left, List<double> right) =>
-      List.generate(left.length, (i) => left[i] * right[i])
-          .fold(0, (a, b) => a + b);
+  double _dot(List<double> left, List<double> right) {
+    var sum = 0.0;
+    for (var i = 0; i < left.length; i++) {
+      sum += left[i] * right[i];
+    }
+    return sum;
+  }
 
   double _norm(List<double> vector) => math.sqrt(_dot(vector, vector));
 }

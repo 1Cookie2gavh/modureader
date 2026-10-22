@@ -65,6 +65,10 @@ namespace flutter_inappwebview_plugin
   {
     std::optional<LRESULT> result = std::nullopt;
 
+    if (inAppWebViewManager) {
+      inAppWebViewManager->handleHostWindowMessage(hWnd, message, wParam, lParam);
+    }
+
     if (platformUtil) {
       result = platformUtil->HandleWindowProc(hWnd, message, wParam, lParam);
     }

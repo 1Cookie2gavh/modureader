@@ -9,24 +9,33 @@ class DashboardTilesState {
     required this.workingTiles,
     required this.hasUnsavedChanges,
     required this.isEditing,
+    this.savedOpenBookDirectly = false,
+    this.openBookDirectly = false,
   });
 
   final List<StatisticsDashboardTileType> savedTiles;
   final List<StatisticsDashboardTileType> workingTiles;
   final bool hasUnsavedChanges;
   final bool isEditing;
+  final bool savedOpenBookDirectly;
+  final bool openBookDirectly;
 
   DashboardTilesState copyWith({
     List<StatisticsDashboardTileType>? savedTiles,
     List<StatisticsDashboardTileType>? workingTiles,
     bool? hasUnsavedChanges,
     bool? isEditing,
+    bool? savedOpenBookDirectly,
+    bool? openBookDirectly,
   }) {
     return DashboardTilesState(
       savedTiles: savedTiles ?? this.savedTiles,
       workingTiles: workingTiles ?? this.workingTiles,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
       isEditing: isEditing ?? this.isEditing,
+      savedOpenBookDirectly:
+          savedOpenBookDirectly ?? this.savedOpenBookDirectly,
+      openBookDirectly: openBookDirectly ?? this.openBookDirectly,
     );
   }
 }
@@ -46,6 +55,8 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
     return DashboardTilesState(
       savedTiles: tiles,
       workingTiles: List.of(tiles),
+      savedOpenBookDirectly: prefs.historyOpenBookDirectly,
+      openBookDirectly: prefs.historyOpenBookDirectly,
       hasUnsavedChanges: false,
       isEditing: false,
     );
@@ -70,14 +81,22 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
 
   void _handlePrefsChange() {
     final sanitized = _sanitize(_prefs.statisticsDashboardTiles);
-    if (state.hasUnsavedChanges) {
-      state = state.copyWith(savedTiles: sanitized);
+    final openDirectly = _prefs.historyOpenBookDirectly;
+    if (state.isEditing) {
+      state = state.copyWith(
+        savedTiles: sanitized,
+        savedOpenBookDirectly: openDirectly,
+        hasUnsavedChanges: !listEquals(state.workingTiles, sanitized) ||
+            state.openBookDirectly != openDirectly,
+      );
     } else {
       state = DashboardTilesState(
         savedTiles: sanitized,
         workingTiles: List.of(sanitized),
         hasUnsavedChanges: false,
-        isEditing: state.isEditing && state.hasUnsavedChanges,
+        isEditing: false,
+        savedOpenBookDirectly: openDirectly,
+        openBookDirectly: openDirectly,
       );
     }
   }
@@ -132,15 +151,22 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
     state = DashboardTilesState(
       savedTiles: sanitized,
       workingTiles: List.of(sanitized),
+      savedOpenBookDirectly: state.openBookDirectly,
+      openBookDirectly: state.openBookDirectly,
       hasUnsavedChanges: false,
       isEditing: false,
     );
+    final openDirectly = state.openBookDirectly;
+    if (_prefs.historyOpenBookDirectly != openDirectly) {
+      _prefs.historyOpenBookDirectly = openDirectly;
+    }
     _prefs.statisticsDashboardTiles = sanitized;
   }
 
   void discardChanges() {
     state = state.copyWith(
       workingTiles: List.of(state.savedTiles),
+      openBookDirectly: state.savedOpenBookDirectly,
       hasUnsavedChanges: false,
       isEditing: false,
     );
@@ -153,7 +179,8 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
 
   void _updateWorking(List<StatisticsDashboardTileType> next) {
     final sanitized = _sanitize(next);
-    final dirty = !listEquals(sanitized, state.savedTiles);
+    final dirty = !listEquals(sanitized, state.savedTiles) ||
+        state.openBookDirectly != state.savedOpenBookDirectly;
     state = state.copyWith(
       workingTiles: sanitized,
       hasUnsavedChanges: dirty,
@@ -165,6 +192,17 @@ class DashboardTilesNotifier extends StateNotifier<DashboardTilesState> {
     if (!state.isEditing) {
       state = state.copyWith(isEditing: true);
     }
+  }
+
+  void startEditing() => _ensureEditing();
+
+  void setOpenBookDirectly(bool value) {
+    _ensureEditing();
+    state = state.copyWith(
+      openBookDirectly: value,
+      hasUnsavedChanges: value != state.savedOpenBookDirectly ||
+          !listEquals(state.workingTiles, state.savedTiles),
+    );
   }
 
   @override

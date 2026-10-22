@@ -33,28 +33,8 @@ class StatisticPage extends StatefulWidget {
 }
 
 class _StatisticPageState extends State<StatisticPage> {
-  int totalNumberOfBook = 0;
-  int totalNumberOfDate = 0;
-  int totalNumberOfNotes = 0;
   late final ScrollController _scrollController =
       widget.controller ?? ScrollController();
-
-  void setNumbers() async {
-    final numberOfBook = await readingTimeDao.selectTotalNumberOfBook();
-    final numberOfDate = await readingTimeDao.selectTotalNumberOfDate();
-    final numberOfNotes = await readingTimeDao.selectTotalNumberOfNotes();
-    setState(() {
-      totalNumberOfBook = numberOfBook;
-      totalNumberOfDate = numberOfDate;
-      totalNumberOfNotes = numberOfNotes;
-    });
-  }
-
-  @override
-  void initState() {
-    setNumbers();
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,11 +68,9 @@ class _StatisticPageState extends State<StatisticPage> {
                           ),
                           const SizedBox(width: 20),
                           Expanded(
-                            child: ListView(
+                            child: SingleChildScrollView(
                               controller: _scrollController,
-                              children: const [
-                                DateBooks(),
-                              ],
+                              child: const DateBooks(),
                             ),
                           ),
                         ],
@@ -102,18 +80,22 @@ class _StatisticPageState extends State<StatisticPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: ListView(
+                            // Keep section extents stable during bottom overscroll.
+                            child: SingleChildScrollView(
                                 padding: EdgeInsets.only(
                                     bottom: 12 +
                                         MediaQuery.paddingOf(context).bottom +
                                         HomeNavigationClearance.of(context)),
                                 controller: _scrollController,
-                                children: const [
-                                  StatisticsDashboard(),
-                                  StatisticCard(),
-                                  SizedBox(height: 20),
-                                  DateBooks(),
-                                ]),
+                                child: const Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      StatisticsDashboard(),
+                                      StatisticCard(),
+                                      SizedBox(height: 20),
+                                      DateBooks(),
+                                    ])),
                           ),
                         ],
                       );

@@ -115,7 +115,7 @@ void main() {
       expect(source, isNot(contains('EmbeddingProviderFactory.fromPrefs()')));
     }
     expect(File('lib/providers/ai_chat.dart').readAsStringSync(),
-        contains('BookKnowledgeRetriever().search(book, query)'));
+        matches(RegExp(r'BookKnowledgeRetriever\(\)\.search\(\s*book,\s*query,')));
     expect(
         File('lib/service/ai/tools/repository/book_content_search_repository.dart')
             .readAsStringSync(),

@@ -13,11 +13,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   Future<void> show(WidgetTester tester,
       {bool manage = true,
+      Locale locale = const Locale('en'),
       double textScale = 1,
       bool settingsRoute = false}) async {
     await tester.pumpWidget(MaterialApp(
       navigatorKey: navigatorKey,
-      locale: const Locale('en'),
+      locale: locale,
       localizationsDelegates: L10n.localizationsDelegates,
       supportedLocales: L10n.supportedLocales,
       builder: (context, child) => MediaQuery(
@@ -51,6 +52,56 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
+  });
+
+  testWidgets(
+      'template name follows locale without rewriting saved CSS or name',
+      (tester) async {
+    final original = Prefs().customCssProfiles[8];
+    final name = find.byKey(const ValueKey('custom-css-name'));
+    await show(tester);
+    expect(tester.widget<TextField>(name).controller!.text,
+        original.localizedName(const Locale('en')));
+    await tap(tester, find.byKey(const ValueKey('css-option-italic')));
+    expect(Prefs().customCssProfiles[8].name, original.name);
+    expect(Prefs().customCssProfiles[8].css, original.css);
+    expect(Prefs().customCssProfiles[8].pattern, original.pattern);
+    await show(tester, locale: const Locale('fr'));
+    expect(Localizations.localeOf(tester.element(name)), const Locale('fr'));
+    expect(tester.widget<TextField>(name).controller!.text,
+        original.localizedName(const Locale('fr')));
+    await tester.ensureVisible(name);
+    await tester.enterText(name, 'My edited template');
+    await tester.pumpAndSettle();
+    await show(tester, locale: const Locale('ja'));
+    expect(
+        tester.widget<TextField>(name).controller!.text, 'My edited template');
+    expect(Prefs().customCssProfiles[8].name, 'My edited template');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preset dialog and newly added preset use localized names',
+      (tester) async {
+    await show(tester);
+    await tap(tester, find.text('Templates'));
+    final preset = customCssTemplates.first;
+    final option = find.descendant(
+        of: find.byType(SimpleDialog),
+        matching: find.text(preset.localizedName(const Locale('en'))));
+    expect(option, findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(SimpleDialog), matching: find.text(preset.name)),
+        findsNothing);
+    await tap(tester, option);
+    expect(Prefs().customCssProfiles[0].toJson(), preset.toJson());
+    expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('custom-css-name')))
+            .controller!
+            .text,
+        preset.localizedName(const Locale('en')));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('reader only applies templates and preserves other books',

@@ -69,7 +69,11 @@ const getVisibleRange = (doc, start, end, mapRect) => {
     // ignore all scripts, styles, and their children
     if (name === 'script' || name === 'style') return FILTER_REJECT
     if (node.nodeType === 1) {
-      const { left, right } = mapRect(node.getBoundingClientRect())
+      const rect = node.getBoundingClientRect()
+      // Hidden notes report a zero rect at the first page's origin. Boxless
+      // containers can still have visible descendants, so keep traversing them.
+      if (!rect.width || !rect.height) return FILTER_SKIP
+      const { left, right } = mapRect(rect)
       // no need to check child nodes if it's completely out of view
       if (right < start || left > end) return FILTER_REJECT
       // elements must be completely in view to be considered visible
@@ -84,7 +88,9 @@ const getVisibleRange = (doc, start, end, mapRect) => {
       // create range to get rect
       const range = doc.createRange()
       range.selectNodeContents(node)
-      const { left, right } = mapRect(range.getBoundingClientRect())
+      const rect = range.getBoundingClientRect()
+      if (!rect.width || !rect.height) return FILTER_REJECT
+      const { left, right } = mapRect(rect)
       // it's visible if any part of it is in view
       if (right >= start && left <= end) return FILTER_ACCEPT
     }

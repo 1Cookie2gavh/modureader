@@ -5,6 +5,7 @@ import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/providers/dashboard_tiles_provider.dart';
 import 'package:anx_reader/providers/total_reading_time.dart';
 import 'package:anx_reader/widgets/common/anx_button.dart';
+import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:anx_reader/widgets/common/async_skeleton_wrapper.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:anx_reader/widgets/highlight_digit.dart';
@@ -53,10 +54,42 @@ class _StatisticDashboardTitleState
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           TotalReadTime(),
+          if (!tilesState.isEditing)
+            IconButton(
+              key: const ValueKey('history-edit'),
+              onPressed: notifier.startEditing,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: l10n.commonEdit,
+            ),
           if (tilesState.isEditing)
             Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(ModuStrings.text(
+                        context, '点击书籍时', 'When tapping a book')),
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: AnxSegmentedButton<bool>(
+                        key: const ValueKey('history-book-tap-action'),
+                        segments: [
+                          SegmentButtonItem(
+                              value: false, label: l10n.readingPageBookDetails),
+                          SegmentButtonItem(
+                              value: true,
+                              label: ModuStrings.text(
+                                  context, '直接阅读', 'Read directly')),
+                        ],
+                        selected: {tilesState.openBookDirectly},
+                        onSelectionChanged: (values) =>
+                            notifier.setOpenBookDirectly(values.single),
+                      ),
+                    ),
+                  ],
+                ),
                 TextButton.icon(
                   onPressed: notifier.restoreDefaults,
                   icon: const Icon(Icons.restore),

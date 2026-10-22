@@ -218,6 +218,73 @@ test('line fitting skips generated inline style reads without skipping glyph mea
   dom.window.close();
 });
 
+function chapterOpening({bodyLines=6, titleOnly=false}={}) {
+  const {doc,dom}=fixture();
+  const first=doc.querySelector('p');
+  first.textContent='字'.repeat(bodyLines);
+  const heading=doc.createElement('h2');
+  heading.innerHTML='<span style="border-bottom:1px solid gray">章节标题</span>';
+  doc.body.prepend(heading);
+  heading.getClientRects=()=>[{left:10,top:80,bottom:150,width:250,height:70}];
+  const originalRects=dom.window.Element.prototype.getClientRects;
+  dom.window.Element.prototype.getClientRects=function(){
+    const rects=originalRects.call(this);
+    return this.__moduPageRun && this.parentElement===first
+      ? rects.map(r=>({...r,top:r.top+155,bottom:r.bottom+155})) : rects;
+  };
+  if(titleOnly)doc.querySelectorAll('p').forEach(p=>p.remove());
+  return {doc,dom,heading,first};
+}
+
+test('chapter opening aligns only prose below fixed titles and preserves anchors, markers and resize',()=>{
+  const {doc,dom,heading,first}=chapterOpening();
+  const number=doc.createElement('h1');number.textContent='第一章';doc.body.prepend(number);
+  number.getClientRects=()=>[{left:10,top:20,bottom:60,width:250,height:40}];
+  const originalNumber=number.outerHTML;
+  const originalTitle=heading.outerHTML;
+  const titleRange=doc.createRange();titleRange.selectNodeContents(heading.firstChild.firstChild);
+  const titleCFI=CFI.fromRange(titleRange);
+  const textRange=doc.createRange();textRange.selectNodeContents(first.firstChild);
+  const proseCFI=CFI.fromRange(textRange),originalText=first.textContent;
+  const note=doc.createElement('sup');note.textContent='注';first.append(note);
+  note.getBoundingClientRect=()=>({left:10,top:375,bottom:390,width:10,height:15});
+  for(const height of [450,500,450]) {
+    resetPageAlignment(doc);
+    alignPaginatedText(doc,{...layout,height},false);
+    const runs=preparePageRuns(doc).runs.filter(r=>r.parentElement===first);
+    assert.equal(runs[0].getClientRects()[0].top,180,'title-to-prose gap stays fixed');
+    assert.equal(runs.at(-1).getClientRects()[0].bottom,height-20);
+    assert.equal(heading.outerHTML,originalTitle);
+    assert.equal(number.outerHTML,originalNumber);
+    assert.equal(CFI.toRange(doc,CFI.parse(titleCFI)).toString(),'章节标题');
+    assert.equal(CFI.toRange(doc,CFI.parse(proseCFI)).toString(),originalText);
+    assert.equal(parseFloat(note.style.top),height-20-404,'note follows its last prose line');
+  }
+  resetPageAlignment(doc);
+  assert.equal(note.style.top,'');
+  assert.equal(first.querySelector('modu-page-run').style.top,'0px');
+  dom.window.close();
+});
+
+test('short endings, title-only, explicit breaks, mid-page headings and mixed media keep natural spacing',()=>{
+  for(const kind of ['last','title-only','break','middle','image','single-line','multi-column-title']) {
+    const {doc,dom,heading,first}=chapterOpening({titleOnly:kind==='title-only',bodyLines:kind==='single-line'?1:6});
+    if(kind==='last')doc.querySelectorAll('p').forEach(p=>{if(p!==first)p.remove()});
+    if(kind==='break') {
+      first.style.breakAfter='column';
+      first.getClientRects=()=>[{left:10,top:180,bottom:404,width:250,height:224}];
+    }
+    if(kind==='middle')heading.getClientRects=()=>[{left:10,top:200,bottom:250,width:250,height:50}];
+    if(kind==='image')doc.body.append(doc.createElement('img'));
+    if(kind==='multi-column-title')heading.getClientRects=()=>[0,1].map(page=>({left:page*320+10,top:80,bottom:150,width:250,height:70}));
+    const title=heading.outerHTML;
+    alignPaginatedText(doc,layout,false);
+    assert.equal(heading.outerHTML,title,kind);
+    assert.ok(preparePageRuns(doc).runs.filter(r=>r.parentElement===first).every(r=>r.style.top==='0px'),kind);
+    dom.window.close();
+  }
+});
+
 test('publisher numbered headings keep text, floating border and CFI together', () => {
   const { doc, dom } = fixture();
   const heading = doc.createElement('h4');
@@ -477,7 +544,8 @@ test('visible range searches only page boundaries, preserving the exhaustive tra
   const doc=dom.window.document;let reads=0;
   const bounds=el=>{
     const spans=el.matches('span')?[el]:[...el.querySelectorAll('span')];
-    return {left:Math.min(...spans.map(s=>+s.dataset.x)),right:Math.max(...spans.map(s=>+s.dataset.x+10))};
+    const left=Math.min(...spans.map(s=>+s.dataset.x)),right=Math.max(...spans.map(s=>+s.dataset.x+10));
+    return {left,right,width:right-left,height:20};
   };
   dom.window.Element.prototype.getBoundingClientRect=function(){reads++;return bounds(this)};
   dom.window.Range.prototype.getBoundingClientRect=function(){reads++;return bounds(this.startContainer.parentElement)};
@@ -493,6 +561,37 @@ test('visible range searches only page boundaries, preserving the exhaustive tra
     if(start<1800)assert.ok(reads<slow/4,`${reads} boundary reads versus ${slow} exhaustive reads`);
   }
   dom.window.close();
+});
+test('hidden chapter-end notes cannot extend the first page visible range or suppress speech following',async()=>{
+  const paginator=await readFile(new URL('../assets/foliate-js/src/paginator.js',import.meta.url),'utf8');
+  const code=paginator.slice(paginator.indexOf('const makeRange ='),paginator.indexOf('const getDirection ='));
+  for(const vertical of [false,true]) {
+    const dom=new JSDOM('<body><div id="empty"></div><h1 data-page="0">章</h1><div style="display:contents"><p id="speech"><span data-page="0">甲</span><span data-page="1">乙</span></p></div><div id="overflow"><span data-page="1">丙</span></div><aside style="display:none"><p><span>隐藏脚注</span></p></aside></body>');
+    const doc=dom.window.document;
+    const rect=(left,width)=>vertical
+      ? {left:20,right:40,top:left,bottom:left+width,width:20,height:width}
+      : {left,right:left+width,top:20,bottom:40,width,height:20};
+    const empty={left:0,right:0,top:0,bottom:0,width:0,height:0};
+    const bounds=el=>{
+      if(el.closest('aside') || el.id==='empty' || el.style.display==='contents')return empty;
+      if(el.id==='overflow')return {...rect(410,20),height:0};
+      const spans=el.hasAttribute('data-page')?[el]:[...el.querySelectorAll('[data-page]')];
+      if(!spans.length)return empty;
+      const positions=spans.map(s=>+s.dataset.page*400+10);
+      return rect(Math.min(...positions),Math.max(...positions)-Math.min(...positions)+20);
+    };
+    dom.window.Element.prototype.getBoundingClientRect=function(){return bounds(this)};
+    dom.window.Range.prototype.getBoundingClientRect=function(){return bounds(this.startContainer.nodeType===3?this.startContainer.parentElement:this.startContainer)};
+    const visible=runInNewContext(`${code};getVisibleRange`,{NodeFilter:dom.window.NodeFilter});
+    const map=vertical?r=>({left:r.top,right:r.bottom}):r=>r;
+    const first=visible(doc,0,400,map),second=visible(doc,400,800,map);
+    assert.equal(first.toString(),'章甲');
+    assert.equal(second.toString(),'乙丙','boxless and zero-height containers must not hide visible descendants');
+    const point=doc.createRange();point.setStart(doc.querySelector('#speech span[data-page="1"]').firstChild,0);point.collapse(true);
+    const end=first.cloneRange();end.collapse(false);
+    assert.ok(point.compareBoundaryPoints(0,end)>=0,'the in-paragraph speech cursor on page two must be outside page one');
+    dom.window.close();
+  }
 });
 test('prepare before display, never reflow after a page turn; settle changes only scroll offset',async()=>{
   const paginator=await readFile(new URL('../assets/foliate-js/src/paginator.js',import.meta.url),'utf8');

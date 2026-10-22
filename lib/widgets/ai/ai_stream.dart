@@ -132,10 +132,13 @@ class AiStreamState extends ConsumerState<AiStream> {
                     child: Text(l10n.aiRegenerate),
                   ),
                   TextButton(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: data));
-                      AnxToast.show(l10n.notesPageCopied);
-                    },
+                    onPressed: !isCompleted || parsed.copyableAnswer.isEmpty
+                        ? null
+                        : () {
+                            Clipboard.setData(
+                                ClipboardData(text: parsed.copyableAnswer));
+                            AnxToast.show(l10n.notesPageCopied);
+                          },
                     child: Text(l10n.commonCopy),
                   ),
                 ],

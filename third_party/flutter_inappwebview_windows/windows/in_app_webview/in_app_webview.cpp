@@ -3148,10 +3148,36 @@ namespace flutter_inappwebview_plugin
   }
 
 
-  void InAppWebView::pause() const
+  void InAppWebView::setHostWindowVisible(bool visible)
+  {
+    hostWindowVisible_ = visible;
+    updateVisibility();
+  }
+
+  bool InAppWebView::updateVisibility()
+  {
+    if (!webViewController) {
+      return false;
+    }
+    const bool visible = hostWindowVisible_ && !paused_;
+    if (controllerVisible_ == visible) {
+      return true;
+    }
+    if (!succeededOrLog(webViewController->put_IsVisible(visible))) {
+      return false;
+    }
+    controllerVisible_ = visible;
+    return true;
+  }
+
+  void InAppWebView::pause()
   {
     wil::com_ptr<ICoreWebView2_3> webView3;
-    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3))) && succeededOrLog(webViewController->put_IsVisible(false))) {
+    if (!webView || FAILED(webView->QueryInterface(IID_PPV_ARGS(&webView3)))) {
+      return;
+    }
+    paused_ = true;
+    if (updateVisibility()) {
       failedLog(webView3->TrySuspend(Callback<ICoreWebView2TrySuspendCompletedHandler>(
         [this](HRESULT errorCode, BOOL isSuccessful) -> HRESULT
         {
@@ -3162,10 +3188,14 @@ namespace flutter_inappwebview_plugin
     }
   }
 
-  void InAppWebView::resume() const
+  void InAppWebView::resume()
   {
     wil::com_ptr<ICoreWebView2_3> webView3;
-    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3))) && succeededOrLog(webViewController->put_IsVisible(true))) {
+    if (!webView || FAILED(webView->QueryInterface(IID_PPV_ARGS(&webView3)))) {
+      return;
+    }
+    paused_ = false;
+    if (updateVisibility()) {
       failedLog(webView3->Resume());
     }
   }
@@ -3866,7 +3896,10 @@ namespace flutter_inappwebview_plugin
     children->InsertAtTop(webview_visual.get());
     webViewCompositionController->put_RootVisualTarget(webview_visual2.get());
 
-    webViewController->put_IsVisible(true);
+    // Composition hosts are separate HWNDs: hiding the Flutter window alone
+    // can leave an invisible WebView2 window intercepting desktop clicks.
+    const HWND owner = GetAncestor(plugin->registrar->GetView()->GetNativeWindow(), GA_ROOT);
+    setHostWindowVisible(owner && IsWindowVisible(owner) && !IsIconic(owner));
 
     return true;
   }

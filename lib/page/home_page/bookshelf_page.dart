@@ -519,32 +519,34 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
           : Container(
               height: 34,
               constraints: const BoxConstraints(maxWidth: 400),
-              child: InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SearchPage(),
-                    ),
-                  );
-                },
-                child: FilledContainer(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  color: Theme.of(context).colorScheme.surface.withAlpha(80),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          L10n.of(context).searchBooksOrNotes,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: Theme.of(context).hintColor),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              child: FilledContainer(
+                color: Theme.of(context).colorScheme.surface.withAlpha(80),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SearchPage(),
                       ),
-                    ],
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            L10n.of(context).searchBooksOrNotes,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: Theme.of(context).hintColor),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

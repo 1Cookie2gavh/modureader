@@ -1,4 +1,8 @@
 import 'package:anx_reader/dao/book.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/page/book_detail.dart';
+import 'package:anx_reader/providers/dashboard_tiles_provider.dart';
+import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/service/book.dart';
@@ -18,6 +22,12 @@ class ReadingHistoryBookAccess {
   Future<void> open(WidgetRef ref, BuildContext context, Book book,
           {required String heroTag}) =>
       pushToReadingPage(ref, context, book, heroTag: heroTag);
+
+  Future<void> openDetails(BuildContext context, Book book) async {
+    await Navigator.of(context).push(MotionCupertinoPageRoute<void>(
+      builder: (_) => BookDetail(book: book),
+    ));
+  }
 }
 
 final readingHistoryBookAccessProvider =
@@ -53,13 +63,17 @@ class _ReadingHistoryBookLinkState
       final access = ref.read(readingHistoryBookAccessProvider);
       // History may have been loaded before a deletion or a sync update.
       final book = await access.load(widget.book.id);
-      if (!mounted) return;
+      if (!mounted || ref.read(dashboardTilesProvider).isEditing) return;
       if (book == null || book.isDeleted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(L10n.of(context).bookDeleted)));
         return;
       }
-      await access.open(ref, context, book, heroTag: widget.heroTag);
+      if (Prefs().historyOpenBookDirectly) {
+        await access.open(ref, context, book, heroTag: widget.heroTag);
+      } else {
+        await access.openDetails(context, book);
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -73,7 +87,9 @@ class _ReadingHistoryBookLinkState
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: widget.enabled ? _open : null,
+        onTap: widget.enabled && !ref.watch(dashboardTilesProvider).isEditing
+            ? _open
+            : null,
         child: widget.child,
       );
 }

@@ -13,7 +13,8 @@ class ModelSettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) => settingsSections(sections: [
         SettingsSection(
-          title: Text(ModuStrings.text(context, '模型设置', 'Model settings')),
+          title: Text(ModuStrings.text(
+              context, '离线本地模型设置', 'Offline local model settings')),
           tiles: [
             SettingsTile.navigation(
               key: const ValueKey('model-settings-vector'),

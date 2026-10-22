@@ -1,20 +1,68 @@
 # Modu changelog
 
-Latest stable: **1.3.0+10151**. Updated 2026-10-20.
+Latest stable: **1.3.1+10152**. Updated 2026-10-22.
 
 [Settings](../docs/SETTINGS.md) · [中文设置指南](../docs/SETTINGS_zh.md) · [Published releases](https://github.com/sobranie2406/modureader/releases)
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
-## Unreleased
+## 1.3.1
 
 ### English
 
-- Fix(ocr): Accept finite, integral text-region offsets returned as doubles by Apple's web bridge. Restore PDF text-layer reflow, split-view loading and background prefetch without rounding fractional offsets or weakening geometry validation; preserve existing corrections and anchors.
+- Feat(appearance): Make the Remote library navigation tab optional and reorder navigation visibility switches. Thanks [@1Cookie2gavh](https://github.com/1Cookie2gavh) for [#57](https://github.com/sobranie2406/modureader/pull/57).
+
+- Feat(settings): Move CSS settings into Reading and rename Model settings to Offline local model settings; make built-in CSS template labels follow the app language without changing user-created names or CSS.
+
+- Feat(history): Add a book-tap preference while editing History: open book details or read directly. Hide the option after editing, preserve save/discard behavior and restore the blurred long-press preview for details mode.
+
+- Fix(ocr): Accept finite, integral text offsets returned as doubles by Apple's web bridge, restoring PDF text-layer reflow, split-view loading and prefetch while retaining geometry validation and saved corrections.
+
+- Fix(storage): Include downloaded OCR models in storage usage and model cleanup. Thanks [@RuizeSun](https://github.com/RuizeSun) for [#56](https://github.com/sobranie2406/modureader/pull/56).
+
+- Fix(windows): Synchronize embedded WebView2 visibility with window hiding, minimization and restoration, including retained readers and background-created views; preserve explicit page suspension. Thanks [@ndd200](https://github.com/ndd200) for reporting [#54](https://github.com/sobranie2406/modureader/issues/54).
+
+- Fix(tts): Exclude invisible chapter notes from visible-page calculations so narration can turn from the first page within the current paragraph instead of waiting for the next highlight.
+
+- Fix(reader): Align chapter-opening prose to the normal bottom margin while preserving heading styling and spacing; keep natural spacing on short endings, title-only pages and complex layouts.
+
+- Fix(history): Keep short history lists stable during elastic overscroll instead of jumping back to the top. Thanks [@ndd200](https://github.com/ndd200) for reporting [#58](https://github.com/sobranie2406/modureader/issues/58).
+
+- Fix(ai): Reduce repeated passage scans for long retrieval prompts, bound local query preprocessing and limit optional reader retrieval to eight seconds before continuing with existing context. Preserve full chat prompts and existing indexes.
+
+- Fix(ai): Copy only the AI answer, excluding reasoning and tool output; disable copying while generating or when no answer is available, without changing saved conversations.
+
+- Fix(bookshelf): Keep search-entry press feedback inside its rounded surface, removing the rectangular grey overlay while preserving the soft outer shadow.
+
+- Ci(release): Accept verified release-branch QQ notifications; refresh regression checks for bounded retrieval and the localized homepage gallery.
 
 ### 简体中文
 
-- Fix(ocr): 兼容 Apple 网页桥接返回的小数类型整数字符位置，修复 PDF 文字层重排、分屏加载及后台预缓存失败；继续拒绝非整数、非有限值和越界坐标，保留已有校对稿和笔记定位。
+- Feat(appearance): 远程书库导航标签支持独立隐藏，并调整导航显示开关的排列顺序。感谢 [@1Cookie2gavh](https://github.com/1Cookie2gavh) 贡献 [#57](https://github.com/sobranie2406/modureader/pull/57)。
+
+- Feat(settings): CSS 设置并入阅读，模型设置更名为离线本地模型设置；内置 CSS 模板名称随应用语言切换，保留用户自定义名称与 CSS 内容。
+
+- Feat(history): 历史页编辑模式新增书籍点击行为选择：进入书籍详情或直接阅读；退出编辑后隐藏选项，保留保存／放弃修改，并在详情模式恢复长按虚化预览。
+
+- Fix(ocr): 兼容 Apple 网页桥接返回的小数类型整数字符位置，恢复 PDF 文字层重排、分屏加载与预缓存；继续校验几何位置并保留已保存的校对稿。
+
+- Fix(storage): 存储统计与模型清理纳入已下载的 OCR 模型。感谢 [@RuizeSun](https://github.com/RuizeSun) 贡献 [#56](https://github.com/sobranie2406/modureader/pull/56)。
+
+- Fix(windows): 内嵌 WebView2 随窗口隐藏、最小化与恢复同步显示状态，覆盖保留的阅读页及后台创建的页面，保留页面主动暂停状态。感谢 [@ndd200](https://github.com/ndd200) 报告 [#54](https://github.com/sobranie2406/modureader/issues/54)。
+
+- Fix(tts): 分页可见范围不再计入隐藏的章末脚注，修复章节首页朗读跨页时必须等到下一段高亮才翻页的问题。
+
+- Fix(reader): 章节首页正文对齐正常下边距，保留标题样式及标题下方间距；短尾页、纯标题页和复杂图文页保持自然留白。
+
+- Fix(history): 修复历史页短列表触底后继续弹性滑动突然回到顶部的问题。感谢 [@ndd200](https://github.com/ndd200) 报告 [#58](https://github.com/sobranie2406/modureader/issues/58)。
+
+- Fix(ai): 优化长提示词检索的重复原文扫描与本地查询预处理；可选检索等待超过八秒后使用已有上下文继续，保留完整 AI 提示词和现有索引文件。
+
+- Fix(ai): 复制仅包含 AI 正文，不附带思考和工具输出；生成中或没有正文时禁用复制，不改变已保存的对话。
+
+- Fix(bookshelf): 搜索入口点击反馈限制在圆角内部，消除矩形灰影，保留外部柔和阴影。
+
+- Ci(release): 支持已验证发布分支的 QQ 通知，同步更新限时检索及中英文首页图片的回归检查。
 
 ## 1.3.0
 
