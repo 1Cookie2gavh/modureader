@@ -26,7 +26,7 @@
 
 Available for Android, iOS, macOS, Windows, Linux and native HarmonyOS. Local reading needs no AI account; online tools are optional.
 
-![Reading settings on iPhone and single-column reading on Mac](docs/images/showcase/v1.3.0/reading-en.png)
+![Reading settings on iPhone and single-column reading on Mac](docs/images/showcase/v1.3.0/reading-en.webp)
 
 <a id="downloads"></a>
 
@@ -48,7 +48,7 @@ A flexible library, comfortable typography, scan-to-text reading, AI, translatio
 
 Keep the original layout while removing empty margins. Panel reading, rotation, zoom and image enhancement help you see the details on smaller screens.
 
-![Page controls on iPhone and an original page on Mac](docs/images/showcase/v1.3.0/scanned-pdf-en.png)
+![Page controls on iPhone and an original page on Mac](docs/images/showcase/v1.3.0/scanned-pdf-en.webp)
 
 <a id="ocr"></a>
 
@@ -56,7 +56,7 @@ Keep the original layout while removing empty margins. Panel reading, rotation, 
 
 Turn scanned pages into text you can reflow, select, translate and annotate. Lightweight OCR models run locally and work offline after download.
 
-![Text reflow and background OCR controls on iPhone, with original/reflow comparison on Mac](docs/images/showcase/v1.3.0/ocr-en.png)
+![Text reflow and background OCR controls on iPhone, with original/reflow comparison on Mac](docs/images/showcase/v1.3.0/ocr-en.webp)
 
 <a id="reflow-compare"></a>
 
@@ -64,7 +64,7 @@ Turn scanned pages into text you can reflow, select, translate and annotate. Lig
 
 Read the original page alongside adjustable text. Stack them in portrait or place them side by side in landscape to check the source without losing your place.
 
-![Top-and-bottom comparison on iPhone and side-by-side comparison on Mac](docs/images/showcase/v1.3.0/reflow-compare-en.png)
+![Top-and-bottom comparison on iPhone and side-by-side comparison on Mac](docs/images/showcase/v1.3.0/reflow-compare-en.webp)
 
 <a id="weread"></a>
 
@@ -78,13 +78,15 @@ Link local books to WeRead covers, descriptions, publication details and ratings
 
 Bring EPUB, PDF, MOBI, AZW3, FB2, TXT, Markdown and text UMD books together. Organize them with folders, filters, sorting and pins; import in batches, download from a WebDAV library or bring over an ANX Reader backup.
 
+![Bookshelf](docs/images/showcase/v1.3.0/bookshelf-en.webp)
+
 <a id="reading"></a>
 
 ### Comfortable typography
 
 Choose your fonts, weight, spacing and margins. Switch between pages and scrolling, light and dark themes, or OLED and e-ink modes.
 
-![iPhone reading settings and the Mac style menu](docs/images/showcase/v1.3.0/styles-en.png)
+![iPhone reading settings and the Mac style menu](docs/images/showcase/v1.3.0/styles-en.webp)
 
 #### Vertical reading
 
@@ -96,7 +98,7 @@ Use vertical text with borders and column rules for a traditional page layout.
 
 Start with presets and visual controls, or fine-tune the page with CSS. Color dialogue, highlight keywords and switch between profiles to suit different books.
 
-![CSS profiles on iPhone and a Mac reading page](docs/images/showcase/v1.3.0/css-en.png)
+![CSS profiles on iPhone and a Mac reading page](docs/images/showcase/v1.3.0/css-en.webp)
 
 <a id="listening"></a>
 
@@ -104,7 +106,7 @@ Start with presets and visual controls, or fine-tune the page with CSS. Color di
 
 Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or DashScope. Choose a voice and speed, with delivery prompts where supported. Reflowable ebooks support continuous listening across chapters and narration highlights.
 
-![Voice settings on iPhone and the actual Narrator control panel on Mac](docs/images/showcase/v1.3.0/listening-en.png)
+![Voice settings on iPhone and the actual Narrator control panel on Mac](docs/images/showcase/v1.3.0/listening-en.webp)
 
 <a id="ai"></a>
 
@@ -112,7 +114,7 @@ Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or 
 
 Explain a passage, summarize a chapter, examine an argument, follow characters or create a mind map. Connect your own AI provider, customize reading skills and ask follow-up questions about the book.
 
-![AI skill configuration on iPhone and a demo-chapter summary in the Mac dialog](docs/images/showcase/v1.3.0/skills-en.png)
+![AI skill configuration on iPhone and a demo-chapter summary in the Mac dialog](docs/images/showcase/v1.3.0/skills-en.webp)
 
 <a id="selection"></a>
 
@@ -120,7 +122,7 @@ Explain a passage, summarize a chapter, examine an argument, follow characters o
 
 Select text to copy, highlight, translate, look it up or ask AI. Reorder the toolbar and keep your favorite commands within reach.
 
-![Selection-toolbar settings on iPhone and actual text selection on Mac](docs/images/showcase/v1.3.0/selection-en.png)
+![Selection-toolbar settings on iPhone and actual text selection on Mac](docs/images/showcase/v1.3.0/selection-en.webp)
 
 <a id="translation"></a>
 
@@ -128,7 +130,7 @@ Select text to copy, highlight, translate, look it up or ask AI. Reorder the too
 
 Read the original and translation together, or switch to translation only. Use Google, AI or DeepL/DeepLX translation, and explore web and encyclopedia results in the built-in browser.
 
-![Selection-tool settings on iPhone and a translation lookup on Mac](docs/images/showcase/v1.3.0/translation-en.png)
+![Selection-tool settings on iPhone and a translation lookup on Mac](docs/images/showcase/v1.3.0/translation-en.webp)
 
 <a id="dictionary"></a>
 
@@ -136,7 +138,7 @@ Read the original and translation together, or switch to translation only. Use G
 
 Import MDX or StarDict dictionaries to see definitions beside the page. Dictionary images and audio are supported, and local lookup works offline.
 
-![English dictionary-import settings on iPhone and Mac](docs/images/showcase/v1.3.0/dictionary-en.png)
+![English dictionary-import settings on iPhone and Mac](docs/images/showcase/v1.3.0/dictionary-en.webp)
 
 <a id="unified-query"></a>
 
@@ -144,7 +146,7 @@ Import MDX or StarDict dictionaries to see definitions beside the page. Dictiona
 
 See dictionary, encyclopedia, translation and AI Knowledge results in one window. Compare explanations without switching apps.
 
-![Tool configuration on iPhone and translation/encyclopedia results in Mac unified lookup](docs/images/showcase/v1.3.0/unified-query-en.png)
+![Tool configuration on iPhone and translation/encyclopedia results in Mac unified lookup](docs/images/showcase/v1.3.0/unified-query-en.webp)
 
 <a id="notes"></a>
 
@@ -152,7 +154,7 @@ See dictionary, encyclopedia, translation and AI Knowledge results in one window
 
 Mark a passage and capture your thoughts. Review notes by book and chapter, export Markdown, TXT or CSV, and follow note links back to the original text.
 
-![Annotation-tool configuration on iPhone and the demo book's notes panel on Mac](docs/images/showcase/v1.3.0/notes-en.png)
+![Annotation-tool configuration on iPhone and the demo book's notes panel on Mac](docs/images/showcase/v1.3.0/notes-en.webp)
 
 <a id="statistics"></a>
 
@@ -160,7 +162,7 @@ Mark a passage and capture your thoughts. Review notes by book and chapter, expo
 
 Track your habits with time trends, heatmaps and daily goals. Review recent books, progress and multiple reading rounds to see how your reading adds up.
 
-![Daily reading-goal settings on iPhone and Mac](docs/images/showcase/v1.3.0/statistics-en.png)
+![Daily reading-goal settings on iPhone and Mac](docs/images/showcase/v1.3.0/statistics-en.webp)
 
 <a id="vector"></a>
 
@@ -168,7 +170,7 @@ Track your habits with time trends, heatmaps and daily goals. Review recent book
 
 Find related ideas as well as matching words, and give AI relevant passages for its answers. Choose local embedding models or a remote embedding service.
 
-![Embedding model settings on iPhone and the Mac in-book AI dialog](docs/images/showcase/v1.3.0/vector-en.png)
+![Embedding model settings on iPhone and the Mac in-book AI dialog](docs/images/showcase/v1.3.0/vector-en.webp)
 
 <a id="data"></a>
 
@@ -176,7 +178,7 @@ Find related ideas as well as matching words, and give AI relevant passages for 
 
 Use your own WebDAV server or S3-compatible storage to sync books, notes, bookmarks and reading positions. Pick up where you left off, whether reading or listening.
 
-![Sync settings on iPhone and English reading on Mac](docs/images/showcase/v1.3.0/sync-en.png)
+![Sync settings on iPhone and English reading on Mac](docs/images/showcase/v1.3.0/sync-en.webp)
 
 <a id="backup"></a>
 
@@ -184,9 +186,9 @@ Use your own WebDAV server or S3-compatible storage to sync books, notes, bookma
 
 Library backups preserve books and reading records. Settings backups carry your typography, CSS profiles, AI skills and favorite tools to a new device.
 
-![Global settings backup on iPhone and Mac, with credential export off](docs/images/showcase/v1.3.0/backup-en.png)
+![Global settings backup on iPhone and Mac, with credential export off](docs/images/showcase/v1.3.0/backup-en.webp)
 
-![Updated settings and appearance on Mac and iPhone](docs/images/showcase/v1.3.0/settings-en.png)
+![Updated settings and appearance on Mac and iPhone](docs/images/showcase/v1.3.0/settings-en.webp)
 
 ## Community and feedback
 
