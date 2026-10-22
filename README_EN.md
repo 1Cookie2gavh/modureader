@@ -59,7 +59,7 @@ Modu has no in-app unlock purchases or subscriptions. Fees charged by online ser
 <details>
 <summary>Installation, updates and release notes</summary>
 
-**Latest release: 1.3.0** — adds current-page reflow translation with selection tools and TXT/Markdown export of saved text. Unifies light/dark menus and settings and fixes macOS transition flicker while retaining animations. Credentials transfer only with explicit sensitive-settings opt-in; personal ratings and reviews remain independent. Sync remains on protocol v9.
+**Latest release: 1.3.1** — choose whether History opens book details or reads directly, manage localized CSS profiles under Reading, and optionally hide Remote library navigation. Fixes Apple reflow, chapter-opening narration/page spacing, history overscroll and search-entry feedback. Improves long-prompt retrieval and copies AI answers without reasoning. Sync remains on protocol v9.
 
 Reader shortcut settings are restored and hardware-keyboard playback controls are improved. iOS adds optional in-place book access; HarmonyOS gains a reader wakelock bridge and corrected log-export path validation. See the [release notes](docs/RELEASE_NOTES.md) for device-validation scope, limitations and installation requirements.
 
@@ -135,7 +135,7 @@ Go beyond an image of the page. Recognize text locally, then read the result **i
 
 ![Text reflow and background OCR controls on iPhone, with original/reflow comparison on Mac](docs/images/showcase/v1.3.0/ocr-en.png)
 
-1. In **Settings → Model settings → OCR model**, choose a model and download source. **PP-OCRv4 Chinese / English** is the recommended starting point. Devices without internet can use **Offline import** on the model card to select the matching complete files.
+1. In **Settings → Offline local model settings → OCR model**, choose a model and download source. **PP-OCRv4 Chinese / English** is the recommended starting point. Devices without internet can use **Offline import** on the model card to select the matching complete files.
 2. Open **Text → Text reflow** in the PDF/scanned-book menu. It prefers an available text layer and falls back to OCR, using the current original page or cropped area while retaining saved recognition and corrections.
 3. Select text in the original or translated reflow to use the shared copying, lookup, translation, annotation, AI and selected-text speech tools. Page translation handles only the current original page, prefers corrected text, and supports translation-only or bilingual display.
 4. For a specific passage, use region extraction and continuous recognition to select, recognize and edit text. Sending it to AI first opens an **editable draft**, without automatic submission.
@@ -207,7 +207,7 @@ Adjust fonts, font thickness, line spacing, paragraph spacing and margins. Use s
 <details>
 <summary>Typography, navigation and CSS details</summary>
 
-Settings → CSS settings provides 32 named profiles and 13 editable presets. Detailed editing stays in Settings; the reader applies your profiles. See [CSS presets](docs/CSS_PRESETS.md).
+Settings → Reading → CSS settings provides 32 named profiles and 13 editable presets. Detailed editing stays in Settings; the reader applies your profiles. See [CSS presets](docs/CSS_PRESETS.md).
 
 Font thickness ranges from 0.5 to 2.0 in 0.1 steps. The optional Simulated bold control can add weight to fixed-weight fonts above 1.0; it cannot make a fixed bold face thinner. PDF and other fixed-layout pages are not re-typeset.
 
@@ -388,7 +388,7 @@ Follow reading time, reading days, streaks and progress through individual books
 
 Vector indexing turns book passages into searchable representations of their meaning. Combine keyword and semantic search to find relevant text, then let AI use retrieved passages as context for its answer.
 
-1. Choose a local ONNX model or a remote embedding API in Settings → Model settings → Vector model.
+1. Choose a local ONNX model or a remote embedding API in Settings → Offline local model settings → Vector model.
 2. Download or import the matching model and tokenizer offline, verify their size and SHA-256, then index a book from its menu.
 3. Follow the background indexing task; use the resulting index for retrieval.
 
@@ -470,7 +470,7 @@ Windows settings exports default to Downloads; other platforms use the selected 
 1. Download the package for your system and architecture from [Releases](https://github.com/sobranie2406/modureader/releases). Follow the installation instructions.
 2. Add an ebook to the library and open it. No API key is required if you do not use AI.
 3. To use AI, configure a model in Settings → AI Settings and test the connection.
-4. For semantic search, download a local model in Settings → Model settings → Vector model (Chinese BGE is the default), then index a downloaded book from its menu. You can also configure a remote embedding endpoint.
+4. For semantic search, download a local model in Settings → Offline local model settings → Vector model (Chinese BGE is the default), then index a downloaded book from its menu. You can also configure a remote embedding endpoint.
 5. Choose translation, read-aloud and sync services as needed. See the [Settings guide](docs/SETTINGS.md) for instructions, parameter explanations and security considerations.
 
 ## Feedback

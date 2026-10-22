@@ -73,4 +73,4 @@ Back up first, then upgrade without uninstalling or clearing your library. Sync 
 
 建议先备份，再覆盖升级，不要卸载或清空书库。同步协议仍为 v9；使用新增微信读书字段时，请一起升级参与同步的设备。安卓沿用项目签名；macOS 为临时签名、未公证；Windows 需要 WebView2；Linux 面向 Debian 13；iOS 应用及分享扩展需自行签名，鸿蒙 HAP 需使用有效证书和配置签名安装。模型按需下载或离线导入，不内嵌安装包。
 
-[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.1) · [Changes / 变更](https://github.com/sobranie2406/modureader/compare/v1.3.1...v1.3.1) · [Licenses / 许可](https://github.com/sobranie2406/modureader/blob/v1.3.1/NOTICE)
+[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.1) · [Changes / 变更](https://github.com/sobranie2406/modureader/compare/v1.3.0...v1.3.1) · [Licenses / 许可](https://github.com/sobranie2406/modureader/blob/v1.3.1/NOTICE)

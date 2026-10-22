@@ -1,10 +1,10 @@
-# Modu 1.3.0 settings and features
+# Modu 1.3.1 settings and features
 
 English · [简体中文](SETTINGS_zh.md) · [Home](../README_EN.md) · [Documentation](README.md)
 
-For stable **1.3.0+10151**, updated 2026-10-20. Phones usually open settings one page at a time; wide desktop windows use a two-column layout. Some capabilities depend on the operating system, reader engine and selected service.
+For stable **1.3.1+10152**, updated 2026-10-22. Phones usually open settings one page at a time; wide desktop windows use a two-column layout. Some capabilities depend on the operating system, reader engine and selected service.
 
-The current entry points below include [1.3.0](https://github.com/sobranie2406/modureader/tree/v1.3.0). See the [detailed feature guide](FEATURES.md) for workflows, defaults and boundaries. Source and automated checks are distinct from device acceptance on every platform.
+The current entry points below include [1.3.1](https://github.com/sobranie2406/modureader/tree/v1.3.1). See the [detailed feature guide](FEATURES.md) for workflows, defaults and boundaries. Source and automated checks are distinct from device acceptance on every platform.
 
 ## Settings entry points
 
@@ -18,10 +18,10 @@ Open **Settings** from the home navigation. The app language can follow the syst
 | --- | --- |
 | Appearance | Theme, colors, OLED / E-Ink, language, covers, navigation and optional WeRead connection |
 | Reading | Fonts, layout, page turning and long-press word/paragraph selection |
-| CSS settings | Named profiles, visual controls, custom CSS and regex highlights |
+| Reading → CSS settings | Named profiles, visual controls, custom CSS and regex highlights |
 | Selection toolbar | Action switches, sorting, colors, AI selection templates, selection search and custom dictionaries |
 | AI Settings | Providers, model parameters, display, tool permissions and AI Reading Skills |
-| Model settings | Vector/embedding and OCR models, sources, download/import, selection and deletion |
+| Offline local model settings | Vector/embedding and OCR models, sources, download/import, selection and deletion |
 | Narrate | Engine, voice, speed and editable narration-style templates |
 | Sync and backup | WebDAV / S3, automatic and encrypted credential sync, database backup and global settings files/links |
 | Remote library settings | Separate WebDAV browsing and book downloads |
@@ -129,7 +129,7 @@ Desktop and Android hardware keyboards can configure paging, menu, play/pause an
 
 In-reader settings use Reading / Style / CSS / Other tabs, with CSS templates in their own tab. Style, detailed settings and PDF reading settings follow the Lookup popup sizing rules and scroll within the panel. Selection-toolbar and keyboard-shortcut configuration remain available from Settings.
 
-**Settings → CSS settings** provides 32 named slots and 13 editable presets. Enable the master switch and desired profiles; multiple profiles can apply together. Each book can follow the default combination or select its own. Profile contents are shared globally, so editing one can affect other books using it.
+**Settings → Reading → CSS settings** provides 32 named slots and 13 editable presets. Enable the master switch and desired profiles; multiple profiles can apply together. Each book can follow the default combination or select its own. Profile contents are shared globally, so editing one can affect other books using it.
 
 CSS changes layout; regex highlights style matching text with colors, backgrounds and underlines without rewriting text or annotation positions. Import trusted CSS / JSON only: remote resource URLs can make network requests. New, copied and imported profiles start disabled; imports fill empty slots without silently overwriting profiles.
 
@@ -194,6 +194,8 @@ Online speech buffering provides lookahead (default 3 extra passages), maximum c
 See [speech in the feature guide](FEATURES.md#9-speech-voices-and-buffering) for selectable values, [buffer UI](../lib/widgets/settings/tts_buffer_settings.dart) and [validation](../lib/models/tts_buffer_settings.dart).
 
 ## Reading History
+
+Edit History to choose whether tapping a book opens its details or starts reading. Save or discard the choice with the layout changes; the selector is hidden outside editing. Details mode retains the blurred long-press preview.
 
 Tap an available book's cover or title to continue reading through the existing book-opening flow. Deleted books show a notice and retain their reading records. Rearrange the Recently read, This week, Daily reading average and Most annotated cards alongside the existing charts; dates, progress, active days and note counts make the cards easier to browse. The daily average counts only days with recorded reading.
 
