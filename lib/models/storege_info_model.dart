@@ -7,7 +7,12 @@ class StorageInfoModel {
   late int cacheSize;
   late int logSize;
   late int coverSize;
+
+  /// Downloaded vector embedding models.
   final int modelSize;
+
+  /// Downloaded OCR text-detection and recognition packs.
+  final int ocrModelSize;
   final int indexSize;
   final int aiHistorySize;
   final int backgroundSize;
@@ -20,6 +25,7 @@ class StorageInfoModel {
     required this.logSize,
     required this.coverSize,
     this.modelSize = 0,
+    this.ocrModelSize = 0,
     this.indexSize = 0,
     this.aiHistorySize = 0,
     this.backgroundSize = 0,
@@ -31,6 +37,9 @@ class StorageInfoModel {
   String get cacheSizeStr => formatSize(cacheSize);
   String get logSizeStr => formatSize(logSize);
   String get coverSizeStr => formatSize(coverSize);
+  String get modelSizeStr => formatSize(modelSize);
+  String get ocrModelSizeStr => formatSize(ocrModelSize);
+  String get localModelsSizeStr => formatSize(modelSize + ocrModelSize);
 
   String get totalSizeStr => formatSize(databaseSize +
       booksSize +
@@ -39,6 +48,7 @@ class StorageInfoModel {
       logSize +
       coverSize +
       modelSize +
+      ocrModelSize +
       indexSize +
       aiHistorySize +
       backgroundSize);

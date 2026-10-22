@@ -108,6 +108,7 @@ class OcrModelStore {
       _downloading = false;
     }
   }
+
   static const version = 'ppocr-v4-mobile-1';
   static const revision = '1cfba2e90fc938db55889873735088de210cc173';
   static const mirrorBase =
@@ -140,10 +141,16 @@ class OcrModelStore {
   }
 
   int get totalBytes => model.totalBytes;
+
+  /// All downloaded OCR packs share one directory under app support data.
+  /// Storage reporting and the store must resolve this path the same way.
+  static Future<Directory> modelsRoot() async => Directory(
+      '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}ocr');
+
   Future<Directory> root() async =>
       directory ??
       Directory(
-          '${(await getApplicationSupportDirectory()).path}/ocr/${model.id}');
+          '${(await modelsRoot()).path}${Platform.pathSeparator}${model.id}');
   Future<bool> available() async {
     final dir = await root();
     for (final entry in model.files.entries) {

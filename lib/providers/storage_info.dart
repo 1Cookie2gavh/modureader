@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:anx_reader/models/storege_info_model.dart';
 import 'package:anx_reader/service/ai/ai_history.dart';
+import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:anx_reader/providers/font_list.dart';
 import 'package:anx_reader/utils/get_path/databases_path.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
@@ -30,6 +31,7 @@ class StorageInfo extends _$StorageInfo {
       logSize: await calsulateFileSize(await getLogFile()),
       coverSize: await calculatePathSize(getCoverDir()),
       modelSize: await calculatePathSize(Directory(getBasePath('models'))),
+      ocrModelSize: await calculatePathSize(await OcrModelStore.modelsRoot()),
       indexSize: await calculatePathSize(Directory(getBasePath('knowledge'))),
       aiHistorySize: await calculatePathSize(Directory(getBasePath('ai'))),
       backgroundSize: await calculatePathSize(getBgimgDir()),

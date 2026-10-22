@@ -72,15 +72,16 @@ class _HomeNavigationShellState extends State<HomeNavigationShell> {
         EvaIcons.book_open,
         l10n.navBarBookshelf,
       ),
-      HomeNavigationDestination(
-        HomeNavigationDestination.remoteLibrary,
-        Icons.cloud_download_outlined,
-        switch (localeKey) {
-          'zh-CN' => '远程',
-          'zh-TW' || 'zh-LZH' => '遠程',
-          _ => ModuStrings.text(context, '远程书库', 'Remote library'),
-        },
-      ),
+      if (prefs.bottomNavigatorShowRemote)
+        HomeNavigationDestination(
+          HomeNavigationDestination.remoteLibrary,
+          Icons.cloud_download_outlined,
+          switch (localeKey) {
+            'zh-CN' => '远程',
+            'zh-TW' || 'zh-LZH' => '遠程',
+            _ => ModuStrings.text(context, '远程书库', 'Remote library'),
+          },
+        ),
       if (prefs.bottomNavigatorShowStatistics)
         HomeNavigationDestination(
           HomeNavigationDestination.statistics,
