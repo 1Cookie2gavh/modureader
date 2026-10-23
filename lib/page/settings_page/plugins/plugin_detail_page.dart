@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/plugin_manifest.dart';
 import 'package:anx_reader/models/plugin_state.dart';
-import 'package:anx_reader/models/user_prompt.dart';
+import 'package:anx_reader/models/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/plugins/plugins_page.dart';
+import 'package:anx_reader/service/config/config_item.dart';
+import 'package:anx_reader/service/plugins/handlers/selection_action_handler.dart';
+import 'package:anx_reader/service/plugins/plugin_config.dart';
 import 'package:anx_reader/service/plugins/plugin_host.dart';
+import 'package:anx_reader/widgets/settings/service_config_form.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +28,7 @@ class PluginDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: host,
+      animation: Listenable.merge([host, Prefs()]),
       builder: (context, _) {
         final record = host.byId(pluginId);
         return Scaffold(
@@ -43,6 +49,9 @@ class PluginDetailPage extends StatelessWidget {
                     _basicSection(context, record),
                     _permissionSection(context),
                     _contributionSection(context, record),
+                    if (host.manifestFor(pluginId)?.settings.isNotEmpty ??
+                        false)
+                      _settingsSection(context),
                     _diagnosticSection(context, record),
                   ],
                 ),
@@ -98,7 +107,15 @@ class PluginDetailPage extends StatelessWidget {
   }
 
   Widget _contributionSection(BuildContext context, PluginRecord record) {
-    final prompts = Prefs().userPrompts;
+    final toolbarItems = Prefs().selectionToolbar.items;
+    final usedSlots = toolbarItems
+        .where((item) =>
+            item.isCustom &&
+            !SelectionToolbarConfig.templateItems
+                .any((preset) => preset.id == item.id))
+        .length;
+    final hasActions = record.applied
+        .any((entry) => entry.kind == kSelectionActionContributionKind);
     return SettingsSection(
       title: Text(ModuStrings.text(context, '贡献内容', 'Contributions')),
       tiles: [
@@ -116,20 +133,65 @@ class PluginDetailPage extends StatelessWidget {
           for (final applied in record.applied)
             CustomSettingsTile(
               child: ListTile(
-                leading: const Icon(Icons.chat_bubble_outline),
-                title: Text(_appliedName(applied, prompts)),
+                leading: Icon(applied.kind == kSelectionActionContributionKind
+                    ? Icons.ads_click
+                    : Icons.chat_bubble_outline),
+                title: Text(_appliedLabel(applied, toolbarItems)),
                 subtitle: Text('${applied.kind} · ${applied.id}'),
               ),
             ),
+        if (hasActions)
+          CustomSettingsTile(
+            child: ListTile(
+              leading: const Icon(Icons.space_dashboard_outlined),
+              title: Text(ModuStrings.text(
+                  context, '划词工具栏名额', 'Selection toolbar slots')),
+              subtitle: Text(ModuStrings.text(
+                  context,
+                  '已用 $usedSlots / ${SelectionActionContributionHandler.maxToolbarSlots}，剩余 ${SelectionActionContributionHandler.maxToolbarSlots - usedSlots} 个',
+                  '$usedSlots of ${SelectionActionContributionHandler.maxToolbarSlots} used, ${SelectionActionContributionHandler.maxToolbarSlots - usedSlots} free')),
+            ),
+          ),
       ],
     );
   }
 
-  String _appliedName(AppliedContribution applied, List<UserPrompt> prompts) {
-    for (final prompt in prompts) {
+  String _appliedLabel(
+      AppliedContribution applied, List<SelectionToolbarItem> toolbarItems) {
+    if (applied.kind == kSelectionActionContributionKind) {
+      for (final item in toolbarItems) {
+        if (item.id == applied.id) {
+          return item.name.trim().isEmpty ? applied.id : item.name.trim();
+        }
+      }
+      return applied.id;
+    }
+    for (final prompt in Prefs().userPrompts) {
       if (prompt.id == applied.id) return prompt.name;
     }
     return applied.id;
+  }
+
+  Widget _settingsSection(BuildContext context) {
+    final manifest = host.manifestFor(pluginId);
+    if (manifest == null || manifest.settings.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return SettingsSection(
+      title: Text(ModuStrings.text(context, '插件设置', 'Plugin settings')),
+      tiles: [
+        CustomSettingsTile(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: _PluginSettingsForm(
+              key: ValueKey('plugin-settings-${manifest.id}'),
+              pluginId: manifest.id,
+              manifest: manifest,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _diagnosticSection(BuildContext context, PluginRecord record) {
@@ -176,10 +238,150 @@ class PluginDetailPage extends StatelessWidget {
       case kAiPromptPackCapability:
         return ModuStrings.text(
             context, '添加 AI 提示词模板', 'Add AI prompt templates');
+      case kSelectionActionCapability:
+        return ModuStrings.text(
+            context, '添加划词工具栏动作', 'Add selection toolbar actions');
       case 'storage:plugin':
         return ModuStrings.text(context, '使用插件私有目录', 'Use plugin storage');
       default:
         return capability;
     }
+  }
+}
+
+class _PluginSettingsForm extends StatefulWidget {
+  const _PluginSettingsForm({
+    super.key,
+    required this.pluginId,
+    required this.manifest,
+  });
+
+  final String pluginId;
+  final PluginManifest manifest;
+
+  @override
+  State<_PluginSettingsForm> createState() => _PluginSettingsFormState();
+}
+
+class _PluginSettingsFormState extends State<_PluginSettingsForm> {
+  late Map<String, dynamic> _config;
+  Timer? _saveTimer;
+  bool _dirty = false;
+  bool _saveFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _config = PluginConfig.sanitize(
+        widget.manifest, Prefs().pluginConfig(widget.pluginId));
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    if (_saveTimer != null || _dirty) unawaited(_save());
+    super.dispose();
+  }
+
+  void _onChanged(Map<String, dynamic> values) {
+    _config = values;
+    _dirty = true;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 400), () {
+      unawaited(_save());
+    });
+  }
+
+  Future<void> _save() async {
+    _saveTimer = null;
+    if (!_dirty) return;
+    try {
+      await Prefs().savePluginConfig(widget.pluginId, _config);
+      _dirty = false;
+      if (mounted && _saveFailed) setState(() => _saveFailed = false);
+    } catch (_) {
+      if (mounted) setState(() => _saveFailed = true);
+    }
+  }
+
+  List<ConfigItem> _items(String locale) {
+    return [
+      for (final spec in widget.manifest.settings) _configItem(spec, locale),
+    ];
+  }
+
+  ConfigItem _configItem(PluginSettingSpec spec, String locale) {
+    final label = spec.label?.resolve(locale).trim();
+    final description = spec.description?.resolve(locale).trim();
+    final resolvedLabel = label == null || label.isEmpty ? spec.key : label;
+    switch (spec.type) {
+      case PluginSettingType.text:
+        return ConfigItem(
+          key: spec.key,
+          label: resolvedLabel,
+          description: description,
+          type: ConfigItemType.text,
+          defaultValue: spec.defaultValue,
+          maxLength: PluginConfig.maxTextLength,
+        );
+      case PluginSettingType.number:
+        return ConfigItem(
+          key: spec.key,
+          label: resolvedLabel,
+          description: description,
+          type: ConfigItemType.number,
+          defaultValue: spec.defaultValue,
+        );
+      case PluginSettingType.toggle:
+        return ConfigItem(
+          key: spec.key,
+          label: resolvedLabel,
+          description: description,
+          type: ConfigItemType.toggle,
+          defaultValue: spec.defaultValue,
+        );
+      case PluginSettingType.select:
+        return ConfigItem(
+          key: spec.key,
+          label: resolvedLabel,
+          description: description,
+          type: ConfigItemType.select,
+          defaultValue: spec.defaultValue,
+          options: [
+            for (final option in spec.options)
+              {'value': option, 'label': option},
+          ],
+        );
+      case PluginSettingType.tip:
+        return ConfigItem(
+          key: spec.key,
+          label: resolvedLabel,
+          type: ConfigItemType.tip,
+          defaultValue: description == null || description.isEmpty
+              ? resolvedLabel
+              : description,
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ServiceConfigForm(
+          configItems: _items(locale),
+          initialConfig: _config,
+          onConfigChanged: _onChanged,
+        ),
+        if (_saveFailed)
+          Text(
+            ModuStrings.text(
+                context, '插件设置保存失败。', 'Could not save plugin settings.'),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+      ],
+    );
   }
 }

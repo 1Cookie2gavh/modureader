@@ -1,6 +1,7 @@
 import 'package:anx_reader/models/plugin_manifest.dart';
 import 'package:anx_reader/models/plugin_state.dart';
 import 'package:anx_reader/service/plugins/handlers/ai_prompt_handler.dart';
+import 'package:anx_reader/service/plugins/handlers/selection_action_handler.dart';
 import 'package:anx_reader/service/plugins/plugin_contribution_handler.dart';
 
 /// Orchestrates contribution handlers: validates all kinds first, then applies
@@ -9,7 +10,10 @@ class PluginContributions {
   PluginContributions(this.registry);
 
   factory PluginContributions.standard() => PluginContributions(
-        PluginContributionRegistry([AiPromptContributionHandler()]),
+        PluginContributionRegistry([
+          AiPromptContributionHandler(),
+          SelectionActionContributionHandler(),
+        ]),
       );
 
   final PluginContributionRegistry registry;

@@ -188,8 +188,11 @@ class PluginHost extends ChangeNotifier {
 
     if (record.status == PluginStatus.enabled) {
       final promptIds = Prefs().userPrompts.map((prompt) => prompt.id).toSet();
+      final toolbarIds =
+          Prefs().selectionToolbar.items.map((item) => item.id).toSet();
       final lost = record.applied.isEmpty ||
-          record.applied.every((entry) => !promptIds.contains(entry.id));
+          record.applied
+              .every((entry) => !_isMaterialised(entry, promptIds, toolbarIds));
       if (lost) {
         try {
           final applied = await _contributions.apply(manifest);
@@ -246,7 +249,8 @@ class PluginHost extends ChangeNotifier {
         }
       }
 
-      final snapshot = Prefs().userPrompts;
+      final promptsSnapshot = Prefs().userPrompts;
+      final toolbarSnapshot = Prefs().selectionToolbar;
       List<AppliedContribution> applied = const [];
       Directory? previousFiles;
       try {
@@ -280,7 +284,13 @@ class PluginHost extends ChangeNotifier {
         return PluginInstallResult(
             record: record, warnings: List.unmodifiable(pkg.warnings));
       } catch (error) {
-        Prefs().userPrompts = snapshot;
+        Prefs().userPrompts = promptsSnapshot;
+        try {
+          await Prefs().saveSelectionToolbar(toolbarSnapshot);
+        } catch (_) {
+          // The original failure is more useful; the snapshot is retried on
+          // the next plugin mutation.
+        }
         await _rollbackFiles(manifest.id, previousFiles);
         rethrow;
       }
@@ -304,7 +314,8 @@ class PluginHost extends ChangeNotifier {
           PluginErrorCode.pluginUnavailable, 'Plugin manifest is unavailable.');
     }
     manifest.ensureCompatibleWith(_appVersion);
-    final snapshot = Prefs().userPrompts;
+    final promptsSnapshot = Prefs().userPrompts;
+    final toolbarSnapshot = Prefs().selectionToolbar;
     try {
       final applied = await _contributions.apply(manifest);
       final newIds = applied.map((entry) => entry.id).toSet();
@@ -320,7 +331,12 @@ class PluginHost extends ChangeNotifier {
       _upsertMemory(updated);
       notifyListeners();
     } catch (_) {
-      Prefs().userPrompts = snapshot;
+      Prefs().userPrompts = promptsSnapshot;
+      try {
+        await Prefs().saveSelectionToolbar(toolbarSnapshot);
+      } catch (_) {
+        // Best effort; the enable operation already failed.
+      }
       rethrow;
     }
   }
@@ -397,6 +413,20 @@ class PluginHost extends ChangeNotifier {
     }
     if (!replaced) next.add(record);
     _plugins = next;
+  }
+
+  static bool _isMaterialised(AppliedContribution entry, Set<String> promptIds,
+      Set<String> toolbarIds) {
+    switch (entry.kind) {
+      case kAiSkillContributionKind:
+        return promptIds.contains(entry.id);
+      case kSelectionActionContributionKind:
+        return toolbarIds.contains(entry.id);
+      default:
+        // A kind without a handler in this build cannot be checked; leave it
+        // alone rather than recreating or deleting unrelated values.
+        return true;
+    }
   }
 
   Future<void> _removeContributions(PluginRecord record) async {

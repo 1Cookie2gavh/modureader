@@ -5,7 +5,7 @@ import '../service/plugins/plugin_test_utils.dart';
 
 void main() {
   PluginManifest parse(String manifest,
-          {Set<String> allowed = kP1aSupportedCapabilities}) =>
+          {Set<String> allowed = kP1SupportedCapabilities}) =>
       PluginManifest.parse(manifest, allowedCapabilities: allowed);
 
   test('parses a valid package with contributions and settings', () {
@@ -66,10 +66,16 @@ void main() {
           (error) => error.code, 'code', PluginErrorCode.unknownCapability)),
     );
     expect(
-      () => parse(manifestJson(capabilities: ['ui:selection-action'])),
+      () => parse(manifestJson(capabilities: ['net:http'])),
       throwsA(isA<PluginInstallError>().having((error) => error.code, 'code',
           PluginErrorCode.capabilityUnavailable)),
     );
+    final toolbar = parse(manifestJson(
+      capabilities: ['ai:prompt-pack', 'ui:selection-action'],
+      contributes: [selectionAction(id: 'explain')],
+    ));
+    expect(toolbar.capabilities, {'ai:prompt-pack', 'ui:selection-action'});
+    expect(toolbar.contributions.single, isA<SelectionActionContribution>());
 
     final manifest = parse(manifestJson(contributes: [
       {

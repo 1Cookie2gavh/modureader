@@ -171,6 +171,7 @@ class PluginState {
   const PluginState({this.schemaVersion = 1, this.plugins = const []});
 
   static const int currentSchemaVersion = 1;
+  static const int maxRecords = 100;
 
   final int schemaVersion;
   final List<PluginRecord> plugins;
@@ -229,6 +230,35 @@ class PluginState {
       } on FormatException {
         // Skip a single damaged record; keep the rest of the registry usable.
       }
+    }
+    return PluginState(
+        schemaVersion: version, plugins: List.unmodifiable(plugins));
+  }
+
+  /// Stricter parser for importing a settings backup: a damaged record rejects
+  /// the whole payload instead of silently dropping installed plugins.
+  static PluginState parseStrict(Object? raw) {
+    if (raw is! Map) {
+      throw const FormatException('Plugin state must be an object');
+    }
+    final version = raw['schemaVersion'];
+    if (version is! int || version != currentSchemaVersion) {
+      throw const FormatException('Unsupported plugin state schema');
+    }
+    final rawPlugins = raw['plugins'];
+    if (rawPlugins is! List || rawPlugins.length > maxRecords) {
+      throw const FormatException('Plugin state has an invalid plugin list');
+    }
+    final plugins = <PluginRecord>[];
+    final seen = <String>{};
+    for (final item in rawPlugins) {
+      final record = PluginRecord.fromJson(item);
+      if (!pluginIdPattern.hasMatch(record.id) ||
+          record.name.isEmpty ||
+          !seen.add(record.id)) {
+        throw const FormatException('Invalid plugin record');
+      }
+      plugins.add(record);
     }
     return PluginState(
         schemaVersion: version, plugins: List.unmodifiable(plugins));

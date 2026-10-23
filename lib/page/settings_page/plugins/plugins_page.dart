@@ -60,8 +60,8 @@ class _PluginSettingsState extends State<PluginSettings> {
                     child: Text(
                       ModuStrings.text(
                           context,
-                          '还没有安装插件。插件由 manifest.json 声明的贡献组成，例如 AI 提示词模板。',
-                          'No plugins installed yet. A plugin is a manifest.json with declarative contributions, such as AI prompt templates.'),
+                          '还没有安装插件。插件由 manifest.json 声明的贡献组成，例如 AI 提示词模板或划词工具栏动作。',
+                          'No plugins installed yet. A plugin is a manifest.json with declarative contributions, such as AI prompt templates or selection toolbar actions.'),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -88,8 +88,8 @@ class _PluginSettingsState extends State<PluginSettings> {
                     child: Text(
                       ModuStrings.text(
                           context,
-                          '已安装 $enabled 个，共 ${plugins.length} 个。停用插件会移除它添加的提示词；卸载会删除插件文件。',
-                          '$enabled of ${plugins.length} enabled. Disabling removes the prompts it added; uninstalling deletes its files.'),
+                          '已安装 $enabled 个，共 ${plugins.length} 个。停用插件会移除它添加的提示词和划词动作；卸载会删除插件文件。',
+                          '$enabled of ${plugins.length} enabled. Disabling removes the prompts and toolbar actions it added; uninstalling deletes its files.'),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -178,8 +178,8 @@ class _PluginSettingsState extends State<PluginSettings> {
         title: Text(ModuStrings.text(context, '卸载插件？', 'Uninstall plugin?')),
         content: Text(ModuStrings.text(
             context,
-            '将删除插件文件，以及它添加且未被编辑过的提示词。你编辑过的提示词会保留为普通提示词。',
-            'This deletes the plugin files and any of its prompts you have not edited. Edited prompts are kept as normal prompts.')),
+            '将删除插件文件，以及它添加且未被编辑过的提示词和划词动作。你编辑过的内容会保留为普通条目。',
+            'This deletes the plugin files and any of its prompts or toolbar actions you have not edited. Edited entries are kept as normal entries.')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -380,6 +380,10 @@ String pluginErrorText(BuildContext context, Object error) {
       zh ? '插件文件缺失或损坏，请重新安装后再启用。' : error.message,
     PluginErrorCode.promptConflict =>
       zh ? '提示词 id 冲突，请卸载后重新安装。' : error.message,
+    PluginErrorCode.toolbarConflict =>
+      zh ? '划词工具栏动作 id 冲突，请先删除同名动作。' : error.message,
+    PluginErrorCode.noToolbarSlots =>
+      zh ? '划词工具栏自定义动作已达 24 个上限，请先删除一个再安装。' : error.message,
     PluginErrorCode.internal => error.message,
   };
   return reason;

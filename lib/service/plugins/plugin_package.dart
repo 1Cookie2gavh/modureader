@@ -46,7 +46,7 @@ class PluginPackage {
 class PluginPackageReader {
   PluginPackageReader({
     PluginPaths? paths,
-    this.allowedCapabilities = kP1aSupportedCapabilities,
+    this.allowedCapabilities = kP1SupportedCapabilities,
   }) : paths = paths ?? PluginPaths();
 
   final PluginPaths paths;

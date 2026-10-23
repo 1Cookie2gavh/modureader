@@ -1,8 +1,8 @@
-# 插件系统执行文档（P0 规范冻结 + P1a 首个 PR）
+# 插件系统执行文档（P0 规范冻结 + P1 声明式插件）
 
-Status: P1a implemented, pending review · 2026-10-23 · 基线 `main` @ `0feceeb9` (Modu 1.3.1+10152) · 本轮实施范围：**P1a**
+Status: P1a/P1b/P1c implemented, pending review · 2026-10-24 · 基线 `main` @ `0feceeb9` (Modu 1.3.1+10152) · 本轮实施范围：**P1b + P1c**
 
-本文档覆盖 **P0（设计冻结）** 与 **P1（声明式插件）**，其中 P1 拆为 P1a（本轮实施：安装 + AI Prompt 注册 + 示例插件）、P1b（划词动作）、P1c（配置导出）。P2–P5（注册表化、声明式网络插件、WebView JS 脚本宿主、生态加固）见 §0 路线图与 §14 衔接章节，不在本期实现范围。
+本文档覆盖 **P0（设计冻结）** 与 **P1（声明式插件）**，其中 P1 拆为 P1a（安装 + AI Prompt 注册 + 示例插件）、P1b（划词动作 + 插件设置）、P1c（配置导出）。P2–P5（注册表化、声明式网络插件、WebView JS 脚本宿主、生态加固）见 §0 路线图与 §14 衔接章节，不在本期实现范围。
 
 ---
 
@@ -15,7 +15,7 @@ Status: P1a implemented, pending review · 2026-10-23 · 基线 `main` @ `0fecee
 | 阶段 | 内容 | 交付物 | 预估 | 门禁 |
 |---|---|---|---|---|
 | **P0** | 规范冻结：包格式、能力模型、Host API、`ScriptRuntime` 接口、威胁模型、商店合规 | 本文件 §2–§4（规范即文档，不再拆 `PLUGIN_SPEC.md`） | 2–3 人日 | 规范评审通过；manifest 能表达脚本贡献而无需改 schema |
-| **P1** | 声明式最小闭环：安装/启停/卸载/升级 + **AI Prompt 注册（`aiSkill`）** + 示例插件 | 本文件 §5–§13 | 11–14 人日（分 P1a/b/c） | 6 平台装/卸/停用；示例插件可用；恶意包全拒 |
+| **P1** | 声明式最小闭环：安装/启停/卸载/升级 + **AI Prompt 注册（`aiSkill`）** + **划词动作（`selectionAction`）** + 设置迁移 | 本文件 §5–§13 | 11–14 人日（分 P1a/b/c） | 6 平台装/卸/停用；示例插件可用；恶意包全拒 |
 | **P2** | 注册表化：TTS、翻译、词典、AI 工具/技能、工具栏分发改 ID 注册表 | 注册表 API + 迁移垫片 | 8–12 人日 | 存量配置零丢失；全量回归 |
 | **P3** | 声明式网络插件：词典 HTTP 源、endpoint 模板、域名白名单与限额 | 安全评审 + 限额测试 | 8–10 人日 | 越权请求被拒；备份往返一致 |
 | **P4** | 脚本运行时 v1：`ScriptRuntime` + WebView 实现、Host API 桥、看门狗 | 脚本样例 2–3 个 | 10–15 人日 | 沙箱逃逸评审；iOS/Android 真机；OHOS 明确降级 |
@@ -27,8 +27,8 @@ Status: P1a implemented, pending review · 2026-10-23 · 基线 `main` @ `0fecee
 
 | PR | 内容 |
 |---|---|
-| **P1a（首个 PR，本期实施）** | 插件包安装/启停/卸载/升级 + `aiSkill` 提示词注册 + 示例插件 + 设置页 + 单测 |
-| **P1b** | `selectionAction` 划词动作（复用 prompt 机制，涉及工具栏名额与哈希守卫） |
+| **P1a（已实现）** | 插件包安装/启停/卸载/升级 + `aiSkill` 提示词注册 + 示例插件 + 设置页 + 单测 |
+| **P1b** | `selectionAction` 划词动作（复用 prompt 机制，涉及工具栏名额与哈希守卫）+ 插件设置表单与 `pluginConfig_` |
 | **P1c** | 插件状态/配置加入设置导出与校验（`settings_modules`、`_types`、`value_validation`） |
 
 这样首个 PR 端到端可演示，且不触碰划词工具栏与配置导出两条高风险路径。
@@ -40,6 +40,8 @@ Status: P1a implemented, pending review · 2026-10-23 · 基线 `main` @ `0fecee
 - 基线：`main` = `origin/main` = `upstream/main` = `0feceeb9`（Modu 1.3.1+10152），工作区此前干净；本轮已快进合并 19 个上游提交并推送。
 - 本轮改动：新增 `docs/development/plugin-system-p0-p1.md`，并在 `docs/README.md` 增加索引项。
 - 2026-10-23 后续：P1a 已实现（见 §16.6 v0.3）：新增 `lib/models/plugin_manifest.dart`、`plugin_state.dart`、`lib/service/plugins/`、`lib/page/settings_page/plugins/`、`scripts/dev/pack_plugin.dart`、`docs/examples/plugins/prompt-pack/` 与对应测试；修改 `main.dart`、`Prefs`、`get_base_path.dart`、设置入口与 `pubspec.yaml`（显式 `pub_semver`）。未改动数据库、同步、TTS/翻译/词典、划词工具栏与设置导出。
+- 2026-10-23 P1b/P1c（见 §16.6 v0.4）：开放 `ui:selection-action`，新增 `SelectionActionContribution` 与 `SelectionActionContributionHandler`（24 名额、名称/图标校验、哈希守卫、用户编辑保留为 `custom-*`）；启用 `pluginConfig_<id>` 与详情页插件设置表单；`pluginState`/`pluginConfig_*` 接入设置导出、导入与严格校验，并补充中英文设置文档。数据库仍为 v11，未改 `SelectionToolbarConfig.validate()`。
+- 2026-10-24 示例插件升级到 1.1.0（见 §16.6 v0.5）：增加一个 `selectionAction` 与四种 `settings`，README 与样例测试同步；用于手工验收 P1b 的安装、停用、卸载与设置备份。
 
 ### 0.3 决策状态
 
@@ -47,33 +49,33 @@ Status: P1a implemented, pending review · 2026-10-23 · 基线 `main` @ `0fecee
 
 - 目标形态 C，分阶段推进；本期只写并实现 P0–P1。
 - **首个 PR 范围**：插件安装 + `aiSkill`（AI Prompt）注册 + 示例插件；不含 JS、划词动作、配置导出。
-- P1 首个 PR 只做「安装 + AI Prompt 注册 + 示例插件」，**不含 JS、不含划词动作、不含配置导出**（分别为 P1a / P1b / P1c）。
+- P1 按能力拆分：P1a 安装 + AI Prompt 注册 + 示例插件；P1b 划词动作 + 插件设置；P1c 配置导出。三者可独立回滚。
 - 脚本宿主方向：**WebView JS 唯一宿主**（不在 P4 引入 QuickJS/原生动态库）。
 - 平台：全平台，尽量遵循应用商店规范，不按平台写死能力。
 
 待确认（默认值，见 §15）：
 
 1. 插件提示词默认启用。
-2. 设置导出中「插件」模块默认勾选（P1c 生效）。
+2. 设置导出中「插件」模块默认包含（P1c 已实现，`all` 与 `plugins` 作用域均包含）。
 3. 「插件」入口不做开发者选项门控。
 4. 样例插件使用 CC0。
 
 ### 0.4 下一步
 
-P1a 已实现并通过本地测试（45 项插件相关测试）。下一步：
+P1a/P1b/P1c 已实现并通过本地自动化测试。下一步：
 
-1. 评审 P1a 的代码与本文档；按 §10 做 6 平台手工验收。
-2. **P1b**：新增 `selectionAction` handler（复用 `PluginContributionHandler`）、工具栏 24 名额检查、用户编辑保留。
-3. **P1c**：把 `pluginState` 接入设置导出/导入与校验，并补 `docs/SETTINGS.md`。
+1. 评审 P1b/P1c 的代码与本文档；按 §10 做 6 平台手工验收。
+2. 重点回归：24 个自定义划词名额边界、用户编辑条目在卸载后的保留、设置备份往返与缺失插件提示。
+3. 进入 P2 前补一次真实插件包的跨设备验收（安装 → 停用 → 备份 → 另一设备恢复 → 重新安装）。
 
-### 0.5 实现守卫（不要做）
+### 0.5 实现守卫（P1 全程）
 
-- 本 PR 不实现划词动作（P1b），不修改 `SelectionToolbarConfig.validate()`。
-- 本 PR 不把插件状态接进设置导出（P1c），但键名与结构必须按 §5 预留，避免二次迁移。
+- 不修改 `SelectionToolbarConfig.validate()`；插件动作按现有 `custom-` 规则物化。
 - 不新增数据库表、不 bump `currentDbVersion`（P1 保持 11）。
 - 不引入脚本运行时/新原生依赖（P1 纯数据）。
 - 不把插件 prompt 全文、用户书籍内容或凭据写入日志。
 - 不让插件设置出现 `password` 类型（明文凭据会进设置导出，见 §5.2）。
+- 插件包文件不进入设置备份；备份只带 `pluginState` 与 `pluginConfig_*`。
 
 ---
 
@@ -83,24 +85,25 @@ P1a 已实现并通过本地测试（45 项插件相关测试）。下一步：
 
 1. 冻结插件包规范 v1：包结构、`manifest.json`、能力令牌、版本与限额、拒绝理由，且**预留脚本贡献位而无需改 schema**。
 2. 落地一个可安装、可启停、可卸载、可升级的插件宿主，插件包为**纯数据**，不含任何可执行代码。
-3. 首批贡献类型：`aiSkill`（AI Prompt 注册），把插件提示词物化为用户提示词（`UserPrompt`），并通过 `ContributionHandler` 注册表挂载，为后续类型留位。`selectionAction` 放到 P1b。
-4. 插件状态与配置持久化；设置导出/导入放到 P1c（同阶段第三个 PR）。
-5. 6 平台（Android / iOS / macOS / Windows / Linux / HarmonyOS）行为一致：**安装、启停、卸载全部可用**。
+3. 首批贡献类型：`aiSkill`（AI Prompt 注册）与 `selectionAction`（划词工具栏动作），分别物化为用户提示词与自定义 AI 命令，并通过 `ContributionHandler` 注册表挂载，为后续类型留位。
+4. 插件状态与插件设置持久化，并接入设置导出/导入；插件包文件不进入备份。
+5. 6 平台（Android / iOS / macOS / Windows / Linux / HarmonyOS）行为一致：**安装、启停、卸载、插件设置与设置迁移全部可用**。
 
 ### 1.2 非目标（本期明确不做）
 
 - 不执行任何插件代码（JS/Dart/原生）。
-- 本 PR 不做划词动作（P1b）、不做设置导出/导入（P1c）。
 - 不允许插件自带 Flutter UI、不允许插件访问书库、笔记、AI Key、同步凭据。
 - 不做插件市场、不做远程安装、不做签名校验（只做 SHA-256 完整性校验）。
 - 不新增数据库表，不修改 DB 版本（保持 `currentDbVersion = 11`）。
 - 不把插件包纳入设置备份（备份只带状态与配置，见 §5.4）。
 - 不修改 `AiToolRegistry` / 阅读技能策略 / TTS / 翻译 / 词典分发（这些属于 P2）。
 
-### 1.3 完成定义（DoD，P1a）
+### 1.3 完成定义（DoD，P1）
 
-- `flutter analyze` 无新增告警；`flutter test` 全绿；新增测试覆盖 §10 中标记 P1a 的条目。
+- `flutter analyze` 无新增告警；`flutter test` 全绿；新增测试覆盖 §10 中标记 P1a/P1b/P1c 的条目。
 - 用样例插件在 6 平台完成「安装 → 启用 → AI 提示词选择器出现模板 → 停用消失 → 卸载清理」。
+- 含 `selectionAction` 的包在 6 平台完成「安装 → 划词工具栏出现动作 → 停用/卸载移除 → 用户编辑后保留」。
+- 设置备份在另一设备恢复后插件显示 `missing`，重新安装后设置仍在；非法 `pluginState`/`pluginConfig_*` 被整体拒绝。
 - 恶意包（路径穿越、zip bomb、重复 id、超大 manifest、未知能力）全部被拒绝并给出可读原因。
 - 插件状态重启后保持；包缺失时显示 `missing` 且不崩溃。
 
@@ -148,13 +151,13 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
 {
   "schemaVersion": 1,
   "id": "com.example.prompt-pack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": { "zh-CN": "示例提示词包", "en": "Example prompt pack" },
-  "description": { "zh-CN": "两个 AI 提示词模板。", "en": "Two AI prompt templates." },
+  "description": { "zh-CN": "两个 AI 提示词模板、一个划词动作和一组插件设置。", "en": "Two AI prompts, one selection action and plugin settings." },
   "author": { "name": "Example", "url": "https://example.com" },
   "license": "CC0-1.0",
   "minAppVersion": "1.3.1",
-  "capabilities": ["ai:prompt-pack"],
+  "capabilities": ["ai:prompt-pack", "ui:selection-action"],
   "contributes": [
     {
       "kind": "aiSkill",
@@ -173,6 +176,42 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
       "description": { "zh-CN": "针对当前内容提出 3 个追问。", "en": "Three follow-up questions." },
       "prompt": "针对当前内容提出 3 个由浅入深的追问，并说明每个问题想检验什么。",
       "enabled": true
+    },
+    {
+      "kind": "selectionAction",
+      "schema": 1,
+      "id": "explain-selection",
+      "name": { "zh-CN": "简明解释", "en": "Explain simply" },
+      "icon": "lightbulb",
+      "prompt": "解释 {selection} 的含义与关键概念，简明直接，不编造。",
+      "scope": "context",
+      "enabled": true
+    }
+  ],
+  "settings": [
+    {
+      "key": "tone",
+      "type": "select",
+      "label": { "zh-CN": "回答语气", "en": "Answer tone" },
+      "options": ["concise", "detailed"],
+      "defaultValue": "concise"
+    },
+    {
+      "key": "quote_original",
+      "type": "toggle",
+      "label": { "zh-CN": "引用原文", "en": "Quote the original" },
+      "defaultValue": false
+    },
+    {
+      "key": "max_words",
+      "type": "number",
+      "label": { "zh-CN": "最大字数", "en": "Maximum words" },
+      "defaultValue": 300
+    },
+    {
+      "key": "hint",
+      "type": "tip",
+      "description": { "zh-CN": "设置会被保存和导出；当前版本不执行插件代码。", "en": "Settings are stored and exported; this version runs no plugin code." }
     }
   ],
   "hostApi": 1
@@ -189,9 +228,9 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
 | `name`/`description`/`label` | 字符串或 `{locale: string}`；locale 键接受 `zh-CN`/`en` 等，回退链：精确 → 语言前缀 → `en` → 首个值 |
 | `license` | SPDX 标识，必填；UI 展示并要求用户确认 |
 | `minAppVersion` | 可选；`pub_semver` 解析，高于当前版本则拒绝 |
-| `capabilities` | 见 §3.4；P1a 只开放 `ai:prompt-pack` |
+| `capabilities` | 见 §3.4；P1 开放 `ai:prompt-pack` 与 `ui:selection-action` |
 | `contributes` | ≤ 40 项；`kind` 见 §3.3 |
-| `settings` | 可选；P1a **解析但忽略**（不渲染、不写配置）。P1b 启用时类型限 `text`/`number`/`toggle`/`select`/`tip`，不支持 `password`（明文凭据风险，见 §5.2） |
+| `settings` | 可选；P1b 起在详情页渲染，类型限 `text`/`number`/`toggle`/`select`/`tip`，不支持 `password`（明文凭据风险，见 §5.2） |
 | `hostApi` | 可选，默认 1；本期只接受 1 |
 
 ### 3.3 贡献类型（按阶段开放）
@@ -199,7 +238,7 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
 | `kind` | 阶段 | 语义 | 关键字段 |
 |---|---|---|---|
 | `aiSkill` | **P1a 实现** | 用户提示词模板，出现在 AI 提示词选择器 | `id` `name` `description` `prompt` `enabled` |
-| `selectionAction` | P1b | 划词工具栏动作，执行时发送 prompt 到 AI 面板 | `id` `name` `icon` `prompt` `scope` `enabled` |
+| `selectionAction` | **P1b 实现** | 划词工具栏动作，执行时发送 prompt 到 AI 面板 | `id` `name` `icon` `prompt` `scope` `enabled` |
 | `translatorProvider` | P2 | 翻译引擎声明 | — |
 | `ttsProvider` | P2 | TTS 引擎声明 | — |
 | `dictionarySource` | P3 | 词典 HTTP 源映射 | — |
@@ -209,10 +248,10 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
 
 ### 3.4 能力令牌
 
-| 令牌 | 含义 | P1a |
+| 令牌 | 含义 | P1 |
 |---|---|---|
 | `ai:prompt-pack` | 添加提示词模板 | 允许 |
-| `ui:selection-action` | 向划词工具栏添加动作 | 已知但**不开放**：安装时拒绝并提示「需要更高版本」 |
+| `ui:selection-action` | 向划词工具栏添加动作 | 允许（P1b 起） |
 | `net:http` | 由宿主代理发起 HTTP（域名白名单） | 拒绝安装 |
 | `script:run` | 执行包内 JS | 拒绝安装 |
 | `library:read` | 读取书库/笔记 | 拒绝安装 |
@@ -226,29 +265,29 @@ my-pack-1.0.0.moduplugin        # 实际是 zip，扩展名仅用于区分
 2. 条目数与解压总量限额、路径安全检查。
 3. `manifest.json` 存在、≤ 64 KB、合法 JSON。
 4. `schemaVersion` → `id` → `version` → `license` → `hostApi` → `minAppVersion`。
-5. 能力集合 ⊆ **当前开放集合**（P1a 仅 `ai:prompt-pack`）。已知但未开放的能力报「需要更高版本」，未知能力报「未知能力」，两者都拒绝安装。
-6. 贡献项逐个校验（数量、id 唯一、字段类型、prompt ≤ 8000 字符、显示名 ≤ 40 字符；P1b 起 `selectionAction.name` 另受工具栏限制 ≤ 30 字符、`icon` ∈ 现有 `iconIds`）。
-7. 设置项校验（key 唯一、类型受支持、`select` 有 options、`defaultValue` 类型匹配）——P1a 只做结构校验，不写配置。
+5. 能力集合 ⊆ **当前开放集合**（P1 为 `ai:prompt-pack`、`ui:selection-action`）。已知但未开放的能力报「需要更高版本」，未知能力报「未知能力」，两者都拒绝安装。
+6. 贡献项逐个校验（数量、id 唯一、字段类型、prompt ≤ 8000 字符、显示名 ≤ 40 字符；`selectionAction.name` ≤ 30 字符、`icon` ∈ 现有 `iconIds`、自定义动作总数 ≤ 24）。
+7. 设置项校验（key 唯一、类型受支持、`select` 有 options、`defaultValue` 类型匹配）——P1b 起写入 `pluginConfig_<id>`。
 8. 与已装插件冲突检查（同 id 的版本关系）。
 
 每个失败分支返回结构化 `PluginInstallError { code, message, offendingEntry? }`，UI 直接展示 message，日志只记 code 与 entry，不记 prompt 全文。
 
-### 3.6 示例插件（P1a 必须交付）
+### 3.6 示例插件（P1b 后更新）
 
 位置：`docs/examples/plugins/prompt-pack/`
 
 ```
 prompt-pack/
-├── manifest.json          # 即 §3.2 的示例，两个 aiSkill
+├── manifest.json          # 即 §3.2 的示例：两个 aiSkill、一个 selectionAction、四个 settings
 ├── LICENSE                # CC0-1.0
 └── README.md              # 安装步骤、贡献说明、如何改 prompt
 ```
 
-打包：`dart run scripts/dev/pack_plugin.dart docs/examples/plugins/prompt-pack`，输出 `prompt-pack-1.0.0.moduplugin`，再在设置 → 插件 → 安装中选中。样例必须能被自动化测试直接构造（不依赖手工 zip），因此 `PluginPackageReader` 的测试用同一份目录打成内存 zip。
+打包：`dart run scripts/dev/pack_plugin.dart docs/examples/plugins/prompt-pack`，输出 `prompt-pack-1.1.0.moduplugin`，再在设置 → 插件 → 安装中选中。样例必须能被自动化测试直接构造（不依赖手工 zip），因此 `PluginPackageReader` 的测试用同一份目录打成内存 zip。`sample_plugin_test.dart` 会安装仓库内的样例并断言两条提示词、一个划词动作与设置声明。
 
 ---
 
-## 4. 运行时架构（P1a）
+## 4. 运行时架构（P1）
 
 ### 4.1 组件
 
@@ -260,7 +299,8 @@ prompt-pack/
 | `PluginPaths` | `lib/service/plugins/plugin_paths.dart` | `plugins/`、`plugins/.staging/`、`plugins/.trash/` 的路径与创建 |
 | `PluginHost` | `lib/service/plugins/plugin_host.dart` | 单例 + `ChangeNotifier`；initialize/install/enable/disable/uninstall/upgrade；状态持久化；错误隔离 |
 | `PluginContributionHandler` | `lib/service/plugins/plugin_contribution_handler.dart` | 贡献类型接口 + 按 `kind` 的注册表（D9） |
-| `AiPromptContributionHandler` | `lib/service/plugins/handlers/ai_prompt_handler.dart` | P1a 唯一实现：把 `aiSkill` 物化为 `UserPrompt` |
+| `SelectionActionHandler` | `lib/service/plugins/handlers/selection_action_handler.dart` | P1b：把 `selectionAction` 物化为工具栏 `aiCommand`，含 24 名额与哈希守卫 |
+| `PluginConfig` | `lib/service/plugins/plugin_config.dart` | `pluginConfig_<id>` 的编解码、导入校验与默认值合并 |
 | `PluginContributions` | `lib/service/plugins/plugin_contributions.dart` | 编排 apply/remove：逐个 handler 调用、快照回滚、哈希守卫 |
 | `ScriptRuntime` | `lib/service/plugins/script_runtime.dart` | 仅接口与 `NoopScriptRuntime`；P4 实现 `WebViewScriptRuntime` |
 | 设置页 | `lib/page/settings_page/plugins/` | 列表、详情、权限、安装/卸载交互 |
@@ -328,7 +368,7 @@ main()
 
 - 任何单个插件的异常只影响该插件：捕获 → `lastError`（≤ 500 字符，脱敏）→ 状态置 `broken` 或保持 `disabled`。
 - `initialize()` 整体异常：记录 `AnxLog.severe`，注册表置空，应用继续启动。
-- 贡献物化失败：回滚到安装前的 `userPrompts` 快照（P1b 起再含 `selectionToolbar`），安装失败并清理 staging。
+- 贡献物化失败：回滚到安装前的 `userPrompts` 与 `selectionToolbar` 快照，安装失败并清理 staging。
 
 ### 4.6 贡献类型注册表（D9）
 
@@ -344,7 +384,7 @@ abstract class PluginContributionHandler {
 }
 ```
 
-P1a 只注册 `AiPromptContributionHandler`；P1b 增加 `SelectionActionHandler`；P2/P4 的引擎与脚本沿用同一接口。新增类型 = 新增一个 handler 文件 + 一行注册，不需要改 `plugin_host.dart`。
+P1 注册 `AiPromptContributionHandler` 与 `SelectionActionContributionHandler`；P2/P4 的引擎与脚本沿用同一接口。新增类型 = 新增一个 handler 文件 + 一行注册，不需要改 `plugin_host.dart`。
 
 ---
 
@@ -355,33 +395,32 @@ P1a 只注册 `AiPromptContributionHandler`；P1b 增加 `SelectionActionHandler
 | 键 | 阶段 | 内容 |
 |---|---|---|
 | `pluginState` | **P1a** | `{"schemaVersion":1,"plugins":[PluginRecord…]}` |
-| `pluginConfig_<id>` | P1b 预留 | 插件设置值对象，键来自 manifest `settings`；P1a 不写入 |
+| `pluginConfig_<id>` | **P1b** | 插件设置值对象，仅保存用户改过的键；缺失键使用 manifest `settings[].defaultValue` |
 
-`Prefs` 增加（P1a 只实现前三个）：
+`Prefs` 已实现：
 
 ```dart
 PluginState get pluginState;
 Future<void> savePluginState(PluginState state);   // 写后 notifyListeners()
-Future<void> removePluginData(String id);          // 卸载：删状态记录（P1b 起再删 pluginConfig_<id>）
+Future<void> removePluginData(String id);          // 卸载：删状态记录与 pluginConfig_<id>
 
-// P1b 预留，P1a 不实现
-// Map<String, dynamic> pluginConfig(String id);
-// Future<void> savePluginConfig(String id, Map<String, dynamic> values);
+Map<String, dynamic> pluginConfig(String id);
+Future<void> savePluginConfig(String id, Map<String, dynamic> values);
 ```
 
-### 5.2 接入设置导出/导入（P1c）
+### 5.2 接入设置导出/导入（P1c，已实现）
 
-P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与结构按本节预留，P1c 一次接通。三处必须同时改：
+三处同时接通：
 
 1. `lib/service/config_transfer/settings_modules.dart`
    - `settingsModuleKeys['plugins'] = 'pluginState'`
    - `settingsModuleForKey()` 增加 `if (key.startsWith('pluginConfig_')) return 'plugins';`
 2. `lib/service/config_transfer/global_settings_transfer.dart`
    - `_types` 增加 `'pluginState': 'string'`
-   - 前缀白名单增加 `'pluginConfig_'`
+   - `_type()` 前缀白名单增加 `'pluginConfig_'`
 3. `lib/service/config_transfer/settings_value_validation.dart`
-   - `pluginState`：解析 JSON，校验 `schemaVersion`、id 唯一、字段类型、长度上限。
-   - `pluginConfig_*`：必须是 JSON 对象；插件存在时按 manifest settings 逐项校验类型，插件缺失时只校验对象形状。
+   - `pluginState`：`PluginState.parseStrict()` 校验 `schemaVersion`、id 格式与唯一性、字段类型、记录数上限（100）。
+   - `pluginConfig_*`：必须是 JSON 对象；插件已安装时按 manifest `settings` 逐项校验类型与 `select` 选项，缺失时只校验对象形状；未知键保留，便于新版本设置向后兼容。
 
 导出后插件包**不随设置走**：导入端会出现 `missing`，UI 文案说明「插件文件需重新安装，配置已保留」。
 
@@ -389,7 +428,7 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 
 ### 5.3 数据库备份
 
-`Prefs.buildPrefsBackupMap()` 会打包 SharedPreferences，因此插件状态会随数据库备份一起走，无需改动；P1c 需用一个测试确认恢复后 `pluginState` 可解析、`missing` 状态正确。
+`Prefs.buildPrefsBackupMap()` 会打包 SharedPreferences，因此插件状态会随数据库备份一起走，无需改动；`test/service/config_transfer/plugin_settings_transfer_test.dart` 验证恢复后 `pluginState` 可解析、`missing` 状态正确。
 
 ### 5.4 卸载语义
 
@@ -429,15 +468,15 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 - 物化前保存 `userPrompts` 原始 JSON 快照；任一步失败按快照写回，清理 staging，状态回滚。
 - 写入顺序：先写 `userPrompts`，成功后再写 `pluginState`，避免崩溃留下「状态已记、贡献未落」。
 
-### 6.3 `selectionAction`（P1b，本 PR 不实现）
+### 6.3 `selectionAction`（P1b，已实现）
 
-同一套 prompt 机制，但目标换成 `SelectionToolbarItem`（`action: aiCommand`），并额外处理：
+同一套 prompt 机制，但目标换成 `SelectionToolbarItem`（`action: aiCommand`）：
 
-- 自定义动作名额 ≤ 24（安装前检查，不改 `validate()`）；
-- `name` ≤ 30、`icon` ∈ `SelectionToolbarConfig.iconIds`、`skillId` 固定 `selection_toolbar`；
-- 卸载时同样做哈希守卫，用户编辑过的动作保留为普通 `custom-` 项。
-
-接口已由 §4.6 的 `PluginContributionHandler` 预留，P1b 只需新增 `selection_action_handler.dart` 并注册。
+- 物化 id：`custom-plugin:<pluginId>:<actionId>`。前缀必须是 `custom-`，以复用现有 `validate()` 的自定义动作规则；组合后 id 超过 100 字符时拒绝安装。
+- 自定义动作名额 ≤ 24（安装前检查，不改 `validate()`）；升级时已属于该插件的动作不重复占名额。
+- `name` ≤ 30、`icon` ∈ `SelectionToolbarConfig.iconIds`、`skillId` 固定 `selection_toolbar`、`scope` 为 `context` 或 `selection`。
+- 哈希覆盖名称、图标、prompt 与 scope；卸载时一致才删除，不一致则改 id 为 `custom-<timestamp>` 并保留为普通自定义命令。
+- 快照与回滚同时覆盖 `userPrompts` 与 `selectionToolbar`。
 
 ---
 
@@ -450,7 +489,7 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 - 标题：`ModuStrings.text(context, '插件', 'Plugins')`
 - 图标：`Icons.extension_outlined`
 - 副标题：`已安装 N 个 · 启用 M 个`
-- 位置：`高级` 之前（P1a 常驻显示，不依赖开发者选项）
+- 位置：`高级` 之前（始终显示，不依赖开发者选项）
 
 移动端复用同一 `SubMoreSettings`，无需额外入口。
 
@@ -461,12 +500,13 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 - 菜单：详情、重新安装、卸载（二次确认，说明会删除哪些内容）。
 - 空态：说明包格式并链接到样例插件文档。
 
-### 7.3 详情页（P1a）
+### 7.3 详情页（P1）
 
 - 基本信息：id、版本、许可证、作者、安装时间、包 SHA-256。
 - 权限：由宿主维护的能力说明（`ai:prompt-pack` → 「添加 AI 提示词模板」），不直接展示插件自述。
 - 贡献列表：提示词名称与启用状态。
-- 设置：P1a 不渲染（manifest `settings` 解析后忽略）；P1b 起复用 `ServiceConfigForm`（`lib/widgets/settings/service_config_form.dart:8-18`）。
+- 设置：P1b 起在详情页复用 `ServiceConfigForm` 渲染；修改后短暂防抖自动保存到 `pluginConfig_<id>`。
+- 划词动作：详情页显示动作名称与已用/剩余 24 个自定义名额。
 - 诊断：最近一次错误（脱敏）、manifest 原始文本（折叠）。
 
 ### 7.4 文案
@@ -481,17 +521,20 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 
 | 文件 | 内容 |
 |---|---|
-| `lib/models/plugin_manifest.dart` | `PluginManifest`、`PluginContribution`（`AiSkillContribution` + `UnknownContribution` 保底）、`PluginSettingSpec`（P1a 仅解析）；手写严格 `fromJson` 与限额常量 |
-| `lib/models/plugin_state.dart` | `PluginRecord`、`PluginState`、`PluginStatus` 枚举；JSON 编解码 |
+| `lib/models/plugin_manifest.dart` | `PluginManifest`、`PluginContribution`（`AiSkillContribution`、`SelectionActionContribution` + `UnknownContribution` 保底）、`PluginSettingSpec`；手写严格 `fromJson` 与限额常量 |
+| `lib/models/plugin_state.dart` | `PluginRecord`、`PluginState`（普通解析 + 导入用 `parseStrict`）、`PluginStatus` 枚举；JSON 编解码 |
 | `lib/service/plugins/plugin_package.dart` | `PluginPackageReader.read(File)`：限额、路径安全、解压 staging、manifest 解析、`PluginInstallError` |
 | `lib/service/plugins/plugin_paths.dart` | 目录常量与 `ensureCreated()`、`cleanStale()` |
 | `lib/service/plugins/plugin_host.dart` | 单例、`ChangeNotifier`、安装/启停/卸载/升级、启动扫描、错误隔离 |
 | `lib/service/plugins/plugin_contribution_handler.dart` | D9 的 handler 接口与注册表 |
-| `lib/service/plugins/handlers/ai_prompt_handler.dart` | `aiSkill` → `UserPrompt` 的 apply/remove、哈希守卫 |
+| `lib/service/plugins/handlers/ai_prompt_handler.dart` | P1a：`aiSkill` → `UserPrompt` 的 apply/remove、哈希守卫 |
+| `lib/service/plugins/handlers/selection_action_handler.dart` | P1b：`selectionAction` → 工具栏自定义命令的 apply/remove、24 名额与哈希守卫 |
+| `lib/service/plugins/handlers/plugin_locale.dart` | 贡献物化时统一解析当前 locale |
+| `lib/service/plugins/plugin_config.dart` | `pluginConfig_<id>` 编解码、导入校验与默认值合并 |
 | `lib/service/plugins/plugin_contributions.dart` | 编排：按 kind 找 handler、快照回滚 |
 | `lib/service/plugins/script_runtime.dart` | `ScriptRuntime` 接口 + `NoopScriptRuntime`（P4 扩展点） |
 | `lib/page/settings_page/plugins/plugins_page.dart` | 列表页 |
-| `lib/page/settings_page/plugins/plugin_detail_page.dart` | 详情页（权限/贡献/诊断） |
+| `lib/page/settings_page/plugins/plugin_detail_page.dart` | 详情页（权限/贡献/插件设置/诊断/名额） |
 | `scripts/dev/pack_plugin.dart` | 把目录打成确定性 zip（条目排序、固定时间戳），供测试与样例发布 |
 | `docs/examples/plugins/prompt-pack/` | 样例插件：`manifest.json` + `LICENSE`(CC0) + `README.md`，两个 `aiSkill` |
 
@@ -501,12 +544,16 @@ P1a **不接线**，否则插件状态会在导出时被静默丢弃；键名与
 |---|---|---|
 | `lib/main.dart` | `DBHelper().initDB()` 后调用 `PluginHost.initialize()`；`onWindowClose()` 中 `dispose()` | `:173`、`:287` |
 | `lib/utils/get_path/get_base_path.dart` | 新增 `getPluginDir()` 并在 `initBasePath()` 创建 | `:67-87`、`:95-113` 邻接 |
-| `lib/config/shared_preference_provider.dart` | 新增 `pluginState` 读写与 `removePluginData`（§5.1 前三个） | `:195-230` 区域 |
+| `lib/models/selection_toolbar.dart` | `SelectionToolbarItem.copyWith` 增加 `id`（卸载时把用户编辑过的插件动作改名为 `custom-*`）；`validate()` 未改 | `:31` |
+| `lib/widgets/settings/service_config_form.dart` | 数字输入接受小数；文本项支持 `maxLength`（插件文本设置上限 8000） | `:147` |
+| `lib/service/config/config_item.dart` | 增加可选 `maxLength`，供插件文本设置限制输入长度 | `:20` |
+| `lib/config/shared_preference_provider.dart` | `pluginState` 读写、`pluginConfig_<id>` 读写、`removePluginData`（状态 + 设置） | `:1461` 附近 |
+| `docs/SETTINGS.md` / `docs/SETTINGS_zh.md` | 增加「插件」设置说明与备份边界 | 设置入口与备份章节 |
 | `lib/page/settings_page/more_settings_page.dart` | 设置列表新增「插件」项 | `:97-207` |
 | `pubspec.yaml` | 显式声明 `pub_semver`（当前经 `pubspec_parse` 传递可用） | `dependencies` 段 |
-| `docs/SETTINGS.md` | 增加「插件」设置说明（P1c 随导出说明一起补） | 设置分类章节 |
+| `docs/SETTINGS.md` / `docs/SETTINGS_zh.md` | 增加「插件」设置说明与备份边界 | 设置分类章节 |
 
-P1c 才修改 `settings_modules.dart`、`global_settings_transfer.dart`、`settings_value_validation.dart`；P1b 才修改 `lib/models/selection_toolbar.dart` 相关调用（不修改其 `validate()`）。
+P1b 修改 `lib/models/selection_toolbar.dart` 的 `copyWith`（不修改 `validate()`）；P1c 修改 `settings_modules.dart`、`global_settings_transfer.dart`、`settings_value_validation.dart`。
 
 不改动：数据库、同步、TTS、翻译、词典、AI 工具注册表、`SelectionToolbarConfig.validate()`。
 
@@ -562,7 +609,7 @@ final custom = config.items.where((i) => i.isCustom).length;
 if (custom + actions.length > 24) throw PluginInstallError.noToolbarSlots(24 - custom);
 ```
 
-### 9.4 安装伪代码（P1a）
+### 9.4 安装伪代码（P1）
 
 ```
 install(file):
@@ -580,7 +627,7 @@ install(file):
     restore snapshot; clean staging; rethrow
 ```
 
-顺序上先应用贡献再落盘，失败时状态从未写入；`savePluginState` 写后 `notifyListeners()`，UI 立即刷新。P1b 起在 snapshot 中追加 `selectionToolbar`。
+顺序上先应用贡献再落盘，失败时状态从未写入；`savePluginState` 写后 `notifyListeners()`，UI 立即刷新。P1b 起 snapshot 同时包含 `userPrompts` 与 `selectionToolbar`，回滚两者都恢复。
 
 ---
 
@@ -588,15 +635,16 @@ install(file):
 
 | 阶段 | 层级 | 文件 | 覆盖 |
 |---|---|---|---|
-| P1a | 模型 | `test/models/plugin_manifest_test.dart` | 合法/缺字段/类型错误/超长/未知 kind 忽略/未开放能力拒绝/i18n 回退/`settings` 忽略 |
+| P1a | 模型 | `test/models/plugin_manifest_test.dart` | 合法/缺字段/类型错误/超长/未知 kind 忽略/未开放能力拒绝/i18n 回退/`settings` 解析 |
 | P1a | 包读取 | `test/service/plugins/plugin_package_test.dart` | 正常包、缺 manifest、超大、条目超限、zip bomb 比、`..`、绝对路径、空段路径、反斜杠归一化、非 zip、未开放能力 |
 | P1a | 宿主 | `test/service/plugins/plugin_host_test.dart` | 安装、重复安装、升级、降级拒绝、启停、卸载、missing、broken、`initialize` 幂等 |
 | P1a | 贡献 | `test/service/plugins/plugin_contributions_test.dart` | `aiSkill` 物化字段、顺序、30 条上限、用户编辑后卸载改名保留、失败回滚、升级替换 |
-| P1a | 组件 | `test/widgets/settings/plugins_page_test.dart` | 空态、状态徽标、开关、卸载确认、详情页权限与贡献列表 |
-| P1a | 样例 | `test/service/plugins/sample_plugin_test.dart` | 直接读取 `docs/examples/plugins/prompt-pack/`，打包后安装到 mock Prefs，断言两条提示词 |
-| P1b | 工具栏 | `test/service/plugins/selection_action_test.dart` | 24 名额边界、name/icon 校验、哈希守卫、用户编辑保留 |
-| P1b | 回归 | 现有 `test/widgets/selection_toolbar*` | 工具栏编解码与上限未被破坏 |
-| P1c | 配置 | `test/service/config_transfer/plugin_settings_transfer_test.dart` | 导出含 `pluginState`、往返一致、非法形状拒绝 |
+| P1a | 组件 | `test/widgets/settings/plugins_page_test.dart` | 空态、状态徽标、开关、卸载确认、详情页权限与贡献列表、插件设置渲染与落盘 |
+| P1a/P1b | 样例 | `test/service/plugins/sample_plugin_test.dart` | 直接读取 `docs/examples/plugins/prompt-pack/`，打包后安装到 mock Prefs，断言两条提示词、一个划词动作与设置声明 |
+| P1b | 工具栏 | `test/service/plugins/selection_action_test.dart` | 24 名额边界、name/icon/scope 校验、哈希守卫、用户编辑保留、升级不重复占名额 |
+| P1b | 设置 | `test/widgets/settings/plugins_page_test.dart` | 详情页动作与插件设置渲染、设置修改落盘 |
+| P1b | 回归 | 现有 `test/models/selection_toolbar_test.dart`、`test/widgets/selection_toolbar_test.dart` | 工具栏编解码与上限未被破坏（46 项通过） |
+| P1c | 配置 | `test/service/config_transfer/plugin_settings_transfer_test.dart` | 导出含 `pluginState`/`pluginConfig_*`、往返一致、非法形状与类型拒绝、卸载清理 |
 
 P1a 手工验收（记录到 PR）：
 
@@ -608,19 +656,27 @@ P1a 手工验收（记录到 PR）：
 6. 恶意包由 `test/service/plugins/plugin_package_test.dart` 构造（路径穿越、zip bomb、超大条目、未知能力），逐项被拒并给出可读原因。
 7. 导出/导入设置在 P1c 验收；P1a 只需确认导出不会破坏应用（插件键被忽略）。
 
+P1b/P1c 手工验收（记录到 PR）：
+
+1. 安装含 `selectionAction` 的包 → 划词工具栏出现动作，执行后 AI 收到完整 prompt；停用/卸载后消失。
+2. 手工修改插件动作的名称/图标/prompt → 卸载 → 动作保留为普通自定义命令（id 已改为 `custom-*`）。
+3. 工具栏已有 24 个自定义动作时安装新动作被拒绝，提示剩余名额；删除一个后可安装。
+4. 修改插件设置 → 重启后保持；导出设置到另一设备 → 插件显示 `missing`、设置仍在，重新安装包后可继续使用。
+5. 导入被篡改的 `pluginState` 或 `pluginConfig_*` → 整体拒绝，未修改任何本地设置。
+
 ---
 
 ## 11. PR 拆分与验收
 
-P1 拆三个 PR；**本轮只做 P1a**：
+P1 拆三个 PR；三个 PR 均已实现：
 
 | PR | 内容 | 预估 | 验收 |
 |---|---|---|---|
-| **P1a（本次交付）** | manifest/state 模型、包读取、宿主、`aiSkill` handler、设置页（列表/详情/权限）、`main.dart` 接线、样例插件、`pack_plugin.dart`、全部 P1a 测试 | 6–7 人日 | 6 平台装/卸/停用；样例插件安装后 AI 面板出现模板；恶意包全拒；`flutter analyze` 干净 |
-| **P1b** | `selectionAction` handler + 工具栏名额/哈希守卫 + 详情页动作列表 | 3–4 人日 | 24 名额边界；用户编辑保留；现有工具栏回归通过 |
-| **P1c** | 设置导出/导入接线 + 校验 + `docs/SETTINGS.md` | 2–3 人日 | 备份往返一致；缺失插件显示 `missing` |
+| **P1a（已实现）** | manifest/state 模型、包读取、宿主、`aiSkill` handler、设置页（列表/详情/权限）、`main.dart` 接线、样例插件、`pack_plugin.dart`、全部 P1a 测试 | 6–7 人日 | 6 平台装/卸/停用；样例插件安装后 AI 面板出现模板；恶意包全拒；`flutter analyze` 干净 |
+| **P1b（已实现）** | `selectionAction` handler + 工具栏名额/哈希守卫 + 详情页动作列表 + `pluginConfig_` 设置表单 | 3–4 人日 | 24 名额边界；用户编辑保留；现有工具栏回归通过 |
+| **P1c（已实现）** | 设置导出/导入接线 + 校验 + `docs/SETTINGS.md` / `SETTINGS_zh.md` | 2–3 人日 | 备份往返一致；缺失插件显示 `missing` |
 
-P1a 内部提交顺序（每个提交都能编译、测试通过）：
+P1 内部提交顺序（P1a 已完成；P1b/P1c 各一个提交，每个提交都能编译、测试通过）：
 
 1. `plugin_manifest.dart` + `plugin_state.dart` + 单测（含限额、i18n、未知 kind/能力）。
 2. `plugin_package.dart` + `plugin_paths.dart` + 路径安全/限额单测。
@@ -629,7 +685,7 @@ P1a 内部提交顺序（每个提交都能编译、测试通过）：
 5. 设置页 + 入口 + 组件测试。
 6. `main.dart` 接线 + 样例插件 + `pack_plugin.dart` + 文档。
 
-总计 P1 约 **11–14 人日**（含联调与返工缓冲）。P1a 不触及数据库、设置导出、同步、TTS/翻译/词典与划词工具栏，评审面最小；P1b/P1c 各自独立可回滚。
+总计 P1 约 **11–14 人日**（含联调与返工缓冲）。P1a 不触及数据库、设置导出、同步、TTS/翻译/词典与划词工具栏；P1b 只改工具栏物化与设置表单；P1c 只改设置迁移，三者各自独立可回滚。
 
 ---
 
@@ -665,12 +721,14 @@ P1a 内部提交顺序（每个提交都能编译、测试通过）：
 
 | 阶段 | 本文档需要保证的接口 | 后续改动 |
 |---|---|---|
-| P1b | `PluginContributionHandler` 注册表、`AppliedContribution` 通用结构 | 新增 `selectionAction` handler；快照与回滚扩展到 `selectionToolbar` |
-| P1c | `pluginState` 结构稳定、`PluginStatus.missing` 已实现 | 接入导出/导入与校验 |
-| P2 注册表化 | `PluginContribution.kind` 字符串、能力令牌、`PluginRecord.applied` 通用结构 | TTS/翻译/词典/工具改为 ID 注册表，新增 `ttsProvider` 等 kind |
-| P3 网络插件 | 能力模型已含 `net:http`；`PluginSettingSpec` 可承载域名/密钥 | 增加域名白名单、限额、请求代理 |
+| P1b | `PluginContributionHandler` 注册表、`AppliedContribution` 通用结构 | 已新增 `selectionAction` handler；快照与回滚扩展到 `selectionToolbar` |
+| P1c | `pluginState` 结构稳定、`PluginStatus.missing` 已实现 | 已接入导出/导入、严格校验与模块作用域 |
+| P2 注册表化 | `PluginContribution.kind` 字符串、能力令牌、`PluginRecord.applied` 通用结构 | TTS/翻译/词典/工具改为 ID 注册表；P2 不开放 provider 贡献，详见 P2–P3 文档 |
+| P3 网络插件 | 能力模型已含 `net:http`；`PluginSettingSpec` 可承载域名/密钥 | 首个开放 `dictionarySource`；增加域名白名单、限额、请求代理；翻译/TTS 留到 P3.1 |
 | P4 脚本宿主 | `ScriptRuntime` 接口、`script` kind、`hostApi` 版本 | 实现 `WebViewScriptRuntime`，能力 `script:run`，OHOS 用 overlay 适配器 |
 | P5 生态 | 包 SHA-256 已存在；状态机已有 `broken/missing` | 增加签名/撤销列表、市场元数据、开发者工具 |
+
+P2/P3 的 manifest 形状、注册表接口、网络守卫、密钥边界、测试计划与 PR 拆分见 [插件系统 P2–P3 设计与执行文档](plugin-system-p2-p3.md)。
 
 ### 关于 HarmonyOS
 
@@ -684,12 +742,12 @@ OHOS 有 ArkWeb 版 `flutter_inappwebview`，但只在云构建的依赖覆盖�
 
 ---
 
-## 15. 待确认问题（不阻塞 P1a 开工）
+## 15. 已确认问题（P1 实现依据）
 
-1. 插件提示词默认启用还是默认停用？（当前规范：默认启用，用户可关）
-2. P1c 设置导出里的「插件」模块默认勾选还是默认不勾选？（当前建议：默认勾选，只有小体积 JSON）
-3. 是否在 P1a 就加入「插件」入口的开发者选项门控？（当前建议：不加，面向普通用户）
-4. 样例插件的许可证用 GPL-3.0-or-later 还是 CC0？（当前建议：CC0，便于复制模板）
+1. 插件提示词默认启用 — 已按规范实现（manifest `enabled` 缺省 `true`）。
+2. 设置导出中的「插件」模块 — 已实现为默认包含（`all` 与 `plugins` 作用域），仅有小型 JSON。
+3. 「插件」入口不加开发者选项门控 — 已实现，普通用户可见。
+4. 样例插件许可证 — 已使用 CC0-1.0。
 
 ---
 
@@ -726,11 +784,11 @@ flutter test test/service/plugins/
 
 1. 本文件 §2–§4：约束、包规范、宿主架构。
 2. `lib/models/user_prompt.dart`、`lib/providers/user_prompts.dart`：P1a 的物化目标与写入方式。
-3. `lib/models/selection_toolbar.dart`：P1b 才会用到，先了解其校验上限即可。
+3. `lib/models/selection_toolbar.dart`：P1b 的物化目标，重点看 `validate()` 的 24 个自定义名额与 `custom-` 前缀规则。
 4. `lib/config/shared_preference_provider.dart:1438` 附近：JSON 设置的既有写法。
 5. `lib/main.dart:103-207`、`:257-296`、`:462-475`：启动与关闭路径。
-6. P1c 时再读 `lib/service/config_transfer/{settings_modules,global_settings_transfer,settings_value_validation}.dart`。
-7. P1b 时再读 `lib/widgets/settings/service_config_form.dart`（插件设置表单复用点）。
+6. P1c 的配置迁移：`lib/service/config_transfer/{settings_modules,global_settings_transfer,settings_value_validation}.dart`。
+7. P1b 的插件设置表单：`lib/widgets/settings/service_config_form.dart`。
 
 ### 16.3 术语
 
@@ -749,8 +807,9 @@ flutter test test/service/plugins/
 
 - `Prefs` 是 `ChangeNotifier` 单例，写后 `notifyListeners()`；不要在构造期读未初始化的 `prefs`（`shared_preference_provider.dart:195-230`）。
 - macOS 迁移会二次执行 `initBasePath` / `initDB`，`PluginHost.initialize()` 必须幂等。
-- P1b 才涉及 `SelectionToolbarConfig.encode()` 的 `validate()`（总数、24 个名额、字段长度）；P1a 不要触碰。
-- P1a 写提示词用 `Prefs().userPrompts = list`（内部 `jsonEncode` + `setString`），没有异步保存问题；但仍要「先写提示词、后写 pluginState」。
+- 插件动作走 `SelectionToolbarConfig.encode()` 的 `validate()`（总数、24 个名额、字段长度），因此插件 id 必须保持 `custom-` 前缀；不要修改 `validate()`。
+- P1a 写提示词用 `Prefs().userPrompts = list`（内部 `jsonEncode` + `setString`），没有异步保存问题；但仍要「先写贡献、后写 pluginState」。
+- 插件设置仅保存用户改过的键；读取时用 manifest 默认值补齐，导出时保持原样，避免默认值污染备份。
 - 用户提示词 id 是字符串，不要假设为时间戳数字；插件条目用 `plugin:<pluginId>:<skillId>`。
 - 用户编辑过的插件提示词在卸载时要改成 `custom-<timestamp>` 再保留，否则重装会 id 冲突。
 - `ZipFile.size` 是解压后大小：**先按 `size` 限额，再取 `content`**，否则 zip bomb 在解压阶段就吃满内存。
@@ -767,8 +826,10 @@ flutter test test/service/plugins/
 | 2026-10-23 | v0.1 | 初稿：P0 规范 + P1 执行计划；补交接摘要（§0）、ADR 说明（§2.1）、运行手册（§16）；上游同步至 `0feceeb9` |
 | 2026-10-23 | v0.2 | 按评审收窄首个 PR：P1 拆为 P1a（安装 + `aiSkill` + 示例插件）/ P1b（划词动作）/ P1c（配置导出）；新增 `ContributionHandler` 注册表（D9）；`settings` 推迟到 P1b；同步更新测试与 PR 拆分 |
 | 2026-10-23 | v0.3 | 实现 P1a：manifest/state 模型、包读取与路径安全、宿主（安装/启停/卸载/升级/幂等扫描）、`aiSkill` handler、Prefs `pluginState`、设置页与入口、`main.dart` 接线、示例插件与 `pack_plugin.dart`；45 项测试通过。记录 `archive` 对反斜杠的归一化行为；标注 `flutter analyze` 仅剩基线既有的 `avoid_print` 信息 |
+| 2026-10-23 | v0.4 | 实现 P1b/P1c：开放 `ui:selection-action`；新增 `SelectionActionContribution`/handler（24 名额、名称/图标/scope 校验、哈希守卫、编辑保留为 `custom-*`）；启用 `pluginConfig_` 与详情页 `ServiceConfigForm`；`pluginState`/`pluginConfig_*` 接入设置导出、严格校验与模块作用域；补中英文 `SETTINGS` 插件说明。工具栏 46 项回归、插件与配置新增测试全部通过 |
+| 2026-10-24 | v0.5 | 示例插件升级到 1.1.0：新增 `selectionAction`（`explain-selection`）与 `settings`（select/toggle/number/tip），同步更新 README、执行文档与 `sample_plugin_test` |
 
-### 16.7 给接手 Agent 的启动提示词（P1a 已完成，以下保留为复现/重做指令）
+### 16.7 给接手 Agent 的启动提示词（P1a/P1b/P1c 已完成，以下保留为复现/重做指令）
 
 ```text
 仓库：D:\Code\modureader（Flutter 3.47.2，FVM）。基线：main @ 0feceeb9，工作区除

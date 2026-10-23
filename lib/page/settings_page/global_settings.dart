@@ -44,6 +44,8 @@ class _GlobalSettingsPageState extends ConsumerState<GlobalSettingsPage> {
         'ai' => ModuStrings.text(context, 'AI 供应商与对话', 'AI providers and chat'),
         'ai-skills' =>
           ModuStrings.text(context, 'AI 技能与提示词', 'AI skills and prompts'),
+        'plugins' =>
+          ModuStrings.text(context, '插件状态与设置', 'Plugin state and settings'),
         'vector' =>
           ModuStrings.text(context, '向量模型设置', 'Vector model settings'),
         'tts' => ModuStrings.text(context, '朗读配置', 'Speech settings'),

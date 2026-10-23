@@ -216,6 +216,7 @@ class Prefs extends ChangeNotifier {
   static const String _enabledAiToolsKey = 'enabledAiTools';
   static const String _userPromptsKey = 'userPrompts';
   static const String _pluginStateKey = 'pluginState';
+  static const String _pluginConfigPrefix = 'pluginConfig_';
   static const String _readAnySkillStatesKey = 'readAnySkillStates';
   static const String _readAnySkillPromptsKey = 'readAnySkillPrompts';
   static const String _vectorModelConfigKey = 'vectorModelConfig';
@@ -1478,9 +1479,37 @@ class Prefs extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes a plugin from the registry. P1b extends this to plugin config.
+  /// Removes a plugin from the registry and deletes its saved settings.
   Future<void> removePluginData(String id) async {
+    // Remove the registry entry first: an orphaned settings object is harmless,
+    // while a deleted config with a surviving entry would look like data loss.
     await savePluginState(pluginState.remove(id));
+    final configKey = '$_pluginConfigPrefix$id';
+    if (prefs.containsKey(configKey) && !await prefs.remove(configKey)) {
+      AnxLog.warning('Could not remove plugin settings for $id');
+    }
+  }
+
+  /// Per-plugin settings overrides keyed by the manifest `settings[].key`.
+  /// Missing keys fall back to the manifest default, so only changed values are
+  /// stored and exported.
+  Map<String, dynamic> pluginConfig(String id) {
+    final raw = prefs.getString('$_pluginConfigPrefix$id');
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      AnxLog.warning('Error loading plugin settings for $id: $error');
+    }
+    return {};
+  }
+
+  Future<void> savePluginConfig(String id, Map<String, dynamic> values) async {
+    if (!await prefs.setString('$_pluginConfigPrefix$id', jsonEncode(values))) {
+      throw StateError('Could not save plugin settings');
+    }
+    notifyListeners();
   }
 
   bool get aiReadingSkillsVisible =>

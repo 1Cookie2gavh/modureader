@@ -160,4 +160,51 @@ void main() {
     expect(find.text('Socratic questions'), findsWidgets);
     expect(find.text('Socratic questions'), findsWidgets);
   });
+
+  testWidgets('details render toolbar actions and persist plugin settings',
+      (tester) async {
+    nextPackage = (await tester.runAsync(() => writePluginZip(
+          temp,
+          samplePackageFiles(
+              manifest: manifestJson(
+            capabilities: ['ai:prompt-pack', 'ui:selection-action'],
+            contributes: [
+              selectionAction(
+                  id: 'explain', name: const {'zh-CN': '解释', 'en': 'Explain'}),
+            ],
+            settings: [
+              {
+                'key': 'enabled',
+                'type': 'toggle',
+                'label': const {'zh-CN': '启用魔法', 'en': 'Enable magic'},
+                'defaultValue': true,
+              },
+              {
+                'key': 'tone',
+                'type': 'select',
+                'label': const {'zh-CN': '语气', 'en': 'Tone'},
+                'options': ['brief', 'detailed'],
+                'defaultValue': 'brief',
+              },
+            ],
+          )),
+        )))!;
+    await tester.runAsync(() => host.install(nextPackage!));
+    await pumpSettings(tester);
+
+    await tester.tap(find.text('Example prompt pack'));
+    await settleAsync(tester);
+
+    expect(find.text('Add selection toolbar actions'), findsOneWidget);
+    expect(find.text('Explain'), findsWidgets);
+    expect(find.text('Plugin settings'), findsOneWidget);
+    expect(find.text('Enable magic'), findsOneWidget);
+    expect(find.text('Tone'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Enable magic'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await settleAsync(tester);
+
+    expect(Prefs().pluginConfig('com.example.prompt-pack')['enabled'], isFalse);
+  });
 }

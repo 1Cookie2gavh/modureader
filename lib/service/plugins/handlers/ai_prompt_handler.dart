@@ -1,14 +1,12 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
-import 'package:anx_reader/l10n/app_language.dart';
 import 'package:anx_reader/models/plugin_manifest.dart';
 import 'package:anx_reader/models/plugin_state.dart';
 import 'package:anx_reader/models/user_prompt.dart';
+import 'package:anx_reader/service/plugins/handlers/plugin_locale.dart';
 import 'package:anx_reader/service/plugins/plugin_contribution_handler.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/widgets.dart';
 
 /// Materialises `aiSkill` contributions as ordinary user prompts.
 ///
@@ -17,7 +15,7 @@ import 'package:flutter/widgets.dart';
 /// uninstall can identify its own entries.
 class AiPromptContributionHandler implements PluginContributionHandler {
   AiPromptContributionHandler({String Function()? localeResolver})
-      : _localeResolver = localeResolver ?? _currentLocaleKey;
+      : _localeResolver = localeResolver ?? currentPluginLocaleKey;
 
   final String Function() _localeResolver;
 
@@ -194,15 +192,5 @@ class AiPromptContributionHandler implements PluginContributionHandler {
       }
     }
     return true;
-  }
-
-  static String _currentLocaleKey() {
-    final manual = Prefs().locale;
-    if (manual != null) return appLocaleKey(manual);
-    try {
-      return appLocaleKey(WidgetsBinding.instance.platformDispatcher.locale);
-    } catch (_) {
-      return Platform.localeName.replaceAll('_', '-');
-    }
   }
 }

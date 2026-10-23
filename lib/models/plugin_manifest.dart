@@ -18,17 +18,20 @@ class PluginLimits {
   static const int maxPromptsPerPlugin = 30;
   static const int maxPromptLength = 8000;
   static const int maxDisplayNameLength = 40;
+  static const int maxSelectionActionNameLength = 30;
+  static const int maxSelectionActionsPerPlugin = 24;
   static const int maxDescriptionLength = 2000;
   static const int maxSettingLabelLength = 80;
   static const int maxIdLength = 64;
 }
 
-/// Capability tokens that P1a understands and accepts at install time.
+/// Capability tokens that P1 understands and accepts at install time.
 ///
 /// `storage:plugin` is implicit (plugins always own their private directory)
 /// but declared packages are accepted for forward compatibility.
-const Set<String> kP1aSupportedCapabilities = {
+const Set<String> kP1SupportedCapabilities = {
   'ai:prompt-pack',
+  'ui:selection-action',
   'storage:plugin',
 };
 
@@ -45,7 +48,9 @@ const Set<String> kKnownCapabilities = {
 };
 
 const String kAiPromptPackCapability = 'ai:prompt-pack';
+const String kSelectionActionCapability = 'ui:selection-action';
 const String kAiSkillContributionKind = 'aiSkill';
+const String kSelectionActionContributionKind = 'selectionAction';
 
 enum PluginErrorCode {
   invalidPackage,
@@ -79,6 +84,8 @@ enum PluginErrorCode {
   notInstalled,
   pluginUnavailable,
   promptConflict,
+  toolbarConflict,
+  noToolbarSlots,
   internal,
 }
 
@@ -101,6 +108,10 @@ class PluginInstallError implements Exception {
 
   factory PluginInstallError.internal(String message) =>
       PluginInstallError(PluginErrorCode.internal, message);
+
+  factory PluginInstallError.noToolbarSlots(int remaining) => PluginInstallError(
+      PluginErrorCode.noToolbarSlots,
+      'The selection toolbar has only $remaining free slot(s). Remove a custom action and try again.');
 
   @override
   String toString() => 'PluginInstallError(${code.name}): $message';
@@ -322,6 +333,14 @@ sealed class PluginContribution {
       return AiSkillContribution.parse(
           kind: kind, schema: schema, id: id, index: index, raw: json);
     }
+    if (kind == kSelectionActionContributionKind) {
+      if (!_skillIdPattern.hasMatch(id)) {
+        throw PluginInstallError(PluginErrorCode.invalidContribution,
+            'contributes[$index].id is invalid.');
+      }
+      return SelectionActionContribution.parse(
+          kind: kind, schema: schema, id: id, index: index, raw: json);
+    }
     // Forward compatibility: an unknown kind is skipped even if new fields or
     // a missing id would fail the known-kind schema (decision D1).
     warnings.add(
@@ -405,6 +424,83 @@ class AiSkillContribution extends PluginContribution {
   }
 }
 
+enum PluginSelectionScope { selection, context }
+
+/// A declarative selection-toolbar action. It materialises as a custom AI
+/// command (`SelectionToolbarItem(action: 'aiCommand')`), so the existing
+/// toolbar runtime executes it without any plugin-specific branch.
+class SelectionActionContribution extends PluginContribution {
+  const SelectionActionContribution({
+    required super.kind,
+    required super.schema,
+    required super.id,
+    required super.index,
+    required super.raw,
+    required this.name,
+    required this.prompt,
+    required this.icon,
+    required this.scope,
+    required this.enabled,
+  });
+
+  final PluginText name;
+  final String prompt;
+  final String icon;
+  final PluginSelectionScope scope;
+  final bool enabled;
+
+  factory SelectionActionContribution.parse({
+    required String kind,
+    required int schema,
+    required String id,
+    required int index,
+    required Map<String, dynamic> raw,
+  }) {
+    final name = PluginText.parse(raw['name'],
+        field: 'contributes[$index].name',
+        maxLength: PluginLimits.maxSelectionActionNameLength);
+    final prompt = raw['prompt'];
+    if (prompt is! String || prompt.trim().isEmpty) {
+      throw PluginInstallError(PluginErrorCode.invalidContribution,
+          'contributes[$index].prompt must be a non-empty string.');
+    }
+    if (_runes(prompt) > PluginLimits.maxPromptLength) {
+      throw PluginInstallError(PluginErrorCode.promptTooLong,
+          'contributes[$index].prompt exceeds ${PluginLimits.maxPromptLength} characters.');
+    }
+    final icon = raw['icon'];
+    if (icon is! String || !_iconIdPattern.hasMatch(icon)) {
+      throw PluginInstallError(PluginErrorCode.invalidContribution,
+          'contributes[$index].icon must be a toolbar icon id.');
+    }
+    final scopeRaw = raw['scope'] ?? PluginSelectionScope.context.name;
+    final scope = PluginSelectionScope.values
+        .where((value) => value.name == scopeRaw)
+        .firstOrNull;
+    if (scope == null) {
+      throw PluginInstallError(PluginErrorCode.invalidContribution,
+          'contributes[$index].scope must be "selection" or "context".');
+    }
+    final enabled = raw['enabled'];
+    if (enabled != null && enabled is! bool) {
+      throw PluginInstallError(PluginErrorCode.invalidContribution,
+          'contributes[$index].enabled must be a boolean.');
+    }
+    return SelectionActionContribution(
+      kind: kind,
+      schema: schema,
+      id: id,
+      index: index,
+      raw: raw,
+      name: name,
+      prompt: prompt,
+      icon: icon,
+      scope: scope,
+      enabled: enabled is bool ? enabled : true,
+    );
+  }
+}
+
 enum PluginSettingType { text, number, toggle, select, tip }
 
 class PluginSettingSpec {
@@ -430,7 +526,7 @@ class PluginSettingSpec {
           'settings[$index] must be an object.');
     }
     final key = raw['key'];
-    if (key is! String || !_settingKeyPattern.hasMatch(key)) {
+    if (key is! String || !settingKeyPattern.hasMatch(key)) {
       throw PluginInstallError(
           PluginErrorCode.invalidSetting, 'settings[$index].key is invalid.');
     }
@@ -540,7 +636,7 @@ class PluginManifest {
 
   static PluginManifest parse(
     String raw, {
-    Set<String> allowedCapabilities = kP1aSupportedCapabilities,
+    Set<String> allowedCapabilities = kP1SupportedCapabilities,
   }) {
     if (utf8.encode(raw).length > PluginLimits.maxManifestBytes) {
       throw PluginInstallError(PluginErrorCode.manifestTooLarge,
@@ -562,7 +658,7 @@ class PluginManifest {
 
   static PluginManifest fromJson(
     Map<String, dynamic> json, {
-    Set<String> allowedCapabilities = kP1aSupportedCapabilities,
+    Set<String> allowedCapabilities = kP1SupportedCapabilities,
   }) {
     final warnings = <String>[];
     final schemaVersion = json['schemaVersion'];
@@ -576,9 +672,9 @@ class PluginManifest {
     }
 
     final id = json['id'];
-    if (id is! String || !_pluginIdPattern.hasMatch(id)) {
+    if (id is! String || !pluginIdPattern.hasMatch(id)) {
       throw PluginInstallError(PluginErrorCode.invalidPluginId,
-          'Plugin id must match ${_pluginIdPattern.pattern}.');
+          'Plugin id must match ${pluginIdPattern.pattern}.');
     }
 
     final versionRaw = json['version'];
@@ -724,6 +820,12 @@ class PluginManifest {
       throw PluginInstallError(PluginErrorCode.tooManyContributions,
           'A package may declare at most ${PluginLimits.maxPromptsPerPlugin} prompt templates.');
     }
+    final actions =
+        contributions.whereType<SelectionActionContribution>().length;
+    if (actions > PluginLimits.maxSelectionActionsPerPlugin) {
+      throw PluginInstallError(PluginErrorCode.tooManyContributions,
+          'A package may declare at most ${PluginLimits.maxSelectionActionsPerPlugin} selection actions.');
+    }
   }
 
   /// Compares [minAppVersion] against the running app version, ignoring build
@@ -748,10 +850,11 @@ class PluginManifest {
   String get localizedName => name.resolve(null);
 }
 
-final RegExp _pluginIdPattern =
+final RegExp pluginIdPattern =
     RegExp(r'^[a-z0-9]([a-z0-9._-]{1,62}[a-z0-9])?$');
 final RegExp _skillIdPattern = RegExp(r'^[a-z0-9][a-z0-9._-]{0,62}$');
-final RegExp _settingKeyPattern = RegExp(r'^[a-z][a-z0-9_]{0,39}$');
+final RegExp _iconIdPattern = RegExp(r'^[a-z][a-z0-9]{0,31}$');
+final RegExp settingKeyPattern = RegExp(r'^[a-z][a-z0-9_]{0,39}$');
 final RegExp _strictVersionPattern = RegExp(r'^\d+\.\d+\.\d+$');
 final RegExp _licensePattern = RegExp(r'^[A-Za-z0-9.+\-(): ]+$');
 final RegExp _capabilityPattern = RegExp(r'^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$');

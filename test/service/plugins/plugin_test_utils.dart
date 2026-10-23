@@ -93,6 +93,30 @@ Map<String, Object?> aiSkill({
   };
 }
 
+Map<String, Object?> selectionAction({
+  String id = 'explain-selection',
+  Object? name,
+  String icon = 'lightbulb',
+  String prompt = '解释 {selection} 的含义，简明直接，不编造。',
+  String scope = 'context',
+  bool enabled = true,
+}) {
+  return {
+    'kind': 'selectionAction',
+    'schema': 1,
+    'id': id,
+    'name': name ??
+        {
+          'zh-CN': id,
+          'en': id,
+        },
+    'icon': icon,
+    'prompt': prompt,
+    'scope': scope,
+    'enabled': enabled,
+  };
+}
+
 Map<String, String> samplePackageFiles({String? manifest}) => {
       'manifest.json': manifest ?? manifestJson(),
       'README.md': '# Example prompt pack\n',

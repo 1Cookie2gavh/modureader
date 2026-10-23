@@ -56,7 +56,7 @@ userPrompts readAnySkillStates readAnySkillPrompts pageTurnMode customPageTurnCo
 readingInfo onlineTtsService sortField sortOrder notesViewSortField notesViewSortDirection notesExportSortField
 notesExportSortDirection excerptShareTemplate writingMode translationMode httpProxyHost httpProxyTestUrl
 customCSS customCssProfiles customCssDefaultIndices textAlignment bgimgFit aiPanelPosition codeHighlightTheme aiChatDisplayMode
-webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions selectionSearchSettings selectionToolbar readerShortcuts bgimg'''
+webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions selectionSearchSettings selectionToolbar readerShortcuts bgimg pluginState'''
             .split(RegExp(r'\s+')))
       key: 'string',
     'statisticsDashboardTiles': 'stringList',
@@ -71,7 +71,8 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
       'onlineTtsConfig_',
       'translateServiceConfig_',
       'ttsVoiceModel_',
-      'aiPrompt_'
+      'aiPrompt_',
+      'pluginConfig_'
     ].any(key.startsWith)) {
       return 'string';
     }

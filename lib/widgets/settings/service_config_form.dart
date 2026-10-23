@@ -1,6 +1,7 @@
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/service/config/config_item.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Generic service configuration form widget.
@@ -122,6 +123,10 @@ class _ServiceConfigFormState extends State<ServiceConfigForm> {
             border: const OutlineInputBorder(),
           ),
           controller: _controllers[item.key],
+          inputFormatters: [
+            if (item.maxLength case final int maxLength)
+              LengthLimitingTextInputFormatter(maxLength),
+          ],
           onChanged: (value) => _updateConfig(item.key, value),
         );
 
@@ -154,7 +159,7 @@ class _ServiceConfigFormState extends State<ServiceConfigForm> {
           keyboardType: TextInputType.number,
           controller: _controllers[item.key],
           onChanged: (value) =>
-              _updateConfig(item.key, int.tryParse(value) ?? 0),
+              _updateConfig(item.key, num.tryParse(value.trim()) ?? 0),
         );
 
       case ConfigItemType.range:

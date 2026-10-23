@@ -134,6 +134,18 @@ void main() {
     expect(await paths.pluginDir('com.example.prompt-pack').exists(), isFalse);
   });
 
+  test('disable keeps plugin settings but uninstall deletes them', () async {
+    await host.install(await package());
+    await Prefs()
+        .savePluginConfig('com.example.prompt-pack', {'tone': 'brief'});
+
+    await host.disable('com.example.prompt-pack');
+    expect(Prefs().pluginConfig('com.example.prompt-pack'), {'tone': 'brief'});
+
+    await host.uninstall('com.example.prompt-pack');
+    expect(Prefs().pluginConfig('com.example.prompt-pack'), isEmpty);
+  });
+
   test('uninstall keeps a prompt the user edited as a custom prompt', () async {
     await host.install(await package());
     final prompts = Prefs().userPrompts;
