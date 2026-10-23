@@ -25,6 +25,8 @@ dependencies:
   # Minimum required by the Android fix; preserve existing transaction semantics.
   sqflite_common: 2.5.6
   path: ^1.9.0
+  # Plugin manifest minAppVersion comparison (decision D6).
+  pub_semver: ^2.1.4
   shared_preferences: ^2.2.2
   provider: ^6.1.2
   flutter_gen_runner: ^5.4.0

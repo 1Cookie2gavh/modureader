@@ -40,6 +40,7 @@ import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/models/reading_rules.dart';
 import 'package:anx_reader/models/user_prompt.dart';
+import 'package:anx_reader/models/plugin_state.dart';
 import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_registry.dart';
 import 'package:anx_reader/models/window_info.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
@@ -214,6 +215,7 @@ class Prefs extends ChangeNotifier {
   static const String _statisticsDashboardTilesKey = 'statisticsDashboardTiles';
   static const String _enabledAiToolsKey = 'enabledAiTools';
   static const String _userPromptsKey = 'userPrompts';
+  static const String _pluginStateKey = 'pluginState';
   static const String _readAnySkillStatesKey = 'readAnySkillStates';
   static const String _readAnySkillPromptsKey = 'readAnySkillPrompts';
   static const String _vectorModelConfigKey = 'vectorModelConfig';
@@ -1454,6 +1456,31 @@ class Prefs extends ChangeNotifier {
     final jsonList = prompts.map((p) => p.toJson()).toList();
     prefs.setString(_userPromptsKey, jsonEncode(jsonList));
     notifyListeners();
+  }
+
+  // Installed plugin registry. Package files live under `<basePath>/plugins`;
+  // this key only stores records so settings backups carry installation state.
+  PluginState get pluginState {
+    final jsonString = prefs.getString(_pluginStateKey);
+    if (jsonString == null || jsonString.isEmpty) return PluginState.empty;
+    try {
+      return PluginState.fromJson(jsonDecode(jsonString));
+    } catch (error) {
+      AnxLog.warning('Error loading plugin state: $error');
+      return PluginState.empty;
+    }
+  }
+
+  Future<void> savePluginState(PluginState state) async {
+    if (!await prefs.setString(_pluginStateKey, jsonEncode(state.toJson()))) {
+      throw StateError('Could not save plugin state');
+    }
+    notifyListeners();
+  }
+
+  /// Removes a plugin from the registry. P1b extends this to plugin config.
+  Future<void> removePluginData(String id) async {
+    await savePluginState(pluginState.remove(id));
   }
 
   bool get aiReadingSkillsVisible =>

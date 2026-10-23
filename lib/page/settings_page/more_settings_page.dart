@@ -7,6 +7,7 @@ import 'package:anx_reader/page/settings_page/advanced.dart';
 import 'package:anx_reader/page/settings_page/appearance.dart';
 import 'package:anx_reader/page/settings_page/developer/developer_options_page.dart';
 import 'package:anx_reader/page/settings_page/narrate.dart';
+import 'package:anx_reader/page/settings_page/plugins/plugins_page.dart';
 import 'package:anx_reader/page/settings_page/reading.dart';
 import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'package:anx_reader/page/settings_page/sync.dart';
@@ -14,6 +15,8 @@ import 'package:anx_reader/page/settings_page/remote_library.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
 import 'package:anx_reader/page/settings_page/selection_toolbar.dart';
 import 'package:anx_reader/page/settings_page/models.dart';
+import 'package:anx_reader/service/plugins/plugin_host.dart';
+import 'package:anx_reader/models/plugin_state.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/widgets/settings/about.dart';
 import 'package:anx_reader/widgets/common/container/filled_container.dart';
@@ -73,9 +76,13 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Prefs(),
+      animation: Listenable.merge([Prefs(), PluginHost.instance]),
       builder: (context, _) {
         final showDeveloperEntry = Prefs().developerOptionsEnabled;
+        final pluginCount = PluginHost.instance.plugins.length;
+        final enabledPlugins = PluginHost.instance.plugins
+            .where((plugin) => plugin.status == PluginStatus.enabled)
+            .length;
         return Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: !widget.embedded,
@@ -191,6 +198,18 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
                       context, '翻译引擎、目标语言', 'Engine and target language'),
                 ],
               },
+              if (PluginHost.isEnabled)
+                {
+                  "title": ModuStrings.text(context, '插件', 'Plugins'),
+                  "icon": Icons.extension_outlined,
+                  "sections": const PluginSettings(),
+                  "subtitles": [
+                    ModuStrings.text(
+                        context,
+                        '已安装 $pluginCount 个 · 启用 $enabledPlugins 个',
+                        '$pluginCount installed · $enabledPlugins enabled'),
+                  ],
+                },
               {
                 "title": L10n.of(context).settingsAdvanced,
                 "icon": Icons.shield_outlined,
