@@ -40,6 +40,8 @@ Build / 构建：**10157** · Stable / 正式版
 
 - Ci(tooling): Include the vendored analyzer's required generated visitor in clean checkouts so lint checks do not depend on local build leftovers.
 
+- Ci(harmony): Apply the pinned Harmony Flutter reorder compatibility adapter to the reader toolbar settings, preserving downward-move indexes and checking coverage for every reorder control.
+
 ### 简体中文
 
 - Feat(appearance): 外观新增「自动／宽屏版／窄屏版」界面布局选项，保留原有自动适配阈值，不改变阅读正文的单双列设置。
@@ -77,6 +79,8 @@ Build / 构建：**10157** · Stable / 正式版
 - Perf(reader): 翻页进度与书签改为局部刷新，菜单更新时复用阅读组件、跳过重复显隐刷新；阅读主题缓存随编辑和数据库恢复失效，页眉页脚共享电量查询并在后台暂停。保留原有过渡动画、排版、朗读和进度保存逻辑。
 
 - Ci(tooling): 补齐内置分析器必需的生成访问器文件，确保干净检出可执行 lint 检查，不依赖本机构建残留。
+
+- Ci(harmony): 阅读顶部按钮排序纳入鸿蒙固定版 Flutter 的兼容适配，保留向下移动的索引语义，并检查所有排序控件是否完整覆盖。
 
 ## Downloads / 下载
 

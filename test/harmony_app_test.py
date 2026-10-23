@@ -55,6 +55,13 @@ class AppCompatibilityTest(unittest.TestCase):
             before, after = PATCHES[str(path.relative_to(ROOT))]
             self.assertEqual(text.replace(after, before), originals[path].decode())
 
+    def test_all_current_reorder_callbacks_have_an_adapter(self):
+        edits = plan(ROOT)
+        for path in (ROOT / 'lib').rglob('*.dart'):
+            if 'onReorderItem:' in path.read_text():
+                self.assertIn(str(path.relative_to(ROOT)), PATCHES)
+                self.assertNotIn('onReorderItem:', edits[path])
+
     def test_old_to_new_index_normalization_for_all_moves(self):
         for count in range(1, 12):
             for old in range(count):

@@ -53,6 +53,12 @@ visitor (`nodes.g.dart`), previously hidden by the blanket generated-file
 ignore rule. The required upstream source is now explicitly retained; no
 runtime dependency or lint rule was removed to make the check pass.
 
+The first cloud run caught a missing Harmony-only reorder API adapter for the
+new reader toolbar settings. The audited temporary-checkout adapter now covers
+that control and retains the old API's downward-index adjustment. Eight adapter
+tests passed, including a scan ensuring no reorder control is omitted. This
+does not change Android, iOS or desktop runtime source.
+
 ## Limits
 
 DOM selections remain within one chapter; original-page PDF interaction is not

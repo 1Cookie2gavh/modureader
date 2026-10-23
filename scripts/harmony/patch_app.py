@@ -36,6 +36,10 @@ PATCHES = {
         'onReorderItem: (oldIndex, newIndex) {',
         'onReorder: (oldIndex, newIndex) {\n'
         '                if (newIndex > oldIndex) newIndex -= 1;'),
+    'lib/widgets/reading_page/reader_top_actions.dart': (
+        'onReorderItem: (oldIndex, newIndex) {',
+        'onReorder: (oldIndex, newIndex) {\n'
+        '              if (newIndex > oldIndex) newIndex -= 1;'),
     'lib/widgets/page_router/reader_cover_hero.dart': (
         '          tag: tag,\n'
         '          transitionOnUserGestures: true,\n'
