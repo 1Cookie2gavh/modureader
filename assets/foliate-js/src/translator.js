@@ -33,6 +33,42 @@ export class Translator {
   #pending = new Set()
   #running = false
   #destroyed = false
+  #textStyle = null
+  #fontLoads = new WeakMap()
+
+  setTextStyle(style) {
+    this.#textStyle = style
+    for (const element of this.observedElements) {
+      const wrapper = element.querySelector('.translated-text')
+      if (wrapper) this.#styleTranslation(wrapper)
+    }
+    this.#refreshLayout(this.observedElements)
+  }
+
+  #styleTranslation(wrapper) {
+    const style = this.#textStyle
+    for (const key of ['font-family', 'font-size', 'font-weight', 'font-style', 'line-height'])
+      wrapper.style.removeProperty(key)
+    if (!style) return
+    if (style.font) wrapper.style.setProperty('font-family', style.font, 'important')
+    if (style.size >= 12 && style.size <= 48) {
+      wrapper.style.setProperty('font-size', `${style.size}px`, 'important')
+      wrapper.style.setProperty('line-height', '1.6', 'important')
+    }
+    wrapper.style.setProperty('font-weight', style.bold ? '700' : '400', 'important')
+    wrapper.style.setProperty('font-style', style.italic ? 'italic' : 'normal', 'important')
+    const doc = wrapper.ownerDocument
+    if (style.fontUrl && doc.defaultView.FontFace && doc.fonts &&
+        this.#fontLoads.get(doc) !== style.fontUrl) {
+      this.#fontLoads.set(doc, style.fontUrl)
+      for (const old of doc.fonts) if (old.family === style.font) doc.fonts.delete(old)
+      const face = new doc.defaultView.FontFace(style.font, `url(${JSON.stringify(style.fontUrl)})`)
+      doc.fonts.add(face)
+      face.load().then(() => {
+        if (!this.#destroyed && this.#textStyle?.fontUrl === style.fontUrl) this.#refreshLayout(this.observedElements)
+      }).catch(() => { this.#fontLoads.delete(doc) })
+    }
+  }
   
   constructor() {
     this.#initializeObserver()
@@ -85,6 +121,8 @@ export class Translator {
       } else {
         // Just update display mode
         this.#updateTranslationDisplay()
+        // Shorter translations can reveal paragraphs without a new observer entry.
+        this.#forceTranslateVisibleElements()
       }
     }
 
@@ -137,6 +175,7 @@ export class Translator {
       // Restore original text if hidden
       this.#restoreOriginalText(element)
     })
+    this.#refreshLayout(previousElements)
     
     // Clear observer
     this.#observer.disconnect()
@@ -286,11 +325,20 @@ export class Translator {
     // wrapper.style.fontStyle = 'italic'
     wrapper.style.marginTop = '0.2em'
     wrapper.textContent = translatedText
+    this.#styleTranslation(wrapper)
     
     // Apply based on current mode
     this.#updateElementDisplay(element, wrapper)
     
     element.appendChild(wrapper)
+    this.#refreshLayout([element])
+  }
+
+  #refreshLayout(elements) {
+    const docs = new Set(Array.from(elements, element => element.ownerDocument))
+    for (const doc of docs) {
+      doc.dispatchEvent(new doc.defaultView.CustomEvent('modu-translation-layout'))
+    }
   }
 
   #updateElementDisplay(element, translationWrapper) {
@@ -396,6 +444,7 @@ export class Translator {
         // console.log('No translation wrapper found for element:', element)
       }
     })
+    this.#refreshLayout(this.observedElements)
   }
 
   destroy() {

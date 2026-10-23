@@ -9,6 +9,7 @@ export function installSettledSelection(doc, { getRange, onSelection, beforeSele
   const cancel = () => { generation++; clearTimeout(timer); timer = undefined; pending = undefined; };
   const schedule = () => {
     const next = getRange();
+    if (doc.__moduSelectionDragging) { cancel(); return; }
     // Repeated native menu/selection notifications must not postpone the same range forever.
     if (same(pending, next)) return;
     cancel();
@@ -17,7 +18,7 @@ export function installSettledSelection(doc, { getRange, onSelection, beforeSele
     const scheduled = generation;
     timer = setTimeout(async () => {
       let range = getRange();
-      if (!range || doc.__moduQuickMarkEnabled) { pending = undefined; return; }
+      if (!range || doc.__moduQuickMarkEnabled || doc.__moduSelectionDragging) { pending = undefined; return; }
       try { await beforeSelection?.(); } catch { /* Keep the native range on failure. */ }
       if (disposed || generation !== scheduled) return;
       pending = undefined;

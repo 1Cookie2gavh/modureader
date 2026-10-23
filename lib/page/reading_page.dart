@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/reading_page/reader_top_actions.dart';
 import 'package:anx_reader/service/document_reader_rotation.dart';
 import 'package:anx_reader/widgets/reading_page/document_style_widget.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_zoom_toolbar.dart';
@@ -453,7 +454,22 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   static const double _aiChatMinHeight = 200;
   late double _aiChatHeight;
   bool _isResizingAiChat = false;
-  bool bookmarkExists = false;
+  final _bookmarkExists = ValueNotifier(false);
+  bool? _documentImages;
+  // Menu-only rebuilds need not rebuild the reader; inherited theme/size
+  // changes and the player's own state still reach this retained child.
+  late final EpubPlayer _player = EpubPlayer(
+    key: epubPlayerKey,
+    book: _book,
+    cfi: widget.cfi,
+    showOrHideAppBarAndBottomBar: (bool show) {
+      if (show) _activateDocumentPane(false);
+      showOrHideAppBarAndBottomBar(show);
+    },
+    onLoadEnd: onLoadEnd,
+    initialThemes: widget.initialThemes,
+    updateParent: updateState,
+  );
   bool _searchDialogOpen = false;
   bool _readerDrawerOpen = false;
   bool _quickMarkEnabled = false;
@@ -711,6 +727,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     audioHandler.stop();
     _readerFocusNode.dispose();
     _readerWebViewFocusScope.dispose();
+    _bookmarkExists.dispose();
     super.dispose();
   }
 
@@ -966,6 +983,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void showBottomBar() {
+    if (!mounted || !bottomBarOffstage) return;
     if (isReflowReading) epubPlayerKey.currentState?.removeOverlay();
     setState(() {
       // The bars are painted over the reader in the body Stack. Changing the
@@ -978,11 +996,15 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void hideBottomBar() {
-    setState(() {
-      _currentPage = empty;
-      bottomBarOffstage = true;
-      _requestReaderFocus();
-    });
+    if (!mounted) return;
+    if (!bottomBarOffstage || !identical(_currentPage, empty)) {
+      setState(() {
+        _currentPage = empty;
+        bottomBarOffstage = true;
+      });
+    }
+    // Closing another panel can need focus restoration even with bars hidden.
+    _requestReaderFocus();
     _updatePageKeys();
   }
 
@@ -1148,16 +1170,21 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     ttsHandler();
   }
 
-  void translationHandler() {
+  void translationHandler({bool classical = false}) {
     final reflow = isReflowActive ? reflowReader : null;
     setState(() {
       _currentPage = TranslationWidget(
+        key: ValueKey(classical),
+        classical: classical,
         bookId: _book.id,
         epubPlayerKey: epubPlayerKey,
-        pageTranslationMode: reflow?.translationMode,
+        pageTranslationMode: classical
+            ? reflow?.classicalTranslationMode
+            : reflow?.translationMode,
         onTranslatePage: reflow == null
             ? null
-            : (mode, force) => reflow.translateCurrentPage(mode, force: force),
+            : (mode, force) => reflow.translateCurrentPage(mode,
+                force: force, classical: classical),
         onStopPageTranslation: reflow?.stopTranslation,
       );
     });
@@ -1578,10 +1605,11 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   }
 
   void updateState() {
-    if (mounted) {
-      setState(() {
-        bookmarkExists = epubPlayerKey.currentState!.bookmarkExists;
-      });
+    final player = epubPlayerKey.currentState;
+    if (!mounted || player == null) return;
+    _bookmarkExists.value = player.bookmarkExists;
+    if (_documentImages != player.supportsDocumentImages) {
+      setState(() => _documentImages = player.supportsDocumentImages);
     }
   }
 
@@ -1594,7 +1622,17 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     // Route changes (including dialogs), AI panels and settings must release
     // native keys; none of these depend on the WebView's Flutter focus node.
     _updatePageKeys();
-    final compactToolbar = MediaQuery.sizeOf(context).width < 420;
+    void bookmarkAction() {
+      if (isReflowActive) {
+        unawaited(reflowReader?.readerAction('bookmark'));
+      } else if (_bookmarkExists.value) {
+        epubPlayerKey.currentState
+            ?.removeAnnotation(epubPlayerKey.currentState!.bookmarkCfi);
+      } else {
+        epubPlayerKey.currentState?.addBookmarkHere();
+      }
+    }
+
     var aiButton = IconButton(
       tooltip: L10n.of(context).aiChat,
       icon: const Icon(Icons.auto_awesome),
@@ -1649,103 +1687,129 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             Column(
               children: [
                 if (identical(_currentPage, empty))
-                  AppBar(
-                    title: Text(_book.title, overflow: TextOverflow.ellipsis),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () {
-                        // close reading page
-                        Navigator.pop(context);
-                      },
-                    ),
-                    actions: [
-                      if (AnxPlatform.isMobile && !isReflowReading)
-                        QuickMarkToggle(
-                            enabled: _quickMarkEnabled,
-                            onPressed:
-                                _changingQuickMark ? null : _toggleQuickMark),
-                      if (EnvVar.enableAIFeature) aiButton,
-                      TranslationToolbarAction(
-                        mode: isReflowActive
-                            ? reflowReader?.translationMode
-                            : epubPlayerKey.currentState?.translationMode,
-                        onOpenSettings: translationHandler,
-                        onStop: () async {
-                          if (isReflowActive) {
-                            reflowReader?.stopTranslation();
-                            return;
-                          }
-                          try {
-                            await epubPlayerKey.currentState
-                                ?.setTranslationMode(TranslationModeEnum.off);
-                          } catch (_) {
-                            // Cancellation occurs before the WebView update.
-                          }
-                        },
-                      ),
-                      IconButton(
-                        key: const ValueKey('reader-search-button'),
-                        tooltip: L10n.of(context).contextMenuSearch,
-                        icon: const Icon(Icons.search),
-                        onPressed: searchHandler,
-                      ),
-                      IconButton(
-                          key: const ValueKey('reader-bookmark-button'),
-                          tooltip: L10n.of(context).readingPageBookmark,
-                          onPressed: () {
-                            if (isReflowActive) {
-                              unawaited(reflowReader?.readerAction('bookmark'));
-                              return;
-                            }
-                            if (bookmarkExists) {
-                              epubPlayerKey.currentState!.removeAnnotation(
-                                epubPlayerKey.currentState!.bookmarkCfi,
-                              );
-                            } else {
-                              epubPlayerKey.currentState!.addBookmarkHere();
-                            }
-                          },
-                          icon: !isReflowActive && bookmarkExists
-                              ? const Icon(Icons.bookmark)
-                              : const Icon(Icons.bookmark_border)),
-                      if (!compactToolbar)
-                        IconButton(
-                          icon: const Icon(Icons.copy),
-                          tooltip:
-                              L10n.of(context).readingPageCopyChapterContent,
-                          onPressed: _copyChapterContent,
-                        ),
-                      if (compactToolbar)
-                        PopupMenuButton<String>(
-                          clipBehavior: Clip.antiAlias,
-                          popUpAnimationStyle: AppMotion.style,
-                          icon: const Icon(EvaIcons.more_vertical),
-                          onSelected: (action) {
-                            if (action == 'copy') {
-                              _copyChapterContent();
-                            } else {
-                              _openBookDetails();
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                                value: 'copy',
-                                child: Text(L10n.of(context)
-                                    .readingPageCopyChapterContent)),
-                            PopupMenuItem(
-                                value: 'details',
-                                child: Text(
-                                    L10n.of(context).readingPageBookDetails)),
-                          ],
-                        )
-                      else
-                        IconButton(
-                          tooltip: L10n.of(context).readingPageBookDetails,
-                          icon: const Icon(EvaIcons.more_vertical),
-                          onPressed: _openBookDetails,
-                        ),
-                    ],
-                  ),
+                  LayoutBuilder(
+                      builder: (context, constraints) => AppBar(
+                            title: Text(_book.title,
+                                overflow: TextOverflow.ellipsis),
+                            leading: IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: () {
+                                // close reading page
+                                Navigator.pop(context);
+                              },
+                            ),
+                            actions: [
+                              ReaderTopActions(
+                                  readerWidth: constraints.maxWidth -
+                                      MediaQuery.paddingOf(context).horizontal,
+                                  actions: {
+                                    ReaderTopAction.quickMark:
+                                        _changingQuickMark
+                                            ? null
+                                            : _toggleQuickMark,
+                                    ReaderTopAction.ai: aiButton.onPressed,
+                                    ReaderTopAction.translation:
+                                        translationHandler,
+                                    ReaderTopAction.classical: () =>
+                                        translationHandler(classical: true),
+                                    ReaderTopAction.search: searchHandler,
+                                    ReaderTopAction.bookmark: bookmarkAction,
+                                    ReaderTopAction.copy: _copyChapterContent,
+                                    ReaderTopAction.details: _openBookDetails,
+                                  },
+                                  buttons: {
+                                    if (AnxPlatform.isMobile &&
+                                        !isReflowReading)
+                                      ReaderTopAction.quickMark:
+                                          QuickMarkToggle(
+                                              enabled: _quickMarkEnabled,
+                                              onPressed: _changingQuickMark
+                                                  ? null
+                                                  : _toggleQuickMark),
+                                    if (EnvVar.enableAIFeature)
+                                      ReaderTopAction.ai: aiButton,
+                                    ReaderTopAction.translation:
+                                        TranslationToolbarAction(
+                                      mode: isReflowActive
+                                          ? reflowReader?.translationMode
+                                          : epubPlayerKey
+                                              .currentState?.translationMode,
+                                      onOpenSettings: translationHandler,
+                                      onStop: () async {
+                                        if (isReflowActive) {
+                                          reflowReader?.stopTranslation();
+                                          return;
+                                        }
+                                        try {
+                                          await epubPlayerKey.currentState
+                                              ?.setTranslationMode(
+                                                  TranslationModeEnum.off);
+                                        } catch (_) {
+                                          // Cancellation occurs before the WebView update.
+                                        }
+                                      },
+                                    ),
+                                    ReaderTopAction.classical:
+                                        TranslationToolbarAction(
+                                      classical: true,
+                                      mode: isReflowActive
+                                          ? reflowReader
+                                              ?.classicalTranslationMode
+                                          : epubPlayerKey.currentState
+                                              ?.classicalTranslationMode,
+                                      onOpenSettings: () =>
+                                          translationHandler(classical: true),
+                                      onStop: () async {
+                                        if (isReflowActive) {
+                                          reflowReader?.stopTranslation();
+                                        } else {
+                                          try {
+                                            await epubPlayerKey.currentState
+                                                ?.setTranslationMode(
+                                                    TranslationModeEnum.off);
+                                          } catch (_) {}
+                                        }
+                                      },
+                                    ),
+                                    ReaderTopAction.search: IconButton(
+                                      key: const ValueKey(
+                                          'reader-search-button'),
+                                      tooltip:
+                                          L10n.of(context).contextMenuSearch,
+                                      icon: const Icon(Icons.search),
+                                      onPressed: searchHandler,
+                                    ),
+                                    ReaderTopAction.bookmark:
+                                        ValueListenableBuilder<bool>(
+                                      valueListenable: _bookmarkExists,
+                                      builder: (_, bookmarkExists, __) =>
+                                          IconButton(
+                                              key: const ValueKey(
+                                                  'reader-bookmark-button'),
+                                              tooltip: L10n.of(context)
+                                                  .readingPageBookmark,
+                                              onPressed: bookmarkAction,
+                                              icon: !isReflowActive &&
+                                                      bookmarkExists
+                                                  ? const Icon(Icons.bookmark)
+                                                  : const Icon(
+                                                      Icons.bookmark_border)),
+                                    ),
+                                    ReaderTopAction.copy: IconButton(
+                                      icon: const Icon(Icons.copy),
+                                      tooltip: L10n.of(context)
+                                          .readingPageCopyChapterContent,
+                                      onPressed: _copyChapterContent,
+                                    ),
+                                    ReaderTopAction.details: IconButton(
+                                      tooltip: L10n.of(context)
+                                          .readingPageBookDetails,
+                                      icon: const Icon(Icons.info_outline),
+                                      onPressed: _openBookDetails,
+                                    ),
+                                  })
+                            ],
+                          )),
                 const Spacer(),
                 BottomSheet(
                   onClosing: () {},
@@ -1944,21 +2008,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                                   original: Stack(children: [
                                     FocusScope(
                                       node: _readerWebViewFocusScope,
-                                      child: EpubPlayer(
-                                        key: epubPlayerKey,
-                                        book: _book,
-                                        cfi: widget.cfi,
-                                        showOrHideAppBarAndBottomBar:
-                                            (bool show) {
-                                          if (show) {
-                                            _activateDocumentPane(false);
-                                          }
-                                          showOrHideAppBarAndBottomBar(show);
-                                        },
-                                        onLoadEnd: onLoadEnd,
-                                        initialThemes: widget.initialThemes,
-                                        updateParent: updateState,
-                                      ),
+                                      child: _player,
                                     ),
                                     if (documentPlayer
                                                 ?.supportsDocumentImages ==

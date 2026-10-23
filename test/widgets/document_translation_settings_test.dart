@@ -15,6 +15,59 @@ void main() {
   });
 
   testWidgets(
+      'classical panel stays usable on narrow screens and stops pending work',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final mode = ValueNotifier(TranslationModeEnum.off);
+    final pending = Completer<void>();
+    var stopped = false;
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: L10n.localizationsDelegates,
+      supportedLocales: L10n.supportedLocales,
+      locale: const Locale('en'),
+      builder: (context, child) => MediaQuery(
+        data:
+            MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.3)),
+        child: child!,
+      ),
+      home: Scaffold(
+          body: TranslationWidget(
+        bookId: 1,
+        classical: true,
+        epubPlayerKey: GlobalKey<EpubPlayerState>(),
+        pageTranslationMode: mode,
+        onTranslatePage: (display, _) {
+          mode.value = display;
+          return pending.future;
+        },
+        onStopPageTranslation: () {
+          stopped = true;
+          mode.value = TranslationModeEnum.off;
+        },
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('Translate visible content'));
+    await tester.tap(find.text('Translate visible content'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    final stop = find.byKey(const ValueKey('reader-stop-translation'));
+    await tester.ensureVisible(stop);
+    await tester.tap(stop);
+    await tester.pumpAndSettle();
+    expect(stopped, isTrue);
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(mode.value, TranslationModeEnum.off);
+    expect(find.text('Translate visible content'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    mode.dispose();
+  });
+
+  testWidgets(
       'shared reader settings translate this page and reuse display changes',
       (tester) async {
     final mode = ValueNotifier(TranslationModeEnum.off);
@@ -37,7 +90,8 @@ void main() {
       ))),
     ));
     await tester.pumpAndSettle();
-    expect(find.textContaining('preferring saved edits'), findsOneWidget);
+    expect(find.textContaining('Translate visible reflow paragraphs'),
+        findsOneWidget);
     await tester.tap(find.text('Translate visible content'));
     await tester.pumpAndSettle();
     expect(calls, [(TranslationModeEnum.bilingual, false)]);

@@ -9,6 +9,7 @@ import 'package:anx_reader/providers/ai_chat.dart';
 import 'package:anx_reader/service/ai/home_ai_execution.dart';
 import 'package:anx_reader/service/ai/langchain_runner.dart';
 import 'package:anx_reader/widgets/ai/ai_chat_stream.dart';
+import 'package:anx_reader/widgets/common/container/filled_container.dart';
 import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -192,6 +193,49 @@ void main() {
       expect(catalog['ai_skill_template_draft_help'], isNotEmpty);
     }
   });
+
+  for (final popup in [false, true]) {
+    for (final bottomInset in [0.0, 24.0]) {
+      testWidgets(
+          'composer border clears screen and keyboard: popup=$popup inset=$bottomInset',
+          (tester) async {
+        await mount(tester, draft: true, popup: popup);
+        tester.view.viewPadding = FakeViewPadding(bottom: bottomInset);
+        tester.view.padding = FakeViewPadding(bottom: bottomInset);
+        await tester.pumpAndSettle();
+        final composer = find.ancestor(
+            of: find.byKey(const ValueKey('ai-message-input')),
+            matching: find.byType(FilledContainer));
+        final panel = find.byType(AiChatStream);
+        final input = find.byKey(const ValueKey('ai-message-input'));
+
+        void checkBorder(double bottomLimit) {
+          final bounds = tester.getRect(composer);
+          final panelBounds = tester.getRect(panel);
+          expect(bounds.left - panelBounds.left, greaterThanOrEqualTo(8));
+          expect(panelBounds.right - bounds.right, greaterThanOrEqualTo(8));
+          expect(bounds.bottom, lessThanOrEqualTo(bottomLimit));
+          expect(send.hitTestable(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+
+        final bottomGap = bottomInset > 8 ? bottomInset : 8.0;
+        checkBorder(800 - bottomGap);
+        await tester.enterText(input, '保留草稿');
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        tester.view.padding = FakeViewPadding.zero;
+        await tester.pumpAndSettle();
+        checkBorder(800 - 300 - 8);
+        expect(key.currentState!.inputController.text, '保留草稿');
+        expect(chat.requests, isEmpty);
+
+        tester.view.viewInsets = FakeViewPadding.zero;
+        tester.view.padding = FakeViewPadding(bottom: bottomInset);
+        await tester.pumpAndSettle();
+        checkBorder(800 - bottomGap);
+      });
+    }
+  }
 
   for (final manual in [false, true]) {
     testWidgets('lookup sends according to its own remembered switch: $manual',

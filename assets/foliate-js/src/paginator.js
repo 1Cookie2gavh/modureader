@@ -308,6 +308,10 @@ class View {
           timing('chapter_layout', layoutStarted)
           this.#iframe.style.visibility = ''
           this.#observer.observe(doc.body)
+          // Translation changes line flow without necessarily resizing the body.
+          const translationChanged = () => { if (!this.#destroyed) this.render(this.#layout) }
+          doc.addEventListener('modu-translation-layout', translationChanged)
+          this.#cleanup.push(() => doc.removeEventListener('modu-translation-layout', translationChanged))
           // Lazy images can obtain their intrinsic dimensions after pagination.
           const refit = () => {
             if (this.#layout.mobileImageFit) { this.setImageSize(); this.expand(); }
@@ -1909,8 +1913,10 @@ export class Paginator extends HTMLElement {
   }
   #scheduleLineSettle() {
     clearTimeout(this.#lineSettleTimer)
+    if (this.getAttribute('scroll-auto-align') === 'false') return
     if (!this.#needsLineSettle || !this.scrolled || this.#vertical || this.#destroyed) return
     this.#lineSettleTimer = setTimeout(() => {
+      if (this.getAttribute('scroll-auto-align') === 'false') return
       this.#lineSettleTimer = null
       if (this.#destroyed || !this.scrolled || this.#vertical || this.#scrollPointerDown ||
           this.#touchState || this.#locked || this.#ignoreNativeScroll ||
@@ -1926,6 +1932,7 @@ export class Paginator extends HTMLElement {
     }, 220)
   }
   #alignScrollTarget(target, current, settled = false) {
+    if (this.getAttribute('scroll-auto-align') === 'false') return target
     const documents = this.#continuous
       ? this.#continuous.ordered.map(entry => ({ doc: entry.view.document,
         offset: this.#continuous.top(entry) + this.#margin }))

@@ -15,6 +15,7 @@ import 'package:anx_reader/widgets/reading_page/more_settings/page_turning/types
 import 'package:anx_reader/widgets/reading_page/more_settings/tap_only_page_turn_tile.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/long_press_selection_tile.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/scroll_page_percent_tile.dart';
+import 'package:anx_reader/widgets/reading_page/more_settings/scroll_auto_align_tile.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/continuous_scroll_tile.dart';
 import 'package:flutter/material.dart';
 import 'reader_setting_availability.dart';
@@ -377,6 +378,9 @@ class _OtherSettingsState extends State<OtherSettings> {
             })),
             ebookOnly(ScrollPagePercentTile(onChanged: (value) {
               epubPlayerKey.currentState?.changeScrollPagePercent(value);
+            })),
+            ebookOnly(ScrollAutoAlignTile(onChanged: (value) {
+              epubPlayerKey.currentState?.changeScrollAutoAlign(value);
             })),
             ebookOnly(TapOnlyPageTurnTile(
               value: Prefs().tapOnlyPageTurn,

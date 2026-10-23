@@ -61,6 +61,43 @@ class HomeNavigationShell extends StatefulWidget {
 
 class _HomeNavigationShellState extends State<HomeNavigationShell> {
   String _currentTab = HomeNavigationDestination.bookshelf;
+  EdgeInsets? _homeViewPadding;
+  Size? _homeViewport;
+  bool _holdingSystemInsets = false;
+
+  MediaQueryData _stableHomeInsets(MediaQueryData media, bool isCurrent) {
+    final previous = _homeViewport;
+    final resized = previous == null ||
+        previous.width != media.size.width ||
+        (previous.width > previous.height) !=
+            (media.size.width > media.size.height);
+    final saved = _homeViewPadding;
+    final actual = media.viewPadding;
+    final barsRestored = saved == null ||
+        ((saved.top == 0 || actual.top > 0) &&
+            (saved.bottom == 0 || actual.bottom > 0) &&
+            (saved.left == 0 || actual.left > 0) &&
+            (saved.right == 0 || actual.right > 0));
+    // The covered shelf is also the return Hero's destination. Keep its safe
+    // area until native bars return, rather than relaying out after the flight.
+    if (resized || (isCurrent && (!_holdingSystemInsets || barsRestored))) {
+      _homeViewPadding = actual;
+      _holdingSystemInsets = false;
+    } else if (!isCurrent) {
+      _holdingSystemInsets = true;
+    }
+    _homeViewport = media.size;
+    final insets = _holdingSystemInsets ? _homeViewPadding! : actual;
+    return media.copyWith(
+      viewPadding: insets,
+      padding: EdgeInsets.fromLTRB(
+        (insets.left - media.viewInsets.left).clamp(0.0, double.infinity),
+        (insets.top - media.viewInsets.top).clamp(0.0, double.infinity),
+        (insets.right - media.viewInsets.right).clamp(0.0, double.infinity),
+        (insets.bottom - media.viewInsets.bottom).clamp(0.0, double.infinity),
+      ),
+    );
+  }
 
   List<HomeNavigationDestination> _destinations(BuildContext context) {
     final prefs = Prefs();
@@ -131,6 +168,14 @@ class _HomeNavigationShellState extends State<HomeNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    return MediaQuery(
+      data: _stableHomeInsets(MediaQuery.of(context),
+          ModalRoute.isCurrentOf(context) ?? true),
+      child: _buildNavigation(),
+    );
+  }
+
+  Widget _buildNavigation() {
     return AnimatedBuilder(
       animation: Prefs(),
       builder: (context, _) {
@@ -149,7 +194,7 @@ class _HomeNavigationShellState extends State<HomeNavigationShell> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth > 600) {
+            if (Prefs().appLayoutMode.usesWideLayout(constraints.maxWidth)) {
               return Scaffold(
                 extendBody: true,
                 body: Row(

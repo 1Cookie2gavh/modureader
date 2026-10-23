@@ -66,6 +66,96 @@ class ReplacedBookFiles {
 
   String get _endpoint => jsonEncode(client.syncIdentity);
 
+  /// Only explicit replacements qualify; never sweep arbitrary unreferenced files.
+  static Future<int> reclaimLocal({
+    required Database db,
+    required Directory files,
+    bool Function(String path)? isInUse,
+  }) async {
+    if (await FileSystemEntity.type(files.path, followLinks: false) !=
+        FileSystemEntityType.directory) {
+      return 0;
+    }
+    await _ensureTable(db);
+    var reclaimed = 0;
+    for (final item in await db.query(table)) {
+      final oldPath = item['old_path'];
+      if (!_bookPath(oldPath) || (oldPath as String).contains(':')) continue;
+      if (isInUse?.call(oldPath) ?? false) continue;
+      final replacement = await _localReplacement(db, item);
+      if (replacement == null) continue;
+      final nextPath = replacement['file_path'];
+      if (!_bookPath(nextPath) || (nextPath as String).contains(':')) continue;
+      final old = File('${files.path}/${oldPath.substring(5)}');
+      final next = File('${files.path}/${nextPath.substring(5)}');
+      // Hash outside the database transaction so large books do not block readers.
+      final oldStat = await _verifiedLocalFile(old, item['old_md5']);
+      if (oldStat == null) continue;
+      final nextStat = await _verifiedLocalFile(next, replacement['file_md5']);
+      if (nextStat == null) continue;
+      final removed = await db.transaction((txn) async {
+        final fresh = await _localReplacement(txn, item);
+        if (fresh == null ||
+            fresh['id'] != replacement['id'] ||
+            fresh['file_path'] != nextPath ||
+            fresh['file_md5'] != replacement['file_md5'] ||
+            (isInUse?.call(oldPath) ?? false)) {
+          return false;
+        }
+        // No await between final filesystem checks and unlink. Ref changes are
+        // serialized by the transaction; links and changed bytes are retained.
+        if (!_unchangedLocalFile(old, oldStat) ||
+            !_unchangedLocalFile(next, nextStat)) {
+          return false;
+        }
+        old.deleteSync();
+        return true;
+      });
+      if (removed) reclaimed++;
+    }
+    // Keep evidence for cloud reclamation and late downloads from older clients.
+    return reclaimed;
+  }
+
+  static Future<Map<String, Object?>?> _localReplacement(
+      DatabaseExecutor db, Map<String, Object?> item) async {
+    final references = await db.query('tb_books',
+        columns: ['id'], where: 'file_path=?', whereArgs: [item['old_path']]);
+    if (references.isNotEmpty) return null; // Includes trash/restorable rows.
+    final current = await db.rawQuery('''
+      SELECT b.id, b.file_path, b.file_md5 FROM tb_books b
+      JOIN $syncRecordsTable r ON r.local_id=b.id
+      WHERE r.kind='book' AND r.sync_id=? AND r.deleted=0
+        AND b.is_deleted=0''', [item['book_id']]);
+    return current.length == 1 ? current.single : null;
+  }
+
+  static Future<FileStat?> _verifiedLocalFile(File file, Object? digest) async {
+    if (digest is! String || !_md5.hasMatch(digest)) return null;
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return null;
+    }
+    final stat = file.statSync();
+    if (stat.size <= 0 || stat.size > maxFileBytes) return null;
+    if ((await md5.bind(file.openRead()).first).toString() !=
+        digest.toLowerCase()) {
+      return null;
+    }
+    return _unchangedLocalFile(file, stat) ? stat : null;
+  }
+
+  static bool _unchangedLocalFile(File file, FileStat expected) {
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return false;
+    }
+    final current = file.statSync();
+    return current.size == expected.size &&
+        current.modified == expected.modified &&
+        current.changed == expected.changed;
+  }
+
   Future<int> reclaim() async {
     final endpoint = _endpoint;
     final staging = await cache.createTemp('modu-replaced-files-');

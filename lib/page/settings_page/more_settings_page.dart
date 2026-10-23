@@ -271,7 +271,7 @@ class _SubMoreSettingsState extends State<SubMoreSettings> {
               );
             }
 
-            if (constraints.maxWidth > 600) {
+            if (Prefs().appLayoutMode.usesWideLayout(constraints.maxWidth)) {
               return Row(
                 children: [
                   Expanded(

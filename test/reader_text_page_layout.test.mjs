@@ -118,6 +118,27 @@ function fixture({enabled='1', unsafe=false, long=false}={}) {
   return {dom,doc};
 }
 const layout={height:450,topMargin:20,bottomMargin:20,columnWidth:300,gap:20};
+test('new translations clear stale offsets and keep source/translation in the same flow', () => {
+  const {doc,dom}=fixture();
+  alignPaginatedText(doc,layout,false);
+  const {runs}=preparePageRuns(doc);
+  assert.notEqual(runs[0].style.top,'0px');
+  const translated=doc.createElement('span');
+  translated.className='translated-text';translated.textContent='译文';
+  translated.getClientRects=()=>translated.style.display==='none'?[]:
+    [{left:10,top:420,bottom:445,width:200,height:25}];
+  doc.querySelector('p').append(translated);
+  for(const height of [450,500]) {
+    resetPageAlignment(doc);alignPaginatedText(doc,{...layout,height},false);
+    assert.ok(runs.slice(0,10).every(run=>run.style.top==='0px'));
+    assert.notEqual(runs[10].style.top,'0px','untranslated pages retain alignment');
+  }
+  translated.style.display='none';
+  resetPageAlignment(doc);alignPaginatedText(doc,layout,false);
+  assert.notEqual(runs[0].style.top,'0px','stopping restores original alignment');
+  dom.window.close();
+});
+
 test('run preparation clones one styled template and preserves text and namespace', () => {
   const {doc, dom} = fixture();
   const original = doc.body.textContent;

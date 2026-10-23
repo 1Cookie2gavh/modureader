@@ -4,6 +4,9 @@ import 'package:anx_reader/enums/translation_mode.dart';
 import 'package:anx_reader/service/translate/document_page_translation.dart';
 import 'package:anx_reader/service/translate/index.dart';
 import 'package:anx_reader/service/translate/ai.dart';
+import 'package:anx_reader/service/translate/classical_translation.dart';
+import 'package:anx_reader/models/translation_text_style.dart';
+import 'package:anx_reader/service/translate/reader_translation_modes.dart';
 import 'package:anx_reader/service/translate/deepl.dart';
 import 'package:anx_reader/service/translate/microsoft_free.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
@@ -173,9 +176,29 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   final _controller = _ReflowTextController();
   final _translatedController = _ReflowTextController();
   final _translation = DocumentPageTranslation();
+  String? _translationStyleValue;
+  void _configureTranslationStyle() {
+    final value = classicalTranslation
+        ? Prefs().classicalTranslationTextStyle
+        : Prefs().languageTranslationTextStyle;
+    if (_translationStyleValue == value) return;
+    _translationStyleValue = value;
+    final style = TranslationTextStyle.decode(value);
+    _translatedController.translationStyle = style.textStyle;
+    unawaited(style.loadFont().then((_) {
+      if (mounted) setState(() {});
+    }).catchError((_) {}));
+    if (mounted && _showTranslation) setState(() {});
+  }
+
   int _translationRequest = 0;
-  ValueNotifier<TranslationModeEnum> get translationMode => _translation.mode;
-  bool get _showTranslation => translationMode.value != TranslationModeEnum.off;
+  final _translationModes = ReaderTranslationModes();
+  ValueNotifier<TranslationModeEnum> get translationMode =>
+      _translationModes.language;
+  ValueNotifier<TranslationModeEnum> get classicalTranslationMode =>
+      _translationModes.classical;
+  bool get _showTranslation =>
+      _translation.mode.value != TranslationModeEnum.off;
   _ReflowTextController get _readingController =>
       _showTranslation ? _translatedController : _controller;
 
@@ -185,16 +208,22 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   void _translationChanged() {
+    _configureTranslationStyle();
+    _translationModes.update(_translation.mode.value,
+        isClassical: classicalTranslation);
     _invalidateNarration();
     clearSelection();
     (widget.selectionInvalidated ?? widget.clearMenu)();
     _translatedController.text = _translation.text;
+    _translatedController.translatedRanges = _translation.translatedRanges;
     _translatedController.paragraphSpacing = _style.paragraphSpacing;
     if (mounted) setState(() {});
   }
 
   Future<void> translateCurrentPage(TranslationModeEnum mode,
-      {bool force = false, TranslateServiceProvider? provider}) async {
+      {bool force = false,
+      TranslateServiceProvider? provider,
+      bool classical = false}) async {
     final page = _page;
     if (!mounted || _busy || page == null || page.page != _navigationPage) {
       return;
@@ -213,28 +242,78 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     final from = Prefs().fullTextTranslateFrom;
     final to = Prefs().fullTextTranslateTo;
     final translator = provider ?? service.provider;
+    final classicalTranslator =
+        classical ? ClassicalTranslation.current() : null;
+    classicalTranslation = classical;
+    final visible = _visibleTranslationRange();
     await _translation.translate(saved ?? page, mode,
-        settings: '${service.name}/${from.name}/${to.name}',
+        visibleStart: visible.$1,
+        visibleEnd: visible.$2,
+        settings: classicalTranslator == null
+            ? '${service.name}/${from.name}/${to.name}'
+            : 'classical/${classicalTranslator.identity}',
         force: force,
         request: (session, generation, text) => session.translate(
             generation,
-            (runner) => translator is AiTranslateProvider
-                ? translator.translateStream(text, from, to,
-                    isFullText: true, requestRunner: runner)
-                : translator is MicrosoftFreeTranslateProvider
+            (runner) => classicalTranslator != null
+                ? classicalTranslator.translate(text, runner)
+                : translator is AiTranslateProvider
                     ? translator.translateStream(text, from, to,
-                        isFullText: true, whenCancelled: runner.whenCancelled)
-                    : translator is DeepLTranslateProvider
+                        isFullText: true, requestRunner: runner)
+                    : translator is MicrosoftFreeTranslateProvider
                         ? translator.translateStream(text, from, to,
                             isFullText: true,
                             whenCancelled: runner.whenCancelled)
-                        : translator.translateStream(text, from, to,
-                            isFullText: true)));
+                        : translator is DeepLTranslateProvider
+                            ? translator.translateStream(text, from, to,
+                                isFullText: true,
+                                whenCancelled: runner.whenCancelled)
+                            : translator.translateStream(text, from, to,
+                                isFullText: true)));
+    _queueVisibleTranslation();
   }
 
   final _search = TextEditingController();
+  bool classicalTranslation = false;
   String? _searchStatus;
   final _scroll = ScrollController();
+  final _translationViewportKey = GlobalKey();
+  Timer? _translationScrollTimer;
+  (int, int) _visibleTranslationRange() {
+    final editable = _textState?.renderEditable;
+    final viewport = _translationViewportKey.currentContext?.findRenderObject();
+    if (editable == null || viewport is! RenderBox || !viewport.hasSize) {
+      return (0, 0);
+    }
+    final origin = viewport.localToGlobal(Offset.zero);
+    final start =
+        editable.getPositionForPoint(origin + const Offset(1, 1)).offset;
+    final end = editable
+        .getPositionForPoint(
+            origin + Offset(viewport.size.width - 1, viewport.size.height - 1))
+        .offset;
+    return (start < end ? start : end, start > end ? start : end);
+  }
+
+  void _queueVisibleTranslation() {
+    _translationScrollTimer?.cancel();
+    if (!_showTranslation) return;
+    _translationScrollTimer =
+        Timer(const Duration(milliseconds: 180), () async {
+      if (!mounted || !_showTranslation) return;
+      if (_translation.busy) {
+        _queueVisibleTranslation();
+        return;
+      }
+      final visible = _visibleTranslationRange();
+      try {
+        await _translation.translateVisible(visible.$1, visible.$2);
+      } catch (error) {
+        if (mounted) setState(() => _error = error.toString());
+      }
+    });
+  }
+
   final _focus = FocusNode(debugLabel: 'document_reflow_text');
   final _textFieldKey = GlobalKey();
   EditableTextState? _editable;
@@ -330,6 +409,9 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _controller.addListener(_selectionChanged);
     _translatedController.addListener(_translationSelectionChanged);
     _translation.addListener(_translationChanged);
+    Prefs().addListener(_configureTranslationStyle);
+    _configureTranslationStyle();
+    _scroll.addListener(_queueVisibleTranslation);
     unawaited(_style.loadFont().then((_) {
       if (mounted) setState(() {});
     }).catchError((_) {}));
@@ -341,7 +423,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _invalidateNarration();
     _generation++;
     _translation.removeListener(_translationChanged);
+    Prefs().removeListener(_configureTranslationStyle);
     _translation.dispose();
+    _translationModes.dispose();
+    _translationScrollTimer?.cancel();
     _translatedController.dispose();
     _selectionTimer?.cancel();
     _mouseLongPressTimer?.cancel();
@@ -1197,6 +1282,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                       child: AppScrollbar(
                           controller: _scroll,
                           child: SingleChildScrollView(
+                              key: _translationViewportKey,
                               controller: _scroll,
                               padding: _style.padding,
                               child: Listener(
@@ -1291,6 +1377,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 }
 
 class _ReflowTextController extends TextEditingController {
+  List<TextRange> translatedRanges = [];
+  TextStyle? translationStyle;
   TextRange? _narrationRange;
   void setNarrationRange(TextRange? range) {
     if (_narrationRange == range) return;
@@ -1326,6 +1414,7 @@ class _ReflowTextController extends TextEditingController {
     final edges = {
       0,
       text.length,
+      for (final range in translatedRanges) ...[range.start, range.end],
       if (_narrationRange case final range?
           when range.isValid && range.end <= text.length) ...[
         range.start,
@@ -1342,12 +1431,17 @@ class _ReflowTextController extends TextEditingController {
       for (var i = 0; i < edges.length - 1; i++)
         TextSpan(
             text: text.substring(edges[i], edges[i + 1]),
-            style: _styleAt(edges[i], marks).merge(edges[i] > 0 &&
-                    text[edges[i] - 1] == '\n' &&
-                    text[edges[i]] == '\n'
-                ? TextStyle(
-                    height: paragraphSpacing == 0 ? .01 : paragraphSpacing)
-                : null))
+            style: _styleAt(edges[i], marks)
+                .merge(translatedRanges
+                        .any((r) => edges[i] >= r.start && edges[i] < r.end)
+                    ? translationStyle
+                    : null)
+                .merge(edges[i] > 0 &&
+                        text[edges[i] - 1] == '\n' &&
+                        text[edges[i]] == '\n'
+                    ? TextStyle(
+                        height: paragraphSpacing == 0 ? .01 : paragraphSpacing)
+                    : null))
     ]);
   }
 

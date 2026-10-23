@@ -1,4 +1,5 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/enums/app_layout_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/widgets/home_navigation_shell.dart';
 import 'package:flutter/material.dart';
@@ -20,8 +21,8 @@ Widget host({bool productionTopology = false}) {
   if (!productionTopology) return app;
   // The real app exposes this shell as a const home route. That route is not
   // rebuilt when Prefs notifies, so the shell must refresh itself.
-  return provider.ChangeNotifierProvider(
-    create: (_) => Prefs(),
+  return provider.ChangeNotifierProvider.value(
+    value: Prefs(),
     child: provider.Consumer<Prefs>(
       builder: (context, prefs, child) => app,
     ),
@@ -54,6 +55,46 @@ void main() {
     Prefs().bottomNavigatorShowStatistics = true;
     Prefs().bottomNavigatorShowNote = true;
   });
+
+  test('layout defaults, persistence and original automatic threshold',
+      () async {
+    expect(Prefs().appLayoutMode, AppLayoutMode.auto);
+    for (final width in [320.0, 599.0, 600.0, 600.1, 1200.0]) {
+      expect(AppLayoutMode.auto.usesWideLayout(width), width > 600);
+      expect(AppLayoutMode.wide.usesWideLayout(width), isTrue);
+      expect(AppLayoutMode.narrow.usesWideLayout(width), isFalse);
+    }
+    Prefs().appLayoutMode = AppLayoutMode.narrow;
+    await Prefs().initPrefs();
+    expect(Prefs().appLayoutMode, AppLayoutMode.narrow);
+    await Prefs().prefs.setString('appLayoutMode', 'unknown');
+    expect(Prefs().appLayoutMode, AppLayoutMode.auto);
+  });
+
+  for (final width in [390.0, 600.0, 601.0, 1200.0]) {
+    testWidgets('manual layout and returning to auto at width $width',
+        (tester) async {
+      await pumpHome(tester, Size(width, 850), productionTopology: true);
+      expect(find.byType(NavigationRail),
+          width > 600 ? findsOneWidget : findsNothing);
+      Prefs().appLayoutMode = AppLayoutMode.wide;
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationRail), findsOneWidget);
+      await tester.tap(find.byIcon(EvaIcons.settings_2));
+      await tester.pumpAndSettle();
+      expect(find.text('page-settings'), findsOneWidget);
+      Prefs().appLayoutMode = AppLayoutMode.narrow;
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationRail), findsNothing);
+      expect(find.byType(BottomNavigationBar), findsOneWidget);
+      expect(find.text('page-settings'), findsOneWidget);
+      Prefs().appLayoutMode = AppLayoutMode.auto;
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationRail),
+          width > 600 ? findsOneWidget : findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
       'wide rail shows a newly separated tab immediately after its switch '

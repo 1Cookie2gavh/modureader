@@ -116,11 +116,34 @@ void main() {
     await expectLater(
         dao.moveBooksToFolder([1], newFolderName: '  '), throwsArgumentError);
     await expectLater(
-        dao.moveBooksToFolder([1], groupId: 0), throwsArgumentError);
+        dao.moveBooksToFolder([1], groupId: -1), throwsArgumentError);
     await expectLater(
         dao.moveBooksToFolder([1], groupId: 1, newFolderName: '夹'),
         throwsArgumentError);
     await expectLater(dao.moveBooksToFolder([1]), throwsArgumentError);
+  });
+
+  test('batch move to shelf changes membership only and repeat is a no-op', () async {
+    await dao.moveBooksToFolder([1, 2], newFolderName: 'Folder');
+    final before = await db.query('tb_books', orderBy: 'id');
+    await dao.moveBooksToFolder([1, 2], groupId: 0);
+    final after = await db.query('tb_books', orderBy: 'id');
+    for (var i = 0; i < 3; i++) {
+      final old = Map.of(before[i])..remove('group_id')..remove('update_time');
+      final current = Map.of(after[i])..remove('group_id')..remove('update_time');
+      expect(current, old);
+      expect(after[i]['group_id'], 0);
+    }
+    final syncBefore = await db.query(syncRecordsTable);
+    await dao.moveBooksToFolder([1, 2], groupId: 0);
+    expect(await db.query(syncRecordsTable), syncBefore);
+  });
+
+  test('failed batch move out retains every original membership', () async {
+    final folder = await dao.moveBooksToFolder([1, 2], newFolderName: 'Folder');
+    await db.execute("CREATE TRIGGER fail_out BEFORE UPDATE OF group_id ON tb_books WHEN NEW.id=2 BEGIN SELECT RAISE(ABORT, 'fixture'); END");
+    await expectLater(dao.moveBooksToFolder([1, 2], groupId: 0), throwsA(isA<DatabaseException>()));
+    expect((await db.query('tb_books', where: 'id IN (1,2)')).every((book) => book['group_id'] == folder), isTrue);
   });
 
   test('folder membership participates in existing cross-device row sync',
@@ -138,6 +161,11 @@ void main() {
           .single;
       expect(group['name'], '同步夹');
       expect(books.first['last_read_position'], 'start');
+      await dao.moveBooksToFolder([1, 2], groupId: 0);
+      await RowSyncStore(remote).merge(await RowSyncStore(db).snapshot());
+      final movedOut = await remote.query('tb_books',
+          where: 'file_md5 IN (?, ?)', whereArgs: ['same-content', 'book-two']);
+      expect(movedOut.every((book) => book['group_id'] == 0), isTrue);
     } finally {
       await remote.close();
     }

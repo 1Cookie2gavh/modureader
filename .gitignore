@@ -78,6 +78,7 @@ lib/gen/
 release.sh
 *.g.dart
 !lib/l10n/modu_catalogs.g.dart
+!third_party/riverpod_analyzer_utils/lib/src/nodes.g.dart
 *.freezed.dart
 
 /.vscode/

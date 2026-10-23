@@ -7,6 +7,34 @@ import 'package:anx_reader/service/translate/microsoft_free.dart';
 import 'package:anx_reader/enums/lang_list.dart';
 
 void main() {
+  test('native bridge accepts integral doubles, never coerces invalid IDs', () {
+    for (final value in [0, 1, 2.0, 9007199254740991]) {
+      expect(ReaderTranslationSession.bridgeGeneration(value), value.toInt());
+    }
+    for (final value in [
+      null,
+      true,
+      '2',
+      -1,
+      1.5,
+      double.nan,
+      double.infinity,
+      9007199254740992
+    ]) {
+      expect(ReaderTranslationSession.bridgeGeneration(value), isNull);
+    }
+  });
+
+  test('a double-valued native session ID reaches the live request', () async {
+    final session = ReaderTranslationSession();
+    final id = session.start().toDouble();
+    expect(
+        await session.translate(ReaderTranslationSession.bridgeGeneration(id)!,
+            (_) => Stream.value('译文')),
+        '译文');
+    session.stop();
+  });
+
   test('cancelled free translation does not process subsequent text chunks',
       () async {
     final cancelled = Completer<void>()..complete();

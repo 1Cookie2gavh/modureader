@@ -203,8 +203,43 @@ void main() {
       .controller!
       .text;
 
+  testWidgets(
+      'reflow translation only submits visible paragraphs and loads on scroll',
+      (tester) async {
+    final paragraphs = List.generate(
+        30,
+        (i) =>
+            'Paragraph $i. ${List.filled(15, 'Source text for testing.').join(' ')}');
+    await open(tester, extract: (_) async => paragraphs.join('\n\n'));
+    final provider = PageTranslator();
+    final task = key.currentState!.translateCurrentPage(
+        TranslationModeEnum.translationOnly,
+        provider: provider);
+    await tester.pumpAndSettle();
+    await task;
+    expect(provider.requests, isNotEmpty);
+    expect(provider.requests.length, lessThan(paragraphs.length));
+    expect(provider.requests, isNot(contains(paragraphs.last)));
+    final scroll = tester
+        .widget<SingleChildScrollView>(find
+            .ancestor(
+                of: find.byKey(const ValueKey('reflow-translated-text')),
+                matching: find.byType(SingleChildScrollView))
+            .first)
+        .controller!;
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(provider.requests, contains(paragraphs.last));
+    key.currentState!.stopTranslation();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('current-page translation uses saved edits without modifying OCR',
       (tester) async {
+    Prefs().languageTranslationTextStyle =
+        '{"font":"monospace","size":24,"bold":true,"italic":true}';
     await open(tester);
     final reader = key.currentState!;
     final original = store.latest['0']!;
@@ -221,6 +256,39 @@ void main() {
     expect(translator.requests, ['Corrected paragraph.']);
     expect(translated(),
         'Corrected paragraph.\n\nTranslated Corrected paragraph.');
+    List<TextSpan> spans() {
+      final field = find.byKey(const ValueKey('reflow-translated-text'));
+      return tester
+          .widget<TextField>(field)
+          .controller!
+          .buildTextSpan(
+              context: tester.element(field),
+              style: const TextStyle(fontSize: 20),
+              withComposing: false)
+          .children!
+          .cast<TextSpan>();
+    }
+
+    var output = spans().last.style!;
+    expect(output.fontFamily, 'monospace');
+    expect(output.fontSize, 24);
+    expect(output.fontWeight, FontWeight.bold);
+    expect(output.fontStyle, FontStyle.italic);
+    expect(spans().first.style?.fontFamily, isNull);
+    expect(spans().first.style?.fontSize, isNull);
+    Prefs().classicalTranslationTextStyle =
+        '{"font":"serif","size":36,"bold":false,"italic":false}';
+    await tester.pumpAndSettle();
+    expect(spans().last.style, output);
+    Prefs().languageTranslationTextStyle =
+        '{"font":"sans-serif","size":18,"bold":false,"italic":false}';
+    await tester.pumpAndSettle();
+    output = spans().last.style!;
+    expect(output.fontFamily, 'sans-serif');
+    expect(output.fontSize, 18);
+    expect(output.fontWeight, FontWeight.normal);
+    expect(output.fontStyle, FontStyle.normal);
+    expect(translator.requests.length, 1);
     expect(reader.narrationSource!.currentText(), 'Corrected paragraph.');
     expect(reader.narrationSourceFor(original.anchor(0, 2)), isNull);
     final switchTask = reader.translateCurrentPage(

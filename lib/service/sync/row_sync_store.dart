@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:anx_reader/service/sync/row_sync_record.dart';
 import 'package:anx_reader/service/sync/sync_paths.dart';
+import 'package:anx_reader/service/sync/replaced_book_files.dart';
 
 const syncRecordsTable = 'modu_sync_records';
 const _control = 'modu_sync_control';
@@ -595,6 +596,14 @@ class RowSyncStore {
             values[ref.key] = key == null ? null : ids[ref.value]?[key];
             if (key != null && values[ref.key] == null) {
               throw const FormatException('同步记录关联无效');
+            }
+          }
+          if (kind == 'book' && !allocated.contains(r.key)) {
+            final previous =
+                await txn.query('tb_books', where: 'id=?', whereArgs: [id]);
+            if (previous.length == 1) {
+              await ReplacedBookFiles.record(
+                  txn, previous.single, values['file_path'] as String);
             }
           }
           await txn

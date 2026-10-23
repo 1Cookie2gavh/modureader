@@ -101,6 +101,18 @@ test('layout phase diagnostics preserve one synchronous render and are optional 
   }
 });
 
+test('translation changes reflow immediately even without resize and detach on close', async () => {
+  const {reader,doc}=fixture();
+  const pending=reader.load('blob:book',()=>{},()=>({}));
+  reader.frame.dispatchEvent(new Event('load'));await pending;
+  assert.equal(reader.renders,1);
+  doc.dispatchEvent(new Event('modu-translation-layout'));
+  assert.equal(reader.renders,2);
+  reader.close();
+  doc.dispatchEvent(new Event('modu-translation-layout'));
+  assert.equal(reader.renders,2);
+});
+
 test('expansion reuses only this alignment pass extent; later image/resize updates measure afresh', () => {
   const methods = source.slice(source.indexOf('  #measureColumnExtent() {'),
     source.indexOf('\n  set overlayer(')).replaceAll('this.#', 'this.').replace('#measureColumnExtent()', 'measureColumnExtent()');

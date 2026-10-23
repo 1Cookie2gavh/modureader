@@ -145,11 +145,12 @@ export function isInitialSmartSelection(doc, range) {
 
 // Chromium clears ShouldShowHandle for script-created selections (including
 // setBaseAndExtent and live Range edits). Use one set of reader touch handles
-// for Android text selections, without the native drag magnifier.
-function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighlight }) {
+// for mobile text selections, without the native drag magnifier.
+function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighlight, selectionNavigation }) {
   let host, highlight, selectionStyle, controls = [], owned, drag, disposed = false;
   const win = doc.defaultView, listeners = [];
   const hide = () => {
+    if (drag) selectionNavigation?.stop();
     drag = null; owned = null;
     host?.remove(); host = null; controls = [];
     selectionStyle?.remove(); selectionStyle = null;
@@ -157,16 +158,31 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
   };
   const isHandle = event => host && event.composedPath().includes(host);
   const endpoint = (range, end) => {
-    const node = end ? range.endContainer : range.startContainer;
-    const offset = end ? range.endOffset : range.startOffset;
+    let node = end ? range.endContainer : range.startContainer;
+    let offset = end ? range.endOffset : range.startOffset;
+    const boundary = selectionNavigation?.handleBoundary(end);
+    // A page can begin at a paragraph boundary, not a text-node caret.
+    if (node.nodeType === 1) {
+      const after = offset > 0 && ((boundary ?? end) || offset === node.childNodes.length);
+      const child = node.childNodes[after ? offset - 1 : offset];
+      if (!child) return null;
+      const walker = doc.createTreeWalker(child, win.NodeFilter.SHOW_TEXT, {
+        acceptNode: text => text.data.trim() && !blocked(text.parentElement)
+          ? win.NodeFilter.FILTER_ACCEPT : win.NodeFilter.FILTER_REJECT,
+      });
+      node = child.nodeType === 3 ? child : after ? walker.lastChild() : walker.nextNode();
+      if (!node) return null;
+      offset = after ? node.length : 0;
+    }
     if (node.nodeType !== 3 || !node.isConnected) return null;
     const probe = doc.createRange();
     // Use the boundary glyph, not the whole range's bounding box: wrapped and
     // vertical paragraphs can have their endpoints on different lines/columns.
     const previous = Array.from(node.data.slice(0, offset)).at(-1)?.length ?? 0;
     const next = Array.from(node.data.slice(offset))[0]?.length ?? 0;
-    probe.setStart(node, end ? offset - previous : offset);
-    probe.setEnd(node, end ? offset : offset + next);
+    const after = boundary ?? (end && previous > 0 || !next);
+    probe.setStart(node, after ? offset - previous : offset);
+    probe.setEnd(node, after ? offset : offset + next);
     const rects = [...probe.getClientRects()];
     const rect = end ? rects.at(-1) : rects[0];
     if (!rect) return null;
@@ -174,10 +190,10 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
     const vertical = /^(vertical|sideways)/.test(css.writingMode);
     const rtl = css.direction === 'rtl';
     return vertical
-      ? { x: rect.left - 10, y: end ? rect.bottom : rect.top,
-        hitX: (rect.left + rect.right) / 2, hitY: end ? rect.bottom : rect.top }
-      : { x: end !== rtl ? rect.right : rect.left, y: rect.bottom + 10,
-        hitX: end !== rtl ? rect.right : rect.left, hitY: (rect.top + rect.bottom) / 2 };
+      ? { x: rect.left - 10, y: after ? rect.bottom : rect.top,
+        hitX: (rect.left + rect.right) / 2, hitY: after ? rect.bottom : rect.top }
+      : { x: after !== rtl ? rect.right : rect.left, y: rect.bottom + 10,
+        hitX: after !== rtl ? rect.right : rect.left, hitY: (rect.top + rect.bottom) / 2 };
   };
   const paintHighlight = range => {
     // Native line boxes include leading; paint text fragments even before handles take over.
@@ -202,21 +218,29 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
     }));
     if (rects.length && !selectionStyle) {
       selectionStyle = doc.createElement('style');
-      selectionStyle.textContent = '::selection { background-color:transparent!important; } ::selection:window-inactive { background-color:transparent!important; }';
+      selectionStyle.textContent = 'html { -webkit-touch-callout:none!important; } ::selection { background-color:transparent!important; } ::selection:window-inactive { background-color:transparent!important; }';
       doc.head.append(selectionStyle);
     }
   };
   const paint = () => {
     if (!owned || !sameRange(owned, activeRange(doc))) { hide(); return; }
     paintHighlight(owned);
+    const bounds = selectionNavigation?.handleBounds() ?? {
+      left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight,
+    };
+    const safe = bounds.safe ?? bounds;
     controls.forEach((control, index) => {
       const point = endpoint(owned, index === 1);
-      const visible = point && point.x >= -10 && point.x <= win.innerWidth + 10 &&
-        point.y >= 0 && point.y <= win.innerHeight + 10;
+      const visible = point && point.x >= bounds.left - 10 && point.x <= bounds.right + 10 &&
+        point.y >= bounds.top && point.y <= bounds.bottom + 10;
       control.style.display = visible ? 'block' : 'none';
       if (!visible) return;
-      control.style.left = `${Math.max(18, Math.min(win.innerWidth - 18, point.x))}px`;
-      control.style.top = `${Math.max(18, Math.min(win.innerHeight - 18, point.y))}px`;
+      // Keep re-grabbable controls outside mobile system edge gestures, even
+      // when the chapter iframe spans many horizontally paginated screens.
+      control.style.left = `${Math.max(safe.left + 32, Math.min(safe.right - 32, point.x))}px`;
+      // iOS still reserves touches immediately below the top safe inset.
+      const topGap = safe.top > bounds.top ? 36 : 18;
+      control.style.top = `${Math.max(safe.top + topGap, Math.min(safe.bottom - 18, point.y))}px`;
     });
   };
   const show = range => {
@@ -250,7 +274,9 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
   const start = event => {
     if (!isHandle(event)) { hide(); return; }
     consume(event);
-    if (event.isPrimary === false || event.button > 0) return;
+    if (event.isPrimary === false || event.button > 0) {
+      selectionNavigation?.stop(); drag = null; return;
+    }
     const control = controls.find(item => event.composedPath().includes(item));
     if (!control || !owned) return;
     const end = control === controls[1];
@@ -263,13 +289,20 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
       node: end ? owned.startContainer : owned.endContainer,
       offset: end ? owned.startOffset : owned.endOffset,
       dx: point.hitX - event.clientX, dy: point.hitY - event.clientY };
+    const anchor = { node: drag.node, offset: drag.offset };
+    selectionNavigation?.begin({ anchor, backwards: !end,
+      point: { x: point.hitX, y: point.hitY }, write: range => {
+        owned = range.cloneRange();
+        if (!sameRange(range, activeRange(doc)))
+          doc.getSelection().setBaseAndExtent(anchor.node, anchor.offset,
+            end ? range.endContainer : range.startContainer, end ? range.endOffset : range.startOffset);
+        paint();
+      }, extend: point => extend(point.x, point.y) });
     try { control.setPointerCapture(event.pointerId); } catch { /* Document listener is the fallback. */ }
   };
-  const move = event => {
-    if (!drag || event.pointerId !== drag.id) return;
-    consume(event);
+  const extend = (x, y) => {
+    if (!drag) return;
     if (!drag.node.isConnected || !sameRange(owned, activeRange(doc))) { hide(); return; }
-    const x = event.clientX + drag.dx, y = event.clientY + drag.dy;
     // Remove our hit target for caret hit-testing, not the selection itself.
     host.style.setProperty('visibility', 'hidden', 'important');
     let caret;
@@ -288,13 +321,21 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
     else range.setEnd(caret.node, caret.offset);
     if (range.collapsed) return;
     owned = range.cloneRange();
-    doc.getSelection().setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+    doc.getSelection().setBaseAndExtent(drag.node, drag.offset, caret.node, caret.offset);
     paint();
     doc.dispatchEvent(new win.Event('selectionchange'));
+  };
+  const move = event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    consume(event);
+    const point = { x: event.clientX + drag.dx, y: event.clientY + drag.dy };
+    if (selectionNavigation?.move(point, { x: event.clientX, y: event.clientY })) return;
+    extend(point.x, point.y);
   };
   const end = event => {
     if (!drag || event.pointerId !== drag.id) return;
     consume(event);
+    selectionNavigation?.stop();
     const previous = drag; drag = null;
     try { previous.control.releasePointerCapture(previous.id); } catch { /* Already released. */ }
     doc.dispatchEvent(new win.Event('selectionchange'));
@@ -311,6 +352,7 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
     on(doc, name, event => { if (isHandle(event)) consume(event); });
   on(doc, 'selectionchange', paint);
   on(doc, 'scroll', paint); on(win, 'resize', paint);
+  on(doc, 'keydown', hide);
   on(doc, 'visibilitychange', hide); on(win, 'pagehide', hide);
   return { show, hide, paintHighlight, ownsSelection: () => owned && sameRange(owned, activeRange(doc)),
     destroy() { disposed = true; hide(); listeners.forEach(remove => remove()); } };
@@ -319,14 +361,14 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
 // Android owns touch selection and can publish its initial character after
 // pointercancel, action-mode creation or scroll-to-selection. Do not compete
 // with it using a caret hit/timer: normalize the actual, settled native range.
-function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentWord, segmentParagraph, onAdjusted, now, textSelectionHighlight, setTimer, clearTimer }) {
+function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentWord, segmentParagraph, onAdjusted, now, textSelectionHighlight, selectionNavigation, setTimer, clearTimer }) {
   let session = null, hadSelection = !!activeRange(doc), excluded = false;
   let disposed = false, touch = null, suppressClickUntil = 0;
   let touchHandlesAllowed = true;
   let pendingPenSelection = false;
   let wordCache = null;
   const listeners = [];
-  const handles = installExpandedSelectionHandles(doc, { textSelectionHighlight, onDragStart: () => {
+  const handles = installExpandedSelectionHandles(doc, { textSelectionHighlight, selectionNavigation, onDragStart: () => {
     session = null; touch = null; excluded = true; hadSelection = true;
     delete doc.__moduInitialSmartSelectionRange;
   } });
@@ -548,15 +590,31 @@ function installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentW
 export function installSmartSelection(doc, {
   enabled = () => true, paragraph = () => false, locale = () => undefined,
   segmentWord, segmentParagraph, nativeTouchSelection = false, textSelectionHighlight = true,
+  selectionNavigation,
   onAdjusted = () => {}, delay = 600, nativeDelay = 250, now = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout,
 } = {}) {
   if (nativeTouchSelection)
-    return installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentWord, segmentParagraph, onAdjusted, now, textSelectionHighlight, setTimer, clearTimer });
+    return installNativeTouchSelection(doc, { enabled, paragraph, locale, segmentWord, segmentParagraph, onAdjusted, now, textSelectionHighlight, selectionNavigation, setTimer, clearTimer });
   let gesture = null, timer, expiry, suppressClickUntil = 0;
+  let touchHandlesAllowed = false;
   const listeners = [];
   const cancelTimers = () => { clearTimer(timer); clearTimer(expiry); timer = expiry = undefined; };
   const cancel = () => { cancelTimers(); gesture = null; };
+  const handles = selectionNavigation ? installExpandedSelectionHandles(doc, {
+    textSelectionHighlight, selectionNavigation, onDragStart: () => {
+      cancel(); delete doc.__moduInitialSmartSelectionRange;
+    },
+  }) : null;
+  const adoptHandles = () => {
+    const range = activeRange(doc);
+    if (!handles || !touchHandlesAllowed || !enabled() || doc.__moduQuickMarkEnabled ||
+        handles.ownsSelection() || !range || !contextAt(doc, range.startContainer, range.startOffset) ||
+        !contextAt(doc, range.endContainer, range.endOffset)) return;
+    const owned = range.cloneRange(), selection = doc.getSelection();
+    selection.removeAllRanges(); selection.addRange(owned);
+    handles.show(owned);
+  };
   const apply = () => {
     const current = gesture;
     if (!current || current.applied || !enabled() || doc.__moduQuickMarkEnabled || !current.anchor.node.isConnected) return;
@@ -589,12 +647,14 @@ export function installSmartSelection(doc, {
     }
     suppressClickUntil = now() + 600;
     onAdjusted(range);
+    adoptHandles();
     doc.dispatchEvent(new doc.defaultView.Event('selectionchange'));
   };
   const start = e => {
     if (e.touches?.length > 1 || e.isPrimary === false) { cancel(); return; }
     const point = e.touches?.[0] ?? e;
     const kind = e.touches ? 'touch' : (e.pointerType || 'mouse');
+    touchHandlesAllowed = kind !== 'mouse';
     if (gesture?.kind === kind && Math.hypot(point.clientX - gesture.x, point.clientY - gesture.y) < 2 && now() - gesture.started < 50) return;
     cancel();
     delete doc.__moduInitialSmartSelectionRange;
@@ -674,7 +734,11 @@ export function installSmartSelection(doc, {
   on(doc.defaultView, 'pagehide', cancel);
   on(doc.defaultView, 'blur', interrupted);
   return {
-    cancel,
-    destroy() { cancel(); delete doc.__moduInitialSmartSelectionRange; for (const remove of listeners) remove(); },
+    beforeSelection: adoptHandles,
+    cancel({ preserveActiveSelection = false } = {}) {
+      cancel();
+      if (!preserveActiveSelection) { touchHandlesAllowed = false; handles?.hide(); }
+    },
+    destroy() { cancel(); handles?.destroy(); delete doc.__moduInitialSmartSelectionRange; for (const remove of listeners) remove(); },
   };
 }

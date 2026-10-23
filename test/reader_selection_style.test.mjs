@@ -46,6 +46,7 @@ test('menu dismissal restores book focus on every platform without focusing the 
   assert.match(restore, /addPostFrameCallback/);
   assert.match(restore, /_aiChat != null/);
   assert.match(restore, /ModalRoute.of\(context\)\?\.isCurrent != true/);
-  assert.match(page, /FocusScope\(\s*node: _readerWebViewFocusScope,\s*child: EpubPlayer\(/);
+  assert.match(page, /late final EpubPlayer _player = EpubPlayer\(/);
+  assert.match(page, /FocusScope\(\s*node: _readerWebViewFocusScope,\s*child: _player,/);
   assert.match(page, /_readerWebViewFocusScope.dispose\(\)/);
 });

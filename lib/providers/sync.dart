@@ -14,6 +14,7 @@ import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/sync_state_model.dart';
 import 'package:anx_reader/providers/book_list.dart';
+import 'package:anx_reader/providers/current_reading.dart';
 import 'package:anx_reader/providers/book_notes.dart';
 import 'package:anx_reader/providers/bookmark.dart';
 import 'package:anx_reader/providers/sync_database_revision.dart';
@@ -430,6 +431,7 @@ class Sync extends _$Sync {
       } catch (error) {
         AnxLog.warning('Replaced-book cleanup deferred: ${error.runtimeType}');
       }
+      await _cleanupReplacedLocalBooks();
 
       imageCache.clear();
       imageCache.clearLiveImages();
@@ -777,6 +779,26 @@ class Sync extends _$Sync {
     AnxToast.show(summary);
   }
 
+  Future<void> _cleanupReplacedLocalBooks() async {
+    try {
+      final count = await ReplacedBookFiles.reclaimLocal(
+        db: await DBHelper().database,
+        files: getFileDir(),
+        isInUse: (path) {
+          final reading = ref.read(currentReadingProvider);
+          return reading.isReading && reading.book?.filePath == path;
+        },
+      );
+      if (count > 0) {
+        AnxLog.info('Local replaced-book cleanup: reclaimed=$count');
+      }
+    } catch (error) {
+      // Maintenance must not turn a successful download into an error.
+      AnxLog.warning(
+          'Local replaced-book cleanup deferred: ${error.runtimeType}');
+    }
+  }
+
   Future<void> _downloadBook(Book book) async {
     try {
       // A shelf widget can still hold the pre-replacement filename.
@@ -789,6 +811,7 @@ class Sync extends _$Sync {
       final remotePath = SyncPaths.data(book.filePath);
       final localPath = getBasePath(book.filePath);
       await downloadFile(remotePath, localPath, expectedMd5: book.md5);
+      await _cleanupReplacedLocalBooks();
       try {
         final client = _syncClient;
         if (client != null) {

@@ -1,8 +1,8 @@
 # Application update mirror
 
-## Release procedure: Modu 1.2.10+10129
+## Release procedure: Modu 1.3.2+10157
 
-This guide describes the Modu publishing repository's `v1.2.10` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
+This guide describes the Modu publishing repository's `v1.3.2` release procedure and client behavior. A mirror is current only after all nine packages and their checksums have been verified and its manifest updated.
 
 A single Update Source option controls both checking and downloading. Each fresh app launch starts with GitHub preferred. A GitHub check that fails because of connection, timeout, TLS/certificate or HTTP request errors falls back to the fixed HTTPS Gitee manifest and switches the source for the whole workflow:
 
@@ -32,6 +32,8 @@ On macOS, the app opens the checked source's DMG download link in the default br
 If a GitHub browser download fails, select Gitee, check again and download from that source. The app does not switch the browser download automatically. Manual checksum verification can use the release's checksum file; this is separate from the in-app integrity checks on platforms that download internally.
 
 ## Publishing order
+
+Gitee synchronization is a required part of every requested stable Modu release, together with GitHub publication. Do not ask whether to include it each time or silently defer it. Completion requires verified public mirror assets and the updated public manifest, not merely a successful GitHub workflow. If credentials, permissions or service limits block this process, preserve verified originals, report the blocker and remaining work, and do not claim the full release is complete.
 
 The mirror repository contains explanations, update manifests and release assets, not imported application source. The existing release policy allows cleanup of old Gitee application releases within the previously agreed scope; it still requires target checks, backups and integrity verification. Any tool-enforced approval or expansion of scope is handled separately. This guide does not itself perform those actions.
 

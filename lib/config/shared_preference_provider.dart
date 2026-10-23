@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:anx_reader/service/translate/classical_translation.dart';
+import 'package:anx_reader/enums/app_layout_mode.dart';
 import 'package:anx_reader/models/reader_shortcuts.dart';
 import 'package:anx_reader/models/tts_buffer_settings.dart';
 import 'dart:core';
@@ -547,6 +549,16 @@ class Prefs extends ChangeNotifier {
     notifyListeners();
   }
 
+  AppLayoutMode get appLayoutMode => AppLayoutMode.values.firstWhere(
+        (mode) => mode.name == prefs.getString('appLayoutMode'),
+        orElse: () => AppLayoutMode.auto,
+      );
+
+  set appLayoutMode(AppLayoutMode mode) {
+    prefs.setString('appLayoutMode', mode.name);
+    notifyListeners();
+  }
+
   set autoHideBottomBar(bool status) {
     prefs.setBool('autoHideBottomBar', status);
     notifyListeners();
@@ -728,6 +740,13 @@ class Prefs extends ChangeNotifier {
 
   bool get continuousScroll => prefs.getBool('continuousScroll') ?? true;
 
+  bool get scrollAutoAlign => prefs.getBool('scrollAutoAlign') ?? true;
+
+  set scrollAutoAlign(bool value) {
+    prefs.setBool('scrollAutoAlign', value);
+    notifyListeners();
+  }
+
   set continuousScroll(bool value) {
     prefs.setBool('continuousScroll', value);
     notifyListeners();
@@ -905,6 +924,65 @@ class Prefs extends ChangeNotifier {
 
   set translationAiService(String identifier) {
     prefs.setString('translationAiService', identifier);
+    notifyListeners();
+  }
+
+  String get readerToolbar => prefs.getString('readerToolbar') ?? '{}';
+  set readerToolbar(String value) {
+    prefs.setString('readerToolbar', value);
+    notifyListeners();
+  }
+
+  String get languageTranslationTextStyle =>
+      prefs.getString('languageTranslationTextStyle') ?? '{}';
+  set languageTranslationTextStyle(String value) {
+    prefs.setString('languageTranslationTextStyle', value);
+    notifyListeners();
+  }
+
+  String get classicalTranslationTextStyle =>
+      prefs.getString('classicalTranslationTextStyle') ?? '{}';
+  set classicalTranslationTextStyle(String value) {
+    prefs.setString('classicalTranslationTextStyle', value);
+    notifyListeners();
+  }
+
+  ClassicalTranslationDirection get classicalTranslationDirection =>
+      ClassicalTranslationDirection.values.firstWhere(
+          (e) => e.name == prefs.getString('classicalTranslationDirection'),
+          orElse: () => ClassicalTranslationDirection.toModern);
+  set classicalTranslationDirection(ClassicalTranslationDirection value) {
+    prefs.setString('classicalTranslationDirection', value.name);
+    notifyListeners();
+  }
+
+  ClassicalTranslationEngine get classicalTranslationEngine =>
+      ClassicalTranslationEngine.values.firstWhere(
+          (e) => e.name == prefs.getString('classicalTranslationEngine'),
+          orElse: () => ClassicalTranslationEngine.ai);
+  set classicalTranslationEngine(ClassicalTranslationEngine value) {
+    prefs.setString('classicalTranslationEngine', value.name);
+    notifyListeners();
+  }
+
+  String get classicalTranslationAiService =>
+      prefs.getString('classicalTranslationAiService') ?? translationAiService;
+  set classicalTranslationAiService(String value) {
+    prefs.setString('classicalTranslationAiService', value);
+    notifyListeners();
+  }
+
+  Map<String, String> get classicalTranslationConfig {
+    try {
+      return Map<String, String>.from(jsonDecode(
+          prefs.getString('translateServiceConfig_classical') ?? '{}') as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  set classicalTranslationConfig(Map<String, String> value) {
+    prefs.setString('translateServiceConfig_classical', jsonEncode(value));
     notifyListeners();
   }
 

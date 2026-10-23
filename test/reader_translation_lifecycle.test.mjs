@@ -24,6 +24,43 @@ function setup() {
   return {dom,window,translator,calls,observers,elements};
 }
 
+test('translation style affects only output and switches independent appearances without requests', async()=>{
+  const s=setup();
+  s.elements[0].style.cssText='font-family: serif; font-size: 18px; font-weight: 400; font-style: normal';
+  const original=s.elements[0].getAttribute('style');
+  s.translator.setTextStyle({font:'monospace',size:32,bold:true,italic:true});
+  await s.translator.setTranslationMode('bilingual',1);
+  s.calls[0].resolve('译文'); await tick();
+  s.calls[1].resolve('第二段'); await tick();
+  let output=s.elements[0].querySelector('.translated-text');
+  assert.equal(output.style.fontFamily,'monospace');
+  assert.equal(output.style.fontSize,'32px');
+  assert.equal(output.style.fontWeight,'700');
+  assert.equal(output.style.fontStyle,'italic');
+  assert.equal(s.elements[0].getAttribute('style'),original);
+  const count=s.calls.length;
+  s.translator.setTextStyle({font:'sans-serif',size:20,bold:false,italic:false});
+  assert.equal(output.style.fontSize,'20px');
+  assert.equal(output.style.fontWeight,'400');
+  assert.equal(s.calls.length,count);
+  await s.translator.setTranslationMode('translation-only',1);
+  assert.equal(output.style.fontSize,'20px');
+  await s.translator.setTranslationMode('off');
+  s.translator.setTextStyle({font:'serif',size:26,bold:true,italic:false});
+  await s.translator.setTranslationMode('bilingual',2);
+  assert.equal(output.style.fontFamily,'serif');
+  assert.equal(output.style.fontSize,'26px');
+  assert.equal(output.style.fontStyle,'normal');
+  assert.equal(s.calls.length,count);
+  assert.equal(s.elements[0].getAttribute('style'),original);
+  await s.translator.setTranslationMode('off');
+  s.translator.setTextStyle(null);
+  assert.equal(output.style.fontSize,'');
+  assert.equal(output.style.fontFamily,'');
+  assert.equal(s.elements[0].getAttribute('style'),original);
+  s.translator.destroy();s.dom.window.close();
+});
+
 test('explicit start translates visible paragraphs serially and deduplicates observer events',async()=>{
   const s=setup(); assert.equal(s.calls.length,0);
   await s.translator.setTranslationMode('bilingual',7);
@@ -69,6 +106,37 @@ test('failure/cancellation never inserts an error string into book content',asyn
   s.calls[0].resolve(null);await tick();
   assert.equal(s.elements[0].querySelector('.translated-text'),null);
   s.translator.destroy();s.calls[1].resolve('late');await tick();s.dom.window.close();
+});
+
+test('translation insertion, display switches and clearing notify layout synchronously',async()=>{
+  const s=setup(), displays=[];
+  s.window.document.addEventListener('modu-translation-layout',()=>{
+    const wrapper=s.elements[0].querySelector('.translated-text');
+    displays.push(wrapper?.style.display ?? null);
+  });
+  await s.translator.setTranslationMode('bilingual',1);
+  s.calls[0].resolve('译文');await tick();
+  assert.equal(displays.at(-1),'block');
+  await s.translator.setTranslationMode('translation-only',1);
+  assert.equal(s.elements[0].textContent,'译文');
+  assert.equal(displays.at(-1),'block');
+  await s.translator.setTranslationMode('off');
+  assert.equal(displays.at(-1),'none');
+  s.translator.clearTranslations();
+  assert.equal(displays.at(-1),null);
+  s.translator.destroy();s.calls[1].resolve(null);await tick();s.dom.window.close();
+});
+
+test('display switches translate newly visible paragraphs without re-requesting cached ones',async()=>{
+  const s=setup();await s.translator.setTranslationMode('bilingual',1);
+  s.calls[0].resolve('一');await tick();s.calls[1].resolve('二');await tick();
+  s.elements[2].getBoundingClientRect=()=>({top:100,bottom:140,left:10,right:150});
+  await s.translator.setTranslationMode('translation-only',1);
+  assert.equal(s.calls.length,3);assert.equal(s.calls[2].text,'far away');
+  s.calls[2].resolve('三');await tick();
+  await s.translator.setTranslationMode('bilingual',1);
+  assert.equal(s.calls.length,3);
+  s.translator.destroy();s.dom.window.close();
 });
 
 test('repeated popup disposal is safe and does not reconnect translation observers',()=>{

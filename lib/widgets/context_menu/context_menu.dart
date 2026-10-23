@@ -96,9 +96,8 @@ Future<void> showContextMenu(
 
   const double horizontalMargin = 16;
   const double verticalMargin = 16;
-  // Leave room for Android's draggable selection endpoints below/alongside
-  // the selected text, including the handles restored after smart expansion.
-  final double gap = AnxPlatform.isAndroid && !footnote ? 32 : 12;
+  // Both mobile readers need room for their draggable selection endpoints.
+  final double gap = AnxPlatform.isMobile && !footnote ? 32 : 12;
 
   final double maxMenuWidth =
       math.min(350, math.max(120, screenWidth - horizontalMargin * 2));

@@ -16,6 +16,7 @@ const moduleURL = async name => {
 const load = async name => import(await moduleURL(name));
 const { wordBounds, smartSelectionRange, installSmartSelection, isInitialSmartSelection } = await load('smart-selection');
 const { installSettledSelection } = await load('settled-selection');
+const { installSelectionNavigation } = await load('selection-navigation');
 
 function fixture(html = '<p>我喜欢中国文化。</p>', options = {}) {
   const dom = new JSDOM(`<body>${html}</body>`);
@@ -155,6 +156,7 @@ test('aligned Android selections paint glyph height and restore native painting 
   assert.equal(f.text(), '中国');
   assert.equal(run.style.cssText, '');
   assert.match(f.doc.head.textContent, /background-color:transparent/);
+  assert.match(f.doc.head.textContent, /-webkit-touch-callout:none/);
   f.select(0, 0, node);
   assert.equal(handlesHost(f), null);
   assert.equal(f.doc.head.querySelector('style'), null);
@@ -385,9 +387,9 @@ test('late segmentation after the selection changed cannot resurrect expanded ha
 
 test('expanded handle positions support horizontal RTL and vertical text and refresh on resize', async () => {
   for (const [style, startX, startY, endX, endY] of [
-    ['', '30px', '30px', '50px', '30px'],
+    ['', '32px', '30px', '50px', '30px'],
     ['direction:rtl', '40px', '30px', '40px', '30px'],
-    ['writing-mode:vertical-rl', '20px', '18px', '30px', '20px'],
+    ['writing-mode:vertical-rl', '32px', '18px', '32px', '20px'],
   ]) {
     const f = fixture(`<p style="${style}">我喜欢中国文化。</p>`, { nativeTouchSelection: true });
     f.select(3, 4); await f.control.beforeSelection();
@@ -400,6 +402,26 @@ test('expanded handle positions support horizontal RTL and vertical text and ref
     assert.notEqual(handleAt(f, 'start').style.left, startX);
     f.close();
   }
+});
+
+test('top-page handles stay draggable below the iOS safe area without moving the range', async () => {
+  const f = fixture(undefined, { nativeTouchSelection: true, selectionNavigation: {
+    handleBoundary: () => undefined,
+    handleBounds: () => ({ left: 0, right: 400, top: 0, bottom: 800,
+      safe: { left: 0, right: 400, top: 62, bottom: 766 } }),
+    begin() {}, move: () => false, stop() {},
+  } });
+  f.select(3, 4); await f.control.beforeSelection();
+  assert.equal(handleAt(f, 'end').style.top, '98px');
+  assert.equal(handleAt(f, 'end').style.display, 'block');
+  const initial = f.text();
+  f.send('pointerdown', { pointerId: 1, clientY: 98 }, handleAt(f, 'end'));
+  assert.equal(f.text(), initial);
+  f.hit(f.doc.querySelector('p').firstChild, 7);
+  f.send('pointermove', { pointerId: 1, clientY: 120 });
+  f.send('pointerup', { pointerId: 1 });
+  assert.equal(f.text(), '中国文化');
+  f.close();
 });
 
 test('pointer cancellation, a second finger and invalid caret hits never corrupt the expanded range', async () => {
@@ -989,7 +1011,7 @@ test('a late system bridge cannot open a stale toolbar after disposal or selecti
 test('Apple native handle changes refresh text, CFI and annotations without pointerup', async () => {
   const source = await readFile(new URL('../assets/foliate-js/src/book.js', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('const setSelectionHandler ='), source.indexOf('const isZip ='));
-  const publish = source.slice(source.indexOf('const handleSelection ='), source.indexOf('const AUTO_PAGE_DELAY_MS'));
+  const publish = source.slice(source.indexOf('const handleSelection ='), source.indexOf('const setSelectionHandler'));
   for (const navigator of [
     { platform: 'iPhone', userAgent: 'iPhone', maxTouchPoints: 5 },
     { platform: 'iPad', userAgent: 'iPad', maxTouchPoints: 5 },
@@ -997,9 +1019,9 @@ test('Apple native handle changes refresh text, CFI and annotations without poin
     { platform: 'MacIntel', userAgent: 'Macintosh', maxTouchPoints: 0 },
   ]) {
     const f = fixture('<p>我喜欢中国文化。</p><p>第二段文字。</p>'); f.control.destroy();
-    const maps = { smartSelectionDocuments: new WeakMap(), settledSelectionDocuments: new WeakMap() };
-    const emitted = [], cleared = [];
-    const view = { isFixedLayout: false, renderer: { getAttribute: () => 'scrolled' },
+    const maps = { smartSelectionDocuments: new WeakMap(), settledSelectionDocuments: new WeakMap(), selectionNavigationDocuments: new WeakMap() };
+    const emitted = [], cleared = [], interaction = [];
+    const view = { isFixedLayout: false, renderer: new f.dom.window.EventTarget(),
       getCFI: (index, range) => `${index}:${range.startOffset}:${range.endOffset}:${range.endContainer.parentNode.tagName}`,
       getSelectionAnnotationIds: cfi => cfi.includes(':3:4:') ? [42] : [],
     };
@@ -1010,12 +1032,26 @@ test('Apple native handle changes refresh text, CFI and annotations without poin
       getPosition: range => ({ left: range.startOffset, right: range.endOffset }),
       buildRangeContextText: range => range.commonAncestorContainer.textContent,
       onSelectionEnd: selection => emitted.push(selection),
-      stopAutoPageSession: () => {}, isInitialSmartSelection,
-      callFlutter: name => cleared.push(name),
+      installSelectionNavigation, isInitialSmartSelection,
+      callFlutter: (name, value) => name === 'onReaderTextInteraction'
+        ? interaction.push(value) : cleared.push(name),
     });
     const settle = () => new Promise(done => setTimeout(done, 30));
     try {
       setup(view, f.doc, 7);
+      assert.deepEqual(interaction, navigator.maxTouchPoints === 0 ? [] : [false],
+        'only Apple touch readers disable native handles before the initial press');
+      if (navigator.maxTouchPoints > 0) {
+        const fixedDom = new JSDOM('<p>fixed layout</p>');
+        const fixed = fixedDom.window.document;
+        const fixedView = { ...view, isFixedLayout: true };
+        setup(fixedView, fixed, 0);
+        assert.deepEqual(interaction, [false, true], 'fixed-layout readers keep native text interaction');
+        maps.settledSelectionDocuments.get(fixed)?.();
+        maps.smartSelectionDocuments.get(fixed)?.destroy();
+        maps.selectionNavigationDocuments.get(fixed)?.destroy();
+        fixedDom.window.close();
+      }
       if (navigator.maxTouchPoints === 0) {
         f.select(3, 5); await settle();
         assert.equal(emitted.length, 0, 'desktop mouse keeps pointerup timing');
@@ -1070,16 +1106,16 @@ test('actual Android reader wiring expands a glyph selection before sending it t
   for (const paragraph of [false, true]) {
     const f = fixture(); f.control.destroy();
     f.doc.caretPositionFromPoint = () => null;
-    const maps = { smartSelectionDocuments: new WeakMap(), settledSelectionDocuments: new WeakMap() };
+    const maps = { smartSelectionDocuments: new WeakMap(), settledSelectionDocuments: new WeakMap(), selectionNavigationDocuments: new WeakMap() };
     const requests = [], emitted = [], bridgeWindow = { isFootNoteOpen: () => false };
     const view = { isFixedLayout: false,
-      renderer: { getAttribute: () => 'scrolled', getContents: () => [{ doc: f.doc }] } };
+      renderer: Object.assign(new f.dom.window.EventTarget(), { getContents: () => [{ doc: f.doc }] }) };
     const setup = runInNewContext(`${handler}\n${menu}\nsetSelectionHandler;`, {
       ...maps, navigator: { platform: 'Linux armv8l', userAgent: 'Android 14', maxTouchPoints: 5 },
       style: { longPressSelectParagraph: paragraph, selectionLocale: 'zh-CN' },
       installSmartSelection, installSettledSelection: (doc, options) => installSettledSelection(doc, { ...options, delay: 5 }),
       getSelectionRange: selection => selection?.rangeCount && !selection.isCollapsed ? selection.getRangeAt(0) : null,
-      handleSelection: () => emitted.push(f.text()), stopAutoPageSession: () => {},
+      handleSelection: () => emitted.push(f.text()), installSelectionNavigation,
       isInitialSmartSelection, window: bridgeWindow, reader: { view }, isPdf: false,
       callFlutter: async (name, request) => {
         assert.equal(name, 'onReaderParagraphWords'); requests.push(request); return [[3, 5]];
@@ -1270,10 +1306,10 @@ test('reader integration resolves settings live and guards automatic cross-page 
   assert.match(book, /locale: \(\) => style\.selectionLocale/);
   assert.match(book, /segmentWord: navigator\.userAgent\.includes\('Android'\)/);
   assert.match(book, /callFlutter\('onReaderWordBounds', request\)/);
-  assert.match(book, /if \(isInitialSmartSelection\(doc, selRange\)\) return/);
+  assert.match(book, /isInitialSelection: range => isInitialSmartSelection\(doc, range\)/);
   assert.match(book, /nativeTouchSelection: navigator\.userAgent\.includes\('Android'\)/);
   assert.match(book, /beforeSelection: \(\) => smartSelectionDocuments\.get\(doc\)\?\.beforeSelection\?\.\(\)/);
-  assert.match(book, /smartSelectionDocuments\.get\(doc\)\?\.cancel\(\{ preserveActiveSelection: detail\.reason === 'scroll' \}\)/);
+  assert.match(book, /preserveActiveSelection: detail\.reason === 'scroll'\s*\|\| selectionNavigationDocuments\.get\(doc\)\?\.active/);
   assert.match(book, /window\.onNativeReaderLongPress =/);
   assert.match(book, /smartSelectionDocuments\.get\(doc\)\?\.nativeLongPress\?\.\(\)/);
   for (const name of ['lib/utils/webView/webview_initial_variable.dart', 'lib/page/book_player/epub_player.dart']) {

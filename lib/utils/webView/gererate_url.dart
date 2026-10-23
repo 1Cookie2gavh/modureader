@@ -21,6 +21,7 @@ String generateUrl(
   bool inspectDocumentOnImport = false,
   bool isDarkMode = false,
   Map<String, double>? verticalPageInsets,
+  Map<String, double>? selectionSafeInsets,
   Map<String, dynamic>? verticalPageChrome,
   String? cssBookKey,
 }) {
@@ -82,7 +83,9 @@ String generateUrl(
     'tapOnlyPageTurn': Prefs().tapOnlyPageTurn,
     'longPressSelectParagraph': Prefs().longPressSelectParagraph,
     'selectionLocale': Prefs().effectiveLocale.toLanguageTag(),
+    'selectionSafeInsets': selectionSafeInsets,
     'scrollPagePercent': Prefs().scrollPagePercent,
+    'scrollAutoAlign': Prefs().scrollAutoAlign,
     'continuousScroll': Prefs().continuousScroll,
     'eInkMode': Prefs().eInkMode,
     'eInkDisableAnimations': Prefs().eInkDisableAnimations,

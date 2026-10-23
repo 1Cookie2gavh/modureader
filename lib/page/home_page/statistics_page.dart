@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/enums/chart_mode.dart';
 import 'package:anx_reader/enums/hint_key.dart';
@@ -52,7 +53,9 @@ class _StatisticPageState extends State<StatisticPage> {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    if (constraints.maxWidth > 600) {
+                    if (Prefs()
+                        .appLayoutMode
+                        .usesWideLayout(constraints.maxWidth)) {
                       return Row(
                         children: [
                           Expanded(

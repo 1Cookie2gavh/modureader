@@ -1,4 +1,4 @@
-"""OHOS-only native snapshots. Copy the pinned adapter; never modify PUB_CACHE.
+"""OHOS-only native snapshots and transactions; never modify PUB_CACHE.
 
 Run after initial OHOS pub get in a fresh Actions checkout. Local diagnosis can
 use plan() in its disposable copy, just like the existing WebView/UI adapters.
@@ -37,6 +37,75 @@ def transform(source):
     }''')
 
 
+def replace_once(source, before, after):
+    if source.count(before) != 1:
+        raise ValueError('sqflite transaction anchors changed; re-audit required')
+    return source.replace(before, after)
+
+
+def transaction_database(source):
+    # Worker code must not evaluate Flutter's barrel (it imports ArkUI views).
+    source = replace_once(source, "import { Any, Log } from '@ohos/flutter_ohos';",
+                          "import Any from '@ohos/flutter_ohos/src/main/ets/plugin/common/Any';\n"
+                          "import Log from '@ohos/flutter_ohos/src/main/ets/util/Log';")
+    source = replace_once(source, IMPORT, IMPORT +
+                          "\nimport { ModuTransactions } from './ModuTransactions';")
+    for before, after in (
+        ('await db.executeSql(sql);', 'await ModuTransactions.connection(db).execute(sql);'),
+        ('await db.execute(sql) as ValueType', 'await ModuTransactions.connection(db).execute(sql) as ValueType'),
+        ('await db.execute(sql, sqlArguments) as ValueType',
+         'await ModuTransactions.connection(db).execute(sql, sqlArguments) as ValueType'),
+        ('await db.querySql(sql, sqlArguments)',
+         'await ModuTransactions.connection(db).querySql(sql, sqlArguments)'),
+        ('await db.querySql(sql)', 'await ModuTransactions.connection(db).querySql(sql)'),
+        ('await db.querySql(`PRAGMA table_info(${tableName})`)',
+         'await ModuTransactions.connection(db).querySql(`PRAGMA table_info(${tableName})`)'),
+    ):
+        source = replace_once(source, before, after)
+    return source
+
+
+def transaction_handlers(source):
+    anchor = "import { Constant } from './Constant';"
+    source = replace_once(source, anchor, anchor +
+                          "\nimport { ModuTransactions } from './ModuTransactions';")
+    for before, after in (
+        ('''  execute(_sql: string, operation: Operation, db: relationalStore.RdbStore): boolean {
+    db.beginTransaction();''', '''  async execute(_sql: string, operation: Operation, db: relationalStore.RdbStore): Promise<boolean> {
+    await ModuTransactions.begin(db, false);'''),
+        ('''  execute(sql: string, operation: Operation, db: relationalStore.RdbStore) {
+    db.commit();''', '''  async execute(sql: string, operation: Operation, db: relationalStore.RdbStore): Promise<boolean> {
+    await ModuTransactions.commit(db);'''),
+        ('''  execute(sql: string, operation: Operation, db: relationalStore.RdbStore) {
+    try {
+      db.rollBack();
+      return true;
+    } catch (err) {
+      return true;{space}
+    }
+  }'''.replace('{space}', ' '), '''  async execute(sql: string, operation: Operation, db: relationalStore.RdbStore): Promise<boolean> {
+    await ModuTransactions.rollback(db);
+    return true;
+  }'''),
+        ('''  execute(_sql: string, operation: Operation, _db: relationalStore.RdbStore) {
+    return true;''', '''  async execute(_sql: string, operation: Operation, db: relationalStore.RdbStore): Promise<boolean> {
+    await ModuTransactions.begin(db, true);
+    return true;'''),
+    ):
+        source = replace_once(source, before, after)
+    return source
+
+
+def transaction_close(source):
+    source = replace_once(source, "import { Log } from '@ohos/flutter_ohos';",
+                          "import Log from '@ohos/flutter_ohos/src/main/ets/util/Log';")
+    anchor = "import { Constant } from './Constant';"
+    source = replace_once(source, anchor, anchor +
+                          "\nimport { ModuTransactions } from './ModuTransactions';")
+    return replace_once(source, '      const closePromise = local.close();',
+                        '      await ModuTransactions.rollback(local);\n      const closePromise = local.close();')
+
+
 def plan(root):
     roots = package_roots(root)
     entry = yaml.safe_load((root / 'pubspec.lock').read_text())['packages'][PACKAGE]
@@ -46,7 +115,14 @@ def plan(root):
                            pin=PIN, repository=REPOSITORY)
     name = f'{NATIVE}/Database.ets'
     data, mode = files[name]
-    files[name] = (transform(data.decode()).encode(), mode)
+    files[name] = (transaction_database(transform(data.decode())).encode(), mode)
+    for filename, patch in (('SqlHandler.ets', transaction_handlers),
+                            ('DatabaseHelper.ets', transaction_close)):
+        name = f'{NATIVE}/{filename}'
+        data, mode = files[name]
+        files[name] = (patch(data.decode()).encode(), mode)
+    files[f'{NATIVE}/ModuTransactions.ets'] = (
+        Path(__file__).with_name('sqflite_transaction.ets').read_bytes(), 0o644)
     files[f'{NATIVE}/ModuSnapshot.ets'] = (
         Path(__file__).with_name('sqflite_snapshot.ets').read_bytes(), 0o644)
     overlay = yaml.safe_load((root / 'pubspec_overrides.yaml').read_text())

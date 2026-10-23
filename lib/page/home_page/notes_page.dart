@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/widgets/home_navigation_metrics.dart';
 import 'package:anx_reader/models/book.dart';
@@ -32,7 +33,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
       bottom: false,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth > 600) {
+          if (Prefs().appLayoutMode.usesWideLayout(constraints.maxWidth)) {
             return Row(
               children: [
                 Expanded(

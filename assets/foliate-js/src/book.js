@@ -17,6 +17,7 @@ import { applyCustomHighlights } from './custom-highlight.js'
 import { applyVerticalPageChrome } from './vertical-page-chrome.js'
 import { installSettledSelection } from './settled-selection.js'
 import { installSmartSelection, isInitialSmartSelection } from './smart-selection.js'
+import { installSelectionNavigation } from './selection-navigation.js'
 import { analyzeEpubSection, samplePageIndices, summarizePages, checkCancelled } from './document-analysis.js'
 import { resolveReflowRegion } from './pdf-reading-layout.js'
 import { selectionAnnotationIds } from './selection-annotations.js'
@@ -33,6 +34,7 @@ let quickMarkColor = '#ffd54f';
 const quickMarkDocuments = new WeakMap();
 const desktopInputDocuments = new WeakMap();
 const smartSelectionDocuments = new WeakMap();
+const selectionNavigationDocuments = new WeakMap();
 const settledSelectionDocuments = new WeakMap();
 const highlightWarnings = new Set();
 const highlightSignatures = new WeakMap();
@@ -147,7 +149,7 @@ const buildRangeContextText = (range) => {
 };
 
 const handleSelection = (view, doc, index) => {
-  if (doc.__moduQuickMarkEnabled) return;
+  if (doc.__moduQuickMarkEnabled || doc.__moduSelectionDragging) return;
   const selection = doc.getSelection();
   const range = getSelectionRange(selection);
 
@@ -179,85 +181,32 @@ const handleSelection = (view, doc, index) => {
   });
 };
 
-const AUTO_PAGE_DELAY_MS = 1000;
-const AUTO_PAGE_SCREEN_BOTTOM_THRESHOLD = 0.9;
-const AUTO_PAGE_POST_NEXT_RECHECK_INTERVAL_MS = 120;
-const AUTO_PAGE_POST_NEXT_RECHECK_MAX_ATTEMPTS = 12;
-const AUTO_PAGE_POST_NEXT_RECHECK_INITIAL_DELAY_MS = 80;
-
-const getAutoPageState = (view) => {
-  if (!view.__anxAutoPageState) {
-    view.__anxAutoPageState = {
-      sessionId: 0,
-      currentPageKey: null,
-      triggeredPages: new Set(),
-      pendingFromPageKey: null,
-      pendingTimer: null,
-      postNextRecheckTimer: null,
-      postNextRecheckAttempts: 0,
-      awaitingPageAdvanceFromKey: null,
-    };
-  }
-  return view.__anxAutoPageState;
-};
-
-const clearAutoPageTimer = (state) => {
-  if (!state.pendingTimer) return;
-  clearTimeout(state.pendingTimer);
-  state.pendingTimer = null;
-};
-
-const clearAutoPagePostNextRecheck = (state) => {
-  if (!state.postNextRecheckTimer) return;
-  clearTimeout(state.postNextRecheckTimer);
-  state.postNextRecheckTimer = null;
-};
-
-const resetAutoPageSessionState = (state) => {
-  state.currentPageKey = null;
-  state.triggeredPages.clear();
-  state.pendingFromPageKey = null;
-  state.postNextRecheckAttempts = 0;
-  state.awaitingPageAdvanceFromKey = null;
-};
-
-const startAutoPageSession = (view) => {
-  const state = getAutoPageState(view);
-  clearAutoPageTimer(state);
-  clearAutoPagePostNextRecheck(state);
-  state.sessionId += 1;
-  resetAutoPageSessionState(state);
-  return state;
-};
-
-const stopAutoPageSession = (view) => {
-  const state = getAutoPageState(view);
-  clearAutoPageTimer(state);
-  clearAutoPagePostNextRecheck(state);
-  resetAutoPageSessionState(state);
-};
-
-const getAutoPageLocationKey = (lastLocation, index) => {
-  if (!lastLocation) return `index:${index}:none`;
-  const cfi = lastLocation.cfi ?? '';
-  const current = lastLocation.location?.current ?? '';
-  const chapter = lastLocation.chapterLocation?.current ?? '';
-  return `index:${index}|cfi:${cfi}|loc:${current}|chapter:${chapter}`;
-};
 
 const setSelectionHandler = (view, doc, index) => {
+  const appleTouch = /iPhone|iPad|iPod/.test(navigator.platform + ' ' + navigator.userAgent)
+    || (navigator.platform.includes('Mac') && navigator.maxTouchPoints > 1);
+  // Release UIKit's recognizer before a long press starts, not after it has
+  // already captured the finger. Fixed-layout/PDF selection remains native.
+  if (appleTouch) callFlutter('onReaderTextInteraction', view.isFixedLayout);
   smartSelectionDocuments.get(doc)?.destroy();
+  selectionNavigationDocuments.get(doc)?.destroy();
+  const selectionNavigation = installSelectionNavigation(doc, {
+    view, isInitialSelection: range => isInitialSmartSelection(doc, range),
+    safeInsets: () => style.selectionSafeInsets,
+  });
+  selectionNavigationDocuments.set(doc, selectionNavigation);
   smartSelectionDocuments.set(doc, installSmartSelection(doc, {
     enabled: () => !view.isFixedLayout,
     paragraph: () => style.longPressSelectParagraph === true,
     locale: () => style.selectionLocale,
     nativeTouchSelection: navigator.userAgent.includes('Android'),
     textSelectionHighlight: !view.isFixedLayout,
+    selectionNavigation,
     segmentWord: navigator.userAgent.includes('Android')
       ? request => callFlutter('onReaderWordBounds', request) : undefined,
     segmentParagraph: navigator.userAgent.includes('Android')
       ? request => callFlutter('onReaderParagraphWords', request) : undefined,
-    onAdjusted: () => stopAutoPageSession(view),
+    onAdjusted: () => selectionNavigation.reset(),
   }));
   let hasActiveSelection = false;
   let lastPointerUpRange = null;
@@ -279,7 +228,7 @@ const setSelectionHandler = (view, doc, index) => {
     lastPointerUpRange = null;
     doc.__anxSelectionClearedAt = Date.now();
     doc.__anxSuppressClick = true;
-    stopAutoPageSession(view);
+    selectionNavigation.reset();
     callFlutter('onSelectionCleared');
   };
 
@@ -306,12 +255,11 @@ const setSelectionHandler = (view, doc, index) => {
 
   // iPadOS can report MacIntel. Native handles may change the range without
   // delivering pointerup to the page, so publish settled selection changes.
-  const appleTouch = /iPhone|iPad|iPod/.test(navigator.platform + ' ' + navigator.userAgent)
-    || (navigator.platform.includes('Mac') && navigator.maxTouchPoints > 1);
   if (appleTouch) {
     settledSelectionDocuments.get(doc)?.();
     settledSelectionDocuments.set(doc, installSettledSelection(doc, {
       getRange: () => getSelectionRange(doc.getSelection()),
+      beforeSelection: () => smartSelectionDocuments.get(doc)?.beforeSelection?.(),
       onSelection: () => handleSelection(view, doc, index),
     }));
   } else if (navigator.platform.includes('Mac')) {
@@ -392,6 +340,7 @@ const setSelectionHandler = (view, doc, index) => {
       // Wait for selection to settle (e.g. 600ms after last change)
       // This handles the case where pointerup/touchend is swallowed by native handles
       debounceTimerId = setTimeout(() => {
+        smartSelectionDocuments.get(doc)?.beforeSelection?.();
         handleSelection(view, doc, index);
       }, 600);
     });
@@ -405,144 +354,6 @@ const setSelectionHandler = (view, doc, index) => {
   }
   // doc.addEventListener('selectionchange', () => handleSelection(view, doc, index));
 
-  if (!view.isFixedLayout) {
-    // go to the next page when selecting to the end of a page
-    // this makes it possible to select across pages
-
-    doc.addEventListener('selectstart', () => {
-      if (doc.__moduQuickMarkEnabled) return;
-      const container = view.shadowRoot.querySelector('foliate-paginator').shadowRoot.querySelector("#container");
-      if (!container) return;
-      globalThis.originalScrollLeft = container.scrollLeft;
-      startAutoPageSession(view);
-    });
-
-
-    doc.addEventListener('selectionchange', () => {
-      if (doc.__moduQuickMarkEnabled) return;
-      if (view.renderer.getAttribute('flow') !== 'paginated') return
-      const { lastLocation } = view
-      if (!lastLocation) return
-
-      const selRange = getSelectionRange(doc.getSelection())
-      if (!selRange) return
-      if (isInitialSmartSelection(doc, selRange)) return;
-      if (!lastLocation.range) return;
-
-      const container = view.shadowRoot.querySelector('foliate-paginator').shadowRoot.querySelector("#container");
-      if (!container) return;
-
-      const state = getAutoPageState(view);
-      if (state.sessionId === 0) {
-        startAutoPageSession(view);
-      }
-
-      const pageKey = getAutoPageLocationKey(lastLocation, index);
-      if (state.currentPageKey !== pageKey) {
-        if (
-          state.awaitingPageAdvanceFromKey
-          && state.awaitingPageAdvanceFromKey !== pageKey
-        ) {
-          state.awaitingPageAdvanceFromKey = null;
-          state.postNextRecheckAttempts = 0;
-          clearAutoPagePostNextRecheck(state);
-        }
-        state.currentPageKey = pageKey;
-      }
-
-      if (state.pendingFromPageKey && state.pendingFromPageKey !== pageKey) {
-        clearAutoPageTimer(state);
-        state.pendingFromPageKey = null;
-      }
-
-      let compareToPageEnd;
-      try {
-        compareToPageEnd = selRange.compareBoundaryPoints(Range.END_TO_END, lastLocation.range);
-      } catch {
-        return;
-      }
-      const rangeReachedPageEnd = compareToPageEnd >= 0;
-      const selectionPos = getPosition(selRange);
-      const nearScreenBottom = selectionPos.bottom >= AUTO_PAGE_SCREEN_BOTTOM_THRESHOLD;
-      const reachedCurrentPageBottom = rangeReachedPageEnd && nearScreenBottom;
-
-      if (!reachedCurrentPageBottom && state.pendingFromPageKey === pageKey) {
-        clearAutoPageTimer(state);
-        state.pendingFromPageKey = null;
-      }
-
-      if (reachedCurrentPageBottom) {
-        if (state.pendingFromPageKey === pageKey) {
-          if (state.pendingTimer) return;
-          state.pendingFromPageKey = null;
-        }
-        if (state.triggeredPages.has(pageKey)) return;
-
-        state.pendingFromPageKey = pageKey;
-        clearAutoPagePostNextRecheck(state);
-        state.awaitingPageAdvanceFromKey = null;
-        state.postNextRecheckAttempts = 0;
-        clearAutoPageTimer(state);
-        const scheduledSessionId = state.sessionId;
-        state.pendingTimer = setTimeout(async () => {
-          state.pendingTimer = null;
-          if (scheduledSessionId !== state.sessionId) return;
-          state.triggeredPages.add(pageKey);
-          try {
-            await view.next();
-            const latestContainer = view.shadowRoot.querySelector('foliate-paginator').shadowRoot.querySelector("#container");
-            if (latestContainer) {
-              globalThis.originalScrollLeft = latestContainer.scrollLeft;
-            }
-          } finally {
-            if (state.pendingFromPageKey === pageKey) {
-              state.pendingFromPageKey = null;
-            }
-            state.awaitingPageAdvanceFromKey = pageKey;
-            state.postNextRecheckAttempts = 0;
-            clearAutoPagePostNextRecheck(state);
-            const runPostNextSelectionRecheck = () => {
-              state.postNextRecheckTimer = null;
-              if (scheduledSessionId !== state.sessionId) return;
-              if (state.awaitingPageAdvanceFromKey !== pageKey) return;
-              state.postNextRecheckAttempts += 1;
-              try {
-                doc.dispatchEvent(new Event('selectionchange'));
-              } catch {
-                return;
-              }
-              if (state.postNextRecheckAttempts >= AUTO_PAGE_POST_NEXT_RECHECK_MAX_ATTEMPTS) return;
-              state.postNextRecheckTimer = setTimeout(
-                runPostNextSelectionRecheck,
-                AUTO_PAGE_POST_NEXT_RECHECK_INTERVAL_MS,
-              );
-            };
-            state.postNextRecheckTimer = setTimeout(
-              runPostNextSelectionRecheck,
-              AUTO_PAGE_POST_NEXT_RECHECK_INITIAL_DELAY_MS,
-            );
-          }
-        }, AUTO_PAGE_DELAY_MS);
-        return;
-      }
-
-      const preventScroll = () => {
-        const selRange = getSelectionRange(doc.getSelection());
-        if (!selRange || !view.lastLocation || !view.lastLocation.range) return;
-
-        if (view.lastLocation.range.startContainer === selRange.endContainer) {
-          container.scrollLeft = globalThis.originalScrollLeft;
-        }
-      };
-
-      container.addEventListener('scroll', preventScroll);
-
-      doc.addEventListener('pointerup', () => {
-        container.removeEventListener('scroll', preventScroll);
-      }, { once: true });
-    })
-
-  }
 }
 const isZip = async file => {
   const arr = new Uint8Array(await file.slice(0, 4).arrayBuffer())
@@ -1493,7 +1304,8 @@ class Reader {
     for (const { doc } of this.view.renderer.getContents()) {
       desktopInputDocuments.get(doc)?.cancel();
       quickMarkDocuments.get(doc)?.cancel();
-      smartSelectionDocuments.get(doc)?.cancel({ preserveActiveSelection: detail.reason === 'scroll' });
+      smartSelectionDocuments.get(doc)?.cancel({ preserveActiveSelection: detail.reason === 'scroll'
+        || selectionNavigationDocuments.get(doc)?.active });
     }
     const { cfi, fraction, location, tocItem, pageItem, chapterLocation, section } = detail
     const loc = pageItem
@@ -1904,6 +1716,7 @@ const setStyle = (oldStyle) => {
       'desktop-page-input': String(style.desktopPageInput === true),
       'tap-only-page-turn': String(style.tapOnlyPageTurn === true),
       'scroll-page-percent': String(style.scrollPagePercent ?? 80),
+      'scroll-auto-align': String(style.scrollAutoAlign !== false),
       'flow': turn.scroll ? 'scrolled' : 'paginated',
       // Speculative documents must never execute author scripts.
       'continuous-scroll': String(style.continuousScroll !== false && !style.allowScript &&
@@ -2289,9 +2102,10 @@ window.setQuickMarkEnabled = (enabled, color, showMenu = false) => {
   quickMarkEnabled = enabled === true && !isPdf && !reader.view.isFixedLayout;
   quickMarkColor = color ?? quickMarkColor;
   quickMarkShowMenu = showMenu === true;
-  stopAutoPageSession(reader.view);
-  for (const { doc } of reader.view.renderer.getContents())
+  for (const { doc } of reader.view.renderer.getContents()) {
+    selectionNavigationDocuments.get(doc)?.reset();
     quickMarkDocuments.get(doc)?.setEnabled(quickMarkEnabled, quickMarkColor);
+  }
   return quickMarkEnabled;
 }
 
@@ -2306,6 +2120,11 @@ window.prevSection = () => reader.view.renderer.prevSection()
 window.setScrollPagePercent = percent => {
   style.scrollPagePercent = Number.isFinite(percent) ? Math.max(80, Math.min(100, percent)) : 80
   reader.view.renderer.setAttribute('scroll-page-percent', String(style.scrollPagePercent))
+}
+
+window.setScrollAutoAlign = enabled => {
+  style.scrollAutoAlign = enabled !== false
+  reader.view.renderer.setAttribute('scroll-auto-align', String(style.scrollAutoAlign))
 }
 
 window.nextSection = () => reader.view.renderer.nextSection()

@@ -5,6 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:anx_reader/service/sync/replaced_book_files.dart';
+import 'package:anx_reader/service/sync/local_book_download.dart';
+import 'package:anx_reader/service/sync/row_sync_record.dart';
 import 'package:anx_reader/service/sync/row_sync_engine.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/service/sync/sync_paths.dart';
@@ -100,6 +102,160 @@ void main() {
           store: store, client: client, cache: temp, durableDirectory: temp)
       .reclaim();
 
+  Future<File> localFile(String path, List<int> bytes) async {
+    final file = File('${temp.path}/$path');
+    await file.parent.create(recursive: true);
+    return file.writeAsBytes(bytes);
+  }
+
+  Future<int> reclaimLocal({bool Function(String)? isInUse}) =>
+      ReplacedBookFiles.reclaimLocal(
+          db: db, files: Directory('${temp.path}/file'), isInUse: isInUse);
+
+  test(
+      'received replacement is recorded and cleaned only after verified download',
+      () async {
+    final old = await localFile(oldPath, oldBytes);
+    final unknown = await localFile('file/unrelated.epub', oldBytes);
+    await db.insert('tb_notes', noteRow(1, 'keep-note'));
+    final original =
+        (await store.snapshot()).singleWhere((r) => r.kind == 'book');
+    final incoming = RowSyncRecord('book', original.id, original.clock + 1000,
+        'remote-replacement', false, {
+      ...original.data,
+      'file_path': newPath,
+      'file_md5': md5.convert(newBytes).toString(),
+    });
+    await store.merge([incoming]);
+    final evidence = (await db.query(ReplacedBookFiles.table)).single;
+    expect(evidence['old_path'], oldPath);
+    expect(evidence['old_md5'], md5.convert(oldBytes).toString());
+    expect(await reclaimLocal(), 0);
+    final downloader = LocalBookDownload();
+    final next = File('${temp.path}/$newPath');
+    await expectLater(
+        downloader.ensure(next, expectedMd5: md5.convert(newBytes).toString(),
+            download: (file) async {
+          await file.writeAsBytes([0]);
+        }),
+        throwsA(isA<BookFileIntegrityException>()));
+    expect(await reclaimLocal(), 0);
+    expect(await old.exists(), isTrue);
+    await downloader.ensure(next, expectedMd5: md5.convert(newBytes).toString(),
+        download: (file) async {
+      await file.writeAsBytes(newBytes);
+    });
+    final before = await store.snapshot();
+    expect(await reclaimLocal(), 1);
+    expect(await old.exists(), isFalse);
+    expect(await next.readAsBytes(), newBytes);
+    expect(await unknown.exists(), isTrue);
+    expect(sameSyncRecords(before, await store.snapshot()), isTrue);
+    expect((await db.query('tb_notes')).single['content'], 'keep-note');
+    expect((await db.query('tb_books')).single['last_read_position'], 'start');
+    expect(await reclaimLocal(), 0);
+  });
+
+  test('multiple local old versions are removed without changing cloud files',
+      () async {
+    await localFile(oldPath, oldBytes);
+    await replace('file/middle.epub', [1, 2]);
+    await localFile('file/middle.epub', [1, 2]);
+    await replace(newPath, newBytes);
+    await localFile(newPath, newBytes);
+    final remoteBefore = Map.of(client.files);
+    expect(await reclaimLocal(), 2);
+    expect(client.files, remoteBefore);
+    expect(await db.query(ReplacedBookFiles.table), hasLength(2));
+    expect(await File('${temp.path}/$newPath').readAsBytes(), newBytes);
+  });
+
+  test('local cleanup protects trash, active readers and changed old bytes',
+      () async {
+    final old = await localFile(oldPath, oldBytes);
+    await replace(newPath, newBytes);
+    await localFile(newPath, newBytes);
+    expect(await reclaimLocal(isInUse: (path) => path == oldPath), 0);
+    await db.insert('tb_books', {
+      ...bookRow(2, md5: 'duplicate'),
+      'file_path': oldPath,
+      'is_deleted': 1
+    });
+    expect(await reclaimLocal(), 0);
+    await db.delete('tb_books', where: 'id=2');
+    await db.update('tb_books', {'is_deleted': 1}, where: 'id=1');
+    expect(await reclaimLocal(), 0);
+    await db.update('tb_books', {'is_deleted': 0}, where: 'id=1');
+    await old.writeAsBytes([42]);
+    expect(await reclaimLocal(), 0);
+    expect(await old.readAsBytes(), [42]);
+  });
+
+  test(
+      'local cleanup retains corrupt replacement, symlinks and unsafe evidence',
+      () async {
+    final old = await localFile(oldPath, oldBytes);
+    await replace(newPath, newBytes);
+    final next = await localFile(newPath, [0]);
+    expect(await reclaimLocal(), 0);
+    await next.delete();
+    final external = await localFile('external.epub', newBytes);
+    await Link(next.path).create(external.path);
+    expect(await reclaimLocal(), 0);
+    await Link(next.path).delete();
+    await localFile(newPath, newBytes);
+    await old.delete();
+    final externalOld = await localFile('external-old.epub', oldBytes);
+    await Link(old.path).create(externalOld.path);
+    expect(await reclaimLocal(), 0);
+    final evidence = (await db.query(ReplacedBookFiles.table)).single;
+    await db.insert(ReplacedBookFiles.table,
+        {...evidence, 'old_path': 'file/../external-old.epub'});
+    expect(await reclaimLocal(), 0);
+    expect(await externalOld.readAsBytes(), oldBytes);
+    expect(await external.readAsBytes(), newBytes);
+  });
+
+  test('a reader opening during verification prevents local deletion',
+      () async {
+    final old = await localFile(oldPath, oldBytes);
+    await replace(newPath, newBytes);
+    await localFile(newPath, newBytes);
+    var checks = 0;
+    expect(await reclaimLocal(isInUse: (_) => ++checks > 1), 0);
+    expect(await old.exists(), isTrue);
+  });
+
+  test('verified cloud history also recovers local legacy leftovers', () async {
+    client.atomic = false;
+    final old = await localFile(oldPath, oldBytes);
+    await publish();
+    await db.update('tb_books',
+        {'file_path': newPath, 'file_md5': md5.convert(newBytes).toString()},
+        where: 'id=1');
+    client.files[SyncPaths.data(newPath)] = newBytes;
+    await localFile(newPath, newBytes);
+    await publish();
+    expect(await reclaimLocal(), 0); // No guessed filename relationships.
+    await reclaim(); // Installs evidence from the verified historical log.
+    expect(await reclaimLocal(), 1);
+    expect(await old.exists(), isFalse);
+  });
+
+  test('local cleanup is wired after successful download and sync maintenance',
+      () {
+    final source = File('lib/providers/sync.dart').readAsStringSync();
+    final download = source.indexOf('Future<void> _downloadBook(');
+    final received = source.indexOf('await downloadFile(', download);
+    final cleanup =
+        source.indexOf('await _cleanupReplacedLocalBooks();', received);
+    expect(cleanup, greaterThan(received));
+    expect(cleanup, lessThan(source.indexOf('WereadMetadataSync(', received)));
+    final maintenance = source.indexOf('SyncMaintenanceSchedule(');
+    expect(source.indexOf('await _cleanupReplacedLocalBooks();', maintenance),
+        lessThan(source.indexOf('imageCache.clear();', maintenance)));
+  });
+
   for (final atomic in [true, false]) {
     test('reclaims only explicit superseded files after sync (atomic=$atomic)',
         () async {
@@ -182,7 +338,10 @@ void main() {
       expect(
           client.files.keys.where((p) => p.startsWith('${SyncPaths.books}/')),
           [SyncPaths.data(newPath)]);
-      expect((await other.query(ReplacedBookFiles.table)).length, 2);
+      expect(
+          (await other.query(ReplacedBookFiles.table))
+              .map((r) => r['old_path']),
+          containsAll([oldPath, 'file/middle.epub']));
     } finally {
       await other.close();
     }

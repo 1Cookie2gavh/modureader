@@ -31,11 +31,11 @@ class ProjectIdentityTest(unittest.TestCase):
             text = (ROOT / name).read_text()
             self.assertIn('href="README.md">简体中文', text)
             self.assertIn('href="README_EN.md">English', text)
-            self.assertIn(f"showcase/v1.3.0/reading-{language}.png", text)
+            self.assertRegex(text, rf"showcase/v1\.3\.0/reading-{language}\.(?:png|webp)")
             images = re.findall(r'!\[[^\]]*\]\((docs/images/[^)]+)\)', text)
             self.assertGreater(len(images), 0)
             self.assertEqual(len(images), len(set(images)))
-            self.assertTrue(all(path.endswith(f"-{language}.png") for path in images))
+            self.assertTrue(all(re.search(rf"-{language}\.(?:png|webp)$", path) for path in images))
             if language == "en":
                 self.assertFalse(any("weread-" in path or "vertical-" in path for path in images))
             targets = re.findall(r'\]\(([^)]+)\)|(?:href|src)="([^"]+)"', text)

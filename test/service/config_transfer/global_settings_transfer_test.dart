@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/enums/app_layout_mode.dart';
 import 'dart:math';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/book_style.dart';
@@ -35,6 +36,27 @@ void main() {
     await Prefs().initPrefs();
   });
 
+  test('layout choice transfers with appearance and rejects unknown values',
+      () async {
+    for (final scope in ['all', 'appearance']) {
+      for (final mode in AppLayoutMode.values) {
+        Prefs().appLayoutMode = mode;
+        final data = await GlobalSettingsTransfer.decode(
+            await GlobalSettingsTransfer.export(Prefs(), scope: scope));
+        expect(data['appLayoutMode'], {'type': 'string', 'value': mode.name});
+        await Prefs().prefs.remove('appLayoutMode');
+        await GlobalSettingsTransfer.apply(Prefs(), data);
+        expect(Prefs().appLayoutMode, mode);
+      }
+    }
+    expect(
+        () => GlobalSettingsTransfer.validate({
+              '__prefsBackupVersion': 1,
+              'appLayoutMode': {'type': 'string', 'value': 'invalid'},
+            }),
+        throwsFormatException);
+  });
+
   for (final includeSecrets in [false, true]) {
     test('legacy auto theme exports canonically, secrets=$includeSecrets',
         () async {
@@ -65,7 +87,8 @@ void main() {
     }
   });
 
-  test('daily check-in defaults and stored values stay within bounds', () async {
+  test('daily check-in defaults and stored values stay within bounds',
+      () async {
     expect(Prefs().dailyCheckInMinutes, 10);
     Prefs().dailyCheckInMinutes = -5;
     expect(Prefs().dailyCheckInMinutes, 0);

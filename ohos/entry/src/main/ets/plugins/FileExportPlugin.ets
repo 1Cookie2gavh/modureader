@@ -3,7 +3,9 @@ import {
   MethodChannel, MethodResult, AbilityPluginBinding,
 } from '@ohos/flutter_ohos';
 import { common } from '@kit.AbilityKit';
-import { picker, fileIo as fs } from '@kit.CoreFileKit';
+import { picker, fileIo as fs, fileUri } from '@kit.CoreFileKit';
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor } from '@kit.ArkData';
 import AbilityAware from '@ohos/flutter_ohos/src/main/ets/embedding/engine/plugins/ability/AbilityAware';
 
 export default class FileExportPlugin implements FlutterPlugin, MethodCallHandler, AbilityAware {
@@ -35,11 +37,55 @@ export default class FileExportPlugin implements FlutterPlugin, MethodCallHandle
   onDetachedFromAbility(): void { this.context = null; }
 
   onMethodCall(call: MethodCall, result: MethodResult): void {
+    if (call.method === 'shareFile') {
+      this.shareFile(call, result);
+      return;
+    }
     if (call.method !== 'saveFile') {
       result.notImplemented();
       return;
     }
     this.saveFile(call, result);
+  }
+
+  private async shareFile(call: MethodCall, result: MethodResult): Promise<void> {
+    if (this.saving || this.context === null || this.cacheDir === null) {
+      result.error('unavailable', 'File sharing is busy or not in foreground', null);
+      return;
+    }
+    this.saving = true;
+    try {
+      const args: Map<string, Object> = call.args;
+      const sourcePath = args.get('sourcePath') as string;
+      const fileName = args.get('fileName') as string;
+      const prefix = this.cacheDir + '/modu-share-';
+      const relative = sourcePath?.substring(prefix.length);
+      if (!sourcePath || !fileName || !sourcePath.startsWith(prefix) ||
+          /[/\\\x00]/.test(fileName) || fileName === '.' || fileName === '..' ||
+          !relative || relative.split('/').length !== 2 ||
+          relative.split('/')[0].length === 0 || relative.split('/')[0] === '..' ||
+          relative.split('/')[1] !== fileName) {
+        result.error('invalid_arguments', 'Invalid share snapshot', null);
+        return;
+      }
+      const dot = fileName.lastIndexOf('.');
+      const utd = dot >= 0
+        ? uniformTypeDescriptor.getUniformDataTypeByFilenameExtension(fileName.substring(dot))
+        : uniformTypeDescriptor.UniformDataType.FILE;
+      const data = new systemShare.SharedData({
+        utd: utd || uniformTypeDescriptor.UniformDataType.FILE,
+        uri: fileUri.getUriFromPath(sourcePath),
+        title: fileName,
+      });
+      const controller = new systemShare.ShareController(data);
+      await controller.show(this.context, {});
+      // Opening the sheet is not confirmation that a recipient received it.
+      result.success(null);
+    } catch (_) {
+      result.error('share_failed', 'Could not open file sharing. Please retry.', null);
+    } finally {
+      this.saving = false;
+    }
   }
 
   private async saveFile(call: MethodCall, result: MethodResult): Promise<void> {

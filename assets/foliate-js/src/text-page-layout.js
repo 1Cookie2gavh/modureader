@@ -182,7 +182,9 @@ export function alignPaginatedText(doc, { height, topMargin, bottomMargin, colum
   }
   // Recheck styles after resize/settings changes; retain originally unwrapped blocks.
   const protectedBlocks = new Set([...state.protectedBlocks, ...publisherBlocks(doc)])
-  for (const el of [...doc.body.querySelectorAll('img, svg, table, pre, ruby, math, video, figure'), ...protectedBlocks]) {
+  // Translations added after run preparation must flow with their source, not
+  // collide with independently shifted source glyphs. Hidden translations have no rects.
+  for (const el of [...doc.body.querySelectorAll('img, svg, table, pre, ruby, math, video, figure, .translated-text'), ...protectedBlocks]) {
     if (isNote(el)) continue
     const rects = [...el.getClientRects()].filter(r => r.width > 0 && r.height > 0)
     for (const r of rects) {

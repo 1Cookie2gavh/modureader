@@ -22,6 +22,30 @@ void main() {
   });
   tearDown(() => translation.dispose());
 
+  test(
+      'visible ranges translate only intersecting paragraphs; scrolling loads others',
+      () async {
+    final source = page(edit: 'first\n\nsecond\n\nthird');
+    await translation.translate(source, TranslationModeEnum.translationOnly,
+        settings: 'classical',
+        request: request,
+        visibleStart: 0,
+        visibleEnd: 4);
+    expect(requests, ['first']);
+    expect(translation.text, 'translated: first\n\nsecond\n\nthird');
+    expect(translation.translatedRanges.length, 1);
+    expect(translation.translatedRanges.single.textInside(translation.text),
+        'translated: first');
+    final second = translation.text.indexOf('second');
+    await translation.translateVisible(second, second + 3);
+    expect(requests, ['first', 'second']);
+    await translation.translateVisible(second, second + 3);
+    expect(requests, ['first', 'second']);
+    translation.stop();
+    await translation.translateVisible(0, 9999);
+    expect(requests, ['first', 'second']);
+  });
+
   test('saved edits first, bilingual paragraph order, source is immutable',
       () async {
     final source = page(edit: 'Corrected first.\n\nCorrected second.');
@@ -35,6 +59,9 @@ void main() {
     expect(source.editedText, 'Corrected first.\n\nCorrected second.');
     expect(source.revision, revision);
     expect(translation.busy, isFalse);
+    expect(
+        translation.translatedRanges.map((r) => r.textInside(translation.text)),
+        ['translated: Corrected first.', 'translated: Corrected second.']);
   });
 
   test('without edits use recognized text; mode switch reuses current result',
@@ -49,6 +76,7 @@ void main() {
     translation.stop();
     expect(translation.mode.value, TranslationModeEnum.off);
     expect(translation.text, isEmpty);
+    expect(translation.translatedRanges, isEmpty);
   });
 
   test('page, edits, language changes and explicit retry invalidate results',

@@ -8,6 +8,17 @@ The current entry points below include [1.3.1](https://github.com/sobranie2406/m
 
 ## Settings entry points
 
+### Reader toolbar and Classical Chinese translation
+
+- **Settings → Translation** has separate **Language translation** and **Classical Chinese translation** entries, using the same grouped cards and navigation rows as other settings. Both have independent **Translation appearance** controls for the output font (follow original, system/generic or imported TTF/OTF), size (follow original or 12–48 px), bold and italic, with an immediate preview. The two sets of preferences save separately and never change each other. Existing and future output updates in ordinary and PDF/OCR reflow reading, without modifying original text styles or making another translation request. Appearance is included in translation-settings backups; imported font files must also be available on the destination device.
+
+- **Settings → Reading → Reader top toolbar** controls visibility and drag ordering. Enabled actions available in the current reading mode appear in order within 40% of the reading area's usable width, including the three-dot More button; remaining actions go in More. Button touch targets retain their normal size, and the count adapts to rotation and window resizing. Back remains separate. Hidden actions do not appear in More. Ordinary books and PDF/OCR reflow share this configuration.
+- **Settings → Translation → Classical Chinese translation** offers AI, Baidu and Microsoft Translator, with Classical → Modern Chinese and Modern → Classical Chinese directions. Ordinary translation preferences remain separate. AI uses a model configured in AI settings.
+- **Baidu:** enable [General Text Translation](https://fanyi-api.baidu.com/doc_bd/21), enter its APP ID and secret, then choose **Save configuration**. This is not a Baidu AI Cloud API key. The official HTTPS POST uses `MD5(appid + raw UTF-8 q + salt + secret)` signing and `wyw ↔ zh` codes. Requests are serialized at the standard-tier rate; long paragraphs are split without dropping characters.
+- **Microsoft:** create an Azure Translator resource, copy Key 1 or Key 2 and its region from **Keys and Endpoint**, then save. Regional/multi-service resources require the matching region (for example `eastasia`); global single-service resources may leave it blank or use `global`. The official global `/translate?api-version=3.0` endpoint uses `Ocp-Apim-Subscription-Key`, the region header when applicable, and `lzh ↔ zh-Hans`. See [authentication documentation](https://learn.microsoft.com/azure/ai-services/translator/text-translation/reference/authentication). Private-network endpoints are outside this configuration's scope.
+- Both official APIs require your own credentials; quotas and excess charges depend on your account tier. Keys are obscured and excluded from non-sensitive exports by default. Saving settings never sends text.
+- Open the Classical Chinese icon in the reader and explicitly start translation. Choose translation only or original + translation. Only visible paragraphs are requested, with further paragraphs loaded as you scroll; untranslated portions retain the original. Stop cancels pending requests. Changing engines/directions invalidates cached translations on restart. Closing a book never resumes translation automatically. Turning a source page stops reflow translation; OCR caches, edits and notes are unchanged. Google Cloud Translation does not list a dedicated Classical Chinese language, so it is not offered for this feature.
+
 Unreleased scrollbars: the bookshelf, Reading History, settings, remote library, notes, Lookup and scrollable dialogs use translucent draggable thumbs. They appear while scrolling and hide after about 1.2 seconds idle, on the right for vertical scrolling. Horizontal scrolling remains available without a scrollbar. Fitting content has no visible thumb. E-Ink with animations disabled shows/hides without fading. Embedded web pages and continuous reading also have scrollbars; paginated reading and single-line fields do not.
 
 Unreleased autosave changes: ordinary switches, selections and ordering persist immediately; PDF/OCR style sliders save on release. Valid CSS edits save automatically, while invalid edits preserve the last valid configuration. Connection credentials, new templates and text requiring complete validation retain Save; deletion, replacement imports and resets retain confirmation. Speech buffering preferences are remembered immediately but apply after stopping and restarting narration. See the [settings persistence audit](development/settings-autosave-audit.md).
@@ -32,6 +43,8 @@ Open **Settings** from the home navigation. The app language can follow the syst
 WeRead: enable the connection under Appearance and enter your own official API Key. In book details, search and confirm the edition before linking. Its metadata/ratings/reviews stay separate from personal data; public cached data syncs with downloaded books, while keys require explicit sensitive-settings opt-in. See [WeRead](WEREAD.md).
 
 Menus use page-coloured rounded groups with content-driven heights and matching light/dark themes; E-Ink retains its flat monochrome style. New installations go directly to the bookshelf. The reader moon button changes both reading mode and app theme.
+
+Appearance → Display → Interface layout offers Auto / Wide / Narrow and remembers your choice. Auto preserves each screen's existing available-width threshold of more than 600 logical pixels. Manual choices apply to navigation, settings, history, notes and book details, without changing reader column settings.
 
 The default light theme uses paper white and jade green; format and indexing badges retain their distinct colours. Appearance → Theme colour → Restore default resets only the app accent after confirmation. The outlined Background / Text colour controls in reader styles each offer a confirmed reset of that colour without overwriting the other.
 
@@ -59,6 +72,8 @@ These come from [preferences](../lib/config/shared_preference_provider.dart) whe
 | Service/key sync and credentials in backup | Off |
 
 The bookshelf toolbar switches between thumbnails and a text-only list and remembers the selection. List rows keep titles, authors, reading progress, format/index badges and sync status; folder rows show their names and book counts. Long-press still enters selection mode for folder organization and batch deletion, with each book's overflow menu on the right.
+
+Long-press a book and drag it onto another book to name and create a folder, or onto an existing folder to move it there. Dragging a checked book carries all checked books, with a count badge; dragging an unchecked book moves only that book. Inside a folder, drop books outside its frame or on the **Move to shelf** drop area to move them out. Batch moves are atomic, failed moves keep the selection, and cancelling folder creation does not move books.
 
 ## Checking and installing updates
 
@@ -89,8 +104,10 @@ Tap the text to open the bottom panel. Drag the progress slider to preview a cha
 
 - Import TTF / OTF fonts locally. Successful imports apply immediately; batch imports apply the last successful font. Online font downloads need a connection.
 - Scroll-page movement can be set to 80%–100% of the viewport. Free scrolling is independent of this setting.
+- **Auto-align scrolling** is enabled by default. It keeps the existing top-edge alignment when scrolling up and bottom-edge alignment when scrolling down. Turn it off to stop freely without forced line snapping. The switch is available beside the scroll-page percentage, applies immediately and is included in settings backup; it does not change the page-turn mode or original-page PDF behavior.
 - Unreleased: **Scroll continuously across chapters** is on by default. Turn it off in the reading style panel or Reading settings to scroll one chapter at a time; use page turning at the chapter end or the contents to move to another chapter. Changes apply and save immediately. Original-page PDF scrolling is unchanged.
 - Long press can match a word or expand to a paragraph. Selection handles remain available to adjust the range after the initial match.
+- Android and iOS use one pair of touch handles. In paginated/swipe reading, drag an endpoint to the top/bottom page edge (left/right for vertical text) and hold for about 0.75 seconds. It flips once and freezes at the new page boundary; release and grab the visible handle again to continue selecting, without moving the other endpoint. In scrolling mode, hold near the edge for gradual auto-scroll and release to stop. Selection stays within one chapter; original-page PDF and desktop mouse selection retain their own interaction.
 - Mobile tap-only paging does not disable selection or continuous scrolling. Desktop arrow keys and eligible drags turn pages; selecting or typing is not treated as paging.
 - Reading brightness follows the system by default, with manual 0–100 adjustment. Android uses window brightness; other platforms dim the app without fully hiding the controls. This preference is local to the device.
 

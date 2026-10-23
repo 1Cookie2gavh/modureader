@@ -5,6 +5,15 @@ class TranslationCancelled implements Exception {}
 
 /// Explicit, in-memory consent for one reader instance. Never restored on open.
 class ReaderTranslationSession {
+  /// WKWebView can bridge an integral JavaScript number as a Dart double.
+  static int? bridgeGeneration(Object? value) => value is num &&
+          value.isFinite &&
+          value >= 0 &&
+          value <= 9007199254740991 &&
+          value == value.truncateToDouble()
+      ? value.toInt()
+      : null;
+
   int generation = 0;
   bool enabled = false;
   final _cancelRequests = <void Function()>{};

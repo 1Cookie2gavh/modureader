@@ -17,7 +17,8 @@ void main() {
     }
   });
 
-  Future<void> open(WidgetTester tester, {double scale = 1}) async {
+  Future<void> open(WidgetTester tester,
+      {double scale = 1, bool classical = false}) async {
     await tester.pumpWidget(MaterialApp(
       locale: const Locale('en'),
       supportedLocales: L10n.supportedLocales,
@@ -30,7 +31,37 @@ void main() {
       home: const Scaffold(body: TranslateSetting()),
     ));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('translation-settings-classical')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('selection-translation-engine')),
+        findsNothing);
+    await tester.tap(find.byKey(ValueKey(classical
+        ? 'translation-settings-classical'
+        : 'translation-settings-language')));
+    await tester.pumpAndSettle();
   }
+
+  testWidgets('classical subpage has independent service and output appearance',
+      (tester) async {
+    await open(tester, classical: true);
+    expect(find.byKey(const ValueKey('classical-engine-ai')), findsOneWidget);
+    expect(find.byKey(const ValueKey('selection-translation-engine')),
+        findsNothing);
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('classical-style-font')));
+    expect(find.byKey(const ValueKey('classical-style-font')), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('language subpage has its own output appearance', (tester) async {
+    await open(tester);
+    final font = find.byKey(const ValueKey('language-style-font'));
+    await tester.ensureVisible(font);
+    expect(font, findsOneWidget);
+    expect(find.byKey(const ValueKey('classical-style-font')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final engine in [
     TranslateService.baiduWeb,

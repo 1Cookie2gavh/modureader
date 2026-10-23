@@ -15,6 +15,9 @@ import 'package:anx_reader/service/eink_refresh.dart';
 import 'package:anx_reader/widgets/reading_page/reading_info_line.dart';
 import 'package:anx_reader/widgets/reading_page/vertical_page_chrome.dart';
 import 'package:anx_reader/service/translate/ai.dart';
+import 'package:anx_reader/service/translate/classical_translation.dart';
+import 'package:anx_reader/models/translation_text_style.dart';
+import 'package:anx_reader/service/translate/reader_translation_modes.dart';
 import 'package:anx_reader/service/translate/deepl.dart';
 import 'package:anx_reader/service/translate/microsoft_free.dart';
 import 'package:anx_reader/service/translate/reader_translation_session.dart';
@@ -130,6 +133,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   int currentChapter = 0;
   int totalChapters = 0;
   final readingProgress = ValueNotifier<ReaderProgress>(const ReaderProgress());
+  final _batteryLevel = ReadingBatteryLevel();
   int bookCurrentPage = 0;
   int bookTotalPages = 0;
   Map<String, double>? _lastVerticalInsets;
@@ -146,6 +150,16 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         MediaQuery.viewPaddingOf(context),
         textScaler.scale(info.header.fontSize.clamp(8, 24)),
         textScaler.scale(info.footer.fontSize.clamp(8, 24)));
+  }
+
+  Map<String, double> get _selectionSafeInsets {
+    final safe = MediaQuery.viewPaddingOf(context);
+    return {
+      'left': safe.left,
+      'top': safe.top,
+      'right': safe.right,
+      'bottom': safe.bottom
+    };
   }
 
   VerticalPageChrome get _verticalChrome => VerticalPageChrome(
@@ -184,8 +198,15 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
   bool _chapterLoading = false;
   bool _chapterLoadFailed = false;
   bool _chapterFontFailed = false;
-  final translationMode = ValueNotifier(TranslationModeEnum.off);
+  final _translationModes = ReaderTranslationModes();
+  ValueNotifier<TranslationModeEnum> get translationMode =>
+      _translationModes.language;
+  ValueNotifier<TranslationModeEnum> get classicalTranslationMode =>
+      _translationModes.classical;
   final _translationSession = ReaderTranslationSession();
+  ClassicalTranslation? _classicalTranslator;
+  String? _translationIdentity;
+  bool get classicalTranslation => _classicalTranslator != null;
   bool quickMarkEnabled = false;
   final _quickMarks = QuickMarkService(bookNoteDao);
   late final ReaderProgressSession _progress;
@@ -621,16 +642,51 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     await translateCurrentChapter(mode);
   }
 
+  String? _appliedTranslationTextStyle;
+  void _configureTranslationTextStyle() {
+    final value = classicalTranslation
+        ? Prefs().classicalTranslationTextStyle
+        : Prefs().languageTranslationTextStyle;
+    if (!_readerReady ||
+        (classicalTranslationMode.value == TranslationModeEnum.off &&
+            translationMode.value == TranslationModeEnum.off) ||
+        _appliedTranslationTextStyle == value) {
+      return;
+    }
+    _appliedTranslationTextStyle = value;
+    unawaited(webViewController
+        .evaluateJavascript(
+            source:
+                'reader.view.setTranslationTextStyle?.(${jsonEncode(TranslationTextStyle.decode(value).webStyle(Server().port))}); void 0;')
+        .catchError((_) {
+      _appliedTranslationTextStyle = null;
+      return null;
+    }));
+  }
+
   Future<void> translateCurrentChapter(
     TranslationModeEnum mode, {
     bool force = false,
+    bool classical = false,
   }) async {
+    if (mode != TranslationModeEnum.off) {
+      final translator = classical ? ClassicalTranslation.current() : null;
+      final identity = translator == null
+          ? 'standard/${Prefs().fullTextTranslateService.name}/${Prefs().fullTextTranslateFrom.code}/${Prefs().fullTextTranslateTo.code}/${Prefs().translationAiService}'
+          : 'classical/${translator.identity}';
+      force = force || identity != _translationIdentity;
+      _classicalTranslator = translator;
+      _translationIdentity = identity;
+    }
     final generation = mode == TranslationModeEnum.off
         ? (_translationSession..stop()).generation
         : _translationSession.start();
-    translationMode.value = mode;
+    _translationModes.update(mode, isClassical: classical);
     // A persisted display preference is not permission to resume API requests.
     Prefs().setBookTranslationMode(widget.book.id, TranslationModeEnum.off);
+    final style = classical
+        ? Prefs().classicalTranslationTextStyle
+        : Prefs().languageTranslationTextStyle;
     try {
       final result = await webViewController.callAsyncJavaScript(
         functionBody: '''
@@ -640,6 +696,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           return false;
         }
         await reader.view.setTranslationMode('off');
+        reader.view.setTranslationTextStyle?.(${jsonEncode(TranslationTextStyle.decode(style).webStyle(Server().port))});
         if (${force ? 'true' : 'false'}) {
           if (reader.view.clearTranslations) {
             reader.view.clearTranslations();
@@ -652,10 +709,13 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       if (result?.value != true) {
         throw StateError('Translation is not available for this book');
       }
+      _appliedTranslationTextStyle = style;
+      _configureTranslationTextStyle();
     } catch (_) {
       if (_translationSession.generation == generation) {
         _translationSession.stop();
-        translationMode.value = TranslationModeEnum.off;
+        _translationModes.update(TranslationModeEnum.off,
+            isClassical: classical);
       }
       rethrow;
     }
@@ -741,7 +801,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         tapOnlyPageTurn: ${Prefs().tapOnlyPageTurn},
         longPressSelectParagraph: ${Prefs().longPressSelectParagraph},
         selectionLocale: ${jsonEncode(Prefs().effectiveLocale.toLanguageTag())},
+        selectionSafeInsets: ${jsonEncode(_selectionSafeInsets)},
         scrollPagePercent: ${Prefs().scrollPagePercent},
+        scrollAutoAlign: ${Prefs().scrollAutoAlign},
         continuousScroll: ${Prefs().continuousScroll},
         spacing: ${style.lineHeight},
         fontWeight: ${style.fontWeight},
@@ -831,6 +893,11 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     // Input distance only: do not restyle/reflow the chapter or move its CFI.
     webViewController.evaluateJavascript(
         source: 'window.setScrollPagePercent(${percent.clamp(80, 100)});');
+  }
+
+  void changeScrollAutoAlign(bool enabled) {
+    webViewController.evaluateJavascript(
+        source: 'window.setScrollAutoAlign($enabled);');
   }
 
   void changeContinuousScroll(bool enabled) {
@@ -1678,6 +1745,21 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
   Future<void> setHandler(InAppWebViewController controller) async {
     controller.addJavaScriptHandler(
+        handlerName: 'onReaderTextInteraction',
+        callback: (args) async {
+          if (!mounted ||
+              !AnxPlatform.isIOS ||
+              args.length != 1 ||
+              args.first is! bool) {
+            return;
+          }
+          // Reflowable iOS text uses reader handles; PDF and desktop stay native.
+          final settings = await controller.getSettings() ?? initialSettings;
+          if (!mounted) return;
+          settings.isTextInteractionEnabled = args.first as bool;
+          await controller.setSettings(settings: settings);
+        });
+    controller.addJavaScriptHandler(
         handlerName: 'onReaderShortcut',
         callback: (args) {
           if (mounted && args.isNotEmpty && args.first is String) {
@@ -1783,7 +1865,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           if (quickMarkEnabled) await setQuickMarkEnabled(true);
           // Opening/reloading a reader always requires a new explicit start.
           _translationSession.stop();
-          translationMode.value = TranslationModeEnum.off;
+          _translationModes.update(TranslationModeEnum.off, isClassical: false);
+          _classicalTranslator = null;
           Prefs()
               .setBookTranslationMode(widget.book.id, TranslationModeEnum.off);
           if (!mounted) return;
@@ -1838,23 +1921,20 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           // if (chapterHref != location['chapterHref']) {
           //   refreshToc();
           // }
-          setState(() {
-            cfi = location['cfi'] ?? '';
-            percentage =
-                double.tryParse(location['percentage'].toString()) ?? 0.0;
-            chapterTitle = location['chapterTitle'] ?? '';
-            chapterHref = location['chapterHref'] ?? '';
-            chapterCurrentPage = location['chapterCurrentPage'] ?? 0;
-            chapterTotalPages = location['chapterTotalPages'] ?? 0;
-            currentChapter = location['currentChapter'] ?? 0;
-            totalChapters = location['totalChapters'] ?? 0;
-            bookCurrentPage = location['bookCurrentPage'] ?? 0;
-            bookTotalPages = location['bookTotalPages'] ?? 0;
-            bookmarkExists = location['bookmark']['exists'] ?? false;
-            bookmarkCfi = location['bookmark']['cfi'] ?? '';
-            writingMode =
-                WritingModeEnum.fromCode(location['writingMode'] ?? '');
-          });
+          cfi = location['cfi'] ?? '';
+          percentage =
+              double.tryParse(location['percentage'].toString()) ?? 0.0;
+          chapterTitle = location['chapterTitle'] ?? '';
+          chapterHref = location['chapterHref'] ?? '';
+          chapterCurrentPage = location['chapterCurrentPage'] ?? 0;
+          chapterTotalPages = location['chapterTotalPages'] ?? 0;
+          currentChapter = location['currentChapter'] ?? 0;
+          totalChapters = location['totalChapters'] ?? 0;
+          bookCurrentPage = location['bookCurrentPage'] ?? 0;
+          bookTotalPages = location['bookTotalPages'] ?? 0;
+          bookmarkExists = location['bookmark']['exists'] ?? false;
+          bookmarkCfi = location['bookmark']['cfi'] ?? '';
+          writingMode = WritingModeEnum.fromCode(location['writingMode'] ?? '');
           readingProgress.value = ReaderProgress(
             percentage: percentage,
             chapterTitle: chapterTitle,
@@ -2218,22 +2298,28 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           addBookmark(bookmark);
         }
         widget.updateParent();
-        setState(() {});
       },
     );
     controller.addJavaScriptHandler(
       handlerName: 'translateText',
       callback: (args) async {
         try {
-          if (!mounted || args.length < 2 || args[1] is! int) return null;
-          String text = args[0];
+          if (!mounted || args.length < 2 || args[0] is! String) return null;
+          final generation = ReaderTranslationSession.bridgeGeneration(args[1]);
+          if (generation == null) return null;
+          final text = args[0] as String;
+          final classical = _classicalTranslator;
+          if (classical != null) {
+            return await _translationSession.translate(
+                generation, (runner) => classical.translate(text, runner));
+          }
           final service = Prefs().fullTextTranslateService;
           final from = Prefs().fullTextTranslateFrom;
           final to = Prefs().fullTextTranslateTo;
 
           final provider = service.provider;
           return await _translationSession.translate(
-              args[1] as int,
+              generation,
               (runner) => provider is AiTranslateProvider
                   ? provider.translateStream(text, from, to,
                       isFullText: true, requestRunner: runner)
@@ -2349,6 +2435,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         DocumentReadingModeStore(Prefs().prefs).read(widget.book);
     Prefs().addListener(_configureEinkPreferences);
     Prefs().addListener(_configureOcrPrecache);
+    Prefs().addListener(_configureTranslationTextStyle);
     getThemeColor();
 
     contextMenu = ContextMenu(
@@ -2403,13 +2490,15 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     detachNarration();
     Prefs().removeListener(_configureEinkPreferences);
     Prefs().removeListener(_configureOcrPrecache);
+    Prefs().removeListener(_configureTranslationTextStyle);
     _ocrPrecache.dispose();
     _einkPageRefresh.dispose();
     _translationSession.stop();
     documentReadingMode.dispose();
     pdfZoom.dispose();
-    translationMode.dispose();
+    _translationModes.dispose();
     readingProgress.dispose();
+    _batteryLevel.dispose();
     _syncRefreshRetry?.cancel();
     _scrollDebounceTimer?.cancel();
     unawaited(Sync().syncData(SyncDirection.both, null,
@@ -2422,6 +2511,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     supportZoom: false,
     transparentBackground: true,
     isInspectable: kDebugMode,
+    // UIKit must not acquire a selection gesture before the reader loads.
+    // The document bridge re-enables native interaction for fixed-layout books.
+    isTextInteractionEnabled: !AnxPlatform.isIOS,
     // Prefer Flutter's texture-layer composition for reader/UI overlays.
     // initSurfaceAndroidView retains the engine's platform fallback. The build
     // override allows device diagnostics without altering user preferences.
@@ -2528,11 +2620,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
     final readingInfoColor = Color(int.parse('0x$textColor')).withAlpha(150);
     final iconColor = Color(int.parse('0x$textColor'));
-    Future<int?>? batteryLevelFuture;
-
-    Future<int?> loadBatteryLevel() {
-      return batteryLevelFuture ??= readBatteryLevelSafely();
-    }
 
     Widget getWidget(ReadingInfoEnum readingInfoEnum, TextStyle textStyle) {
       final chapterTitleWidget = Text(
@@ -2554,10 +2641,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
 
       final timeWidget = MinuteClock(textStyle: textStyle);
 
-      Widget batteryWidget() => FutureBuilder<int?>(
-          future: loadBatteryLevel(),
-          builder: (context, snapshot) {
-            final level = snapshot.data;
+      Widget batteryWidget() => ValueListenableBuilder<int?>(
+          valueListenable: _batteryLevel,
+          builder: (context, level, _) {
             if (level == null) return const SizedBox.shrink();
             return ReadingBatteryIndicator(
                 level: level,
@@ -2694,6 +2780,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               textColor: textColor,
               isDarkMode: Theme.of(context).brightness == Brightness.dark,
               verticalPageInsets: _verticalGeometry.toJson(),
+              selectionSafeInsets: _selectionSafeInsets,
               verticalPageChrome: _webVerticalChrome,
             ),
           ),
@@ -2749,7 +2836,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         body: Stack(
           children: [
             buildWebviewWithIOSWorkaround(context, url, initialCfi),
-            readingInfoWidget(),
+            ValueListenableBuilder<ReaderProgress>(
+              valueListenable: readingProgress,
+              builder: (_, __, ___) => readingInfoWidget(),
+            ),
             Consumer(builder: (context, ref, _) {
               final state = ref.watch(tocSearchProvider);
               if (!state.isActive) {

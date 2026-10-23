@@ -21,7 +21,7 @@ void main() {
     expect(results, hasLength(1000));
     expect(results.every((r) => r.score == 102), isTrue);
     // Diagnostic only: correctness must not depend on the CI machine's speed.
-    print('Long-query lexical search: ${watch.elapsedMilliseconds}ms');
+    stdout.writeln('Long-query lexical search: ${watch.elapsedMilliseconds}ms');
   });
 
   test('chunks content without losing source locations', () {

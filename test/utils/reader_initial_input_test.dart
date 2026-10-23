@@ -89,6 +89,29 @@ void main() {
     }
   });
 
+  test('scroll alignment preference is applied on first open', () {
+    for (final enabled in [true, false]) {
+      Prefs().scrollAutoAlign = enabled;
+      final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
+          fontName: 'serif', fontPath: ''));
+      expect(jsonDecode(uri.queryParameters['style']!)['scrollAutoAlign'],
+          enabled);
+    }
+  });
+
+  test('selection handles receive safe insets without changing text margins',
+      () {
+    final uri = Uri.parse(generateUrl('https://example.test/book.epub', '',
+        fontName: 'serif',
+        fontPath: '',
+        selectionSafeInsets: {'left': 0, 'top': 62, 'right': 0, 'bottom': 34}));
+    final style = jsonDecode(uri.queryParameters['style']!);
+    expect(style['selectionSafeInsets'],
+        {'left': 0, 'top': 62, 'right': 0, 'bottom': 34});
+    expect(style['topMargin'], Prefs().bookStyle.topMargin);
+    expect(style['bottomMargin'], Prefs().bookStyle.bottomMargin);
+  });
+
   test('scroll page percentage is applied on first open', () {
     for (final percent in [80, 91, 100]) {
       Prefs().scrollPagePercent = percent;

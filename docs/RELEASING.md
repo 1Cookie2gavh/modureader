@@ -1,12 +1,12 @@
 # Building, releasing and installing Modu
 
-Single-edition guide in English. Prepared for stable **1.2.10+10129**, 2026-10-15.
+Single-edition guide in English. Prepared for stable **1.3.2+10157**, 2026-10-24.
 
 Modu is an independently modified derivative of Anx Reader (MIT) and ReadAny (GPL-3.0-or-later). Packages retain licenses; each release links its corresponding source, NOTICE and attribution. No separate notices ZIP is distributed.
 
 ## Build toolchain
 
-Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.2.10. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
+Use the SDK pinned in [.github/flutter-version](../.github/flutter-version): Flutter 3.47.2 for 1.3.2. Run flutter pub get, flutter gen-l10n and build_runner before building. CI uses native platform runners. Windows ARM64 applies scripts/release/windows-arm64-sdk.mjs to accommodate host identification in the CI SDK, then verifies output PE architecture.
 
 Current Android builds use Gradle 9.2.1 (checksum-pinned), AGP 9.0.1 and Kotlin 2.3.20 with `android.builtInKotlin=true`. Gradle 9.2.x's embedded Kotlin 2.2.20 matches the pinned Flutter 3.47.2 build plugin; see the [Gradle compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html). Keep `android.newDsl=false` while Flutter still uses legacy Android extension APIs ([AGP opt-out](https://developer.android.com/build/releases/agp-9-0-0-release-notes)). The minimum Android version remains API 26.
 
@@ -100,12 +100,22 @@ Example of the change-list format (not a published release):
 
 ## Release procedure
 
+A stable-release request includes **GitHub and Gitee publication by default**. Gitee is not an optional follow-up and must not be silently skipped. If access, permissions, capacity or verification prevent completion, report the remaining mirror work explicitly; GitHub publication alone is not full release completion.
+
 1. Update pubspec.yaml and release notes; run relevant security checks and regression tests. Distinguish builds, automated checks and device validation.
 2. Run Modu Packages with selected targets and the intended release tag, or push an authorized version tag. CI builds platform assets in parallel; create the source tag/release only after verification. Never retarget an existing tag to different source.
 3. Failed targets must not produce apparently successful assets. Fix and rebuild them; a release asset proves production, not full device acceptance.
 4. Retain LICENSE/NOTICE inside packages and SOURCE.txt inside desktop installations. Publish hashes and the exact tagged source. Prerelease tags create prereleases. A full stable release must verify all nine packages; scoped previews publish only the requested targets. The Harmony reusable workflow builds the same commit, verifies native assets and version/build identity, and never receives signing keys. Its failure blocks publication.
 5. Do not run upstream store publishing or signing-service workflows. Modu uses its own Telegram release notifier described below.
 6. Mirror the identical original packages following [UPDATE_MIRROR.md](UPDATE_MIRROR.md). On Gitee, confirm deletion authority and that GitHub retains the old release, then delete only the old app release/assets before uploading the new release. Verify every hash before updating the manifest. Retain local packages for retries; do not publish an unverified manifest. Do not delete model mirrors, source, tags or branches. GitHub retains release history from 1.1.0 onward.
+
+### Completion checklist
+
+- [ ] GitHub has the exact source tag, bilingual notes, all nine installers and nine verified SHA-256 sidecars.
+- [ ] Gitee has the same version, notes, filenames and byte-identical installers/sidecars; public downloads, sizes and hashes are verified following [UPDATE_MIRROR.md](UPDATE_MIRROR.md).
+- [ ] Only after asset verification, the Gitee `master` branch's `updates/latest.json` is updated and publicly checked for the new version and eight supported installer targets (HarmonyOS remains a manual download).
+- [ ] Telegram and QQ jobs are checked separately. Failed or uncertain sends are investigated before retrying; build success is not delivery confirmation. See [QQ release announcements](../scripts/community/README.md).
+- [ ] The handoff reports GitHub, Gitee/manifest and both notification results, including any blockers. Do not describe a GitHub-only publication as the completed two-site release.
 
 ## Telegram release announcements
 

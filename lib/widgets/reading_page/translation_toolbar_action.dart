@@ -4,40 +4,53 @@ import 'package:anx_reader/enums/translation_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'classical_translation_icon.dart';
 
 /// Translation controls belong to the reader toolbar, never the text surface.
 class TranslationToolbarAction extends StatelessWidget {
   const TranslationToolbarAction({
     super.key,
     this.mode,
+    this.classical = false,
     required this.onOpenSettings,
     required this.onStop,
   });
 
   final ValueListenable<TranslationModeEnum>? mode;
+  final bool classical;
   final VoidCallback onOpenSettings;
   final VoidCallback onStop;
 
   Widget _button(BuildContext context, TranslationModeEnum current) {
-    final tooltip = L10n.of(context).settingsTranslate;
+    final tooltip = classical
+        ? ModuStrings.text(context, '文言文翻译', 'Classical Chinese')
+        : L10n.of(context).settingsTranslate;
+    final icon = classical
+        ? const ClassicalTranslationIcon()
+        : const Icon(Icons.translate_outlined);
+    final key = ValueKey(classical
+        ? 'reader-classical-translation-button'
+        : 'reader-translation-button');
     if (current == TranslationModeEnum.off) {
       return IconButton(
-        key: const ValueKey('reader-translation-button'),
+        key: key,
         tooltip: tooltip,
-        icon: const Icon(Icons.translate_outlined),
+        icon: icon,
         onPressed: onOpenSettings,
       );
     }
     return PopupMenuButton<bool>(
       clipBehavior: Clip.antiAlias,
       popUpAnimationStyle: AppMotion.style,
-      key: const ValueKey('reader-translation-button'),
+      key: key,
       tooltip: tooltip,
-      icon: const Badge(child: Icon(Icons.translate_outlined)),
+      icon: Badge(child: icon),
       onSelected: (stop) => stop ? onStop() : onOpenSettings(),
       itemBuilder: (_) => [
         PopupMenuItem(
-          key: const ValueKey('reader-toolbar-stop-translation'),
+          key: ValueKey(classical
+              ? 'reader-toolbar-stop-classical-translation'
+              : 'reader-toolbar-stop-translation'),
           value: true,
           child: Text(ModuStrings.text(context, '停止翻译', 'Stop translation')),
         ),

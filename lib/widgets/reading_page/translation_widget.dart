@@ -1,4 +1,9 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/service/translate/classical_translation.dart';
+import 'package:anx_reader/widgets/settings/classical_translation_settings.dart';
+import 'package:anx_reader/widgets/reading_page/classical_translation_icon.dart';
+import 'package:anx_reader/page/settings_page/translate.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
 import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -18,9 +23,11 @@ class TranslationWidget extends StatefulWidget {
     this.pageTranslationMode,
     this.onTranslatePage,
     this.onStopPageTranslation,
+    this.classical = false,
   });
 
   final int bookId;
+  final bool classical;
   final GlobalKey<EpubPlayerState> epubPlayerKey;
   final ValueNotifier<TranslationModeEnum>? pageTranslationMode;
   final Future<void> Function(TranslationModeEnum mode, bool force)?
@@ -40,6 +47,7 @@ class _TranslationWidgetState extends State<TranslationWidget> {
   int _operation = 0;
   ValueNotifier<TranslationModeEnum>? _mode;
   String? _error;
+  String? _activeClassicalIdentity;
 
   bool get _isChinese => Localizations.localeOf(context).languageCode == 'zh';
 
@@ -49,25 +57,27 @@ class _TranslationWidgetState extends State<TranslationWidget> {
   void initState() {
     super.initState();
     final savedMode = Prefs().getBookTranslationMode(widget.bookId);
-    _activeMode = widget.pageTranslationMode?.value ??
-        widget.epubPlayerKey.currentState?.translationMode.value ??
-        TranslationModeEnum.off;
-    _displayMode = (widget.pageTranslationMode != null &&
-                    _activeMode != TranslationModeEnum.off
-                ? _activeMode
-                : savedMode) ==
-            TranslationModeEnum.translationOnly
-        ? TranslationModeEnum.translationOnly
-        : TranslationModeEnum.bilingual;
-    _activeService = Prefs().fullTextTranslateService;
-    _activeTarget = Prefs().fullTextTranslateTo;
     _mode = widget.pageTranslationMode ??
-        widget.epubPlayerKey.currentState?.translationMode;
+        (widget.classical
+            ? widget.epubPlayerKey.currentState?.classicalTranslationMode
+            : widget.epubPlayerKey.currentState?.translationMode);
+    _activeMode = _mode?.value ?? TranslationModeEnum.off;
+    _displayMode =
+        (_activeMode != TranslationModeEnum.off ? _activeMode : savedMode) ==
+                TranslationModeEnum.translationOnly
+            ? TranslationModeEnum.translationOnly
+            : TranslationModeEnum.bilingual;
+    _activeService = Prefs().fullTextTranslateService;
+    _activeClassicalIdentity =
+        widget.classical ? ClassicalTranslation.current().identity : null;
+    _activeTarget = Prefs().fullTextTranslateTo;
     _mode?.addListener(_syncMode);
   }
 
   void _syncMode() {
-    if (mounted) setState(() => _activeMode = _mode!.value);
+    if (mounted) {
+      setState(() => _activeMode = _mode!.value);
+    }
   }
 
   @override
@@ -181,8 +191,13 @@ class _TranslationWidgetState extends State<TranslationWidget> {
 
     final service = Prefs().fullTextTranslateService;
     final target = Prefs().fullTextTranslateTo;
+    final classicalIdentity =
+        widget.classical ? ClassicalTranslation.current().identity : null;
     final needsFreshTranslation = _activeMode != TranslationModeEnum.off &&
-        (service != _activeService || target != _activeTarget);
+        (widget.classical
+            ? ClassicalTranslation.current().identity !=
+                _activeClassicalIdentity
+            : service != _activeService || target != _activeTarget);
 
     setState(() {
       _translating = true;
@@ -195,7 +210,8 @@ class _TranslationWidgetState extends State<TranslationWidget> {
       } else {
         await player!.translateCurrentChapter(
           _displayMode,
-          force: needsFreshTranslation,
+          force: needsFreshTranslation || _activeMode == _displayMode,
+          classical: widget.classical,
         );
       }
       if (!mounted || operation != _operation) return;
@@ -203,6 +219,7 @@ class _TranslationWidgetState extends State<TranslationWidget> {
         _activeMode = _mode?.value ?? TranslationModeEnum.off;
         _activeService = service;
         _activeTarget = target;
+        _activeClassicalIdentity = classicalIdentity;
       });
     } catch (error) {
       if (!mounted || operation != _operation) return;
@@ -246,8 +263,9 @@ class _TranslationWidgetState extends State<TranslationWidget> {
     final theme = Theme.of(context);
     final service = Prefs().fullTextTranslateService;
     final target = Prefs().fullTextTranslateTo;
-    final settingsChanged =
-        service != _activeService || target != _activeTarget;
+    final settingsChanged = widget.classical
+        ? ClassicalTranslation.current().identity != _activeClassicalIdentity
+        : service != _activeService || target != _activeTarget;
     final modeChanged = _displayMode != _activeMode;
 
     return SingleChildScrollView(
@@ -256,15 +274,20 @@ class _TranslationWidgetState extends State<TranslationWidget> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
             children: [
-              const Icon(Icons.translate_outlined),
-              const SizedBox(width: 8),
+              if (widget.classical)
+                const ClassicalTranslationIcon()
+              else
+                const Icon(Icons.translate_outlined),
               Text(
-                ModuStrings.text(context, '阅读翻译', 'Reader translation'),
+                widget.classical
+                    ? ModuStrings.text(context, '文言文翻译', 'Classical Chinese')
+                    : ModuStrings.text(context, '阅读翻译', 'Reader translation'),
                 style: theme.textTheme.titleMedium,
               ),
-              const Spacer(),
               if (_translating || _activeMode != TranslationModeEnum.off)
                 TextButton.icon(
                   key: const ValueKey('reader-stop-translation'),
@@ -281,28 +304,46 @@ class _TranslationWidgetState extends State<TranslationWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ChoiceButton(
-                        label: ModuStrings.text(context, '翻译引擎', 'Engine'),
-                        value: service.getLabel(context),
-                        icon: Icons.translate_outlined,
-                        onTap: _translating ? null : _showServicePicker,
+                if (widget.classical)
+                  IgnorePointer(
+                      ignoring: _translating,
+                      child: ClassicalTranslationSettings(
+                        showCredentials: false,
+                        onChanged: () => setState(() => _error = null),
+                        onConfigure: () async {
+                          await Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => SettingsPageBody(
+                                  title: ModuStrings.text(context, '文言文翻译',
+                                      'Classical Chinese translation'),
+                                  isMobile: true,
+                                  sections:
+                                      const ClassicalTranslateSetting())));
+                          if (mounted) setState(() {});
+                        },
+                      ))
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ChoiceButton(
+                          label: ModuStrings.text(context, '翻译引擎', 'Engine'),
+                          value: service.getLabel(context),
+                          icon: Icons.translate_outlined,
+                          onTap: _translating ? null : _showServicePicker,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ChoiceButton(
-                        label: ModuStrings.text(
-                            context, '目标语言', 'Target language'),
-                        value: target.nativeName,
-                        icon: Icons.language_outlined,
-                        onTap: _translating ? null : _showLanguagePicker,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ChoiceButton(
+                          label: ModuStrings.text(
+                              context, '目标语言', 'Target language'),
+                          value: target.nativeName,
+                          icon: Icons.language_outlined,
+                          onTap: _translating ? null : _showLanguagePicker,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 14),
                 Text(
                   ModuStrings.text(context, '显示方式', 'Display'),
@@ -385,8 +426,8 @@ class _TranslationWidgetState extends State<TranslationWidget> {
             widget.onTranslatePage != null
                 ? ModuStrings.text(
                     context,
-                    '仅翻译当前原书页，优先使用已保存的编辑稿，否则使用识别文字。翻页或停止后恢复原文；译文不会写入 OCR 缓存和笔记。内容会发送给所选翻译引擎。',
-                    'Translate only this source page, preferring saved edits over recognized text. Turning the page or stopping restores the original. Translation never overwrites OCR or notes. Text is sent to the selected translation service.')
+                    '仅翻译重排界面的可见段落，滚动时逐段加载。优先使用已保存的编辑稿，否则使用识别文字。翻原书页或停止后恢复原文；译文不会写入 OCR 缓存和笔记。内容会发送给所选翻译引擎。',
+                    'Translate visible reflow paragraphs, loading more as you scroll. Saved edits take precedence over recognized text. Turning the source page or stopping restores the original. Translation never overwrites OCR or notes. Text is sent to the selected translation service.')
                 : ModuStrings.text(
                     context,
                     '仅在你启动后翻译可见段落，滚动时逐段加载，不会一次发送整章。可随时停止；关闭书籍后停止，重新打开不会自动继续。',

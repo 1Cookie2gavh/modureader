@@ -411,6 +411,7 @@ class BookshelfPageState extends ConsumerState<BookshelfPage>
                     listMode: listMode,
                     selectionMode: _selectionMode,
                     selectedBookIds: _selectedBookIds,
+                    selectedBooks: selectedBooks,
                     onSelectionChanged: setBookSelected,
                   );
                 }

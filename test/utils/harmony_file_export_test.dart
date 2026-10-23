@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:anx_reader/utils/harmony_file_export.dart';
+import 'package:anx_reader/utils/harmony_file_share.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -98,5 +99,44 @@ void main() {
         saveHarmonyFile(sourceFilePath: '/nonexistent', fileName: 'log.txt'),
         throwsA(isA<FileSystemException>()));
     expect(await directory.list().length, 0);
+  });
+
+  test(
+      'sharing retains the named snapshot after opening and leaves source intact',
+      () async {
+    final original =
+        await File('${directory.path}/original.epub').writeAsBytes([0, 1, 255]);
+    late File snapshot;
+    messenger.setMockMethodCallHandler(harmonyFileExportChannel, (call) async {
+      expect(call.method, 'shareFile');
+      final args = call.arguments as Map;
+      expect(args['fileName'], '书_名.epub');
+      snapshot = File(args['sourcePath']);
+      expect(snapshot.path, isNot(original.path));
+      expect(await snapshot.readAsBytes(), [0, 1, 255]);
+      return null; // Sheet opened, not delivery confirmation.
+    });
+    await shareHarmonyFile(sourceFilePath: original.path, title: '书/名.epub');
+    expect(await snapshot.exists(), isTrue);
+    expect(await original.readAsBytes(), [0, 1, 255]);
+    // A subsequent share must not delete the recipient's still-recent snapshot.
+    final first = snapshot;
+    await shareHarmonyFile(sourceFilePath: original.path, title: '书/名.epub');
+    expect(await first.exists(), isTrue);
+  });
+
+  test('failed share removes its snapshot and does not alter the book',
+      () async {
+    final original =
+        await File('${directory.path}/original.epub').writeAsString('book');
+    messenger.setMockMethodCallHandler(harmonyFileExportChannel, (_) async {
+      throw PlatformException(code: 'share_failed');
+    });
+    await expectLater(shareHarmonyFile(sourceFilePath: original.path),
+        throwsA(isA<PlatformException>()));
+    expect(await directory.list().length, 1);
+    expect(await original.readAsString(), 'book');
+    await expectLater(shareHarmonyFile(sourceFilePath: '/nonexistent'),
+        throwsA(isA<FileSystemException>()));
   });
 }

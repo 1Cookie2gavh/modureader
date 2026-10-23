@@ -4,6 +4,7 @@ import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/sync_status.dart';
 import 'package:anx_reader/models/tb_group.dart';
 import 'package:anx_reader/providers/sync_status.dart';
+import 'package:anx_reader/providers/book_list.dart';
 import 'package:anx_reader/providers/tb_groups.dart';
 import 'package:anx_reader/widgets/bookshelf/book_folder.dart';
 import 'package:anx_reader/widgets/bookshelf/book_opened_folder.dart';
@@ -30,8 +31,9 @@ class _Groups extends GroupDao {
   Future<List<TbGroup>> build() async => [const TbGroup(id: 2, name: 'Folder')];
 }
 
-Widget app(Widget child) => ProviderScope(
+Widget app(Widget child, {BookList? books}) => ProviderScope(
       overrides: [
+        if (books != null) bookListProvider.overrideWith(() => books),
         syncStatusProvider.overrideWith(_SyncStatus.new),
         groupDaoProvider.overrideWith(_Groups.new),
       ],

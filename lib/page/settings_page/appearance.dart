@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/enums/app_layout_mode.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/l10n/app_language.dart';
@@ -115,6 +116,35 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
         SettingsSection(
             title: Text(L10n.of(context).settingsAppearanceDisplay),
             tiles: [
+              CustomSettingsTile(
+                child: ListTile(
+                  title: Text(
+                      ModuStrings.text(context, '界面布局', 'Interface layout')),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: AnxSegmentedButton<AppLayoutMode>(
+                      segments: [
+                        SegmentButtonItem(
+                          label: ModuStrings.text(context, '自动', 'Auto'),
+                          value: AppLayoutMode.auto,
+                        ),
+                        SegmentButtonItem(
+                          label: ModuStrings.text(context, '宽屏版', 'Wide'),
+                          value: AppLayoutMode.wide,
+                        ),
+                        SegmentButtonItem(
+                          label: ModuStrings.text(context, '窄屏版', 'Narrow'),
+                          value: AppLayoutMode.narrow,
+                        ),
+                      ],
+                      selected: {Prefs().appLayoutMode},
+                      onSelectionChanged: (value) {
+                        setState(() => Prefs().appLayoutMode = value.first);
+                      },
+                    ),
+                  ),
+                ),
+              ),
               SettingsTile.navigation(
                   title: Text(L10n.of(context).settingsAppearanceLanguage),
                   value: Text(languageSubtitle),

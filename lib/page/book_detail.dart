@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -866,7 +867,9 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        if (constraints.maxWidth > 600) {
+                        if (Prefs()
+                            .appLayoutMode
+                            .usesWideLayout(constraints.maxWidth)) {
                           return Row(
                             children: [
                               Expanded(

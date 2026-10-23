@@ -33,6 +33,69 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
   List<Book> books = [];
   late TextEditingController _nameController;
   String currentGroupName = "";
+  bool _movingOut = false;
+  String? _moveError;
+
+  Future<void> _moveOut(List<Book> dragged) async {
+    if (_movingOut) return;
+    final ids = dragged.map((book) => book.id).toSet();
+    setState(() {
+      _movingOut = true;
+      _moveError = null;
+    });
+    try {
+      await ref
+          .read(bookListProvider.notifier)
+          .moveBooksToFolder(ids, groupId: 0);
+      if (!mounted) return;
+      setState(() {
+        books.removeWhere((entry) => ids.contains(entry.id));
+        selectedIds.removeAll(ids);
+        _movingOut = false;
+      });
+      if (books.isEmpty) Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _movingOut = false;
+        _moveError = ModuStrings.text(
+            context, '移出失败，请重试', 'Could not move the book. Please try again.');
+      });
+    }
+  }
+
+  Widget _shelfDropTarget({required bool outside}) => DragTarget<List<Book>>(
+        key: ValueKey(outside ? 'folder-outside-drop' : 'folder-shelf-drop'),
+        onWillAcceptWithDetails: (details) =>
+            !_movingOut &&
+            details.data.isNotEmpty &&
+            details.data
+                .every((dragged) => books.any((book) => book.id == dragged.id)),
+        onAcceptWithDetails: (details) => _moveOut(details.data),
+        builder: (context, candidates, _) => outside
+            ? GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: ColoredBox(
+                  color: candidates.isEmpty
+                      ? Colors.transparent
+                      : Theme.of(context).colorScheme.primary.withAlpha(30),
+                ),
+              )
+            : Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: candidates.isEmpty
+                      ? Theme.of(context).colorScheme.surface
+                      : Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: Theme.of(context).colorScheme.outline),
+                ),
+                child: Text(ModuStrings.text(context, '拖到这里或文件夹外，移回书架',
+                    'Drop here or outside the folder to move to the shelf')),
+              ),
+      );
 
   @override
   void initState() {
@@ -82,7 +145,7 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
     if (original.isNotEmpty) {
       books = applyBookshelfPins([BookList().sortBooks(original)], pins).single;
     }
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: selectionMode
           ? Text(ModuStrings.format(
               context, '已选 {count} 本', '{count} books selected',
@@ -142,9 +205,13 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
             itemBuilder: (context, index) => Stack(
                   children: [
                     BookItem(
+                      key: ValueKey(books[index].id),
                       book: books[index],
                       selectionMode: selectionMode,
                       selected: selectedIds.contains(books[index].id),
+                      dragBooks: books
+                          .where((book) => selectedIds.contains(book.id))
+                          .toList(),
                       onSelectionChanged: (book, selected) {
                         setState(() {
                           selectionMode = true;
@@ -163,16 +230,7 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
                             right: 0,
                             top: 0,
                             child: IconButton(
-                              onPressed: () {
-                                ref
-                                    .read(bookListProvider.notifier)
-                                    .removeFromGroup(books[index]);
-                                books.removeAt(index);
-                                if (books.isEmpty) {
-                                  Navigator.pop(context);
-                                }
-                                setState(() {});
-                              },
+                              onPressed: () => _moveOut([books[index]]),
                               icon: const Icon(
                                 Icons.remove_circle,
                                 size: 30,
@@ -185,49 +243,84 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
                 )),
       ),
       actions: [
-        if (selectionMode) ...[
-          BookSelectionActions(
-            books:
-                books.where((book) => selectedIds.contains(book.id)).toList(),
-            onCompleted: () => Navigator.pop(context),
+        SizedBox(
+          width: MediaQuery.sizeOf(context).width * 0.7,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+            child: SingleChildScrollView(
+                child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                if (_moveError != null)
+                  Text(_moveError!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+                if (_movingOut) const LinearProgressIndicator(),
+                if (selectionMode) ...[
+                  _shelfDropTarget(outside: false),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (selectedIds.length == books.length) {
+                        selectedIds.clear();
+                      } else {
+                        selectedIds.addAll(books.map((book) => book.id));
+                      }
+                    }),
+                    child: Text(selectedIds.length == books.length
+                        ? ModuStrings.text(context, '取消全选', 'Deselect all')
+                        : ModuStrings.text(context, '全选', 'Select all')),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      selectionMode = false;
+                      selectedIds.clear();
+                    }),
+                    child: Text(L10n.of(context).commonCancel),
+                  ),
+                  BookSelectionActions(
+                    books: books
+                        .where((book) => selectedIds.contains(book.id))
+                        .toList(),
+                    onCompleted: () => Navigator.pop(context),
+                  ),
+                ] else ...[
+                  if (books.isNotEmpty)
+                    FolderPinMenu(groupId: books.first.groupId),
+                  TextButton(
+                      onPressed: () {
+                        ref
+                            .read(bookListProvider.notifier)
+                            .dissolveGroup(books);
+                        Navigator.pop(context);
+                      },
+                      child: Text(L10n.of(context).commonDissolve)),
+                  TextButton(
+                      onPressed: () {
+                        isEditing = !isEditing;
+                        setState(() {});
+                      },
+                      child: Text(isEditing
+                          ? L10n.of(context).commonCancel
+                          : L10n.of(context).commonEdit)),
+                ],
+              ],
+            )),
           ),
-          TextButton(
-            onPressed: () => setState(() {
-              if (selectedIds.length == books.length) {
-                selectedIds.clear();
-              } else {
-                selectedIds.addAll(books.map((book) => book.id));
-              }
-            }),
-            child: Text(selectedIds.length == books.length
-                ? ModuStrings.text(context, '取消全选', 'Deselect all')
-                : ModuStrings.text(context, '全选', 'Select all')),
-          ),
-          TextButton(
-            onPressed: () => setState(() {
-              selectionMode = false;
-              selectedIds.clear();
-            }),
-            child: Text(L10n.of(context).commonCancel),
-          ),
-        ] else ...[
-          if (books.isNotEmpty) FolderPinMenu(groupId: books.first.groupId),
-          TextButton(
-              onPressed: () {
-                ref.read(bookListProvider.notifier).dissolveGroup(books);
-                Navigator.pop(context);
-              },
-              child: Text(L10n.of(context).commonDissolve)),
-          TextButton(
-              onPressed: () {
-                isEditing = !isEditing;
-                setState(() {});
-              },
-              child: Text(isEditing
-                  ? L10n.of(context).commonCancel
-                  : L10n.of(context).commonEdit)),
-        ],
+        )
       ],
+    );
+    return PopScope(
+      canPop: !_movingOut,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _shelfDropTarget(outside: true),
+          AbsorbPointer(absorbing: _movingOut, child: dialog),
+        ],
+      ),
     );
   }
 }

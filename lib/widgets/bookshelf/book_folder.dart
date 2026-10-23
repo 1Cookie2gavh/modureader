@@ -8,6 +8,7 @@ import 'package:anx_reader/providers/book_list.dart';
 import 'package:anx_reader/providers/tb_groups.dart';
 import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
 import 'package:anx_reader/widgets/bookshelf/book_item.dart';
+import 'package:anx_reader/widgets/bookshelf/book_folder_dialog.dart';
 import 'package:anx_reader/widgets/bookshelf/book_opened_folder.dart';
 import 'package:anx_reader/widgets/bookshelf/folder_pin_menu.dart';
 import 'package:anx_reader/utils/toast/common.dart';
@@ -24,6 +25,7 @@ class BookFolder extends ConsumerStatefulWidget {
     this.selectionMode = false,
     this.selectedBookIds = const <int>{},
     this.onSelectionChanged,
+    this.selectedBooks = const [],
   });
 
   final List<Book> books;
@@ -31,34 +33,51 @@ class BookFolder extends ConsumerStatefulWidget {
   final bool selectionMode;
   final Set<int> selectedBookIds;
   final BookSelectionChanged? onSelectionChanged;
+  final List<Book> selectedBooks;
 
   @override
   ConsumerState<BookFolder> createState() => _BookFolderState();
 }
 
 class _BookFolderState extends ConsumerState<BookFolder> {
-  bool willAcceptBook = false;
+  bool _moving = false;
   final _menuKey = GlobalKey<PopupMenuButtonState<bool>>();
 
   @override
   Widget build(BuildContext context) {
     final folderStyle = context.watch<Prefs>().bookshelfFolderStyle;
 
-    Future<void> onAcceptBook(DragTargetDetails<Book> details) async {
+    Future<void> onAcceptBook(DragTargetDetails<List<Book>> details) async {
+      if (_moving) return;
+      _moving = true;
       try {
         final target = widget.books.first;
-        await ref.read(bookListProvider.notifier).moveBooksToFolder(
-          [details.data.id, if (target.groupId == 0) target.id],
-          groupId: target.groupId == 0 ? null : target.groupId,
-          newFolderName: target.groupId == 0 ? '...' : null,
-        );
+        if (target.groupId == 0) {
+          await showDialog<bool>(
+            animationStyle: AppMotion.style,
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => BookFolderDialog(
+                bookIds: [...details.data.map((book) => book.id), target.id],
+                createNew: true),
+          );
+        } else {
+          await ref.read(bookListProvider.notifier).moveBooksToFolder(
+              details.data.map((book) => book.id),
+              groupId: target.groupId);
+        }
       } catch (_) {
-        AnxToast.show('移入文件夹失败，请刷新书架后重试');
+        if (context.mounted) {
+          AnxToast.show(ModuStrings.text(context, '移入文件夹失败，请刷新书架后重试',
+              'Could not move the book. Refresh the shelf and try again.'));
+        }
+      } finally {
+        _moving = false;
       }
     }
 
-    Widget scaleTransition(Widget child) {
-      return willAcceptBook
+    Widget scaleTransition(Widget child, bool accepting) {
+      return accepting
           ? ScaleTransition(
               scale: Tween<double>(begin: 1.0, end: 1.1).animate(
                 CurvedAnimation(
@@ -70,16 +89,13 @@ class _BookFolderState extends ConsumerState<BookFolder> {
           : child;
     }
 
-    bool onWillAcceptBook(DragTargetDetails<Book>? details) {
-      if (details?.data.id == widget.books.first.id) {
-        return false;
-      }
-      willAcceptBook = details?.data != null;
-      return details?.data != null;
-    }
-
-    void onLeaveBook(Book? book) {
-      willAcceptBook = false;
+    bool onWillAcceptBook(DragTargetDetails<List<Book>> details) {
+      final target = widget.books.first;
+      return !_moving &&
+          details.data.isNotEmpty &&
+          (target.groupId == 0
+              ? details.data.every((book) => book.id != target.id)
+              : details.data.any((book) => book.groupId != target.groupId));
     }
 
     void openFolder(String groupName) {
@@ -120,10 +136,9 @@ class _BookFolderState extends ConsumerState<BookFolder> {
             ) ??
         '???';
 
-    final singleBookTarget = DragTarget<Book>(
+    final singleBookTarget = DragTarget<List<Book>>(
       onAcceptWithDetails: (book) => onAcceptBook(book),
       onWillAcceptWithDetails: (data) => onWillAcceptBook(data),
-      onLeave: (data) => onLeaveBook(data),
       builder: (context, candidateData, rejectedData) {
         return scaleTransition(
           BookItem(
@@ -132,15 +147,16 @@ class _BookFolderState extends ConsumerState<BookFolder> {
             selectionMode: widget.selectionMode,
             selected: widget.selectedBookIds.contains(widget.books[0].id),
             onSelectionChanged: widget.onSelectionChanged,
+            dragBooks: widget.selectedBooks,
           ),
+          candidateData.isNotEmpty,
         );
       },
     );
 
-    final groupTarget = DragTarget<Book>(
+    final groupTarget = DragTarget<List<Book>>(
       onAcceptWithDetails: (book) => onAcceptBook(book),
       onWillAcceptWithDetails: (data) => onWillAcceptBook(data),
-      onLeave: (data) => onLeaveBook(data),
       builder: (context, candidateData, rejectedData) {
         int count = -1;
 
@@ -220,53 +236,59 @@ class _BookFolderState extends ConsumerState<BookFolder> {
 
         if (widget.listMode) {
           return InkWell(
+            highlightColor: Theme.of(context).colorScheme.primaryContainer,
             onLongPress: toggleSelection,
             onSecondaryTap: toggleSelection,
             onTap: () => widget.selectionMode
                 ? toggleSelection()
                 : openFolder(groupName),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(children: [
-                if (widget.selectionMode)
-                  Checkbox(
-                    tristate: true,
-                    value: allSelected
-                        ? true
-                        : selectedCount > 0
-                            ? null
-                            : false,
-                    onChanged: (_) => toggleSelection(),
-                  )
-                else ...[
-                  const Icon(Icons.folder_outlined),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(groupName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                          ModuStrings.format(
-                              context, '{count} 本书', '{count} books',
-                              values: {'count': widget.books.length}),
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
+            child: ColoredBox(
+              color: candidateData.isNotEmpty
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(children: [
+                  if (widget.selectionMode)
+                    Checkbox(
+                      tristate: true,
+                      value: allSelected
+                          ? true
+                          : selectedCount > 0
+                              ? null
+                              : false,
+                      onChanged: (_) => toggleSelection(),
+                    )
+                  else ...[
+                    const Icon(Icons.folder_outlined),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(groupName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                        Text(
+                            ModuStrings.format(
+                                context, '{count} 本书', '{count} books',
+                                values: {'count': widget.books.length}),
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
                   ),
-                ),
-                if (widget.selectionMode)
-                  FolderPinMenu(
-                    groupId: widget.books.first.groupId,
-                    menuKey: _menuKey,
-                  )
-                else
-                  const Icon(Icons.chevron_right),
-              ]),
+                  if (widget.selectionMode)
+                    FolderPinMenu(
+                      groupId: widget.books.first.groupId,
+                      menuKey: _menuKey,
+                    )
+                  else
+                    const Icon(Icons.chevron_right),
+                ]),
+              ),
             ),
           );
         }
@@ -352,6 +374,7 @@ class _BookFolderState extends ConsumerState<BookFolder> {
               ),
             ],
           ),
+          candidateData.isNotEmpty,
         );
       },
     );

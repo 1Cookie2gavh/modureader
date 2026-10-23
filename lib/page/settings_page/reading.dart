@@ -9,6 +9,7 @@ import 'package:anx_reader/widgets/reading_page/more_settings/style_settings.dar
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/widgets/reading_page/reader_top_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ReadingSettings extends ConsumerStatefulWidget {
@@ -30,6 +31,10 @@ class _ReadingSettingsState extends ConsumerState<ReadingSettings> {
           ]),
         );
     return settingsSections(sections: [
+      SettingsSection.content(
+        title: Text(ModuStrings.text(context, '阅读顶部菜单', 'Reader top toolbar')),
+        child: const ReaderTopActionsSettings(),
+      ),
       SettingsSection(
         title: Text(ModuStrings.text(context, 'CSS 设置', 'CSS settings')),
         tiles: [

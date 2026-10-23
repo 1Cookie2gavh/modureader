@@ -13,12 +13,24 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final source = <String, Object>{
     'themeColor': 12,
+    'appLayoutMode': 'narrow',
     'trueDarkMode': true,
     'showBookFormatBadge': false,
     'showBookIndexBadge': false,
     'pageTurnStyle': 'scroll',
     'scrollPagePercent': 93,
     'continuousScroll': false,
+    'scrollAutoAlign': false,
+    'readerToolbar': '{"order":["classical","translation"],"hidden":["copy"]}',
+    'classicalTranslationEngine': 'microsoft',
+    'classicalTranslationDirection': 'toClassical',
+    'classicalTranslationAiService': 'test-classical',
+    'classicalTranslationTextStyle':
+        '{"font":"serif","size":24,"bold":true,"italic":true}',
+    'languageTranslationTextStyle':
+        '{"font":"monospace","size":18,"bold":false,"italic":false}',
+    'translateServiceConfig_classical':
+        '{"microsoft_key":"secret","microsoft_region":"eastasia","baidu_appid":"123","baidu_key":"secret"}',
     'readerShortcuts': '{"next":[{"key":"n","modifiers":1}]}',
     'eInkRefreshPages': 10,
     'longPressSelectParagraph': true,

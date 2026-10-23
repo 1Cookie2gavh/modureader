@@ -29,6 +29,15 @@ def replacements():
         '''      const baseUrl: string = upper === 'GET' && this.isLoopbackHttpUrl(url)
         ? url : this.buildLoopbackBaseUrl(url);''')
 
+    # OHOS defaults to a 5 MiB buffered response, including local EPUBs.
+    # Keep remote requests at their original limit.
+    add(CLIENT, '        if (requestBody != null && requestBody.byteLength > 0) {',
+        '''        // shortcut: buffered OHOS HTTP supports at most 100 MiB; use streaming for larger books.
+        if (this.isLoopbackHost(request.getUrl())) {
+          requestOptions.maxLimit = 100 * 1024 * 1024;
+        }
+        if (requestBody != null && requestBody.byteLength > 0) {''')
+
     add(PACKAGES[0] + '/lib/src/in_app_webview/in_app_webview_controller.dart',
         '  Future<void> clearFocus() => platform.clearFocus();',
         '''  Future<void> clearFocus() => platform.clearFocus();

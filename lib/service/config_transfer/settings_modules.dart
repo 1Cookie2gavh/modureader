@@ -2,7 +2,7 @@
 /// AI: skills, translation and vector models are independently transferable.
 const settingsModuleKeys = <String, String>{
   'appearance':
-      '''wereadApiKey locale themeMode themeColor trueDarkMode eInkMode eInkDisableAnimations
+      '''wereadApiKey locale themeMode appLayoutMode themeColor trueDarkMode eInkMode eInkDisableAnimations
 useOriginalCoverRatio bookCoverWidth bookshelfFolderStyle bookshelfListMode showBookFormatBadge showBookIndexBadge showBookTitleOnDefaultCover
 showAuthorOnDefaultCover openBookAnimation bottomNavigatorShowNote
 bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI sortField sortOrder''',
@@ -10,11 +10,11 @@ bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI so
       '''readStyle readTheme hideStatusBar readerFullscreen autoHideBottomBar
 awakeTime dailyCheckInMinutes pageTurningType pageTurnStyle readingRules chapterSplitCustomRules
 chapterSplitSelectedRuleId autoAdjustReadingTheme readingNightMode volumeKeyTurnPage
-keyboardShortcutTurnPage readerShortcuts swapPageTurnArea tapOnlyPageTurn continuousScroll longPressSelectParagraph scrollPagePercent showMenuOnHover showActionLabels eInkRefreshPages
+keyboardShortcutTurnPage readerShortcuts swapPageTurnArea tapOnlyPageTurn continuousScroll scrollAutoAlign longPressSelectParagraph scrollPagePercent showMenuOnHover showActionLabels eInkRefreshPages
 useBookStyles pageTurnMode customPageTurnConfig readingInfo showTextUnderIconButton
 pageHeaderMargin pageHeaderLeftMargin pageHeaderRightMargin pageHeaderFontSize
 pageFooterMargin pageFooterLeftMargin pageFooterRightMargin pageFooterFontSize
-writingMode verticalRedFrame textAlignment bgimgFit bgimg selectionToolbar''',
+writingMode verticalRedFrame textAlignment bgimgFit bgimg selectionToolbar readerToolbar''',
   'css':
       '''customCSSEnabled customCSS customCssProfiles customCssDefaultIndex customCssDefaultIndices''',
   'selection-search': 'selectionSearchSettings selectionSearchZoomPercent',
@@ -33,7 +33,8 @@ vectorModelDownloadSource vectorModelConfig''',
       '''ttsVolume ttsPitch ttsRate ttsService onlineTtsService isSystemTts allowMixWithOtherAudio ttsBufferSettings''',
   'translation':
       '''translateService translateFrom translateTo fullTextTranslateService
-fullTextTranslateFrom fullTextTranslateTo translationAiService translationMode autoTranslateSelection webTranslationZoomPercent''',
+fullTextTranslateFrom fullTextTranslateTo translationAiService translationMode autoTranslateSelection webTranslationZoomPercent
+classicalTranslationEngine classicalTranslationDirection classicalTranslationAiService classicalTranslationTextStyle languageTranslationTextStyle''',
   'webdav':
       '''webdavInfo s3Info syncProtocol autoSync onlySyncWhenWifi syncCompletedToast
 readingTimedSync readingSyncMinutes''',

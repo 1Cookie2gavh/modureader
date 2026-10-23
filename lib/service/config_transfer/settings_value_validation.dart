@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/models/translation_text_style.dart';
 import 'package:anx_reader/models/tts_buffer_settings.dart';
 import 'package:anx_reader/service/sync/s3_config.dart';
 import 'package:anx_reader/service/ai/reading_skill_layout.dart';
@@ -29,6 +30,9 @@ void validateSettingsValue(String key, dynamic value) {
   }
 
   const choices = {
+    'classicalTranslationEngine': ['ai', 'baidu', 'microsoft'],
+    'classicalTranslationDirection': ['toModern', 'toClassical'],
+    'appLayoutMode': ['auto', 'wide', 'narrow'],
     'syncProtocol': ['webdav', 's3'],
     'pageTurnStyle': ['noAnimation', 'slide', 'scroll'],
     'pageTurnMode': ['simple', 'custom'],
@@ -46,6 +50,29 @@ void validateSettingsValue(String key, dynamic value) {
   };
   if (choices.containsKey(key) && !choices[key]!.contains(value)) {
     throw const FormatException('Unknown setting choice');
+  }
+  if (key == 'readerToolbar') {
+    final config = object();
+    for (final field in ['order', 'hidden']) {
+      final items = config[field];
+      if (items != null &&
+          (items is! List || items.any((item) => item is! String))) {
+        throw const FormatException('Invalid reader toolbar actions');
+      }
+    }
+  }
+  if (key == 'classicalTranslationTextStyle' ||
+      key == 'languageTranslationTextStyle') {
+    final config = object();
+    final size = config['size'];
+    if (!TranslationTextStyle.validFont(config['font']) ||
+        size is! num ||
+        !size.isFinite ||
+        (size != 0 && (size < 12 || size > 48)) ||
+        config['bold'] is! bool ||
+        config['italic'] is! bool) {
+      throw const FormatException('Invalid translation text style');
+    }
   }
   if (key == 'eInkRefreshPages' &&
       (value is! int || value < 0 || value > 100)) {

@@ -33,7 +33,7 @@ keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showB
 showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
 bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI syncCompletedToast autoSync readingTimedSync
 isSystemTts showTextUnderIconButton notesExportMergeChapters verticalRedFrame enableJsForEpub
-httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft ocrPrecacheEnabled'''
+httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll scrollAutoAlign longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft ocrPrecacheEnabled'''
             .split(RegExp(r'\s+')))
       key: 'bool',
     for (final key
@@ -48,9 +48,9 @@ pageFooterLeftMargin pageFooterRightMargin pageFooterFontSize aiPanelWidth aiPan
             .split(RegExp(r'\s+')))
       key: 'double',
     for (final key
-        in '''wereadApiKey locale themeMode readStyle readTheme annotationType annotationColor ttsService ttsBufferSettings
+        in '''wereadApiKey locale themeMode appLayoutMode readStyle readTheme annotationType annotationColor ttsService ttsBufferSettings
 pageTurnStyle translateService translateFrom translateTo fullTextTranslateService fullTextTranslateFrom
-fullTextTranslateTo translationAiService readingRules chapterSplitCustomRules chapterSplitSelectedRuleId
+fullTextTranslateTo translationAiService classicalTranslationEngine classicalTranslationDirection classicalTranslationAiService readerToolbar readingRules chapterSplitCustomRules chapterSplitSelectedRuleId
 selectedAiService vectorModelMode vectorLocalModelId vectorModelDownloadSource vectorModelConfig aiProviders ocrModelId ocrModelDownloadSource
 userPrompts readAnySkillStates readAnySkillPrompts pageTurnMode customPageTurnConfig bookshelfFolderStyle
 readingInfo onlineTtsService sortField sortOrder notesViewSortField notesViewSortDirection notesExportSortField
@@ -131,6 +131,7 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
       // Do not select an absent provider on another device.
       values.remove('selectedAiService');
       values.remove('translationAiService');
+      values.remove('classicalTranslationAiService');
     }
     if (values['aiProviders']?['value'] case final String raw) {
       final providers = jsonDecode(raw) as List;
@@ -223,7 +224,8 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
     if (includeSecrets) return Map<String, dynamic>.from(values);
     return withoutBackupCredentials(values)
       ..remove('selectedAiService')
-      ..remove('translationAiService');
+      ..remove('translationAiService')
+      ..remove('classicalTranslationAiService');
   }
 
   /// Old per-page links are still accepted at the single migration entry.

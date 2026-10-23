@@ -3,21 +3,39 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/utils/toast/common.dart';
+import 'package:sqflite/sqflite.dart';
 
 class ThemeDao extends BaseDao {
   ThemeDao();
 
   static const String table = 'tb_themes';
+  Database? _cachedDatabase;
+  Future<List<Map<String, Object?>>>? _themes;
 
-  Future<int> insertTheme(ReadTheme readTheme) {
-    return insert(table, readTheme.toMap());
+  Future<int> insertTheme(ReadTheme readTheme) async {
+    try {
+      return await insert(table, readTheme.toMap());
+    } finally {
+      _themes = null;
+    }
   }
 
-  Future<List<ReadTheme>> selectThemes() {
-    return queryList(
-      table,
-      mapper: ReadTheme.fromDb,
-    );
+  Future<List<ReadTheme>> selectThemes() async {
+    final db = await database;
+    // Restoring a backup replaces the database handle, even at the same path.
+    if (!identical(_cachedDatabase, db)) {
+      _cachedDatabase = db;
+      _themes = null;
+    }
+    final pending = _themes ??= db.query(table);
+    try {
+      final rows = await pending;
+      // Editors mutate ReadTheme; never let an unsaved edit change the cache.
+      return rows.map(ReadTheme.fromDb).toList(growable: false);
+    } catch (_) {
+      if (identical(_themes, pending)) _themes = null;
+      rethrow;
+    }
   }
 
   Future<void> deleteTheme(int id) async {
@@ -31,20 +49,28 @@ class ThemeDao extends BaseDao {
       return;
     }
 
-    await delete(
-      table,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    try {
+      await delete(
+        table,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } finally {
+      _themes = null;
+    }
   }
 
   Future<void> updateTheme(ReadTheme readTheme) async {
-    await update(
-      table,
-      readTheme.toMap(),
-      where: 'id = ?',
-      whereArgs: [readTheme.id],
-    );
+    try {
+      await update(
+        table,
+        readTheme.toMap(),
+        where: 'id = ?',
+        whereArgs: [readTheme.id],
+      );
+    } finally {
+      _themes = null;
+    }
   }
 
   Future<ReadTheme> selectReadThemeById(int id) async {

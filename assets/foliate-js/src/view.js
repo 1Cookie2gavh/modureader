@@ -910,6 +910,9 @@ export class View extends HTMLElement {
   setTranslationMode(mode, sessionId) {
     return this.#translator.setTranslationMode(mode, sessionId)
   }
+  setTranslationTextStyle(style) {
+    this.#translator.setTextStyle(style)
+  }
   
   getTranslationMode() {
     return this.#translator.getTranslationMode()

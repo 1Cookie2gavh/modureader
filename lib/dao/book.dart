@@ -15,6 +15,7 @@ class BookDao extends BaseDao {
 
   /// Create a folder and move its books atomically, or move into a live folder.
   /// Only membership changes: never write a stale Book snapshot over sync data.
+  /// A groupId of zero moves the books back to the shelf root.
   Future<int> moveBooksToFolder(Iterable<int> bookIds,
       {int? groupId, String? newFolderName}) async {
     final ids = bookIds.toSet();
@@ -23,7 +24,7 @@ class BookDao extends BaseDao {
       throw ArgumentError('Select at least one book');
     }
     if ((groupId == null) == (newFolderName == null) ||
-        (groupId != null && groupId <= 0) ||
+        (groupId != null && groupId < 0) ||
         (name != null && (name.isEmpty || name.length > 100))) {
       throw ArgumentError('Invalid folder destination');
     }
@@ -38,7 +39,9 @@ class BookDao extends BaseDao {
       }
       final now = DateTime.now().toIso8601String();
       final int target;
-      if (groupId != null) {
+      if (groupId == 0) {
+        target = 0;
+      } else if (groupId != null) {
         final groups = await txn.query('tb_groups',
             columns: ['id'],
             where: 'id = ? AND is_deleted = 0',

@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/settings/classical_translation_settings.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/lang_list.dart';
@@ -9,15 +10,79 @@ import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
 import 'package:flutter/material.dart';
+import 'package:anx_reader/page/settings_page/settings_page.dart';
+import 'package:anx_reader/widgets/settings/translation_text_style_settings.dart';
+import 'package:anx_reader/widgets/reading_page/classical_translation_icon.dart';
 
-class TranslateSetting extends StatefulWidget {
+class TranslateSetting extends StatelessWidget {
   const TranslateSetting({super.key});
-
   @override
-  State<TranslateSetting> createState() => _TranslateSettingState();
+  Widget build(BuildContext context) => settingsSections(sections: [
+        SettingsSection(
+          title:
+              Text(ModuStrings.text(context, '翻译设置', 'Translation settings')),
+          tiles: [
+            for (final classical in [false, true])
+              SettingsTile.navigation(
+                key: ValueKey(classical
+                    ? 'translation-settings-classical'
+                    : 'translation-settings-language'),
+                leading: classical
+                    ? const ClassicalTranslationIcon()
+                    : const Icon(Icons.translate_outlined),
+                title: Text(ModuStrings.text(
+                    context,
+                    classical ? '文言文翻译' : '语种翻译',
+                    classical
+                        ? 'Classical Chinese translation'
+                        : 'Language translation')),
+                description: Text(ModuStrings.text(
+                    context,
+                    classical
+                        ? '文白互译 · 翻译服务 · 译文外观'
+                        : '翻译引擎 · 目标语言 · 选词翻译 · 译文外观',
+                    classical
+                        ? 'Classical / modern Chinese · Services · Output style'
+                        : 'Engine · Target language · Selection translation · Output style')),
+                onPressed: (context) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => SettingsPageBody(
+                            title: ModuStrings.text(
+                                context,
+                                classical ? '文言文翻译' : '语种翻译',
+                                classical
+                                    ? 'Classical Chinese translation'
+                                    : 'Language translation'),
+                            isMobile: true,
+                            sections: classical
+                                ? const ClassicalTranslateSetting()
+                                : const LanguageTranslateSetting()))),
+              ),
+          ],
+        )
+      ]);
 }
 
-class _TranslateSettingState extends State<TranslateSetting> {
+class ClassicalTranslateSetting extends StatelessWidget {
+  const ClassicalTranslateSetting({super.key});
+  @override
+  Widget build(BuildContext context) => settingsSections(sections: [
+        SettingsSection.content(
+            title:
+                Text(ModuStrings.text(context, '翻译服务', 'Translation service')),
+            child: const ClassicalTranslationSettings()),
+        const CustomSettingsSection(child: TranslationTextStyleSettings()),
+      ]);
+}
+
+class LanguageTranslateSetting extends StatefulWidget {
+  const LanguageTranslateSetting({super.key});
+
+  @override
+  State<LanguageTranslateSetting> createState() => _TranslateSettingState();
+}
+
+class _TranslateSettingState extends State<LanguageTranslateSetting> {
   late final TextEditingController _deepLApiKeyController;
   late final TextEditingController _deepLBaseUrlController;
   bool _obscureDeepLKey = true;
@@ -424,6 +489,8 @@ class _TranslateSettingState extends State<TranslateSetting> {
             ),
           ],
         ),
+        const CustomSettingsSection(
+            child: TranslationTextStyleSettings(classical: false)),
       ],
     );
   }

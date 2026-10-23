@@ -1219,11 +1219,14 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
         ],
       ),
     );
-    Widget inputBox({required bool compact}) => FilledContainer(
-          padding: const EdgeInsets.all(4),
-          radius: 15,
-          child: SafeArea(
-            top: false,
+    // Protect the painted border, not only the controls inside it. Fullscreen
+    // readers can report zero safe insets, so retain a small outer gap too.
+    Widget inputBox({required bool compact}) => SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: FilledContainer(
+            padding: const EdgeInsets.all(4),
+            radius: 15,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

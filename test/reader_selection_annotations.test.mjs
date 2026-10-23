@@ -59,7 +59,7 @@ test('CFI text/id assertions do not require an identical range string', () => {
 test('selection event carries intersecting annotation IDs to Flutter', async () => {
   const book = await read('book')
   const start = book.indexOf('const handleSelection = ')
-  const end = book.indexOf('\nconst AUTO_PAGE_DELAY_MS', start)
+  const end = book.indexOf('\nconst setSelectionHandler', start)
   const range = {}, events = []
   const select = runInNewContext(`${book.slice(start, end)}\nhandleSelection`, {
     getSelectionRange: () => range,

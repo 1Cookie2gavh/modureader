@@ -26,6 +26,7 @@ class BookItem extends ConsumerStatefulWidget {
     this.selectionMode = false,
     this.selected = false,
     this.onSelectionChanged,
+    this.dragBooks = const [],
   });
 
   final Book book;
@@ -33,6 +34,7 @@ class BookItem extends ConsumerStatefulWidget {
   final bool selectionMode;
   final bool selected;
   final BookSelectionChanged? onSelectionChanged;
+  final List<Book> dragBooks;
 
   @override
   ConsumerState<BookItem> createState() => _BookItemState();
@@ -86,12 +88,11 @@ class _BookItemState extends ConsumerState<BookItem> {
       animation: bookKnowledgeIndexQueue,
       builder: (context, _) {
         final queueItem = bookKnowledgeIndexQueue.itemFor(book.id);
-        return GestureDetector(
+        final item = GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: selectionMode
               ? toggleSelection
               : () => pushToReadingPage(ref, context, book),
-          onLongPress: toggleSelection,
           onSecondaryTap: toggleSelection,
           child: widget.listMode
               ? Padding(
@@ -341,6 +342,31 @@ class _BookItemState extends ConsumerState<BookItem> {
                     ),
                   ],
                 ),
+        );
+        if (onSelectionChanged == null) return item;
+        final dragged = selected && widget.dragBooks.isNotEmpty
+            ? List<Book>.unmodifiable(widget.dragBooks)
+            : <Book>[book];
+        return LongPressDraggable<List<Book>>(
+          data: dragged,
+          maxSimultaneousDrags: 1,
+          rootOverlay: true,
+          dragAnchorStrategy: pointerDragAnchorStrategy,
+          onDragStarted: () {
+            if (!selected) onSelectionChanged?.call(book, true);
+          },
+          feedback: Material(
+            color: Colors.transparent,
+            elevation: Prefs().eInkMode ? 0 : 8,
+            borderRadius: BorderRadius.circular(8),
+            child: Badge(
+              isLabelVisible: dragged.length > 1,
+              label: Text('${dragged.length}'),
+              child: BookCover(book: book, width: 100, height: 150),
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.35, child: item),
+          child: item,
         );
       },
     );

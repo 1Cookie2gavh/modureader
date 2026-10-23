@@ -108,6 +108,32 @@ async function call(name, argumentsMap = {}) {
   return response;
 }
 (async () => {
+  const clientSource = sources[prefix + 'webview/in_app_webview/InAppWebViewClient.ets'];
+  let requestOptions;
+  let destroyed = 0;
+  const client = harness(clientSource, ['runRemoteHttpFallback'], {
+    http: { HttpDataType: { ARRAY_BUFFER: 'buffer' }, createHttp: () => ({
+      request: async (url, options) => {
+        requestOptions = options;
+        if ((options.maxLimit ?? 5 * 1024 * 1024) < 16662365) throw Error('response too large');
+        return { responseCode: 200, result: new ArrayBuffer(16662365) };
+      },
+      destroy: () => { destroyed++; },
+    }) },
+    RequestBodyReader: { needsRequestBody: () => false },
+    Log: { e() {}, w() {}, d() {} }, TAG: 'test',
+  });
+  client.isLoopbackHost = url => new URL(url).hostname === '127.0.0.1';
+  for (const [url, success] of [['http://127.0.0.1:32869/book/test.epub', true],
+    ['https://example.test/book.epub', false]]) {
+    const outcome = await new Promise(resolve => client.runRemoteHttpFallback({
+      getUrl: () => url, getHeaders: () => new Map(), getMethod: () => 'GET',
+    }, undefined, response => resolve(response.result.byteLength), () => resolve(false)));
+    assert.equal(outcome, success ? 16662365 : false);
+    assert.equal(requestOptions.maxLimit, success ? 100 * 1024 * 1024 : undefined);
+  }
+  assert.equal(destroyed, 2);
+
   // Execute the real loopback fallback; query parameters must reach ArkWeb's
   // document URL, not merely its history URL. Other fallback policies stay put.
   let loaded;

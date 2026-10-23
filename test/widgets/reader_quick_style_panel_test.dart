@@ -68,7 +68,9 @@ void main() {
   test('reader only shows top toolbar in the unexpanded menu', () {
     final source = File('lib/page/reading_page.dart').readAsStringSync();
     expect(
-        source, matches(r'if \(identical\(_currentPage, empty\)\)\s+AppBar\('));
+        source,
+        matches(
+            r'if \(identical\(_currentPage, empty\)\)\s+LayoutBuilder\(\s+builder: \(context, constraints\) => AppBar\('));
     expect(source, contains('ReaderQuickStylePanel('));
     // Brightness/background must rebuild the outer toolbar visibility too.
     expect(source, isNot(contains('StatefulBuilder(')));

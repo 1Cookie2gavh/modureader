@@ -4,6 +4,8 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/dao/reading_time.dart';
+import 'package:anx_reader/dao/theme.dart';
+import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/service/sync/row_sync_store.dart';
 import 'package:anx_reader/service/sync/row_sync_engine.dart';
 import 'package:anx_reader/service/sync/row_sync_record.dart';
@@ -47,6 +49,52 @@ void main() {
     PathProviderPlatform.instance = previousPaths;
     documentPath = previousDocumentPath;
     await root.delete(recursive: true);
+  });
+
+  test('theme cache invalidates after insert, update and delete', () async {
+    final dao = ThemeDao();
+    expect(await dao.selectThemes(), hasLength(2));
+    final theme = ReadTheme(
+        backgroundColor: 'FF123456',
+        textColor: 'FFFFFFFF',
+        backgroundImagePath: '');
+    theme.id = await dao.insertTheme(theme);
+    expect(await dao.selectThemes(), hasLength(3));
+    theme.backgroundColor = 'FF654321';
+    await dao.updateTheme(theme);
+    expect((await dao.selectThemes()).last.backgroundColor, 'FF654321');
+    await dao.deleteTheme(theme.id!);
+    expect(await dao.selectThemes(), hasLength(2));
+  });
+
+  test('theme cache does not share mutable editor objects', () async {
+    final dao = ThemeDao();
+    final lists =
+        await Future.wait(List.generate(10, (_) => dao.selectThemes()));
+    final original = lists.last.first.backgroundColor;
+    lists.first.first.backgroundColor = 'FF000001';
+    expect(lists.last.first.backgroundColor, original);
+    expect((await dao.selectThemes()).first.backgroundColor, original);
+  });
+
+  test('theme cache reloads after a database restore at the same path',
+      () async {
+    final dao = ThemeDao();
+    final original = await dao.selectThemes();
+    await DBHelper.close();
+    final restored = await DBHelper().database;
+    await restored.update('tb_themes', {'background_color': 'FFABCDEF'});
+    expect((await dao.selectThemes()).first.backgroundColor, 'FFABCDEF');
+    expect(original.first.backgroundColor, isNot('FFABCDEF'));
+  });
+
+  test('failed theme read is not retained in the cache', () async {
+    final dao = ThemeDao();
+    final db = await DBHelper().database;
+    await db.execute('ALTER TABLE tb_themes RENAME TO saved_themes');
+    await expectLater(dao.selectThemes(), throwsA(anything));
+    await db.execute('ALTER TABLE saved_themes RENAME TO tb_themes');
+    expect(await dao.selectThemes(), hasLength(2));
   });
 
   test(
