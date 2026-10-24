@@ -104,6 +104,14 @@
 
 ![iPhone 与 Mac 展示相同 CSS 方案的阅读效果](docs/images/showcase/v1.3.0/css-zh.webp)
 
+<a id="paragraph-translation"></a>
+
+### 逐段翻译
+
+语种翻译与文言文／现代汉语互译分别设置，翻译可见段落，逐段呈现，可随时停止。选择仅译文或原文对照，并单独调整译文字体、字号、粗体与斜体，不改变原文排版。
+
+![手机展示文言文与白话文对照，Mac 展示中文与英文逐段对照；译文采用不同字体与斜体](docs/images/showcase/v1.3.0/paragraph-translation-zh.webp)
+
 <a id="listening"></a>
 
 ### 听书

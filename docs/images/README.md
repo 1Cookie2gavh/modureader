@@ -2,7 +2,7 @@
 
 ## Current bilingual set
 
-The homepages use **18 Chinese and 16 English panels**, each **3840 × 2560**, in `showcase/v1.3.0/`. The directory name is retained for continuity; it is not a claim that every pictured state is a factory default. WebP delivery is lossless at the full output resolution. Local PNG masters are retained separately. Standalone dictionary, translation and vector-model panels have been retired; definitions, translation and AI Knowledge are shown together in unified lookup.
+The homepages use **19 Chinese and 16 English panels** in `showcase/v1.3.0/`. The original set is **3840 × 2560**; the added `paragraph-translation-zh.webp` is a **1536 × 1024** generated illustration, retained at its native resolution. The directory name is retained for continuity; it is not a claim that every pictured state is a factory default. WebP delivery is lossless at the full output resolution. Local PNG masters are retained separately. Standalone dictionary, selection-translation and vector-model panels have been retired; definitions, selection translation and AI Knowledge are shown together in unified lookup. Paragraph-by-paragraph reading translation has a separate Chinese panel.
 
 The approved composition uses the existing pale ivory/sage botanical background, a centered Modu wordmark and headline, a foreground phone on the left, and a slightly overlapped Mac window with its three window buttons. Mac content uses an approximately 1.41:1 window rather than an ultrawide layout. Prose is single-column; original/reflow comparison retains its two panes. AI and lookup interfaces appear as their actual popup dialogs, not invented sidebars.
 
@@ -22,6 +22,7 @@ Chinese panels use Chinese UI and Chinese reading material. English panels use E
 | weread | Authorized public metadata for 《毒堇之杯》 | Same cover, introduction, publication information and recommendation score |
 | css | Styled chapter text | Same chapter, text color, underline and keyword highlights |
 | listening | Highlighted passage and complete playback toolbar | Same highlighted passage and playback state |
+| paragraph-translation | Classical Chinese to modern Chinese, with italic Kai-style translation beneath upright source text | The same public-domain Yueyang Tower passage translated into italic English beneath upright Chinese text |
 | skills | Actual AI dialog with a genuine demo-chapter summary | Actual centered AI dialog with a genuine demo-chapter summary |
 | selection | Actual toolbar over selected demo prose | Same passage and actual toolbar |
 | unified-query | Overview with dictionary, translation and AI Knowledge cards | Same term and excerpts of the actual returned results |
@@ -31,7 +32,9 @@ Chinese panels use Chinese UI and Chinese reading material. English panels use E
 | settings | Appearance controls | Matching appearance controls |
 | statistics | History with classic bookshelf titles and simulated records | Same books and simulated records in the desktop history layout |
 
-The WebP export removes the incorrect inverse-gamma metadata written by AppKit without changing the PNG pixel data. Decoded WebP colors are compared against the PNG masters to prevent the earlier washed-out text. Export validation also checks 3840 × 2560 dimensions, lossless encoding, distinct image hashes and all README references.
+The original set's WebP export removes the incorrect inverse-gamma metadata written by AppKit without changing the PNG pixel data. Decoded WebP colors are compared against the PNG masters to prevent the earlier washed-out text. Export validation checks dimensions, lossless encoding, distinct image hashes and README references.
+
+The paragraph-translation panel was generated with the built-in Imagegen tool using the existing reading panel and a saved actual translation-interface capture as references. Its public-domain original and illustrative translations demonstrate independent translation typography; they are not presented as captured responses from a named engine. The generation brief retained the ivory/sage backdrop, centered headline, left phone and Mac window, and requested upright Songti source text, italic Kai-style phone translations and italic Georgia English translations. The editorial labels above the devices are outside the app interface. This addition is Chinese-only; existing English-book panels remain unchanged.
 
 ## Reading and notes
 
