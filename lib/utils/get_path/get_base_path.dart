@@ -72,6 +72,7 @@ Future<void> initBasePath() async {
   final coverDir = getCoverDir();
   final fontDir = getFontDir();
   final bgimgDir = getBgimgDir();
+  final pluginDir = getPluginDir();
   if (!fileDir.existsSync()) {
     fileDir.createSync(recursive: true);
   }
@@ -83,6 +84,9 @@ Future<void> initBasePath() async {
   }
   if (!bgimgDir.existsSync()) {
     bgimgDir.createSync(recursive: true);
+  }
+  if (!pluginDir.existsSync()) {
+    pluginDir.createSync(recursive: true);
   }
 }
 
@@ -110,4 +114,10 @@ Directory getFileDir({String? path}) {
 Directory getBgimgDir({String? path}) {
   path ??= documentPath;
   return Directory('$path${Platform.pathSeparator}bgimg');
+}
+
+/// Root directory for installed plugin packages.
+Directory getPluginDir({String? path}) {
+  path ??= documentPath;
+  return Directory('$path${Platform.pathSeparator}plugins');
 }

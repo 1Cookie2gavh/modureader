@@ -5,15 +5,20 @@ import 'package:anx_reader/service/sync/s3_config.dart';
 import 'package:anx_reader/service/ai/reading_skill_layout.dart';
 import 'package:anx_reader/models/ai_provider.dart';
 import 'package:anx_reader/models/chapter_split_rule.dart';
+import 'package:anx_reader/models/plugin_manifest.dart';
+import 'package:anx_reader/models/plugin_state.dart';
 import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/models/reading_rules.dart';
 import 'package:anx_reader/models/user_prompt.dart';
 import 'package:anx_reader/service/config_transfer/custom_css_transfer.dart';
 import 'package:anx_reader/service/config_transfer/tts_config_transfer.dart';
+import 'package:anx_reader/service/plugins/plugin_config.dart';
+import 'package:anx_reader/service/plugins/plugin_host.dart';
 
 /// Parse with the same models that consume these preferences, before writing
 /// anything. Free-form prompts/CSS are not inferred to be JSON from their text.
-void validateSettingsValue(String key, dynamic value) {
+void validateSettingsValue(String key, dynamic value,
+    {PluginManifest? Function(String pluginId)? pluginManifest}) {
   dynamic decoded() => jsonDecode(value as String);
   Map<String, dynamic> object() {
     final data = decoded();
@@ -211,6 +216,14 @@ void validateSettingsValue(String key, dynamic value) {
         ].contains(data['filter'])) {
       throw const FormatException('Invalid library view');
     }
+  }
+  if (key == 'pluginState') {
+    PluginState.parseStrict(decoded());
+  }
+  if (key.startsWith(PluginConfig.prefix)) {
+    final id = key.substring(PluginConfig.prefix.length);
+    final manifest = (pluginManifest ?? PluginHost.instance.manifestFor)(id);
+    PluginConfig.validate(id, value, manifest: manifest);
   }
   if (key == 'bgimg') {
     final data = object();

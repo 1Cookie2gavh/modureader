@@ -37,6 +37,7 @@ Open **Settings** from the home navigation. The app language can follow the syst
 | Sync and backup | WebDAV / S3, automatic and encrypted credential sync, database backup and global settings files/links |
 | Remote library settings | Separate WebDAV browsing and book downloads |
 | Translation | Engine, target language, AI and DeepL / DeepLX |
+| Experimental features | Plugins are off by default; warning and confirmation required; only project-reviewed packages accepted |
 | Advanced | Storage, cache, TXT chapter splitting, ANX backup import, logs and network |
 | About Modu | Bug reports and feature requests, project links, community, licenses and app updates |
 
@@ -154,6 +155,18 @@ CSS changes layout; regex highlights style matching text with colors, background
 
 Each selection command can use **text with context** (default) or **selected text only**, and can opt into online search. Explicit scope choices are preserved. AI Knowledge uses the current model's knowledge first. To check further, choose **Online search** below the answer, before Regenerate and Copy. Wiktionary, Wikipedia and Baidu Baike results are summarized with sources by the same model in the same conversation. No extra search API key is required.
 
+## Plugins
+
+Unreleased: **Settings → Experimental features → Plugins** is off by default. Enabling requires reading the warning and confirming; cancelling leaves it off. Consent is local to this device and is never exported or restored from settings backups. Once enabled, **Manage plugins** installs a local `.moduplugin` package (a zip under 5 MB). At this stage a package is declarative data only and contains no executable code. Supported contributions are AI prompt templates and selection-toolbar actions; each package must declare an SPDX license, its capabilities and a semantic version. The details page shows the package id, version, author, license, SHA-256, declared permissions and every active contribution.
+
+Only releases reviewed by the [Modu project](https://github.com/sobranie2406/modureader) and pinned in the app's built-in catalog are accepted. Package ID, version, complete file list and every file's SHA-256 must match; forged author URLs, modified packages and extra files do not qualify. Verification runs during installation, startup reconciliation and re-enabling. There is no custom source, trust override or script execution switch. New catalog entries require source review and an app update. See [plugin trust policy](development/plugin-trust.md). This reduces risk; it does not guarantee that AI responses are safe or accurate.
+
+Turning the experimental switch off disables plugins and removes their unedited contributions, but keeps package files, configuration and edited ordinary entries. Turning it back on requires confirmation again and does not automatically re-enable individual plugins. AI actions only send reading context when you invoke them, through your configured AI service.
+
+Disabling a plugin removes the prompts and toolbar actions it added. Uninstalling also deletes its package files. Entries whose prompt content you edited are kept as ordinary prompts or custom toolbar commands, including during same-ID upgrades. Plugin settings accept text, numbers, toggles, choices and help text; they cannot store passwords or API keys. These are explicitly labelled reserved values: they are saved and backed up but do not alter the current prompts. Partially deleted prompt packs are not automatically filled back in on restart, preserving intentional user deletions.
+
+Global settings backup includes installed-plugin records and plugin settings, but not package files. On another device these records stay disabled while the experimental switch is off. After local confirmation, absent packages show as **Missing** and require an approved package to be installed; saved configuration is retained. Plugin toolbar actions use the same 24 custom-action slots as your own commands.
+
 ## AI configuration, skills and conversations
 
 Add an endpoint, model and API key in **Settings → AI Settings → Provider configuration**, then test the connection. Each configuration keeps its own temperature, maximum output tokens, history depth and reasoning settings. Supported parameters and costs depend on the provider; RPM controls request pacing, not provider limits.
@@ -250,7 +263,7 @@ In **Remote library**, use the current-folder import button or a folder's menu t
 | Back up the local library | Settings → Sync → Database backup | ZIP with local books, covers, fonts, backgrounds, AI history, general settings and database records |
 | Migrate from ANX | Settings → Advanced → Import ANX Reader backup | Validate an ANX ZIP and merge supported books/records |
 
-Global settings backup includes appearance, reading layout, keyboard shortcuts, CSS, selection tools, prompts, speech, translation and model choices. It excludes font/background/dictionary/model files, books, notes, chats and reading progress. **Accounts, passwords and API keys are excluded by default; including them produces recoverable plaintext JSON / links, not encrypted backups.** Review the import scope first. With the credentials switch off, existing local credentials are preserved. There is no QR transfer; use a file for a complete backup.
+Global settings backup includes appearance, reading layout, keyboard shortcuts, CSS, selection tools, prompts, plugins, speech, translation and model choices. It excludes font/background/dictionary/model files, books, notes, chats and reading progress. **Accounts, passwords and API keys are excluded by default; including them produces recoverable plaintext JSON / links, not encrypted backups.** Review the import scope first. With the credentials switch off, existing local credentials are preserved. There is no QR transfer; use a file for a complete backup.
 
 Download the books you want to keep before exporting Modu-Backup-*.zip. Service credentials are excluded by default; optional encryption protects the settings section, not all books, notes or chats. Import the ZIP without unpacking it. Restore replaces the current library and backed-up settings rather than merging them. Back up current data first, wait for sync/indexing to finish, then close and reopen after restore.
 

@@ -24,6 +24,7 @@ aiTemperature aiChatFontSize aiPanelWidth aiPanelHeight aiPanelPosition aiChatDi
 codeHighlightTheme enabledAiTools''',
   'ai-skills':
       '''readAnySkillStates readAnySkillPrompts userPrompts autoSummaryPreviousContent aiReadingSkillsVisible readAnySkillOrder''',
+  'plugins': 'pluginState',
   'vector':
       '''vectorModelEnabled autoVectorizeOnImport vectorModelMode vectorLocalModelId
 vectorModelDownloadSource vectorModelConfig''',
@@ -55,6 +56,7 @@ final _owners = <String, String>{
 String? settingsModuleForKey(String key) {
   if (key.startsWith('aiConfig_')) return 'ai';
   if (key.startsWith('aiPrompt_')) return 'ai-skills';
+  if (key.startsWith('pluginConfig_')) return 'plugins';
   if (key.startsWith('onlineTtsConfig_') || key.startsWith('ttsVoiceModel_')) {
     return 'tts';
   }

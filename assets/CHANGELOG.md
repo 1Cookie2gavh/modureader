@@ -6,6 +6,18 @@ Latest stable: **1.3.2+10157**. Updated 2026-10-24.
 
 Older sections retain their original version scope; they are not current acceptance reports.
 
+## Unreleased
+
+### English
+
+- Feat(plugins): Integrate declarative prompt packs and selection actions from [@RuizeSun](https://github.com/RuizeSun) in [#62](https://github.com/sobranie2406/modureader/pull/62). Place plugins under Experimental features, off by default with a warning and explicit per-device confirmation. Restrict packages to the project-reviewed built-in catalog with file integrity checks; no third-party code execution.
+- Fix(plugins): Preserve edited contributions on upgrades, retain old packages when an upgrade fails, serialize lifecycle operations, enforce decompression output bounds, and prevent settings restore from granting plugin consent. Label reserved configuration as stored-only.
+
+### 简体中文
+
+- Feat(plugins): 整合声明式提示词包与划词动作，感谢 [@RuizeSun](https://github.com/RuizeSun) 在 [#62](https://github.com/sobranie2406/modureader/pull/62) 的贡献。插件移入“实验性功能”，默认关闭，警示并再次确认后仅在本设备开启；仅接受项目内置审核清单中的包，校验文件完整性，不执行第三方代码。
+- Fix(plugins): 升级保留编辑过的贡献项，升级失败保留旧包；串行化生命周期操作，限制解压实际输出，防止备份恢复绕过开启授权，并明确预留配置仅保存、不改变提示词。
+
 ## 1.3.2
 
 ### English

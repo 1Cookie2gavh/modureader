@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.prompt-pack",
+  "version": "1.1.0",
+  "name": { "zh-CN": "示例提示词包", "en": "Example prompt pack" },
+  "description": {
+    "zh-CN": "两个 AI 提示词模板、一个划词动作和一组插件设置，演示声明式贡献。",
+    "en": "Two AI prompt templates, one selection action and plugin settings demonstrating declarative contributions."
+  },
+  "author": { "name": "Modu contributors", "url": "https://github.com/sobranie2406/modureader" },
+  "license": "CC0-1.0",
+  "minAppVersion": "1.3.1",
+  "capabilities": ["ai:prompt-pack", "ui:selection-action"],
+  "contributes": [
+    {
+      "kind": "aiSkill",
+      "schema": 1,
+      "id": "deep-summary",
+      "name": { "zh-CN": "深度摘要", "en": "Deep summary" },
+      "description": {
+        "zh-CN": "按论点—证据—结论归纳。",
+        "en": "Claim–evidence–conclusion summary."
+      },
+      "prompt": "阅读当前内容，按“核心结论 / 论证链 / 证据 / 隐含假设”四部分输出。每一部分用要点列出，不要复述原文。",
+      "enabled": true
+    },
+    {
+      "kind": "aiSkill",
+      "schema": 1,
+      "id": "socratic-questions",
+      "name": { "zh-CN": "苏格拉底提问", "en": "Socratic questions" },
+      "description": {
+        "zh-CN": "针对当前内容提出 3 个追问。",
+        "en": "Three follow-up questions about the current content."
+      },
+      "prompt": "针对当前内容提出 3 个由浅入深的追问，并说明每个问题想检验什么。",
+      "enabled": true
+    },
+    {
+      "kind": "selectionAction",
+      "schema": 1,
+      "id": "explain-selection",
+      "name": { "zh-CN": "简明解释", "en": "Explain simply" },
+      "icon": "lightbulb",
+      "prompt": "解释 {selection} 的含义与关键概念，简明直接，不编造。",
+      "scope": "context",
+      "enabled": true
+    }
+  ],
+  "settings": [
+    {
+      "key": "tone",
+      "type": "select",
+      "label": { "zh-CN": "回答语气", "en": "Answer tone" },
+      "options": ["concise", "detailed"],
+      "defaultValue": "concise"
+    },
+    {
+      "key": "quote_original",
+      "type": "toggle",
+      "label": { "zh-CN": "引用原文", "en": "Quote the original" },
+      "description": {
+        "zh-CN": "示例设置，仅演示表单与备份。",
+        "en": "Sample setting for the form and backup only."
+      },
+      "defaultValue": false
+    },
+    {
+      "key": "max_words",
+      "type": "number",
+      "label": { "zh-CN": "最大字数", "en": "Maximum words" },
+      "defaultValue": 300
+    },
+    {
+      "key": "hint",
+      "type": "tip",
+      "description": {
+        "zh-CN": "这是声明式示例：设置会被保存和导出，但当前版本不会执行插件代码，因此不会改变上面的提示词。",
+        "en": "This is a declarative sample: settings are stored and exported, but this version runs no plugin code, so they do not change the prompts above."
+      }
+    }
+  ],
+  "hostApi": 1
+}

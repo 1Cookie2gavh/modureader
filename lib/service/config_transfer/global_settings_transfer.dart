@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:anx_reader/service/plugins/plugin_host.dart';
+import 'package:anx_reader/service/plugins/plugin_contributions.dart';
 import 'package:anx_reader/models/book_style.dart';
 import 'package:anx_reader/models/custom_css_profile.dart';
 import 'package:anx_reader/models/read_theme.dart';
@@ -56,7 +58,7 @@ userPrompts readAnySkillStates readAnySkillPrompts pageTurnMode customPageTurnCo
 readingInfo onlineTtsService sortField sortOrder notesViewSortField notesViewSortDirection notesExportSortField
 notesExportSortDirection excerptShareTemplate writingMode translationMode httpProxyHost httpProxyTestUrl
 customCSS customCssProfiles customCssDefaultIndices textAlignment bgimgFit aiPanelPosition codeHighlightTheme aiChatDisplayMode
-webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions selectionSearchSettings selectionToolbar readerShortcuts bgimg'''
+webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions selectionSearchSettings selectionToolbar readerShortcuts bgimg pluginState'''
             .split(RegExp(r'\s+')))
       key: 'string',
     'statisticsDashboardTiles': 'stringList',
@@ -71,7 +73,8 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
       'onlineTtsConfig_',
       'translateServiceConfig_',
       'ttsVoiceModel_',
-      'aiPrompt_'
+      'aiPrompt_',
+      'pluginConfig_'
     ].any(key.startsWith)) {
       return 'string';
     }
@@ -492,13 +495,28 @@ webdavInfo s3Info syncProtocol remoteLibraryConnection remoteLibraryViewOptions 
         'readingTimedSync': false
       });
     }
-    final before = {for (final key in pending.keys) key: prefs.prefs.get(key)};
+    final refreshPlugins = pending.containsKey('pluginState') ||
+        (prefs.pluginState.plugins.isNotEmpty &&
+            (pending.containsKey('userPrompts') ||
+                pending.containsKey('selectionToolbar')));
+    final snapshotKeys = {
+      ...pending.keys,
+      if (refreshPlugins) ...['pluginState', 'userPrompts', 'selectionToolbar'],
+    };
+    final before = {for (final key in snapshotKeys) key: prefs.prefs.get(key)};
     try {
+      if (pending.containsKey('pluginState')) {
+        await PluginContributions.standard().remove([
+          for (final record in prefs.pluginState.plugins) ...record.applied,
+        ]);
+      }
       for (final entry in pending.entries) {
         if (!await _write(prefs.prefs, entry.key, entry.value)) {
           throw StateError('Settings write failed');
         }
       }
+      // Restoring a package registry cannot grant local consent or bypass trust.
+      if (refreshPlugins) await PluginHost.instance.initialize();
     } catch (_) {
       for (final entry in before.entries) {
         await _write(prefs.prefs, entry.key, entry.value);

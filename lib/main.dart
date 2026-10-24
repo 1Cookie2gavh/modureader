@@ -30,6 +30,7 @@ import 'package:anx_reader/page/android_storage_startup.dart';
 import 'package:anx_reader/page/migration_page.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
 import 'package:anx_reader/service/network/http_proxy_overrides.dart';
+import 'package:anx_reader/service/plugins/plugin_host.dart';
 import 'package:anx_reader/service/tts/tts_handler.dart';
 import 'package:anx_reader/service/tts/media_diagnostics.dart';
 import 'package:anx_reader/utils/get_path/macos_migration.dart';
@@ -171,6 +172,12 @@ Future<void> _startConfiguredApp() async {
     AnxLog.init();
     AnxError.init();
     await DBHelper().initDB();
+    try {
+      await PluginHost.instance.initialize();
+    } catch (error) {
+      // A broken plugin must never prevent the app from opening.
+      AnxLog.severe('Plugin host initialization failed: $error');
+    }
   }
 
   Server().start();
@@ -284,6 +291,7 @@ class _MyAppState extends ConsumerState<MyApp>
         await webViewEnvironment?.dispose();
         webViewEnvironment = null;
       }
+      PluginHost.instance.dispose();
       await DBHelper.close();
       CrashJournal.readerStage('closing_window');
       CrashJournal.closeSession();
@@ -465,7 +473,12 @@ class _MigrationWrapperState extends State<_MigrationWrapper> {
     AnxLog.init();
     AnxError.init();
     await DBHelper().initDB();
-
+    try {
+      await PluginHost.instance.initialize();
+    } catch (error) {
+      AnxLog.severe(
+          'Plugin host initialization failed after migration: $error');
+    }
     if (mounted) {
       setState(() {
         _migrationComplete = true;

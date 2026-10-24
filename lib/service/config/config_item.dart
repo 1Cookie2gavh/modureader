@@ -30,6 +30,7 @@ class ConfigItem {
   final double? max;
   final double? step;
   final String? unit;
+  final int? maxLength;
 
   ConfigItem({
     required this.key,
@@ -43,6 +44,7 @@ class ConfigItem {
     this.max,
     this.step,
     this.unit,
+    this.maxLength,
   });
 
   Map<String, dynamic> toJson() {
@@ -58,6 +60,7 @@ class ConfigItem {
       'max': max,
       'step': step,
       'unit': unit,
+      'maxLength': maxLength,
     };
   }
 }

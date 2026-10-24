@@ -29,14 +29,15 @@ class SelectionToolbarItem {
   bool get isAi => action == 'ai' || isCustom;
 
   SelectionToolbarItem copyWith(
-          {bool? enabled,
+          {String? id,
+          bool? enabled,
           String? name,
           String? icon,
           String? prompt,
           SelectionAiScope? scope,
           bool? webSearch,
           String? skillId}) =>
-      SelectionToolbarItem(id, action,
+      SelectionToolbarItem(id ?? this.id, action,
           enabled: enabled ?? this.enabled,
           name: name ?? this.name,
           icon: icon ?? this.icon,

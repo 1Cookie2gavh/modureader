@@ -42,6 +42,9 @@ import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/models/reading_rules.dart';
 import 'package:anx_reader/models/user_prompt.dart';
+import 'package:anx_reader/models/plugin_state.dart';
+import 'package:anx_reader/service/plugins/plugin_host.dart';
+import 'package:anx_reader/service/plugins/plugin_contributions.dart';
 import 'package:anx_reader/widgets/statistic/dashboard_tiles/dashboard_tile_registry.dart';
 import 'package:anx_reader/models/window_info.dart';
 import 'package:anx_reader/service/ai/tools/ai_tool_registry.dart';
@@ -59,6 +62,7 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'experimentalPluginsEnabled',
   'wereadEnabled',
   'pendingStorageMigration',
   'storageMigrationSucceeded',
@@ -91,6 +95,7 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'experimentalPluginsEnabled',
   'wereadEnabled',
   'pendingStorageMigration',
   'storageMigrationSucceeded',
@@ -216,6 +221,8 @@ class Prefs extends ChangeNotifier {
   static const String _statisticsDashboardTilesKey = 'statisticsDashboardTiles';
   static const String _enabledAiToolsKey = 'enabledAiTools';
   static const String _userPromptsKey = 'userPrompts';
+  static const String _pluginStateKey = 'pluginState';
+  static const String _pluginConfigPrefix = 'pluginConfig_';
   static const String _readAnySkillStatesKey = 'readAnySkillStates';
   static const String _readAnySkillPromptsKey = 'readAnySkillPrompts';
   static const String _vectorModelConfigKey = 'vectorModelConfig';
@@ -286,6 +293,15 @@ class Prefs extends ChangeNotifier {
   }
 
   Future<void> applyPrefsBackupMap(Map<String, dynamic> backup) async {
+    final refreshPlugins = backup.containsKey(_pluginStateKey) ||
+        (pluginState.plugins.isNotEmpty &&
+            (backup.containsKey(_userPromptsKey) ||
+                backup.containsKey('selectionToolbar')));
+    if (backup.containsKey(_pluginStateKey)) {
+      await PluginContributions.standard().remove([
+        for (final record in pluginState.plugins) ...record.applied,
+      ]);
+    }
     for (final MapEntry<String, dynamic> entry in backup.entries) {
       final String key = entry.key;
       if (key == prefsBackupVersionKey || _prefsImportSkipKeys.contains(key)) {
@@ -320,6 +336,7 @@ class Prefs extends ChangeNotifier {
           continue;
       }
     }
+    if (refreshPlugins) await PluginHost.instance.initialize();
     notifyListeners();
   }
 
@@ -1531,6 +1548,69 @@ class Prefs extends ChangeNotifier {
   set userPrompts(List<UserPrompt> prompts) {
     final jsonList = prompts.map((p) => p.toJson()).toList();
     prefs.setString(_userPromptsKey, jsonEncode(jsonList));
+    notifyListeners();
+  }
+
+  // Installed plugin registry. Package files live under `<basePath>/plugins`;
+  // this key only stores records so settings backups carry installation state.
+  PluginState get pluginState {
+    final jsonString = prefs.getString(_pluginStateKey);
+    if (jsonString == null || jsonString.isEmpty) return PluginState.empty;
+    try {
+      return PluginState.fromJson(jsonDecode(jsonString));
+    } catch (error) {
+      AnxLog.warning('Error loading plugin state: $error');
+      return PluginState.empty;
+    }
+  }
+
+  bool get experimentalPluginsEnabled =>
+      prefs.getBool('experimentalPluginsEnabled') ?? false;
+
+  Future<void> saveExperimentalPluginsEnabled(bool value) async {
+    if (!await prefs.setBool('experimentalPluginsEnabled', value)) {
+      throw StateError('Could not save experimental plugin consent');
+    }
+    notifyListeners();
+  }
+
+  Future<void> savePluginState(PluginState state) async {
+    if (!await prefs.setString(_pluginStateKey, jsonEncode(state.toJson()))) {
+      throw StateError('Could not save plugin state');
+    }
+    notifyListeners();
+  }
+
+  /// Removes a plugin from the registry and deletes its saved settings.
+  Future<void> removePluginData(String id) async {
+    // Remove the registry entry first: an orphaned settings object is harmless,
+    // while a deleted config with a surviving entry would look like data loss.
+    await savePluginState(pluginState.remove(id));
+    final configKey = '$_pluginConfigPrefix$id';
+    if (prefs.containsKey(configKey) && !await prefs.remove(configKey)) {
+      AnxLog.warning('Could not remove plugin settings for $id');
+    }
+  }
+
+  /// Per-plugin settings overrides keyed by the manifest `settings[].key`.
+  /// Missing keys fall back to the manifest default, so only changed values are
+  /// stored and exported.
+  Map<String, dynamic> pluginConfig(String id) {
+    final raw = prefs.getString('$_pluginConfigPrefix$id');
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      AnxLog.warning('Error loading plugin settings for $id: $error');
+    }
+    return {};
+  }
+
+  Future<void> savePluginConfig(String id, Map<String, dynamic> values) async {
+    if (!await prefs.setString('$_pluginConfigPrefix$id', jsonEncode(values))) {
+      throw StateError('Could not save plugin settings');
+    }
     notifyListeners();
   }
 
