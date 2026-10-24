@@ -66,3 +66,5 @@ Format labels, index states and percentages in this shelf illustration are demon
 ## Historical assets
 
 Earlier artwork remains recoverable in Git history. Images referenced by historical documentation, including `showcase/cross-platform/`, are retained and must not be presented as current UI. Only reviewed final compositions belong in the tracked homepage set; local source captures, PNG masters and contact sheets remain outside it.
+
+The paragraph-translation panel was redrawn to match the supplied reading-panel header/footer reference: small, understated left-aligned chapter headers without in-page divider lines, a native Mac title bar with three window controls, and centered current/total page footers. The phone shows Classical Chinese / modern Chinese and the Mac shows Chinese / English; the independent italic translation styling is retained.
