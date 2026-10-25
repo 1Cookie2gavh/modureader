@@ -29,10 +29,10 @@ function fixture({ scrolled = false, vertical = false, initial = false, safeInse
   if (vertical) doc.body.style.writingMode = 'vertical-rl';
   const renderer = new dom.window.EventTarget();
   const container = Object.assign(new dom.window.EventTarget(), { getBoundingClientRect: () => rect });
-  Object.assign(renderer, { scrolled, vertical, page: 1, pages: 5,
+  Object.assign(renderer, { scrolled, vertical, page: 1, pages: 5, heads: [{}],
     shadowRoot: { querySelector: () => container },
     async next() { if (blockedTurn) await blockedTurn; this.page++; turns++; relocate(); },
-    async prev() { this.page--; turns++; relocate(); },
+    async prev() { if (blockedTurn) await blockedTurn; this.page--; turns++; relocate(); },
     scrollBy(dx, dy) { const distance = vertical ? -dx : dy; distances.push(distance); scroll += distance; hit = Math.min(60, 20 + Math.floor(scroll / 10)); },
   });
   const view = { renderer, isFixedLayout: false, lastLocation: { range: range(0, 20) } };
@@ -113,6 +113,78 @@ test('leading endpoint extends backwards with its opposite anchor fixed', async 
   assert.equal(f.doc.getSelection().focusOffset, 20);
   f.close();
 });
+
+test('reverse animation release retains the freeze, but a real page change clears it', async () => {
+  const f = fixture(); let finish;
+  f.renderer.page = 3;
+  f.view.lastLocation.range.setStart(f.node, 40); f.view.lastLocation.range.setEnd(f.node, 60);
+  f.blockTurn(new Promise(resolve => { finish = resolve; }));
+  f.select(40, 55, true); f.begin(55, true); f.controller.move({ x: 200, y: 1 });
+  await f.advance(750); f.controller.stop();
+  finish(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(f.renderer.page, 2);
+  assert.equal(f.controller.active, true, 'keep frozen handles during same-page relocation after release');
+  f.renderer.dispatchEvent(new f.dom.window.CustomEvent('relocate', { detail: { reason: 'anchor' } }));
+  f.select(21, 55, true);
+  assert.equal(f.doc.getSelection().anchorOffset, 55);
+  assert.equal(f.doc.getSelection().focusOffset, 40);
+  await f.advance(2000); assert.equal(f.turns(), 1);
+  f.renderer.page = 1;
+  f.view.lastLocation.range.setStart(f.node, 0); f.view.lastLocation.range.setEnd(f.node, 20);
+  f.renderer.dispatchEvent(new f.dom.window.CustomEvent('relocate', { detail: { reason: 'navigation' } }));
+  assert.equal(f.controller.active, false);
+  f.select(1, 8);
+  assert.equal(f.doc.getSelection().focusOffset, 8, 'unrelated navigation must not resurrect the old range');
+  f.close();
+});
+
+for (const nativeTouchSelection of [true, false]) {
+  test(`${nativeTouchSelection ? 'Android' : 'Apple/Harmony'} backward paragraph boundary stays frozen and re-grabbable`, async () => {
+    const f = fixture();
+    f.node.data = 'aaaa bbb cccc dddd eee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn';
+    f.renderer.page = 2;
+    f.view.lastLocation.range.setStart(f.node, 20); f.view.lastLocation.range.setEnd(f.node, 40);
+    const paragraph = f.doc.createElement('p'); paragraph.innerHTML = '<b>previous page</b>';
+    f.doc.body.prepend(paragraph);
+    f.renderer.addEventListener('relocate', () => {
+      const range = f.doc.createRange(); range.selectNodeContents(paragraph);
+      f.view.lastLocation.range = range;
+    });
+    f.dom.window.Range.prototype.getClientRects = () => [{ left: 50, right: 150, top: 280, bottom: 300 }];
+    const smart = installSmartSelection(f.doc, { nativeTouchSelection, selectionNavigation: f.controller });
+    f.send('pointerdown', { pointerType: 'touch' }); f.select(25, 28); f.send('pointerup');
+    await smart.beforeSelection();
+    const anchor = f.doc.getSelection().getRangeAt(0).endOffset;
+    const handle = () => f.doc.querySelector('[data-modu-selection-handles]')?.shadowRoot.querySelector('[data-selection-handle="start"]');
+    f.send('pointerdown', { pointerType: 'touch', clientX: 50, clientY: 310 }, handle());
+    f.hit(21); f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 20 });
+    await f.advance(750);
+    assert.equal(f.turns(), 1);
+    assert.equal(f.doc.getSelection().focusNode, paragraph);
+    assert.equal(f.doc.getSelection().focusOffset, 1);
+    assert.equal(handle().style.left, '150px', 'previous page uses the trailing glyph');
+    assert.equal(handle().style.display, 'block');
+    f.renderer.dispatchEvent(new f.dom.window.CustomEvent('relocate', { detail: { reason: 'anchor' } }));
+    // The real book relocation callback retains handles while the controller owns the freeze.
+    smart.cancel({ preserveActiveSelection: f.controller.active });
+    f.hit(1); f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().focusNode, paragraph);
+    assert.equal(f.doc.getSelection().focusOffset, 1);
+    f.send('pointerup', { pointerType: 'touch' });
+    smart.cancel({ preserveActiveSelection: f.controller.active });
+    assert.ok(handle());
+    f.send('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 310 }, handle());
+    const previousText = paragraph.querySelector('b').firstChild;
+    f.doc.caretPositionFromPoint = () => ({ offsetNode: previousText, offset: 4 });
+    f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().focusNode, previousText);
+    assert.equal(f.doc.getSelection().focusOffset, 4);
+    assert.equal(f.doc.getSelection().anchorNode, f.node);
+    assert.equal(f.doc.getSelection().anchorOffset, anchor);
+    f.send('pointerup', { pointerType: 'touch' });
+    smart.destroy(); f.close();
+  });
+}
 
 for (const action of ['release', 'cancel', 'leave', 'collapse', 'quickMark', 'resize', 'destroy']) {
   test(`pending page turn is cancelled by ${action}`, async () => {
@@ -238,6 +310,147 @@ test('paginated touch handles stay inside the visible page away from system back
   assert.ok(handles.every(handle => handle.style.display === 'none'), 'previous-page handles are not exposed');
   smart.destroy(); f.close();
 });
+
+for (const nativeTouchSelection of [true, false]) for (const edge of ['right', 'safe-bottom', 'left', 'top']) {
+  test(`${nativeTouchSelection ? 'Android' : 'Apple/Harmony'} handle dwells at ${edge} without hitting the exact final glyph`, async () => {
+    const f = fixture({ safeInsets: () => ({ bottom: 60 }) });
+    Object.defineProperty(f.dom.window, 'innerHeight', { value: 600 });
+    f.node.data = 'aaaa bbb cccc dddd eee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn';
+    const backwards = edge === 'left' || edge === 'top';
+    f.view.lastLocation.range.setEnd(f.node, 20);
+    if (backwards) {
+      f.renderer.page = 2;
+      f.view.lastLocation.range.setStart(f.node, 20);
+      f.view.lastLocation.range.setEnd(f.node, 40);
+    }
+    f.dom.window.Range.prototype.getClientRects = () => [
+      { left: 50, right: 150, top: 280, bottom: 300, width: 100, height: 20 },
+    ];
+    const smart = installSmartSelection(f.doc, { nativeTouchSelection, selectionNavigation: f.controller });
+    f.send('pointerdown', { pointerType: 'touch' });
+    f.select(backwards ? 25 : 5, backwards ? 28 : 8); f.send('pointerup');
+    await smart.beforeSelection();
+    const control = f.doc.querySelector('[data-modu-selection-handles]').shadowRoot
+      .querySelector(`[data-selection-handle="${backwards ? 'start' : 'end'}"]`);
+    const anchor = backwards ? f.doc.getSelection().getRangeAt(0).endOffset
+      : f.doc.getSelection().getRangeAt(0).startOffset;
+    f.send('pointerdown', { pointerType: 'touch', clientX: backwards ? 50 : 150, clientY: 310 }, control);
+    f.hit(backwards ? 23 : 12); // Page whitespace / finger offset leaves the caret short of the boundary.
+    const point = { pointerType: 'touch', clientX: edge === 'right' ? 380 : edge === 'left' ? 20 : 200,
+      clientY: edge === 'safe-bottom' ? 520 : edge === 'top' ? 20 : 400 };
+    f.send('pointermove', point);
+    assert.equal(f.tasks.size, 1, `timer armed: selection=${f.doc.getSelection().anchorOffset}/${f.doc.getSelection().focusOffset}, heads=${f.renderer.heads.length}`);
+    await f.advance(749); assert.equal(f.turns(), 0);
+    await f.advance(1); assert.equal(f.turns(), 1);
+    assert.equal(f.doc.getSelection().anchorOffset, anchor);
+    for (const reason of ['anchor', 'snap', 'page', 'scroll']) {
+      f.renderer.dispatchEvent(new f.dom.window.CustomEvent('relocate', { detail: { reason } }));
+    }
+    f.hit(backwards ? 1 : 39); f.send('pointermove', point);
+    await f.advance(2000); assert.equal(f.turns(), 1, 'one turn per contact');
+    assert.equal(f.doc.getSelection().focusOffset, 20, 'endpoint freezes at new page boundary');
+    f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().focusOffset, 20, 'moving inward must not unfreeze the same contact');
+    f.send('pointerup', { pointerType: 'touch' });
+    f.renderer.dispatchEvent(new f.dom.window.CustomEvent('relocate', { detail: { reason: 'anchor' } }));
+    f.select(backwards ? 1 : anchor, backwards ? anchor : 39, backwards);
+    assert.equal(f.doc.getSelection().focusOffset, 20, 'late native update after release remains frozen');
+    const fresh = f.doc.querySelector('[data-modu-selection-handles]').shadowRoot
+      .querySelector(`[data-selection-handle="${backwards ? 'start' : 'end'}"]`);
+    f.send('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 310 }, fresh);
+    f.hit(backwards ? 16 : 24);
+    f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().anchorOffset, anchor);
+    assert.equal(f.doc.getSelection().focusOffset, backwards ? 16 : 24, 'fresh grab resumes precise selection');
+    f.send('pointerup', { pointerType: 'touch' });
+    smart.destroy(); f.close();
+  });
+}
+
+test('custom handles cannot skip the rest of a multi-column spread', async () => {
+  const f = fixture(); f.renderer.heads = [{}, {}];
+  f.select(5, 10);
+  f.controller.begin({ anchor: { node: f.node, offset: 5 }, point: { x: 100, y: 300 },
+    write: range => f.doc.getSelection().addRange(range), extend: () => {} });
+  f.edge(); await f.advance(1000);
+  assert.equal(f.turns(), 0);
+  f.close();
+});
+
+for (const nativeTouchSelection of [true, false]) for (const backwards of [true, false]) {
+  test(`${nativeTouchSelection ? 'Android' : 'Apple/Harmony'} ${backwards ? 'previous' : 'next'} page handle stays hittable when re-grabbed at a column break`, async () => {
+    const f = fixture();
+    f.node.data = 'aaaa bbb cccc dddd eee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn';
+    f.view.lastLocation.range.setEnd(f.node, 20);
+    if (backwards) {
+      f.renderer.page = 2; f.view.lastLocation.range.setStart(f.node, 20); f.view.lastLocation.range.setEnd(f.node, 40);
+    }
+    let landed = false;
+    f.dom.window.Range.prototype.getClientRects = function () {
+      const wrongColumn = landed && (backwards ? this.startOffset >= 20 : this.startOffset < 20);
+      const left = wrongColumn ? 450 : 50;
+      return [{ left, right: left + 100, top: 280, bottom: 300, width: 100, height: 20 }];
+    };
+    const smart = installSmartSelection(f.doc, { nativeTouchSelection, selectionNavigation: f.controller });
+    f.send('pointerdown', { pointerType: 'touch' });
+    f.select(backwards ? 25 : 5, backwards ? 28 : 8); f.send('pointerup');
+    await smart.beforeSelection();
+    const handle = () => f.doc.querySelector('[data-modu-selection-handles]').shadowRoot
+      .querySelector(`[data-selection-handle="${backwards ? 'start' : 'end'}"]`);
+    f.send('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 310 }, handle());
+    f.hit(backwards ? 21 : 19);
+    f.send('pointermove', { pointerType: 'touch', clientX: backwards ? 20 : 380, clientY: 300 });
+    await f.advance(750); landed = true;
+    f.send('pointerup', { pointerType: 'touch' });
+    assert.equal(handle().style.display, 'block');
+    f.send('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 310 }, handle());
+    f.send('selectionchange');
+    assert.equal(handle().style.display, 'block', 're-grabbing must not move the hit target into the adjacent column');
+    f.hit(20); f.send('pointermove', { pointerType: 'touch', clientX: 151, clientY: 309 });
+    assert.equal(handle().style.display, 'block', 'small movement at the unchanged boundary keeps the handle visible');
+    f.hit(backwards ? 16 : 24);
+    f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().focusOffset, backwards ? 16 : 24);
+    assert.equal(handle().style.display, 'block');
+    f.send('pointerup', { pointerType: 'touch' });
+    smart.destroy(); f.close();
+  });
+}
+
+for (const nativeTouchSelection of [true, false]) for (const backwards of [true, false]) {
+  test(`${nativeTouchSelection ? 'Android' : 'Apple/Harmony'} handle crosses its anchor then freezes a ${backwards ? 'backward' : 'forward'} page turn`, async () => {
+    const f = fixture();
+    f.node.data = 'aaaa bbb cccc dddd eee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn';
+    f.view.lastLocation.range.setEnd(f.node, 20);
+    if (backwards) {
+      f.renderer.page = 2;
+      f.view.lastLocation.range.setStart(f.node, 20); f.view.lastLocation.range.setEnd(f.node, 40);
+    }
+    f.dom.window.Range.prototype.getClientRects = () => [{ left: 50, right: 150, top: 280, bottom: 300 }];
+    const smart = installSmartSelection(f.doc, { nativeTouchSelection, selectionNavigation: f.controller });
+    f.send('pointerdown', { pointerType: 'touch' });
+    f.select(backwards ? 25 : 5, backwards ? 28 : 8); f.send('pointerup');
+    await smart.beforeSelection();
+    // Drag the trailing handle before the anchor (or the leading handle after it).
+    const handle = f.doc.querySelector('[data-modu-selection-handles]').shadowRoot
+      .querySelector(`[data-selection-handle="${backwards ? 'end' : 'start'}"]`);
+    const initial = f.doc.getSelection().getRangeAt(0);
+    const anchor = backwards ? initial.startOffset : initial.endOffset;
+    f.send('pointerdown', { pointerType: 'touch', clientX: backwards ? 150 : 50, clientY: 310 }, handle);
+    f.hit(backwards ? 21 : 19);
+    f.send('pointermove', { pointerType: 'touch', clientX: backwards ? 20 : 380, clientY: 300 });
+    await f.advance(750);
+    assert.equal(f.turns(), 1);
+    assert.equal(f.doc.getSelection().isCollapsed, false, 'crossing the anchor must not collapse the frozen range');
+    assert.equal(f.doc.getSelection().anchorOffset, anchor);
+    assert.equal(f.doc.getSelection().focusOffset, 20);
+    f.hit(backwards ? 1 : 39);
+    f.send('pointermove', { pointerType: 'touch', clientX: 200, clientY: 300 });
+    assert.equal(f.doc.getSelection().focusOffset, 20);
+    f.send('pointerup', { pointerType: 'touch' });
+    smart.destroy(); f.close();
+  });
+}
 
 for (const nativeTouchSelection of [true, false]) for (const elementBoundary of [false, true]) {
   test(`${nativeTouchSelection ? 'Android' : 'Apple/Harmony'} reader handles survive ${elementBoundary ? 'paragraph' : 'text'} page boundary and allow a fresh precise drag`, async () => {

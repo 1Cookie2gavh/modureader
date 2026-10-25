@@ -47,9 +47,11 @@ export class Translator {
 
   #styleTranslation(wrapper) {
     const style = this.#textStyle
-    for (const key of ['font-family', 'font-size', 'font-weight', 'font-style', 'line-height'])
+    for (const key of ['font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'color'])
       wrapper.style.removeProperty(key)
     if (!style) return
+    if (/^#[0-9a-f]{6}$/i.test(style.color))
+      wrapper.style.setProperty('color', style.color, 'important')
     if (style.font) wrapper.style.setProperty('font-family', style.font, 'important')
     if (style.size >= 12 && style.size <= 48) {
       wrapper.style.setProperty('font-size', `${style.size}px`, 'important')

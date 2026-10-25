@@ -2,7 +2,7 @@ name: anx_reader
 description: "Modu: an open-source AI reader derived from Anx Reader and ReadAny."
 publish_to: 'none'
 
-version: 1.3.2+10157
+version: 1.3.3+10163
 
 environment:
   sdk: '>=3.5.2 <4.0.0'
@@ -209,6 +209,7 @@ flutter:
     - UPSTREAM.md
     - PRIVACY.md
     - assets/foliate-js/index.html
+    - assets/foliate-js/reader-bootstrap.js
     - assets/foliate-js/dist/
     - assets/foliate-js/src/
     - assets/foliate-js/src/vendor/

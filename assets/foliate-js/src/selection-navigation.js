@@ -16,6 +16,14 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
   const frame = () => win.frameElement?.getBoundingClientRect() ?? { left: 0, top: 0,
     right: win.innerWidth, bottom: win.innerHeight };
   const viewport = () => container?.getBoundingClientRect();
+  const safeViewport = rect => {
+    const safe = safeInsets() ?? {};
+    const inset = side => Number.isFinite(safe[side]) ? Math.max(0, safe[side]) : 0;
+    return { left: Math.max(rect.left, inset('left')),
+      right: Math.min(rect.right, (win.parent?.innerWidth ?? rect.right) - inset('right')),
+      top: Math.max(rect.top, inset('top')),
+      bottom: Math.min(rect.bottom, (win.parent?.innerHeight ?? rect.bottom) - inset('bottom')) };
+  };
   const toScreen = point => { const rect = frame(); return { x: point.x + rect.left, y: point.y + rect.top }; };
   const toDocument = point => { const rect = frame(); return { x: point.x - rect.left, y: point.y - rect.top }; };
   const clear = () => { clearTimer(timer); timer = undefined; };
@@ -41,9 +49,13 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
     }
   };
   const edge = point => {
-    const rect = viewport();
+    let rect = viewport();
     if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-    const horizontal = renderer.vertical;
+    if (drag?.write) rect = safeViewport(rect);
+    // Touch handles must reach an edge before entering the system gesture area.
+    const sideEdge = drag?.write && !renderer.scrolled && !renderer.vertical &&
+      Math.min(point.x - rect.left, rect.right - point.x) <= Math.min(40, (rect.right - rect.left) / 6);
+    const horizontal = renderer.vertical || sideEdge;
     const position = horizontal ? point.x : point.y;
     const low = horizontal ? rect.left : rect.top, high = horizontal ? rect.right : rect.bottom;
     const across = horizontal ? point.y : point.x;
@@ -53,7 +65,8 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
     const distance = Math.min(position - low, high - position);
     if (distance > band) return null;
     const physical = position < (low + high) / 2 ? -1 : 1;
-    const reversed = horizontal && win.getComputedStyle(doc.body).writingMode !== 'vertical-lr';
+    const css = win.getComputedStyle(doc.body);
+    const reversed = horizontal && (sideEdge ? css.direction === 'rtl' : css.writingMode !== 'vertical-lr');
     return { direction: physical * (reversed ? -1 : 1), physical,
       speed: 40 + 180 * Math.max(0, Math.min(1, 1 - distance / band)) };
   };
@@ -78,6 +91,10 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
   };
   const canTurn = direction => direction > 0
     ? renderer.page < renderer.pages - 2 : renderer.page > 1;
+  // In a single-column page an explicit edge dwell selects up to its boundary;
+  // caret hit-testing in margins need not land on the exact final glyph.
+  const reachedBoundary = direction => atPageBoundary(direction) ||
+    (!!drag?.write && !renderer.vertical && renderer.heads?.length === 1);
   const boundaryRange = direction => {
     const page = view.lastLocation?.range;
     if (!page || !drag?.anchor) return null;
@@ -117,13 +134,13 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
       // Caret APIs may return the leading half of the last visible glyph.
       if (!atPageBoundary(side.direction) && drag.write && atPageBoundary(side.direction, true))
         write(boundaryRange(side.direction));
-      if (!atPageBoundary(side.direction)) return;
+      if (!reachedBoundary(side.direction)) return;
       const token = generation, page = renderer.page;
       timer = setTimer(async () => {
         timer = undefined;
         if (token !== generation || !allowed() || !drag || renderer.scrolled ||
             renderer.page !== page || edge(drag.point)?.direction !== side.direction ||
-            !atPageBoundary(side.direction) || !canTurn(side.direction)) return;
+            !reachedBoundary(side.direction) || !canTurn(side.direction)) return;
         const range = boundaryRange(side.direction);
         if (!range) return;
         frozen = { range: range.cloneRange(), backwards: side.direction < 0, write: drag.write, page };
@@ -139,6 +156,7 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
             if (side.direction > 0) frozen.range.setEnd(pageRange.startContainer, pageRange.startOffset);
             else frozen.range.setStart(pageRange.endContainer, pageRange.endOffset);
           }
+          if (frozen) frozen.landedPage = renderer.page;
           if (!disposed && frozen) write(frozen.range);
           if (!drag) doc.dispatchEvent(new win.Event('selectionchange'));
         }
@@ -245,6 +263,9 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
   });
   on(renderer, 'relocate', event => {
     if (turning || (drag && event.detail.reason === 'scroll')) return;
+    // A delayed anchor/snap on the landing page is not a new selection gesture.
+    if (frozen && renderer.page === frozen.landedPage &&
+        view.lastLocation?.range?.startContainer.ownerDocument === doc) return;
     reset();
   });
   const destroy = () => { disposed = true; reset(); listeners.forEach(remove => remove()); };
@@ -253,19 +274,24 @@ export function installSelectionNavigation(doc, { view, isInitialSelection = () 
     handleBounds() {
       const rect = viewport(), offset = frame();
       if (!rect) return;
-      const safe = safeInsets() ?? {};
-      const inset = side => Number.isFinite(safe[side]) ? Math.max(0, safe[side]) : 0;
+      const safe = safeViewport(rect);
       return { left: rect.left - offset.left, right: rect.right - offset.left,
         top: rect.top - offset.top, bottom: rect.bottom - offset.top,
         safe: {
-          left: Math.max(rect.left, inset('left')) - offset.left,
-          right: Math.min(rect.right, (win.parent?.innerWidth ?? rect.right) - inset('right')) - offset.left,
-          top: Math.max(rect.top, inset('top')) - offset.top,
-          bottom: Math.min(rect.bottom, (win.parent?.innerHeight ?? rect.bottom) - inset('bottom')) - offset.top,
+          left: safe.left - offset.left, right: safe.right - offset.left,
+          top: safe.top - offset.top, bottom: safe.bottom - offset.top,
         } };
     },
     handleBoundary(end) {
       if (frozen && renderer.page !== frozen.page && end !== frozen.backwards) return !end;
+      // Re-grabbing clears the freeze, not the caret's visible side of a page break.
+      const range = selected(doc), page = view.lastLocation?.range;
+      if (!renderer.scrolled && range && page?.startContainer.ownerDocument === doc) {
+        const caret = range.cloneRange();
+        caret.collapse(!end);
+        if (caret.comparePoint(end ? page.startContainer : page.endContainer,
+            end ? page.startOffset : page.endOffset) === 0) return !end;
+      }
     },
-    get active() { return turning || !!drag?.moved; } };
+    get active() { return turning || !!drag?.moved || !!frozen; } };
 }

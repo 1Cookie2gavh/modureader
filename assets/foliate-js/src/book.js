@@ -978,6 +978,8 @@ class Reader {
     }
     // init owns initial navigation. A second, unawaited next() can skip the
     // first spread (and race with the first iframe load) in fixed-layout books.
+    // The parsed TOC is usable even if restoring the first chapter fails.
+    onSetToc()
     if (!this.view.imageReading) await this.view.init({ lastLocation: cfi })
     else this.view.history.clear(this.view.lastLocation?.cfi ?? cfi)
 

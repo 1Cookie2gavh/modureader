@@ -26,9 +26,9 @@ function setup() {
 
 test('translation style affects only output and switches independent appearances without requests', async()=>{
   const s=setup();
-  s.elements[0].style.cssText='font-family: serif; font-size: 18px; font-weight: 400; font-style: normal';
+  s.elements[0].style.cssText='font-family: serif; font-size: 18px; font-weight: 400; font-style: normal; color: #343434';
   const original=s.elements[0].getAttribute('style');
-  s.translator.setTextStyle({font:'monospace',size:32,bold:true,italic:true});
+  s.translator.setTextStyle({font:'monospace',size:32,bold:true,italic:true,color:'#287D75'});
   await s.translator.setTranslationMode('bilingual',1);
   s.calls[0].resolve('译文'); await tick();
   s.calls[1].resolve('第二段'); await tick();
@@ -37,11 +37,13 @@ test('translation style affects only output and switches independent appearances
   assert.equal(output.style.fontSize,'32px');
   assert.equal(output.style.fontWeight,'700');
   assert.equal(output.style.fontStyle,'italic');
+  assert.equal(output.style.color,'rgb(40, 125, 117)');
   assert.equal(s.elements[0].getAttribute('style'),original);
   const count=s.calls.length;
-  s.translator.setTextStyle({font:'sans-serif',size:20,bold:false,italic:false});
+  s.translator.setTextStyle({font:'sans-serif',size:20,bold:false,italic:false,color:'#287FA3'});
   assert.equal(output.style.fontSize,'20px');
   assert.equal(output.style.fontWeight,'400');
+  assert.equal(output.style.color,'rgb(40, 127, 163)');
   assert.equal(s.calls.length,count);
   await s.translator.setTranslationMode('translation-only',1);
   assert.equal(output.style.fontSize,'20px');
@@ -51,6 +53,7 @@ test('translation style affects only output and switches independent appearances
   assert.equal(output.style.fontFamily,'serif');
   assert.equal(output.style.fontSize,'26px');
   assert.equal(output.style.fontStyle,'normal');
+  assert.equal(output.style.color,'');
   assert.equal(s.calls.length,count);
   assert.equal(s.elements[0].getAttribute('style'),original);
   await s.translator.setTranslationMode('off');

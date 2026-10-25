@@ -293,9 +293,11 @@ function installExpandedSelectionHandles(doc, { onDragStart, textSelectionHighli
     selectionNavigation?.begin({ anchor, backwards: !end,
       point: { x: point.hitX, y: point.hitY }, write: range => {
         owned = range.cloneRange();
+        const backwards = range.endContainer === anchor.node && range.endOffset === anchor.offset;
         if (!sameRange(range, activeRange(doc)))
           doc.getSelection().setBaseAndExtent(anchor.node, anchor.offset,
-            end ? range.endContainer : range.startContainer, end ? range.endOffset : range.startOffset);
+            backwards ? range.startContainer : range.endContainer,
+            backwards ? range.startOffset : range.endOffset);
         paint();
       }, extend: point => extend(point.x, point.y) });
     try { control.setPointerCapture(event.pointerId); } catch { /* Document listener is the fallback. */ }

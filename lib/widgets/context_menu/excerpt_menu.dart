@@ -594,14 +594,18 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(decoration: widget.decoration, child: menu),
+                    PointerInterceptor(
+                      child:
+                          Container(decoration: widget.decoration, child: menu),
+                    ),
                     if (widget.allowAnnotations &&
                         !widget.footnote &&
                         annotationItems.isNotEmpty) ...[
                       const SizedBox.square(dimension: 10),
                       SingleChildScrollView(
                         scrollDirection: widget.axis,
-                        child: Container(
+                        child: PointerInterceptor(
+                            child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: widget.decoration,
                           child: AxisFlex(
@@ -612,7 +616,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
                                 _annotationAction(item, config.colors)
                             ],
                           ),
-                        ),
+                        )),
                       ),
                     ],
                   ],

@@ -21,6 +21,7 @@ import 'package:anx_reader/service/book_player/reader_word_selection.dart';
 import 'package:anx_reader/page/settings_page/ocr_model.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
+import 'package:anx_reader/service/installed_fonts.dart';
 import 'package:anx_reader/service/ocr/document_text_geometry.dart';
 import 'package:anx_reader/service/book_player/reading_appearance.dart';
 import 'package:anx_reader/service/ocr/local_ocr_service.dart';
@@ -332,6 +333,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   }
 
   late DocumentTextStyle _style = widget.initialStyle;
+  StreamSubscription<String>? _removedFontSubscription;
   late bool _forceOcr = widget.anchor?.ocr ?? widget.forceOcr;
   DocumentReflowPage? _page;
   TtsPageSource? _narrationSource;
@@ -409,6 +411,11 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _controller.addListener(_selectionChanged);
     _translatedController.addListener(_translationSelectionChanged);
     _translation.addListener(_translationChanged);
+    _removedFontSubscription = removedFonts.listen((filename) {
+      if (mounted && _style.font == filename) {
+        setState(() => _style = _style.withValue('font', ''));
+      }
+    });
     Prefs().addListener(_configureTranslationStyle);
     _configureTranslationStyle();
     _scroll.addListener(_queueVisibleTranslation);
@@ -420,6 +427,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   @override
   void dispose() {
+    _removedFontSubscription?.cancel();
     _invalidateNarration();
     _generation++;
     _translation.removeListener(_translationChanged);

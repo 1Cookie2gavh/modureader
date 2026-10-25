@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:anx_reader/service/installed_fonts.dart';
 import 'package:anx_reader/enums/translation_mode.dart';
 import 'package:anx_reader/enums/lang_list.dart';
 import 'package:anx_reader/service/translate/index.dart';
@@ -203,6 +205,37 @@ void main() {
       .controller!
       .text;
 
+  testWidgets('removing an active reflow font preserves size and spacing',
+      (tester) async {
+    final directory = Directory.systemTemp.createTempSync('modu-reflow-font-');
+    addTearDown(() => directory.delete(recursive: true));
+    File('${directory.path}/removed.ttf').writeAsStringSync('fixture');
+    await open(tester,
+        initialStyle: const DocumentTextStyle(
+          font: 'removed.ttf',
+          size: 28,
+          spacing: 2,
+        ));
+    TextStyle style() => tester
+        .widget<EditableText>(find.descendant(
+          of: find.byKey(const ValueKey('reflow-text')),
+          matching: find.byType(EditableText),
+        ))
+        .style;
+    expect(style().fontFamily, 'removed.ttf');
+    await tester.runAsync(
+        () => removeInstalledFont('removed.ttf', directory: directory));
+    await tester.pumpAndSettle();
+    expect(
+        style().fontFamily,
+        Theme.of(tester.element(find.byKey(const ValueKey('reflow-text'))))
+            .textTheme
+            .bodyLarge!
+            .fontFamily);
+    expect(style().fontSize, 28);
+    expect(style().letterSpacing, 2);
+  });
+
   testWidgets(
       'reflow translation only submits visible paragraphs and loads on scroll',
       (tester) async {
@@ -239,7 +272,7 @@ void main() {
   testWidgets('current-page translation uses saved edits without modifying OCR',
       (tester) async {
     Prefs().languageTranslationTextStyle =
-        '{"font":"monospace","size":24,"bold":true,"italic":true}';
+        '{"font":"monospace","size":24,"bold":true,"italic":true,"color":"#287D75"}';
     await open(tester);
     final reader = key.currentState!;
     final original = store.latest['0']!;
@@ -274,6 +307,8 @@ void main() {
     expect(output.fontSize, 24);
     expect(output.fontWeight, FontWeight.bold);
     expect(output.fontStyle, FontStyle.italic);
+    expect(output.color, const Color(0xFF287D75));
+    expect(spans().first.style?.color, isNull);
     expect(spans().first.style?.fontFamily, isNull);
     expect(spans().first.style?.fontSize, isNull);
     Prefs().classicalTranslationTextStyle =
@@ -288,6 +323,7 @@ void main() {
     expect(output.fontSize, 18);
     expect(output.fontWeight, FontWeight.normal);
     expect(output.fontStyle, FontStyle.normal);
+    expect(output.color, isNull);
     expect(translator.requests.length, 1);
     expect(reader.narrationSource!.currentText(), 'Corrected paragraph.');
     expect(reader.narrationSourceFor(original.anchor(0, 2)), isNull);

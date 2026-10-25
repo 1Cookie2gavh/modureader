@@ -304,6 +304,16 @@ native_spec.loader.exec_module(native)
 
 
 class NativeInstallerTest(unittest.TestCase):
+    def test_wrong_silent_switch_is_rejected_before_the_wizard(self):
+        for arch in ('x64', 'arm64'):
+            script = native.windows_script(Path('payload'), arch, '1.3.3-beta.1', Path('out'))
+            self.assertIn('SetupLogging=yes', script)
+            self.assertIn('function InitializeSetup(): Boolean;', script)
+            self.assertIn("CompareText(ParamStr(I), '/S') = 0", script)
+            self.assertIn('Result := False;', script)
+            self.assertIn('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-', script)
+            self.assertNotIn('MsgBox(', script)
+
     def test_reading_link_registry_quotes_executable_and_argument(self):
         for arch in ('x64', 'arm64'):
             script = native.windows_script(Path('payload'), arch, '1.1.6', Path('out'))

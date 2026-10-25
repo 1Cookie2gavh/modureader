@@ -3,8 +3,8 @@ const path = require('path');
 module.exports = {
   entry: {
     bundle: ['core-js/stable', './src/book.js'],
-    'pdf-legacy': './src/vendor/pdfjs/pdf.js',
-    'pdf-legacy.worker': './src/vendor/pdfjs/pdf.worker.js'
+    'pdf-legacy': ['core-js/stable', './src/vendor/pdfjs/pdf.js'],
+    'pdf-legacy.worker': ['core-js/stable', './src/vendor/pdfjs/pdf.worker.js']
   },
   output: {
     filename: '[name].js',
@@ -18,7 +18,7 @@ module.exports = {
     globalObject: '(typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : this)'
   },
   mode: 'production',
-  target: ['web', 'es5'], // Target ES5 for legacy browser compatibility
+  target: ['web', 'es2017'], // Android WebView 70+, matching the runtime minimum.
   optimization: {
     splitChunks: false,
     runtimeChunk: false,
@@ -60,22 +60,16 @@ module.exports = {
     rules: [
       {
         test: /\.js$/,
-        exclude: [
-          /node_modules/,
-          /src\/vendor\/pdfjs\/pdf\.js$/, // Exclude large PDF.js file from Babel processing
-          /src\/vendor\/pdfjs\/pdf\.worker\.js$/
-        ],
+        exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
             presets: [
               ['@babel/preset-env', {
                 targets: {
-                  // Target much older browser versions including Chrome 40
-                  chrome: '40',
-                  safari: '9',
-                  ios: '9',
-                  android: '4.4',
+                  chrome: '70',
+                  safari: '12',
+                  ios: '12',
                 },
                 useBuiltIns: 'entry',
                 corejs: 3,

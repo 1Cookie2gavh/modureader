@@ -6,7 +6,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
 const minWebviewVersion = 70;
-void showUnsupportedWebviewDialog(int version) {
+void showUnsupportedWebviewDialog(int version,
+    {int minimum = minWebviewVersion}) {
   SmartDialog.show(
     animationType: SmartAnimationType.fade,
     builder: (context) {
@@ -19,8 +20,7 @@ void showUnsupportedWebviewDialog(int version) {
           children: [
             Text(L10n.of(context).webviewUnsupportedVersion,
                 style: Theme.of(context).textTheme.titleMedium),
-            Text(L10n.of(context)
-                .webviewUnsupportedMessage(minWebviewVersion, version)),
+            Text(L10n.of(context).webviewUnsupportedMessage(minimum, version)),
           ],
         ),
         actions: [
@@ -35,24 +35,22 @@ void showUnsupportedWebviewDialog(int version) {
   );
 }
 
+int? unsupportedWebviewVersion(String message, {required bool isApple}) {
+  if (!RegExp(r'^(?:ModuUA|AnxUA)\s+').hasMatch(message)) return null;
+  final match = RegExp(isApple ? r'AppleWebKit/(\d+)' : r'Chrome/(\d+)')
+      .firstMatch(message);
+  final version = int.tryParse(match?.group(1) ?? '');
+  return version != null && version < (isApple ? 605 : minWebviewVersion)
+      ? version
+      : null;
+}
+
 void handleWebviewVersion(String message) {
-  try {
-    int webviewVersion =
-        int.tryParse(message.split('Chrome/')[1].split('.')[0]) ?? -1;
-    int appleWebkitVersion =
-        int.tryParse(message.split('AppleWebKit/')[1].split('.')[0]) ?? -1;
-
-    bool isApple = AnxPlatform.isIOS || AnxPlatform.isMacOS;
-
-    if ((!isApple && (webviewVersion < minWebviewVersion)) ||
-        (isApple && (appleWebkitVersion < 605))) {
-      showUnsupportedWebviewDialog(webviewVersion);
-    }
-  } catch (e) {
-    if (e.toString().contains("Invalid value: Only valid value is 0: 1")) {
-      return;
-    }
-    AnxLog.severe('Webview: $e');
+  final isApple = AnxPlatform.isIOS || AnxPlatform.isMacOS;
+  final version = unsupportedWebviewVersion(message, isApple: isApple);
+  if (version != null) {
+    showUnsupportedWebviewDialog(version,
+        minimum: isApple ? 605 : minWebviewVersion);
   }
 }
 
@@ -69,7 +67,7 @@ void webviewConsoleMessage(
 
   if (consoleMessage.messageLevel == ConsoleMessageLevel.LOG) {
     AnxLog.info('Webview: ${consoleMessage.message}');
-    if (consoleMessage.message.contains("AnxUA")) {
+    if (RegExp(r'^(?:ModuUA|AnxUA)\s+').hasMatch(consoleMessage.message)) {
       handleWebviewVersion(consoleMessage.message);
     }
   } else if (consoleMessage.messageLevel == ConsoleMessageLevel.WARNING) {

@@ -73,18 +73,18 @@ test('Reader.open navigates once and waits for initialization, for new and resum
       installDesktopInput() {}
       ${openMethod}
     })`, {getView: async () => view, importing: false, style: {backgroundColor: '#faf8f2'}, setStyle() {},
-      resolveDocumentReadingMode, callFlutter: async name => {
+      onSetToc: () => events.push('toc'), resolveDocumentReadingMode, callFlutter: async name => {
         assert.equal(name, 'onPdfReadingSettings')
         return {mode: 'standard'}
       }, document: {documentElement: {style: {}}}})
     let completed = false
     const opened = new Reader().open('fixture', cfi).then(() => { completed = true })
     await new Promise(resolve => setImmediate(resolve))
-    assert.deepEqual(events, [['init', cfi]])
+    assert.deepEqual(events, ['toc', ['init', cfi]])
     assert.equal(completed, false)
     releaseInit()
     await opened
-    assert.deepEqual(events, [['init', cfi], 'ready'])
+    assert.deepEqual(events, ['toc', ['init', cfi], 'ready'])
     assert.equal(completed, true)
   }
 })

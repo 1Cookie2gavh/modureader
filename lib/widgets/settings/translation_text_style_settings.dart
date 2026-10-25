@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'package:anx_reader/enums/lang_list.dart';
+import 'package:anx_reader/widgets/icon_and_text.dart';
+import 'package:anx_reader/widgets/settings/translation_preview_text.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -6,6 +9,7 @@ import 'package:anx_reader/models/translation_text_style.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
+import 'package:anx_reader/widgets/settings/text_color_setting.dart';
 
 class TranslationTextStyleSettings extends StatefulWidget {
   const TranslationTextStyleSettings({super.key, this.classical = true});
@@ -73,6 +77,13 @@ class _TranslationTextStyleSettingsState
 
   @override
   Widget build(BuildContext context) {
+    final sliderSize = (style.size == 0
+            ? DefaultTextStyle.of(context).style.fontSize ?? 16
+            : style.size)
+        .clamp(12.0, 48.0);
+    final sizeLabel = style.size == 0
+        ? t('跟随原文', 'Follow original')
+        : '${style.size.round()} px';
     final choices = {
       '': t('跟随原文', 'Follow original'),
       'system': t('系统字体', 'System font'),
@@ -93,21 +104,43 @@ class _TranslationTextStyleSettingsState
               value: Text(choices[style.font]!),
               onPressed: (_) => pick(
                   t('译文字体', 'Translation font'), style.font, choices, 'font')),
-          SettingsTile.navigation(
-              key: ValueKey('$prefix-style-size'),
-              leading: const Icon(Icons.format_size),
-              title: Text(t('字号', 'Font size')),
-              value: Text(style.size == 0
-                  ? t('跟随原文', 'Follow original')
-                  : '${style.size.toStringAsFixed(0)} px'),
-              onPressed: (_) => pick(
-                  t('译文字号', 'Translation font size'),
-                  style.size,
-                  {
-                    0.0: t('跟随原文', 'Follow original'),
-                    for (var n = 12; n <= 48; n++) n.toDouble(): '$n px'
-                  },
-                  'size')),
+          CustomSettingsTile(
+              child: TextColorSetting(
+                  key: ValueKey('$prefix-style-color'),
+                  value: style.color,
+                  defaultLabel: t('跟随原文', 'Follow original'),
+                  onChanged: (value) => change('color', value))),
+          CustomSettingsTile(
+              child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(children: [
+                    Row(children: [
+                      IconAndText(
+                          flexibleHeight: true,
+                          icon: const Icon(Icons.format_size),
+                          text: t('字号', 'Font size')),
+                      Expanded(
+                          child: Slider(
+                              key: ValueKey('$prefix-style-size'),
+                              value: sliderSize,
+                              min: 12,
+                              max: 48,
+                              divisions: 36,
+                              label: sizeLabel,
+                              semanticFormatterCallback: (value) =>
+                                  '${value.round()} px',
+                              onChanged: (value) => change('size', value))),
+                    ]),
+                    Row(children: [
+                      Expanded(child: Text(sizeLabel)),
+                      TextButton(
+                          key: ValueKey('$prefix-style-size-reset'),
+                          onPressed: style.size == 0
+                              ? null
+                              : () => change('size', 0.0),
+                          child: Text(t('跟随原文', 'Follow original'))),
+                    ]),
+                  ]))),
           SettingsTile.switchTile(
               key: ValueKey('$prefix-style-bold'),
               leading: const Icon(Icons.format_bold),
@@ -134,11 +167,26 @@ class _TranslationTextStyleSettingsState
                                     'Applies only to language translation output, not the original or Classical Chinese translation. Existing output updates without another request.'),
                             style: Theme.of(context).textTheme.bodySmall),
                         const SizedBox(height: 12),
-                        Text(
-                            t('译文预览：学习并时常温习，不也是一件愉快的事吗？',
-                                'Translation preview: Is it not a pleasure to learn and practise?'),
-                            key: ValueKey('$prefix-style-preview'),
-                            style: style.textStyle),
+                        Text(t('译文预览', 'Translation preview'),
+                            style: Theme.of(context).textTheme.labelMedium),
+                        const SizedBox(height: 8),
+                        ListenableBuilder(
+                            listenable: Prefs(),
+                            builder: (context, _) {
+                              final target = Prefs().fullTextTranslateTo;
+                              return Text(
+                                  widget.classical
+                                      ? t('学习并时常温习，不也是一件愉快的事吗？',
+                                          'Is it not a pleasure to learn and practise?')
+                                      : translationPreviewText(target),
+                                  key: ValueKey('$prefix-style-preview'),
+                                  textDirection: widget.classical
+                                      ? null
+                                      : target == LangListEnum.arabic
+                                          ? TextDirection.rtl
+                                          : TextDirection.ltr,
+                                  style: style.textStyle);
+                            }),
                       ]))),
         ]);
   }

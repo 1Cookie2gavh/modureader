@@ -5,6 +5,7 @@ import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/widgets/common/axis_flex.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 class ReaderNoteMenu extends StatefulWidget {
   const ReaderNoteMenu({
@@ -159,7 +160,8 @@ class ReaderNoteMenuState extends State<ReaderNoteMenu> {
         ),
         child: !_showNoteDialog
             ? null
-            : Container(
+            : PointerInterceptor(
+                child: Container(
                 decoration: widget.decoration,
                 padding: const EdgeInsets.all(8),
                 child: AxisFlex(
@@ -201,7 +203,7 @@ class ReaderNoteMenuState extends State<ReaderNoteMenu> {
                       ),
                   ],
                 ),
-              ),
+              )),
       ),
     ));
   }

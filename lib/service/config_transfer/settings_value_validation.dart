@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/models/text_color.dart';
 import 'package:anx_reader/models/translation_text_style.dart';
 import 'package:anx_reader/models/tts_buffer_settings.dart';
 import 'package:anx_reader/service/sync/s3_config.dart';
@@ -70,7 +71,8 @@ void validateSettingsValue(String key, dynamic value,
       key == 'languageTranslationTextStyle') {
     final config = object();
     final size = config['size'];
-    if (!TranslationTextStyle.validFont(config['font']) ||
+    if ((config.containsKey('color') && !validTextColor(config['color'])) ||
+        !TranslationTextStyle.validFont(config['font']) ||
         size is! num ||
         !size.isFinite ||
         (size != 0 && (size < 12 || size > 48)) ||

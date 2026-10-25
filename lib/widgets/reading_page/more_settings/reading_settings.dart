@@ -10,6 +10,7 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/page/settings_page/subpage/fonts.dart';
+import 'package:anx_reader/page/settings_page/subpage/installed_fonts.dart';
 import 'package:anx_reader/widgets/common/anx_segmented_button.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
@@ -568,6 +569,17 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
       );
     }
 
+    Widget manageFonts() => ListTile(
+          key: const ValueKey('manage-installed-fonts'),
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.font_download_outlined),
+          title: Text(
+              ModuStrings.text(context, '管理已安装字体', 'Manage installed fonts')),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const InstalledFontsPage())),
+        );
+
     /// 每日打卡：当天（跨书累计）阅读满 N 分钟才算完成打卡。
     /// 0 分钟即旧行为「打开书籍即打卡」。
     Widget dailyCheckIn() {
@@ -762,6 +774,7 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
         padding: const EdgeInsets.all(18),
         child: Column(children: [
           downloadFonts(),
+          manageFonts(),
           const Divider(height: 20),
           dailyCheckIn(),
           const Divider(height: 20),
@@ -789,6 +802,8 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
         children: [
           ReaderMenuGroup(
               padding: const EdgeInsets.all(12), child: downloadFonts()),
+          ReaderMenuGroup(
+              padding: const EdgeInsets.all(12), child: manageFonts()),
           ReaderMenuGroup(
               padding: const EdgeInsets.all(12), child: dailyCheckIn()),
           ReaderSettingAvailability(

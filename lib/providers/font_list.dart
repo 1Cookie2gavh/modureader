@@ -1,6 +1,7 @@
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/font_model.dart';
+import 'package:anx_reader/service/installed_fonts.dart';
 import 'package:anx_reader/utils/font_parser.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:flutter/services.dart';
@@ -26,8 +27,9 @@ class FontList extends _$FontList {
       ),
     ];
 
-    for (int i = 0; i < fontDir.listSync().length; i++) {
-      File element = fontDir.listSync()[i] as File;
+    final files = installedFontFiles(fontDir);
+    for (int i = 0; i < files.length; i++) {
+      File element = files[i];
       fontList.add(FontModel(
         label: getFontNameFromFile(element),
         name: 'customFont$i',

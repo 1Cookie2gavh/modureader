@@ -170,6 +170,21 @@ Root: HKCU; Subkey: "Software\\Classes\\modu"; ValueType: string; ValueName: "UR
 Root: HKCU; Subkey: "Software\\Classes\\modu\\shell\\open\\command"; ValueType: string; ValueData: """{{app}}\\modu.exe"" ""%1"""
 [Run]
 Filename: "{{app}}\\modu.exe"; Description: "Launch Modu (requires Microsoft WebView2 Runtime)"; Flags: nowait postinstall skipifsilent
+[Code]
+function InitializeSetup(): Boolean;
+var
+  I: Integer;
+begin
+  Result := True;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/S') = 0 then
+    begin
+      // Do not leave unattended callers waiting for the interactive wizard.
+      Log('Unsupported /S: use /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- instead.');
+      Result := False;
+      Exit;
+    end;
+end;
 '''
 
 

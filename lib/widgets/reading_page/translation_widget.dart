@@ -1,6 +1,9 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/service/translate/classical_translation.dart';
 import 'package:anx_reader/widgets/settings/classical_translation_settings.dart';
+import 'package:anx_reader/widgets/settings/translation_text_style_settings.dart';
+import 'package:anx_reader/widgets/settings/settings_tile.dart';
+import 'reader_popup.dart';
 import 'package:anx_reader/widgets/reading_page/classical_translation_icon.dart';
 import 'package:anx_reader/page/settings_page/translate.dart';
 import 'package:anx_reader/page/settings_page/settings_page.dart';
@@ -321,29 +324,63 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                           if (mounted) setState(() {});
                         },
                       ))
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ChoiceButton(
-                          label: ModuStrings.text(context, '翻译引擎', 'Engine'),
-                          value: service.getLabel(context),
-                          icon: Icons.translate_outlined,
-                          onTap: _translating ? null : _showServicePicker,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ChoiceButton(
-                          label: ModuStrings.text(
-                              context, '目标语言', 'Target language'),
-                          value: target.nativeName,
-                          icon: Icons.language_outlined,
-                          onTap: _translating ? null : _showLanguagePicker,
-                        ),
-                      ),
-                    ],
+                else ...[
+                  SettingsTile.navigation(
+                    key: const ValueKey('reader-translation-engine'),
+                    leading: const Icon(Icons.translate_outlined),
+                    title: Text(ModuStrings.text(
+                        context, '翻译引擎', 'Translation engine')),
+                    value: Text(service.getLabel(context)),
+                    enabled: !_translating,
+                    onPressed: (_) => _showServicePicker(),
                   ),
+                  SettingsTile.navigation(
+                    key: const ValueKey('reader-translation-target'),
+                    leading: const Icon(Icons.language_outlined),
+                    title: Text(
+                        ModuStrings.text(context, '目标语言', 'Target language')),
+                    value: Text(target.nativeName),
+                    enabled: !_translating,
+                    onPressed: (_) => _showLanguagePicker(),
+                  ),
+                  Center(
+                      child: TextButton.icon(
+                    key: const ValueKey('reader-language-configure'),
+                    onPressed: _translating
+                        ? null
+                        : () async {
+                            await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => SettingsPageBody(
+                                    title: ModuStrings.text(context, '语种翻译',
+                                        'Language translation'),
+                                    isMobile: true,
+                                    sections:
+                                        const LanguageTranslateSetting())));
+                            if (mounted) setState(() {});
+                          },
+                    icon: const Icon(Icons.settings_outlined),
+                    label: Text(ModuStrings.text(
+                        context, '配置翻译服务', 'Configure translation service')),
+                  )),
+                  Text(
+                      ModuStrings.text(context, '仅手动启动后发送待译内容；修改设置不会自动发起请求。',
+                          'Text is sent only after you start translation. Changing settings never sends a request.'),
+                      style: theme.textTheme.bodySmall),
+                ],
+                SettingsTile.navigation(
+                  key: ValueKey(widget.classical
+                      ? 'reader-classical-appearance'
+                      : 'reader-language-appearance'),
+                  leading: const Icon(Icons.text_format),
+                  title: Text(ModuStrings.text(
+                      context, '译文外观', 'Translation appearance')),
+                  value: Text(ModuStrings.text(context, '字体、颜色、字号、粗体、斜体',
+                      'Font, colour, size, bold, italic')),
+                  onPressed: (_) => showReaderPopup(context,
+                      builder: (_) => SingleChildScrollView(
+                          child: TranslationTextStyleSettings(
+                              classical: widget.classical))),
+                ),
                 const SizedBox(height: 14),
                 Text(
                   ModuStrings.text(context, '显示方式', 'Display'),
@@ -434,54 +471,6 @@ class _TranslationWidgetState extends State<TranslationWidget> {
                     'Translate visible paragraphs only after you start; scrolling loads them one at a time. Stop at any time. Closing the book stops translation; reopening never resumes it automatically.'),
             style: theme.textTheme.bodySmall,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChoiceButton extends StatelessWidget {
-  const _ChoiceButton({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        alignment: AlignmentDirectional.centerStart,
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 19),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.expand_more, size: 18),
         ],
       ),
     );

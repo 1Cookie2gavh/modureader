@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:anx_reader/models/text_color.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/book_player/reader_font_response.dart';
@@ -6,8 +7,13 @@ import 'package:anx_reader/service/book_player/reader_font_response.dart';
 /// Presentation of translated output only, independent of API/cache identity.
 class TranslationTextStyle {
   const TranslationTextStyle(
-      {this.font = '', this.size = 0, this.bold = false, this.italic = false});
+      {this.font = '',
+      this.size = 0,
+      this.bold = false,
+      this.italic = false,
+      this.color = ''});
   final String font;
+  final String color;
   final double size;
   final bool bold, italic;
   static bool validFont(Object? value) =>
@@ -25,6 +31,9 @@ class TranslationTextStyle {
               ? size.toDouble().clamp(12, 48)
               : 0,
           bold: v['bold'] == true,
+          color: validTextColor(v['color'])
+              ? (v['color'] as String).toUpperCase()
+              : '',
           italic: v['italic'] == true);
     } catch (_) {
       return const TranslationTextStyle();
@@ -33,14 +42,22 @@ class TranslationTextStyle {
   bool get imported =>
       font.isNotEmpty &&
       !['system', 'serif', 'sans-serif', 'monospace'].contains(font);
-  String encode() =>
-      jsonEncode({'font': font, 'size': size, 'bold': bold, 'italic': italic});
+  String encode() => jsonEncode({
+        'font': font,
+        'size': size,
+        'bold': bold,
+        'italic': italic,
+        'color': color
+      });
   TranslationTextStyle withValue(String key, Object value) =>
       TranslationTextStyle.decode(
           jsonEncode({...jsonDecode(encode()) as Map, key: value}));
   Future<void> loadFont() =>
       DocumentTextStyle(font: imported ? font : '').loadFont();
   TextStyle get textStyle => TextStyle(
+      color: color.isEmpty
+          ? null
+          : Color(int.parse('FF${color.substring(1)}', radix: 16)),
       fontFamily: switch (font) {
         '' => null,
         'system' => '',
@@ -60,5 +77,6 @@ class TranslationTextStyle {
         'size': size,
         'bold': bold,
         'italic': italic,
+        'color': color,
       };
 }

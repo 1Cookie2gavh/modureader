@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:anx_reader/models/translation_text_style.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/enums/translation_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -14,6 +15,66 @@ void main() {
     await Prefs().initPrefs();
   });
 
+  for (final reflow in [false, true]) {
+    testWidgets(
+        'language appearance shortcut preserves running translation (reflow=$reflow)',
+        (tester) async {
+      final mode = ValueNotifier(TranslationModeEnum.bilingual);
+      var calls = 0;
+      const other =
+          '{"font":"serif","size":22,"bold":true,"italic":false,"color":"#287FA3"}';
+      Prefs().classicalTranslationTextStyle = other;
+      final bodyPalette = Prefs().readTheme.toJson();
+      await tester.pumpWidget(MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: L10n.localizationsDelegates,
+        supportedLocales: L10n.supportedLocales,
+        home: Scaffold(
+            body: TranslationWidget(
+          bookId: 1,
+          epubPlayerKey: GlobalKey<EpubPlayerState>(),
+          pageTranslationMode: mode,
+          onTranslatePage: reflow
+              ? (_, __) async {
+                  calls++;
+                }
+              : null,
+          onStopPageTranslation: () {
+            calls++;
+            mode.value = TranslationModeEnum.off;
+          },
+        )),
+      ));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey('reader-language-appearance')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('language-style-font')), findsOneWidget);
+      expect(find.byKey(const ValueKey('classical-style-font')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('language-style-color')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('text-color-preset-#287D75')));
+      await tester.tap(find.byKey(const ValueKey('save-font-color')));
+      await tester.pumpAndSettle();
+      expect(
+          TranslationTextStyle.decode(Prefs().languageTranslationTextStyle)
+              .color,
+          '#287D75');
+      expect(Prefs().classicalTranslationTextStyle, other);
+      expect(Prefs().readTheme.toJson(), bodyPalette);
+      Navigator.of(
+              tester.element(find.byKey(const ValueKey('language-style-font'))))
+          .pop();
+      await tester.pumpAndSettle();
+      expect(mode.value, TranslationModeEnum.bilingual);
+      expect(calls, 0);
+      expect(find.byKey(const ValueKey('reader-stop-translation')),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      mode.dispose();
+    });
+  }
   testWidgets(
       'classical panel stays usable on narrow screens and stops pending work',
       (tester) async {

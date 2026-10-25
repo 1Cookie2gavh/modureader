@@ -110,11 +110,13 @@ void main() {
         await tester.tap(find.text('导出日志'));
         await tester.pumpAndSettle();
         // Let real filesystem IO complete outside the widget test's fake clock.
-        if (outcome == 'success') {
-          for (var i = 0; i < 100; i++) {
-            await Future<void>.delayed(const Duration(milliseconds: 20));
-            await tester.pump();
-            if (find.textContaining('保存成功').evaluate().isNotEmpty) break;
+        for (var i = 0; i < 150; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await tester.pump(const Duration(milliseconds: 50));
+          if (outcome == 'success'
+              ? find.textContaining('保存成功').evaluate().isNotEmpty
+              : picker.calls > 0) {
+            break;
           }
         }
       });
@@ -129,8 +131,11 @@ void main() {
           expect(exported, isNot(contains('PRIVATE BOOK')));
           expect(exported, isNot(contains(text)));
         } else {
-          expect(exported, text);
+          expect(exported, endsWith(text));
         }
+        expect(exported, contains('Current export environment'));
+        expect(exported, contains('Modu version:'));
+        expect(exported, contains('Device environment:'));
         expect(find.textContaining('保存成功'), findsOneWidget);
       } else if (outcome == 'error') {
         expect(find.textContaining('日志导出失败'), findsOneWidget);

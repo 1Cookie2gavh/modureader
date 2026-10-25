@@ -32,6 +32,20 @@ void main() {
     Prefs().autoAdjustReadingTheme = true;
   });
 
+  test('obsolete body override cannot replace the existing style palette',
+      () async {
+    final prefs = Prefs();
+    final original = prefs.readTheme.toJson();
+    await prefs.prefs.setString('readingFontColor', '#287D75');
+    await prefs.initPrefs();
+    expect(readingThemeForDisplay(prefs).toJson(), original);
+    expect(prefs.bgimg, image);
+    prefs.readingNightMode = true;
+    expect(readingThemeForDisplay(prefs).textColor, 'FFD8D8D8');
+    prefs.eInkMode = true;
+    expect(readingThemeForDisplay(prefs).textColor, 'FF000000');
+  });
+
   test(
       'solid colour removes covering image, exits auto mode and survives reload',
       () async {

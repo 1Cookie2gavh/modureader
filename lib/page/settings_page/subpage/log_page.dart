@@ -10,6 +10,7 @@ import 'package:anx_reader/utils/save_file_to_download.dart';
 import 'package:anx_reader/utils/get_path/log_file.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/utils/log/common.dart';
+import 'package:anx_reader/utils/log/environment.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -103,14 +104,16 @@ class _LogPageState extends State<LogPage> {
       final date = DateTime.now();
       final fileName =
           '${MediaDiagnostics.enabled ? 'Modu-iQOO-Log' : 'Modu-Log'}-${date.year}-${date.month}-${date.day}.txt';
+      final environment = await LogEnvironment.collect();
+      final content = MediaDiagnostics.enabled
+          ? RuntimeDiagnostics.preview()
+          : await (await getLogFile()).readAsString();
       final filePath = await saveFileToDownload(
           // Diagnostic test builds share only the current-session allowlisted
           // projection, not existing raw logs containing book names/addresses.
-          bytes: MediaDiagnostics.enabled
-              ? Uint8List.fromList(utf8.encode(RuntimeDiagnostics.preview()))
-              : null,
-          sourceFilePath:
-              MediaDiagnostics.enabled ? null : (await getLogFile()).path,
+          bytes: Uint8List.fromList(utf8.encode(
+              'Current export environment / 当前导出环境 (${date.toIso8601String()})\n'
+              '$environment\n\n--- Log / 日志 ---\n$content')),
           fileName: fileName,
           mimeType: 'text/plain');
       if (mounted && filePath != null && filePath.isNotEmpty) {

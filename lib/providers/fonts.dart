@@ -207,7 +207,9 @@ class FontDownloads extends _$FontDownloads {
 
   void cancelDownload(String fontId) {
     final download = state[fontId];
-    if (download != null && download.status == DownloadStatus.downloading) {
+    if (download != null &&
+        (download.status == DownloadStatus.downloading ||
+            download.status == DownloadStatus.paused)) {
       download.cancelToken?.cancel('Download canceled');
       state = {
         ...state,

@@ -85,11 +85,29 @@ def verify_installed_version(install):
     print(f'Windows installed version verified: {expected}; source={revision}')
 
 
+def verify_unsupported_switch(installer, root):
+    for index, switch in enumerate(('/S', '/s')):
+        install = root / f'unsupported-{index}'
+        log = root / f'unsupported-{index}.log'
+        result = subprocess.run(
+            [str(installer.resolve()), switch, '/SP-',
+             f'/DIR={install}', f'/LOG={log}'], timeout=30)
+        if result.returncode != 1 or install.exists():
+            raise RuntimeError(f'{switch} must abort initialization without installing')
+        content = log.read_bytes()
+        diagnostic = 'Unsupported /S: use /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- instead.'
+        if not any(diagnostic.encode(encoding) in content
+                   for encoding in ('utf-8', 'utf-16le')):
+            raise RuntimeError(f'{switch} did not log the correct installation command')
+    print('Windows installer rejects /S and /s without opening the wizard')
+
+
 def smoke(installer, arch):
     if os.environ.get('GITHUB_ACTIONS') != 'true' or os.name != 'nt':
         raise RuntimeError('This installation smoke test requires a disposable Windows CI runner')
     with tempfile.TemporaryDirectory(prefix='modu-install-check-') as tmp:
         root = Path(tmp)
+        verify_unsupported_switch(installer, root)
         install = root / 'Modu'
         subprocess.run([str(installer.resolve()), '/VERYSILENT', '/SUPPRESSMSGBOXES',
                         '/NORESTART', '/SP-', f'/DIR={install}', f'/LOG={root / "install.log"}'],

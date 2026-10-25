@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:anx_reader/utils/log/environment.dart';
 import 'package:anx_reader/service/feedback/detailed_runtime_log.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -36,7 +38,7 @@ class AnxLog {
     }
   }
 
-  static init() async {
+  static Future<void> init() async {
     logFile = await getLogFile();
 
     Logger.root.level = Level.ALL;
@@ -73,6 +75,11 @@ class AnxLog {
       clear();
     }
     info('Log file: ${logFile!.path}');
+    unawaited(LogEnvironment.collect().then((environment) {
+      for (final line in environment.split('\n')) {
+        info('Environment: $line');
+      }
+    }));
   }
 
   static void clear() {

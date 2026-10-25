@@ -7,7 +7,6 @@ import 'package:anx_reader/widgets/common/axis_flex.dart';
 import 'package:anx_reader/widgets/context_menu/excerpt_menu.dart';
 import 'package:anx_reader/widgets/context_menu/reader_note_menu.dart';
 import 'package:flutter/material.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'package:anx_reader/dao/book_note.dart';
 import 'package:anx_reader/models/book_note.dart';
@@ -158,7 +157,7 @@ Future<void> showContextMenu(
   );
 
   playerKey.contextMenuEntry = OverlayEntry(builder: (context) {
-    return _ContextMenuOverlay(
+    return ReaderContextMenuOverlay(
       axis: axis,
       selectionRect: selectionRect,
       viewportRect: viewportRect,
@@ -174,7 +173,8 @@ Future<void> showContextMenu(
       decoration: decoration,
       onClose: onClose,
       menuConstraints: menuConstraints,
-      initialPlacement: initialPlacement,
+      initialPosition: initialPlacement.offset,
+      initialReverse: initialPlacement.shouldReverse,
       showTranslationDefault: !isNewNote && Prefs().autoTranslateSelection,
       horizontalMargin: horizontalMargin,
       verticalMargin: verticalMargin,
@@ -264,8 +264,9 @@ _MenuPlacement _resolveMenuPlacement({
   );
 }
 
-class _ContextMenuOverlay extends StatefulWidget {
-  const _ContextMenuOverlay({
+class ReaderContextMenuOverlay extends StatefulWidget {
+  const ReaderContextMenuOverlay({
+    super.key,
     required this.axis,
     required this.selectionRect,
     required this.viewportRect,
@@ -281,7 +282,8 @@ class _ContextMenuOverlay extends StatefulWidget {
     required this.decoration,
     required this.onClose,
     required this.menuConstraints,
-    required this.initialPlacement,
+    required this.initialPosition,
+    required this.initialReverse,
     required this.showTranslationDefault,
     required this.horizontalMargin,
     required this.verticalMargin,
@@ -305,7 +307,8 @@ class _ContextMenuOverlay extends StatefulWidget {
   final BoxDecoration decoration;
   final VoidCallback onClose;
   final BoxConstraints menuConstraints;
-  final _MenuPlacement initialPlacement;
+  final Offset initialPosition;
+  final bool initialReverse;
   final bool showTranslationDefault;
   final double horizontalMargin;
   final double verticalMargin;
@@ -314,10 +317,10 @@ class _ContextMenuOverlay extends StatefulWidget {
   final ModalRoute<dynamic>? parentRoute;
 
   @override
-  State<_ContextMenuOverlay> createState() => _ContextMenuOverlayState();
+  State<ReaderContextMenuOverlay> createState() => _ContextMenuOverlayState();
 }
 
-class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
+class _ContextMenuOverlayState extends State<ReaderContextMenuOverlay>
     with WidgetsBindingObserver {
   final GlobalKey _menuKey = GlobalKey();
   final GlobalKey<ReaderNoteMenuState> _readerNoteMenuKey =
@@ -336,8 +339,8 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _position = widget.initialPlacement.offset;
-    _reverse = widget.initialPlacement.shouldReverse;
+    _position = widget.initialPosition;
+    _reverse = widget.initialReverse;
     _noteId = widget.annoId;
     _bottomInset = widget.initialBottomInset;
     _menuConstraints = _buildConstraints(widget.initialBottomInset);
@@ -532,83 +535,80 @@ class _ContextMenuOverlayState extends State<_ContextMenuOverlay>
       top: _position.dy,
       child: Offstage(
         offstage: _deletingAnnotation,
-        child: PointerInterceptor(
-          child: Stack(
-            children: [
-              GestureDetector(
-                onTap: widget.onClose,
-                child: IgnorePointer(
-                  ignoring: _waitingForFirstMeasurement,
-                  child: Opacity(
-                    opacity: _waitingForFirstMeasurement ? 0 : 1,
-                    child: Container(
-                      key: _menuKey,
-                      color: Colors.transparent,
-                      constraints: _menuConstraints,
-                      child: AxisFlex(
-                        axis: flipAxis(widget.axis),
-                        reverse: _reverse,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AxisFlex(
-                            axis: flipAxis(widget.axis),
-                            reverse: _reverse,
-                            children: [
-                              AxisFlex(
-                                axis: widget.axis,
-                                children: [
-                                  ExcerptMenu(
-                                    annoCfi: widget.annoCfi,
-                                    annoContent: widget.annoContent,
-                                    contextText: widget.contextText,
-                                    allowAnnotations: widget.allowAnnotations,
-                                    onNarrate: widget.onNarrate,
-                                    id: _noteId,
-                                    bookId: widget.bookId,
-                                    annotationIds: widget.annotationIds,
-                                    onDeletionVisibilityChanged:
-                                        _handleDeletionVisibility,
-                                    onClose: widget.onClose,
-                                    footnote: widget.footnote,
-                                    decoration: widget.decoration,
-                                    toggleTranslationMenu:
-                                        _toggleTranslationMenu,
-                                    toggleReaderNoteMenu: _toggleReaderNoteMenu,
-                                    openReaderNoteMenu: _openReaderNoteMenu,
-                                    onNoteCreated: _handleNoteCreated,
-                                    axis: widget.axis,
-                                    reverse: _reverse,
-                                    parentRoute: widget.parentRoute,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          if (_showReaderNoteMenu) ...[
-                            const SizedBox.square(dimension: 10),
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: widget.onClose,
+              child: IgnorePointer(
+                ignoring: _waitingForFirstMeasurement,
+                child: Opacity(
+                  opacity: _waitingForFirstMeasurement ? 0 : 1,
+                  child: Container(
+                    key: _menuKey,
+                    // Only painted menu surfaces intercept reader gestures.
+                    constraints: _menuConstraints,
+                    child: AxisFlex(
+                      axis: flipAxis(widget.axis),
+                      reverse: _reverse,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AxisFlex(
+                          axis: flipAxis(widget.axis),
+                          reverse: _reverse,
+                          children: [
                             AxisFlex(
                               axis: widget.axis,
                               children: [
-                                ReaderNoteMenu(
-                                  key: _readerNoteMenuKey,
-                                  noteId: _noteId,
+                                ExcerptMenu(
+                                  annoCfi: widget.annoCfi,
+                                  annoContent: widget.annoContent,
+                                  contextText: widget.contextText,
+                                  allowAnnotations: widget.allowAnnotations,
+                                  onNarrate: widget.onNarrate,
+                                  id: _noteId,
+                                  bookId: widget.bookId,
+                                  annotationIds: widget.annotationIds,
+                                  onDeletionVisibilityChanged:
+                                      _handleDeletionVisibility,
+                                  onClose: widget.onClose,
+                                  footnote: widget.footnote,
                                   decoration: widget.decoration,
+                                  toggleTranslationMenu: _toggleTranslationMenu,
+                                  toggleReaderNoteMenu: _toggleReaderNoteMenu,
+                                  openReaderNoteMenu: _openReaderNoteMenu,
+                                  onNoteCreated: _handleNoteCreated,
                                   axis: widget.axis,
-                                  onVisibilityChange:
-                                      _handleReaderNoteVisibilityChange,
-                                  onSizeChanged: _handleReaderNoteSizeChanged,
+                                  reverse: _reverse,
+                                  parentRoute: widget.parentRoute,
                                 ),
                               ],
                             ),
                           ],
+                        ),
+                        if (_showReaderNoteMenu) ...[
+                          const SizedBox.square(dimension: 10),
+                          AxisFlex(
+                            axis: widget.axis,
+                            children: [
+                              ReaderNoteMenu(
+                                key: _readerNoteMenuKey,
+                                noteId: _noteId,
+                                decoration: widget.decoration,
+                                axis: widget.axis,
+                                onVisibilityChange:
+                                    _handleReaderNoteVisibilityChange,
+                                onSizeChanged: _handleReaderNoteSizeChanged,
+                              ),
+                            ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

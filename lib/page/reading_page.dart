@@ -1,5 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/widgets/reading_page/reader_top_actions.dart';
+import 'package:anx_reader/widgets/reading_page/harmony_reader_toolbar.dart';
 import 'package:anx_reader/service/document_reader_rotation.dart';
 import 'package:anx_reader/widgets/reading_page/document_style_widget.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_zoom_toolbar.dart';
@@ -1687,129 +1688,133 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             Column(
               children: [
                 if (identical(_currentPage, empty))
-                  LayoutBuilder(
-                      builder: (context, constraints) => AppBar(
-                            title: Text(_book.title,
-                                overflow: TextOverflow.ellipsis),
-                            leading: IconButton(
-                              icon: const Icon(Icons.arrow_back),
-                              onPressed: () {
-                                // close reading page
-                                Navigator.pop(context);
-                              },
-                            ),
-                            actions: [
-                              ReaderTopActions(
-                                  readerWidth: constraints.maxWidth -
-                                      MediaQuery.paddingOf(context).horizontal,
-                                  actions: {
-                                    ReaderTopAction.quickMark:
-                                        _changingQuickMark
-                                            ? null
-                                            : _toggleQuickMark,
-                                    ReaderTopAction.ai: aiButton.onPressed,
-                                    ReaderTopAction.translation:
-                                        translationHandler,
-                                    ReaderTopAction.classical: () =>
-                                        translationHandler(classical: true),
-                                    ReaderTopAction.search: searchHandler,
-                                    ReaderTopAction.bookmark: bookmarkAction,
-                                    ReaderTopAction.copy: _copyChapterContent,
-                                    ReaderTopAction.details: _openBookDetails,
-                                  },
-                                  buttons: {
-                                    if (AnxPlatform.isMobile &&
-                                        !isReflowReading)
+                  HarmonyReaderToolbar(
+                    enabled: AnxPlatform.isOhos,
+                    child: LayoutBuilder(
+                        builder: (context, constraints) => AppBar(
+                              title: Text(_book.title,
+                                  overflow: TextOverflow.ellipsis),
+                              leading: IconButton(
+                                icon: const Icon(Icons.arrow_back),
+                                onPressed: () {
+                                  // close reading page
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              actions: [
+                                ReaderTopActions(
+                                    readerWidth: constraints.maxWidth -
+                                        MediaQuery.paddingOf(context)
+                                            .horizontal,
+                                    actions: {
                                       ReaderTopAction.quickMark:
-                                          QuickMarkToggle(
-                                              enabled: _quickMarkEnabled,
-                                              onPressed: _changingQuickMark
-                                                  ? null
-                                                  : _toggleQuickMark),
-                                    if (EnvVar.enableAIFeature)
-                                      ReaderTopAction.ai: aiButton,
-                                    ReaderTopAction.translation:
-                                        TranslationToolbarAction(
-                                      mode: isReflowActive
-                                          ? reflowReader?.translationMode
-                                          : epubPlayerKey
-                                              .currentState?.translationMode,
-                                      onOpenSettings: translationHandler,
-                                      onStop: () async {
-                                        if (isReflowActive) {
-                                          reflowReader?.stopTranslation();
-                                          return;
-                                        }
-                                        try {
-                                          await epubPlayerKey.currentState
-                                              ?.setTranslationMode(
-                                                  TranslationModeEnum.off);
-                                        } catch (_) {
-                                          // Cancellation occurs before the WebView update.
-                                        }
-                                      },
-                                    ),
-                                    ReaderTopAction.classical:
-                                        TranslationToolbarAction(
-                                      classical: true,
-                                      mode: isReflowActive
-                                          ? reflowReader
-                                              ?.classicalTranslationMode
-                                          : epubPlayerKey.currentState
-                                              ?.classicalTranslationMode,
-                                      onOpenSettings: () =>
+                                          _changingQuickMark
+                                              ? null
+                                              : _toggleQuickMark,
+                                      ReaderTopAction.ai: aiButton.onPressed,
+                                      ReaderTopAction.translation:
+                                          translationHandler,
+                                      ReaderTopAction.classical: () =>
                                           translationHandler(classical: true),
-                                      onStop: () async {
-                                        if (isReflowActive) {
-                                          reflowReader?.stopTranslation();
-                                        } else {
+                                      ReaderTopAction.search: searchHandler,
+                                      ReaderTopAction.bookmark: bookmarkAction,
+                                      ReaderTopAction.copy: _copyChapterContent,
+                                      ReaderTopAction.details: _openBookDetails,
+                                    },
+                                    buttons: {
+                                      if (AnxPlatform.isMobile &&
+                                          !isReflowReading)
+                                        ReaderTopAction.quickMark:
+                                            QuickMarkToggle(
+                                                enabled: _quickMarkEnabled,
+                                                onPressed: _changingQuickMark
+                                                    ? null
+                                                    : _toggleQuickMark),
+                                      if (EnvVar.enableAIFeature)
+                                        ReaderTopAction.ai: aiButton,
+                                      ReaderTopAction.translation:
+                                          TranslationToolbarAction(
+                                        mode: isReflowActive
+                                            ? reflowReader?.translationMode
+                                            : epubPlayerKey
+                                                .currentState?.translationMode,
+                                        onOpenSettings: translationHandler,
+                                        onStop: () async {
+                                          if (isReflowActive) {
+                                            reflowReader?.stopTranslation();
+                                            return;
+                                          }
                                           try {
                                             await epubPlayerKey.currentState
                                                 ?.setTranslationMode(
                                                     TranslationModeEnum.off);
-                                          } catch (_) {}
-                                        }
-                                      },
-                                    ),
-                                    ReaderTopAction.search: IconButton(
-                                      key: const ValueKey(
-                                          'reader-search-button'),
-                                      tooltip:
-                                          L10n.of(context).contextMenuSearch,
-                                      icon: const Icon(Icons.search),
-                                      onPressed: searchHandler,
-                                    ),
-                                    ReaderTopAction.bookmark:
-                                        ValueListenableBuilder<bool>(
-                                      valueListenable: _bookmarkExists,
-                                      builder: (_, bookmarkExists, __) =>
-                                          IconButton(
-                                              key: const ValueKey(
-                                                  'reader-bookmark-button'),
-                                              tooltip: L10n.of(context)
-                                                  .readingPageBookmark,
-                                              onPressed: bookmarkAction,
-                                              icon: !isReflowActive &&
-                                                      bookmarkExists
-                                                  ? const Icon(Icons.bookmark)
-                                                  : const Icon(
-                                                      Icons.bookmark_border)),
-                                    ),
-                                    ReaderTopAction.copy: IconButton(
-                                      icon: const Icon(Icons.copy),
-                                      tooltip: L10n.of(context)
-                                          .readingPageCopyChapterContent,
-                                      onPressed: _copyChapterContent,
-                                    ),
-                                    ReaderTopAction.details: IconButton(
-                                      tooltip: L10n.of(context)
-                                          .readingPageBookDetails,
-                                      icon: const Icon(Icons.info_outline),
-                                      onPressed: _openBookDetails,
-                                    ),
-                                  })
-                            ],
-                          )),
+                                          } catch (_) {
+                                            // Cancellation occurs before the WebView update.
+                                          }
+                                        },
+                                      ),
+                                      ReaderTopAction.classical:
+                                          TranslationToolbarAction(
+                                        classical: true,
+                                        mode: isReflowActive
+                                            ? reflowReader
+                                                ?.classicalTranslationMode
+                                            : epubPlayerKey.currentState
+                                                ?.classicalTranslationMode,
+                                        onOpenSettings: () =>
+                                            translationHandler(classical: true),
+                                        onStop: () async {
+                                          if (isReflowActive) {
+                                            reflowReader?.stopTranslation();
+                                          } else {
+                                            try {
+                                              await epubPlayerKey.currentState
+                                                  ?.setTranslationMode(
+                                                      TranslationModeEnum.off);
+                                            } catch (_) {}
+                                          }
+                                        },
+                                      ),
+                                      ReaderTopAction.search: IconButton(
+                                        key: const ValueKey(
+                                            'reader-search-button'),
+                                        tooltip:
+                                            L10n.of(context).contextMenuSearch,
+                                        icon: const Icon(Icons.search),
+                                        onPressed: searchHandler,
+                                      ),
+                                      ReaderTopAction.bookmark:
+                                          ValueListenableBuilder<bool>(
+                                        valueListenable: _bookmarkExists,
+                                        builder: (_, bookmarkExists, __) =>
+                                            IconButton(
+                                                key: const ValueKey(
+                                                    'reader-bookmark-button'),
+                                                tooltip: L10n.of(context)
+                                                    .readingPageBookmark,
+                                                onPressed: bookmarkAction,
+                                                icon: !isReflowActive &&
+                                                        bookmarkExists
+                                                    ? const Icon(Icons.bookmark)
+                                                    : const Icon(
+                                                        Icons.bookmark_border)),
+                                      ),
+                                      ReaderTopAction.copy: IconButton(
+                                        icon: const Icon(Icons.copy),
+                                        tooltip: L10n.of(context)
+                                            .readingPageCopyChapterContent,
+                                        onPressed: _copyChapterContent,
+                                      ),
+                                      ReaderTopAction.details: IconButton(
+                                        tooltip: L10n.of(context)
+                                            .readingPageBookDetails,
+                                        icon: const Icon(Icons.info_outline),
+                                        onPressed: _openBookDetails,
+                                      ),
+                                    })
+                              ],
+                            )),
+                  ),
                 const Spacer(),
                 BottomSheet(
                   onClosing: () {},

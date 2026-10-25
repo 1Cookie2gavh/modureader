@@ -248,7 +248,19 @@ export class View extends HTMLElement {
     this.history.clear()
     const resolved = lastLocation ? this.resolveNavigation(lastLocation) : null
     if (resolved) {
-      await this.renderer.goTo(resolved)
+      // A stale saved CFI must not abort startup before TOC/annotations load.
+      // Recover only initial text anchors; annotation ranges remain strict.
+      const target = resolved.textAnchor && typeof resolved.anchor === 'function'
+        ? { ...resolved, anchor: doc => {
+          try { return resolved.anchor(doc) }
+          catch (error) {
+            if (!['IndexSizeError', 'NotFoundError', 'TypeError', 'RangeError'].includes(error.name)) throw error
+            console.warn(`Reader saved text position unavailable; restored chapter start: index=${resolved.index}, reason=${error.name}`)
+            return 0
+          }
+        } }
+        : resolved
+      await this.renderer.goTo(target)
       this.history.clear(this.lastLocation?.cfi ?? lastLocation)
     }
     else if (showTextStart) await this.goToTextStart()
