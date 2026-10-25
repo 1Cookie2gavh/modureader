@@ -70,7 +70,7 @@ void main() {
     expect(
         source,
         matches(
-            r'if \(identical\(_currentPage, empty\)\)\s+LayoutBuilder\(\s+builder: \(context, constraints\) => AppBar\('));
+            r'if \(identical\(_currentPage, empty\)\)\s+HarmonyReaderToolbar\(\s+enabled: AnxPlatform\.isOhos,\s+child: LayoutBuilder\(\s+builder: \(context, constraints\) => AppBar\('));
     expect(source, contains('ReaderQuickStylePanel('));
     // Brightness/background must rebuild the outer toolbar visibility too.
     expect(source, isNot(contains('StatefulBuilder(')));
