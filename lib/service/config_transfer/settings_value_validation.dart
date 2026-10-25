@@ -75,7 +75,7 @@ void validateSettingsValue(String key, dynamic value,
         !TranslationTextStyle.validFont(config['font']) ||
         size is! num ||
         !size.isFinite ||
-        (size != 0 && (size < 12 || size > 48)) ||
+        (size != 0 && (size < 8 || size > 48)) ||
         config['bold'] is! bool ||
         config['italic'] is! bool) {
       throw const FormatException('Invalid translation text style');

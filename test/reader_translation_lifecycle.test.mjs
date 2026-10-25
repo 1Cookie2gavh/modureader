@@ -56,6 +56,12 @@ test('translation style affects only output and switches independent appearances
   assert.equal(output.style.color,'');
   assert.equal(s.calls.length,count);
   assert.equal(s.elements[0].getAttribute('style'),original);
+  for (const size of [8, 16, 17.6, 48]) {
+    s.translator.setTextStyle({size});
+    assert.equal(output.style.fontSize, `${size}px`);
+    assert.equal(s.elements[0].getAttribute('style'), original);
+    assert.equal(s.calls.length, count);
+  }
   await s.translator.setTranslationMode('off');
   s.translator.setTextStyle(null);
   assert.equal(output.style.fontSize,'');

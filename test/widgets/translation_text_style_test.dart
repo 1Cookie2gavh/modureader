@@ -38,6 +38,17 @@ void main() {
     ]) {
       expect(settingsModuleForKey(key), 'translation');
       validateSettingsValue(key, style.encode());
+      for (final size in [8.0, 16.0, 17.6, 48.0]) {
+        final scaled = TranslationTextStyle(size: size);
+        validateSettingsValue(key, scaled.encode());
+        expect(TranslationTextStyle.decode(scaled.encode()).size, size);
+        expect(scaled.webStyle(1234)['size'], size);
+        expect(scaled.textStyle.fontSize, size);
+      }
+      expect(
+          () => validateSettingsValue(
+              key, const TranslationTextStyle(size: 7).encode()),
+          throwsFormatException);
       expect(() => validateSettingsValue(key, '{"font":"../a.ttf"}'),
           throwsFormatException);
     }
@@ -111,6 +122,10 @@ void main() {
                 child: TranslationTextStyleSettings(classical: false)))));
     await tester.pumpAndSettle();
     final slider = find.byKey(const ValueKey('language-style-size'));
+    final control = tester.widget<Slider>(slider);
+    expect(control.min, .5);
+    expect(control.max, 3);
+    expect(control.divisions, 25);
     await tester.ensureVisible(slider);
     final gesture = await tester.startGesture(tester.getCenter(slider));
     await gesture.moveBy(const Offset(35, 0));
@@ -168,7 +183,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<Slider>(find.byKey(ValueKey('$prefix-style-size')))
-          .onChanged!(18);
+          .onChanged!(1.1);
       await tester.pumpAndSettle();
       for (final name in ['bold', 'italic']) {
         final row = find.byKey(ValueKey('$prefix-style-$name'));
@@ -182,7 +197,7 @@ void main() {
           : Prefs().languageTranslationTextStyle);
       expect(style.font, 'monospace');
       expect(style.color, '#287D75');
-      expect(style.size, 18);
+      expect(style.size, closeTo(17.6, .0001));
       expect(style.bold, true);
       expect(style.italic, true);
       expect(

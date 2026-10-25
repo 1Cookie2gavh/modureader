@@ -77,13 +77,11 @@ class _TranslationTextStyleSettingsState
 
   @override
   Widget build(BuildContext context) {
-    final sliderSize = (style.size == 0
-            ? DefaultTextStyle.of(context).style.fontSize ?? 16
-            : style.size)
-        .clamp(12.0, 48.0);
-    final sizeLabel = style.size == 0
-        ? t('跟随原文', 'Follow original')
-        : '${style.size.round()} px';
+    // Body reading uses a 16 px base with a 0.5–3.0 multiplier. Keep the
+    // persisted pixel value so existing translation styles retain their size.
+    final sliderSize =
+        style.size == 0 ? 1.0 : (style.size / 16).clamp(0.5, 3.0);
+    final sizeLabel = sliderSize.toStringAsFixed(1);
     final choices = {
       '': t('跟随原文', 'Follow original'),
       'system': t('系统字体', 'System font'),
@@ -123,13 +121,14 @@ class _TranslationTextStyleSettingsState
                           child: Slider(
                               key: ValueKey('$prefix-style-size'),
                               value: sliderSize,
-                              min: 12,
-                              max: 48,
-                              divisions: 36,
+                              min: 0.5,
+                              max: 3.0,
+                              divisions: 25,
                               label: sizeLabel,
                               semanticFormatterCallback: (value) =>
-                                  '${value.round()} px',
-                              onChanged: (value) => change('size', value))),
+                                  value.toStringAsFixed(1),
+                              onChanged: (value) => change(
+                                  'size', (value * 10).round() / 10 * 16))),
                     ]),
                     Row(children: [
                       Expanded(child: Text(sizeLabel)),

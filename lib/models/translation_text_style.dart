@@ -28,7 +28,7 @@ class TranslationTextStyle {
       return TranslationTextStyle(
           font: validFont(v['font']) ? v['font'] as String : '',
           size: size is num && size.isFinite && size != 0
-              ? size.toDouble().clamp(12, 48)
+              ? size.toDouble().clamp(8, 48)
               : 0,
           bold: v['bold'] == true,
           color: validTextColor(v['color'])

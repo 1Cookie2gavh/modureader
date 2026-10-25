@@ -18,7 +18,7 @@ Older sections retain their original version scope; they are not current accepta
 
 - Feat(translation): Add independent output colours for language and Classical Chinese translation, with presets, a custom picker and confirmed reset. Both reader translation panels use consistent settings rows and expose output-appearance controls; source text keeps its existing Style settings.
 
-- Feat(translation): Use a 12–48 px slider for translation size and allow restoring the original size. Preview the same Analects passage in the selected target language; keep the two translation appearance settings independent.
+- Feat(translation): Match the body-size slider with a 0.5–3.0 scale in 0.1 steps for translations and allow restoring the original size. Preview the same Analects passage in the selected target language; keep the two translation appearance settings independent.
 
 - Fix(plugins): Preserve edited contributions during upgrades and retain the installed package on failure. Serialize lifecycle operations, bound decompression output, and prevent settings restore from granting plugin consent.
 
@@ -46,7 +46,7 @@ Older sections retain their original version scope; they are not current accepta
 
 - Feat(translation): 语种翻译与文言文翻译分别支持独立译文颜色，提供预设、自定义取色及确认恢复默认；阅读中的两个翻译面板统一设置行样式并提供译文外观入口，原文继续使用原有“样式”设置。
 
-- Feat(translation): 译文字号改用 12–48 px 滑动条，并可恢复跟随原文；语种翻译预览按目标语言展示“学而时习之，不亦乐乎？”的译文，两类翻译外观仍独立保存。
+- Feat(translation): 译文字号按正文规则使用 0.5–3.0 的滑动条，每次 0.1，并可恢复跟随原文；语种翻译预览按目标语言展示“学而时习之，不亦乐乎？”的译文，两类翻译外观仍独立保存。
 
 - Fix(plugins): 插件升级保留已编辑的贡献项，失败时保留旧包；串行化生命周期操作、限制实际解压量，设置恢复不能绕过插件开启确认。
 

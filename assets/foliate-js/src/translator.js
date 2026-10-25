@@ -53,7 +53,7 @@ export class Translator {
     if (/^#[0-9a-f]{6}$/i.test(style.color))
       wrapper.style.setProperty('color', style.color, 'important')
     if (style.font) wrapper.style.setProperty('font-family', style.font, 'important')
-    if (style.size >= 12 && style.size <= 48) {
+    if (style.size >= 8 && style.size <= 48) {
       wrapper.style.setProperty('font-size', `${style.size}px`, 'important')
       wrapper.style.setProperty('line-height', '1.6', 'important')
     }
