@@ -18,6 +18,8 @@ Build / 构建：**10164** · Prerelease / 预发布版
 
 - Fix(sync): Synchronize translation service configuration and credentials through the existing encrypted settings channel while keeping language, translation direction and output appearance local, including when importing older snapshots.
 
+- Ci(tests): Align folder-menu fixtures with synchronized group membership so full regression covers folder selection and reader-return transitions.
+
 ### 简体中文
 
 - Feat(reader): 划词功能弹窗新增可选的移动与缩放开关，仅在选择弹出显示时出现，默认关闭；拖动顶部移动，拖动两侧、底边或四角调整大小，每次打开恢复预设位置和大小。
@@ -33,6 +35,8 @@ Build / 构建：**10164** · Prerelease / 预发布版
 - Fix(translation): 修复阅读器残留已失效章节文档导致翻译无法启动的问题，包括 macOS 提示“此书无法翻译”；清理失效段落任务，避免迟到结果写入已移除页面。
 
 - Fix(sync): 翻译服务配置及凭据通过现有加密设置通道同步，语言、翻译方向和译文外观保留本机设置，旧快照导入也不覆盖这些选项。
+
+- Ci(tests): 统一文件夹菜单测试中的分组数据，使完整回归覆盖同步后的文件夹选择和阅读返回动画。
 
 ### Downloads / 下载
 

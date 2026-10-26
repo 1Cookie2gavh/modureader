@@ -146,8 +146,12 @@ void main() {
           tagListProvider.overrideWith(_ShelfTags.new),
           bookListProvider.overrideWith(() => _ShelfBooks(shelfBooks ??
               [
-                book,
-                book.copyWith(id: 790, coverPath: 'cover/second.png'),
+                book.copyWith(groupId: folder ? 42 : 0),
+                if (!folder || !singleInFolder)
+                  book.copyWith(
+                      id: 790,
+                      groupId: folder ? 42 : 0,
+                      coverPath: 'cover/second.png'),
               ])),
         ],
         child: legacy.ChangeNotifierProvider<Prefs>.value(
