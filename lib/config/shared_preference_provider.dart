@@ -62,6 +62,8 @@ const String _prefsBackupEntryTypeKey = 'type';
 const String _prefsBackupEntryValueKey = 'value';
 
 const Set<String> _prefsImportSkipKeys = {
+  'translationUsageDevice',
+  'translationUsageCounters',
   'experimentalPluginsEnabled',
   'wereadEnabled',
   'pendingStorageMigration',
@@ -95,6 +97,8 @@ const Set<String> _prefsImportSkipKeys = {
 };
 
 const Set<String> _prefsExportSkipKeys = {
+  'translationUsageDevice',
+  'translationUsageCounters',
   'experimentalPluginsEnabled',
   'wereadEnabled',
   'pendingStorageMigration',
@@ -2670,6 +2674,17 @@ class Prefs extends ChangeNotifier {
     prefs.setString('aiChatDisplayMode', mode.code);
     notifyListeners();
   }
+
+  bool get adjustableReaderPopups =>
+      prefs.getBool('adjustableReaderPopups') ?? false;
+
+  set adjustableReaderPopups(bool value) {
+    prefs.setBool('adjustableReaderPopups', value);
+    notifyListeners();
+  }
+
+  bool get readerPopupAdjustmentEnabled =>
+      aiChatDisplayMode == AiChatDisplayMode.popup && adjustableReaderPopups;
 
   // AI panel width (for split mode)
   double get aiPanelWidth {

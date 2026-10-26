@@ -37,6 +37,7 @@ export class Translator {
   #fontLoads = new WeakMap()
 
   setTextStyle(style) {
+    this.#pruneDocuments()
     this.#textStyle = style
     for (const element of this.observedElements) {
       const wrapper = element.querySelector('.translated-text')
@@ -60,7 +61,7 @@ export class Translator {
     wrapper.style.setProperty('font-weight', style.bold ? '700' : '400', 'important')
     wrapper.style.setProperty('font-style', style.italic ? 'italic' : 'normal', 'important')
     const doc = wrapper.ownerDocument
-    if (style.fontUrl && doc.defaultView.FontFace && doc.fonts &&
+    if (style.fontUrl && doc.defaultView?.FontFace && doc.fonts &&
         this.#fontLoads.get(doc) !== style.fontUrl) {
       this.#fontLoads.set(doc, style.fontUrl)
       for (const old of doc.fonts) if (old.family === style.font) doc.fonts.delete(old)
@@ -96,6 +97,7 @@ export class Translator {
 
   async setTranslationMode(mode, sessionId) {
     if (this.#destroyed) return
+    this.#pruneDocuments()
     if (!Object.values(TranslationMode).includes(mode)) {
       console.warn(`Invalid translation mode: ${mode}`)
       return
@@ -143,6 +145,7 @@ export class Translator {
   }
 
   observeDocument(doc) {
+    this.#pruneDocuments()
     // console.log('Observing document for translation, doc:', doc)
     if (!doc || this.#destroyed) {
       console.warn('No document provided to observeDocument')
@@ -164,6 +167,7 @@ export class Translator {
   }
 
   clearTranslations() {
+    this.#pruneDocuments()
     this.#generation++
     this.#queue = []
     this.#pending.clear()
@@ -238,8 +242,22 @@ export class Translator {
     return elements
   }
 
+  #pruneDocuments() {
+    // Detached chapter documents can retain connected nodes but lose their window.
+    for (const element of this.observedElements) {
+      const owner = element.ownerDocument?.defaultView
+      if (element.isConnected && owner &&
+          (owner === window || owner.frameElement?.isConnected)) continue
+      this.#observer.unobserve(element)
+      this.observedElements.delete(element)
+      this.#pending.delete(element)
+      this.#translatedElements.delete(element)
+    }
+    this.#queue = this.#queue.filter(job => this.observedElements.has(job.element))
+  }
+
   #isVisible(element) {
-    if (!element.isConnected) return false
+    if (!element.isConnected || !element.ownerDocument?.defaultView) return false
     let {top, bottom, left, right} = element.getBoundingClientRect()
     let owner = element.ownerDocument.defaultView
     // Chapter rectangles are iframe-local, not reader-window coordinates.
@@ -296,6 +314,7 @@ export class Translator {
       const translatedText = await translate(text, sessionId)
       if (this.#destroyed || generation !== this.#generation ||
           this.#translationMode === TranslationMode.OFF || !element.isConnected ||
+          !element.ownerDocument?.defaultView || !this.observedElements.has(element) ||
           typeof translatedText !== 'string' || !translatedText.trim()) return
       
       // Mark as translated to prevent re-processing
@@ -339,7 +358,9 @@ export class Translator {
   #refreshLayout(elements) {
     const docs = new Set(Array.from(elements, element => element.ownerDocument))
     for (const doc of docs) {
-      doc.dispatchEvent(new doc.defaultView.CustomEvent('modu-translation-layout'))
+      const owner = doc?.defaultView
+      if (owner && (owner === window || owner.frameElement?.isConnected))
+        doc.dispatchEvent(new owner.CustomEvent('modu-translation-layout'))
     }
   }
 

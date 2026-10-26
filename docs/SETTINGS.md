@@ -6,6 +6,13 @@ For stable **1.3.1+10152**, updated 2026-10-22. Phones usually open settings one
 
 The current entry points below include [1.3.1](https://github.com/sobranie2406/modureader/tree/v1.3.1). See the [detailed feature guide](FEATURES.md) for workflows, defaults and boundaries. Source and automated checks are distinct from device acceptance on every platform.
 
+### 1.3.4 beta1 additions
+
+- Language and Classical Chinese translation share Baidu/Microsoft credentials. Encrypted settings sync carries service configuration, credentials and related AI service selection, but not languages, direction or translation appearance.
+- Baidu and Microsoft configuration pages show separate usage estimates and editable reference allowances. Only successful Modu request characters count, grouped by UTC calendar month across updated devices with encrypted settings sync enabled; repeated sync does not count twice. These are not official bills or remaining balances, and server-billed cancelled/timed-out requests may be missing. The allowance is not a spending cap. Microsoft's two keys are counted separately; other engines are excluded.
+- Selecting Popup AI display reveals an optional Move and resize popups switch, off by default. Enabled selection-tool popups can move by their top and resize from their sides, bottom and corners; reopening resets position and size.
+- Last-read ordering uses synchronized reading timestamps. Folder layout respects cover width and available space.
+
 ## Settings entry points
 
 ### Reader toolbar and Classical Chinese translation
@@ -209,7 +216,7 @@ Import MDX 1/2 or StarDict companion files / ZIP that you are entitled to use. L
 
 Selection search opens results in the in-app browser. Choose a built-in engine or a custom URL containing {query}; results support zoom. The search site receives the query text.
 
-Inline full-text translation supports Google, AI and DeepL / DeepLX. Original + translation or translation-only paragraphs appear on the book page and follow the reading position. This is not a one-click export of an entire translated book. AI translation uses your configured model; DeepL / DeepLX requires the appropriate endpoint configuration.
+Inline full-text translation supports Google, AI, Baidu Translation API, Microsoft Translator and DeepL / DeepLX. Original + translation or translation-only paragraphs appear on the book page and follow the reading position. This is not a one-click export of an entire translated book. AI translation uses your configured model; DeepL / DeepLX requires the appropriate endpoint configuration.
 
 The selection-translation window can switch providers and also supports Baidu / Youdao webpages. Webpage translation differs from inline paragraph translation; it offers 50%–200% zoom and vertical scrolling. Scans need usable text or OCR/reflow first. Online services receive the text to translate; review their output.
 

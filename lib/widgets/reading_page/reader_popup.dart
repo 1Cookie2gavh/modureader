@@ -1,4 +1,6 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/widgets/reading_page/adjustable_reader_popup.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -78,7 +80,15 @@ class ReaderQuickStylePanel extends StatelessWidget {
 }
 
 Future<void> showReaderPopup(BuildContext context,
-    {required WidgetBuilder builder, bool enableDrag = true}) async {
+    {required WidgetBuilder builder,
+    bool enableDrag = true,
+    bool allowWindowAdjustment = false,
+    double initialHeightFraction = 0.8}) async {
+  if (allowWindowAdjustment && Prefs().readerPopupAdjustmentEnabled) {
+    await showAdjustableReaderPopup(context,
+        builder: builder, initialHeightFraction: initialHeightFraction);
+    return;
+  }
   ModalRoute<dynamic>? route;
   // Keep the content widget stable while the bottom-sheet route responds to
   // keyboard metrics; build it below the consumed-inset MediaQuery.

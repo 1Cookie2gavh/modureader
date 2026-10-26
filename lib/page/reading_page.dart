@@ -294,6 +294,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       brightness: _documentBrightness(),
       onExtract: () => openDocumentExtraction(forceOcr: true),
       onQuery: (text, source, translation) => showReaderPopup(context,
+          allowWindowAdjustment: true,
           enableDrag: false,
           builder: (_) => UnifiedQuery(
               text: text,
@@ -1224,6 +1225,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       {String? contextText}) async {
     showOrHideAppBarAndBottomBar(false);
     await showReaderPopup(context,
+        allowWindowAdjustment: true,
         builder: (_) => TranslationMenu(
               content: content,
               contextText: contextText,
@@ -1234,6 +1236,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   Future<void> showSelectionDictionary(String content) async {
     showOrHideAppBarAndBottomBar(false);
     await showReaderPopup(context,
+        allowWindowAdjustment: true,
         builder: (_) => DictionaryLookup(word: content));
     _restoreReaderFocusAfterPanel();
   }
@@ -1242,6 +1245,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     showOrHideAppBarAndBottomBar(false);
     try {
       await showReaderPopup(context,
+          allowWindowAdjustment: true,
           enableDrag: false,
           builder: (_) =>
               UnifiedQuery(text: content, contextText: contextText));
@@ -1542,6 +1546,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         if (!mounted) return;
       }
       await showReaderPopup(navigatorKey.currentContext!,
+          allowWindowAdjustment: true,
           builder: (context) => AiChatStream(
                 key: aiChatKey,
                 scope: AiChatScope.reader,

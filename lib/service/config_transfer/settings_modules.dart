@@ -20,7 +20,7 @@ writingMode verticalRedFrame textAlignment bgimgFit bgimg selectionToolbar reade
   'selection-search': 'selectionSearchSettings selectionSearchZoomPercent',
   'ai':
       '''aiProviders selectedAiService aiRpm aiMaxTokens aiContextTurns maxAiCacheCount
-aiTemperature aiChatFontSize aiPanelWidth aiPanelHeight aiPanelPosition aiChatDisplayMode
+aiTemperature aiChatFontSize aiPanelWidth aiPanelHeight aiPanelPosition aiChatDisplayMode adjustableReaderPopups
 codeHighlightTheme enabledAiTools''',
   'ai-skills':
       '''readAnySkillStates readAnySkillPrompts userPrompts autoSummaryPreviousContent aiReadingSkillsVisible readAnySkillOrder''',

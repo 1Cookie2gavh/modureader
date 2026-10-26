@@ -468,7 +468,8 @@ void main() {
                       decoration: const BoxDecoration(),
                       toggleTranslationMenu: () {},
                       toggleReaderNoteMenu: ({bool? show}) {},
-                      openReaderNoteMenu: (_) async {},
+                      openReaderNoteMenu: (_,
+                          {bool allowPopup = true}) async {},
                       onNoteCreated: (_) {},
                       axis: Axis.horizontal,
                       reverse: false)

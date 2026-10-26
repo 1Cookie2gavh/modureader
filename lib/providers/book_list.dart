@@ -5,6 +5,7 @@ import 'package:anx_reader/enums/sort_field.dart';
 import 'package:anx_reader/enums/sort_order.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/providers/tb_groups.dart';
+import 'package:anx_reader/providers/sync_database_revision.dart';
 import 'package:anx_reader/providers/book_filters.dart';
 import 'package:anx_reader/providers/bookshelf_pins.dart';
 import 'package:anx_reader/utils/log/common.dart';
@@ -66,7 +67,12 @@ class BookList extends _$BookList {
           compareResult = getChineseCompareResult(a.author, b.author);
           break;
         case SortFieldEnum.lastReadTime:
-          compareResult = a.updateTime.compareTo(b.updateTime);
+          compareResult = a.lastReadTime.compareTo(b.lastReadTime);
+          if (compareResult == 0) {
+            // Local IDs and query order differ between synchronized devices.
+            compareResult =
+                (a.md5 ?? a.filePath).compareTo(b.md5 ?? b.filePath);
+          }
           break;
         case SortFieldEnum.progress:
           compareResult = a.readingPercentage.compareTo(b.readingPercentage);
@@ -99,6 +105,7 @@ class BookList extends _$BookList {
   }
 
   Future<List<List<Book>>> _buildWithFilters({String? query}) async {
+    ref.watch(syncDatabaseRevisionProvider);
     ref.watch(bookshelfPinsProvider);
     final status = ref.watch(readingStatusFilterNotifierProvider);
     final selectedTags = ref.watch(tagSelectionProvider);

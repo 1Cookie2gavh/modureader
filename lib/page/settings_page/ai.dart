@@ -124,6 +124,21 @@ class _AISettingsState extends ConsumerState<AISettings> {
         title: Text(L10n.of(context).settingsAiChatDisplay),
         tiles: [
           aiChatDisplayModeTile(),
+          if (Prefs().aiChatDisplayMode == AiChatDisplayMode.popup)
+            SettingsTile.switchTile(
+              key: const ValueKey('adjustable-reader-popups'),
+              initialValue: Prefs().adjustableReaderPopups,
+              onToggle: (value) {
+                Prefs().adjustableReaderPopups = value;
+                setState(() {});
+              },
+              title: Text(ModuStrings.text(
+                  context, '允许移动和调整弹窗大小', 'Move and resize popups')),
+              description: Text(ModuStrings.text(
+                  context,
+                  '适用于划词功能弹窗。拖动顶部移动，拖动两侧、底边或四角调整大小；每次打开恢复默认位置和大小。',
+                  'For selection tool popups. Drag the top to move, or the sides, bottom and corners to resize. Each opening restores the default position and size.')),
+            ),
           if (Prefs().aiChatDisplayMode != AiChatDisplayMode.popup)
             aiPanelPositionTile(),
         ],

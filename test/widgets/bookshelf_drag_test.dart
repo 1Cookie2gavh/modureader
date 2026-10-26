@@ -12,6 +12,7 @@ import 'bookshelf_edit_menu_test.dart' show app;
 
 class _Books extends BookList {
   final moves = <List<int>>[];
+  List<List<Book>> entries = [];
   int? destination;
   String? name;
   bool fail = false;
@@ -19,7 +20,7 @@ class _Books extends BookList {
   @override
   Future<List<List<Book>>> build() async {
     ref.keepAlive();
-    return [];
+    return entries;
   }
 
   @override
@@ -173,6 +174,9 @@ void main() {
   });
 
   Future<void> openFolder(WidgetTester tester) async {
+    store.entries = [
+      [book(1, group: 2), book(2, group: 2)]
+    ];
     await tester.pumpWidget(app(
         Builder(
             builder: (context) => TextButton(
@@ -216,7 +220,8 @@ void main() {
     await openFolder(tester);
     await tester.longPress(item(1));
     await tester.pumpAndSettle();
-    await tester.tap(item(2));
+    // In the compact folder the lower half may scroll under the action area.
+    await tester.tapAt(tester.getTopLeft(item(2)) + const Offset(40, 40));
     await tester.pumpAndSettle();
     store.fail = true;
     await drop(tester, await startDrag(tester, 1), const Offset(5, 5));

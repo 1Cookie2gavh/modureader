@@ -1,3 +1,4 @@
+import 'package:anx_reader/service/translate/official_api.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
@@ -2326,12 +2327,16 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
                   : provider is MicrosoftFreeTranslateProvider
                       ? provider.translateStream(text, from, to,
                           isFullText: true, whenCancelled: runner.whenCancelled)
-                      : provider is DeepLTranslateProvider
+                      : provider is OfficialApiTranslateProvider
                           ? provider.translateStream(text, from, to,
                               isFullText: true,
                               whenCancelled: runner.whenCancelled)
-                          : provider.translateStream(text, from, to,
-                              isFullText: true));
+                          : provider is DeepLTranslateProvider
+                              ? provider.translateStream(text, from, to,
+                                  isFullText: true,
+                                  whenCancelled: runner.whenCancelled)
+                              : provider.translateStream(text, from, to,
+                                  isFullText: true));
         } on TranslationCancelled {
           return null;
         } catch (e) {

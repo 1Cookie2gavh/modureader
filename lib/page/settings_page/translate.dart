@@ -1,3 +1,5 @@
+import 'package:anx_reader/service/translate/classical_translation.dart';
+import 'package:anx_reader/widgets/settings/translation_api_settings.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/widgets/settings/classical_translation_settings.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -173,6 +175,10 @@ class _TranslateSettingState extends State<LanguageTranslateSetting> {
     return switch (service) {
       TranslateService.microsoftFree =>
         ModuStrings.text(context, '无需 API 密钥，开箱即用', 'Works without an API key'),
+      TranslateService.baiduApi ||
+      TranslateService.microsoftApi =>
+        ModuStrings.text(context, '官方 API，与文言文翻译共用服务配置',
+            'Official API; shares credentials with classical translation'),
       TranslateService.ai => ModuStrings.text(context, '使用 AI 设置中已配置的服务商和模型',
           'Uses a provider and model configured in AI settings'),
       TranslateService.deepl => ModuStrings.text(
@@ -378,6 +384,16 @@ class _TranslateSettingState extends State<LanguageTranslateSetting> {
                 enabled: aiModels.isNotEmpty,
                 onPressed: (_) => _showAiModelPicker(aiModels),
               ),
+            if ([TranslateService.baiduApi, TranslateService.microsoftApi]
+                .contains(fullTextService))
+              CustomSettingsTile(
+                  child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                      child: TranslationApiSettings(
+                          key: ValueKey(fullTextService),
+                          engine: fullTextService == TranslateService.baiduApi
+                              ? ClassicalTranslationEngine.baidu
+                              : ClassicalTranslationEngine.microsoft))),
             if (service == TranslateService.deepl ||
                 (service.isWebView &&
                     fullTextService == TranslateService.deepl))

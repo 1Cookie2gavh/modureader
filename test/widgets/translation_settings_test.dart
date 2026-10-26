@@ -41,6 +41,37 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  for (final engine in [
+    TranslateService.baiduApi,
+    TranslateService.microsoftApi
+  ]) {
+    testWidgets('${engine.name} is selectable and saves shared credentials',
+        (tester) async {
+      await open(tester);
+      await tester
+          .tap(find.byKey(const ValueKey('selection-translation-engine')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(ValueKey('translation-engine-${engine.name}')));
+      await tester.pumpAndSettle();
+      expect(Prefs().fullTextTranslateService, engine);
+      final baidu = engine == TranslateService.baiduApi;
+      final key = baidu ? 'baidu_key' : 'microsoft_key';
+      if (baidu) {
+        await tester.enterText(
+            find.byKey(const ValueKey('baidu_appid')), 'app-id');
+      }
+      await tester.enterText(find.byKey(ValueKey(key)), 'test-secret');
+      final save = find.byKey(const ValueKey('save-classical-credentials'));
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(Prefs().classicalTranslationConfig[key], 'test-secret');
+      expect(engine.provider.getConfig()[key], 'test-secret');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('classical subpage has independent service and output appearance',
       (tester) async {
     await open(tester, classical: true);

@@ -35,7 +35,7 @@ keyboardShortcutTurnPage swapPageTurnArea showMenuOnHover showActionLabels showB
 showAuthorOnDefaultCover openBookAnimation bookshelfListMode onlySyncWhenWifi useBookStyles bottomNavigatorShowNote
 bottomNavigatorShowRemote bottomNavigatorShowStatistics bottomNavigatorShowAI syncCompletedToast autoSync readingTimedSync
 isSystemTts showTextUnderIconButton notesExportMergeChapters verticalRedFrame enableJsForEpub
-httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll scrollAutoAlign longPressSelectParagraph aiReadingSkillsVisible aiSkillTemplateDraft ocrPrecacheEnabled'''
+httpProxyEnabled customCSSEnabled allowMixWithOtherAudio tapOnlyPageTurn continuousScroll scrollAutoAlign longPressSelectParagraph adjustableReaderPopups aiReadingSkillsVisible aiSkillTemplateDraft ocrPrecacheEnabled'''
             .split(RegExp(r'\s+')))
       key: 'bool',
     for (final key

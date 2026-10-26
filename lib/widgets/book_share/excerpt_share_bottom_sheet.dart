@@ -1,4 +1,5 @@
 import 'package:anx_reader/utils/app_motion.dart';
+import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -402,7 +403,19 @@ Future<void> showExcerptShareBottomSheet({
   required String author,
   required String excerpt,
   String? chapter,
+  bool allowWindowAdjustment = false,
 }) async {
+  if (allowWindowAdjustment && Prefs().readerPopupAdjustmentEnabled) {
+    await showReaderPopup(context,
+        allowWindowAdjustment: true,
+        initialHeightFraction: 0.85,
+        builder: (_) => ExcerptShareBottomSheet(
+            bookTitle: bookTitle,
+            author: author,
+            excerpt: excerpt,
+            chapter: chapter));
+    return;
+  }
   await showModalBottomSheet(
     sheetAnimationStyle: AppMotion.style,
     context: context,

@@ -13,6 +13,7 @@ function setup() {
   class Observer {
     constructor(callback,options){this.callback=callback;this.options=options;this.items=new Set();observers.push(this);}
     observe(el){this.items.add(el);}
+    unobserve(el){this.items.delete(el);}
     disconnect(){this.items.clear();}
   }
   window.flutter_inappwebview={callHandler(name,text,id){return new Promise(resolve=>calls.push({name,text,id,resolve}));}};
@@ -192,4 +193,27 @@ test('opening a book does not restore translation consent and stop remains avail
   const toolbar=await readFile(new URL('../lib/widgets/reading_page/translation_toolbar_action.dart',import.meta.url),'utf8');
   assert.match(toolbar,/reader-toolbar-stop-translation/);
   assert.match(toolbar,/onStop\(\)/);
+});
+
+
+test('detached chapter with no window cannot break starting, styling or stopping translation', async()=>{
+  const s=setup();
+  const old=s.window.document.implementation.createHTMLDocument('old chapter');
+  old.body.innerHTML='<p>stale text</p>';
+  const stale=old.querySelector('p');
+  stale.getBoundingClientRect=()=>({top:10,bottom:30,left:10,right:100});
+  assert.equal(stale.isConnected,true);
+  assert.equal(old.defaultView,null);
+  s.translator.observeDocument(old);
+  s.translator.setTextStyle({font:'test',fontUrl:'http://localhost/test.ttf'});
+  await s.translator.setTranslationMode('bilingual',1);
+  assert.equal(s.calls.length,1);
+  assert.equal(s.calls[0].text,'first');
+  assert.equal(s.translator.observedElements.has(stale),false);
+  assert.equal(s.observers[0].items.has(stale),false);
+  await s.translator.setTranslationMode('off');
+  s.translator.clearTranslations();
+  s.calls[0].resolve('late'); await tick();
+  assert.equal(old.querySelector('.translated-text'),null);
+  s.translator.destroy();s.dom.window.close();
 });

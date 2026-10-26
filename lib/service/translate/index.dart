@@ -9,6 +9,7 @@ import 'package:anx_reader/service/translate/deepl.dart';
 import 'package:anx_reader/service/translate/google_api.dart';
 import 'package:anx_reader/service/translate/microsoft_free.dart';
 import 'package:anx_reader/service/translate/microsoft_api.dart';
+import 'official_api.dart';
 import 'package:anx_reader/service/translate/web_view.dart';
 import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/log/common.dart';
@@ -23,6 +24,7 @@ enum TranslateService {
   googleApi,
   deepl,
   ai,
+  baiduApi,
   baiduWeb,
   youdaoWeb;
 
@@ -42,6 +44,8 @@ enum TranslateService {
         return DeepLTranslateProvider();
       case TranslateService.ai:
         return AiTranslateProvider();
+      case TranslateService.baiduApi:
+        return OfficialApiTranslateProvider(TranslateService.baiduApi);
       case TranslateService.baiduWeb:
         return BaiduWebTranslateProvider();
       case TranslateService.youdaoWeb:
@@ -66,6 +70,8 @@ enum TranslateService {
   /// Providers displayed by ReadAny's translation settings.
   static List<TranslateService> get readAnyValues => [
         TranslateService.microsoftFree,
+        TranslateService.baiduApi,
+        TranslateService.microsoftApi,
         if (EnvVar.enableAIFeature) TranslateService.ai,
         TranslateService.deepl,
       ];

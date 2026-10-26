@@ -8,6 +8,7 @@ class ExcerptShareService {
     required String author,
     required String excerpt,
     String? chapter,
+    bool allowWindowAdjustment = false,
   }) async {
     await showExcerptShareBottomSheet(
       context: context,
@@ -15,6 +16,7 @@ class ExcerptShareService {
       author: author,
       excerpt: excerpt,
       chapter: chapter,
+      allowWindowAdjustment: allowWindowAdjustment,
     );
   }
 }

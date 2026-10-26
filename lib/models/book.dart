@@ -21,6 +21,12 @@ class Book {
   DateTime createTime;
   DateTime updateTime;
 
+  /// Derived from the synchronized position record; never written as metadata.
+  final int? readingPositionClock;
+  DateTime get lastReadTime => readingPositionClock == null
+      ? updateTime
+      : DateTime.fromMillisecondsSinceEpoch(readingPositionClock!);
+
   Book(
       {required this.id,
       required this.title,
@@ -35,6 +41,7 @@ class Book {
       this.groupId = 0,
       this.md5,
       this.currentRound = 1,
+      this.readingPositionClock,
       this.review = '',
       required this.createTime,
       required this.updateTime});
@@ -97,6 +104,7 @@ class Book {
     int? groupId,
     String? md5,
     int? currentRound,
+    int? readingPositionClock,
     String? review,
     DateTime? createTime,
     DateTime? updateTime,
@@ -115,6 +123,7 @@ class Book {
       groupId: groupId ?? this.groupId,
       md5: md5 ?? this.md5,
       currentRound: currentRound ?? this.currentRound,
+      readingPositionClock: readingPositionClock ?? this.readingPositionClock,
       review: review ?? this.review,
       createTime: createTime ?? this.createTime,
       updateTime: updateTime ?? this.updateTime,
@@ -124,6 +133,7 @@ class Book {
   factory Book.fromDb(Map<String, dynamic> map) {
     return Book(
       id: map['id'] as int,
+      readingPositionClock: map['reading_position_clock'] as int?,
       title: map['title'] as String? ?? '',
       coverPath: map['cover_path'] as String? ?? '',
       filePath: map['file_path'] as String? ?? '',

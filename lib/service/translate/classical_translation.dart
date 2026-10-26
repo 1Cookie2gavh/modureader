@@ -1,6 +1,5 @@
-import 'dart:async';
+import 'translation_api_client.dart';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/ai/index.dart';
@@ -36,8 +35,6 @@ class ClassicalTranslation {
   final String aiService;
   final ClassicalTranslationDirection direction;
   final Dio? _client;
-  static Future<void> _baiduQueue = Future.value();
-  static DateTime? _lastBaiduRequest;
 
   String get identity {
     final provider = Prefs()
@@ -84,132 +81,15 @@ class ClassicalTranslation {
           .map(translationAnswer);
       return;
     }
-    final key = config[engine == ClassicalTranslationEngine.baidu
-                ? 'baidu_key'
-                : 'microsoft_key']
-            ?.trim() ??
-        '';
-    final appId = config['baidu_appid']?.trim() ?? '';
-    if (key.isEmpty ||
-        (engine == ClassicalTranslationEngine.baidu && appId.isEmpty)) {
-      throw StateError(
-          '请在设置 → 翻译 → 文言文翻译中配置密钥 / Configure translation credentials first');
-    }
-    final client = _client ??
-        Dio(BaseOptions(
-            connectTimeout: const Duration(seconds: 15),
-            receiveTimeout: const Duration(seconds: 60),
-            sendTimeout: const Duration(seconds: 30)));
-    final token = CancelToken();
-    unawaited(runner.whenCancelled.then((_) => token.cancel()));
-    final translated = <String>[];
-    try {
-      // Baidu standard accounts accept short requests. Do not drop long
-      // paragraphs; split by code points without breaking surrogate pairs.
-      final runes = text.runes.toList();
-      for (var start = 0; start < runes.length; start += 900) {
-        if (token.isCancelled) return;
-        final part = String.fromCharCodes(
-            runes.sublist(start, min(start + 900, runes.length)));
-        Response<dynamic> response;
-        if (engine == ClassicalTranslationEngine.baidu) {
-          final previous = _baiduQueue;
-          final released = Completer<void>();
-          _baiduQueue = released.future;
-          try {
-            await Future.any([previous, token.whenCancel]);
-            if (token.isCancelled) return;
-            final elapsed = _lastBaiduRequest == null
-                ? 1100
-                : DateTime.now().difference(_lastBaiduRequest!).inMilliseconds;
-            if (elapsed < 1100) {
-              await Future.any([
-                Future<void>.delayed(Duration(milliseconds: 1100 - elapsed)),
-                token.whenCancel
-              ]);
-            }
-            if (token.isCancelled) return;
-            _lastBaiduRequest = DateTime.now();
-            final salt =
-                '${DateTime.now().microsecondsSinceEpoch}${Random.secure().nextInt(1 << 30)}';
-            response = await client.post(
-                'https://fanyi-api.baidu.com/api/trans/vip/translate',
-                cancelToken: token,
-                data: {
-                  'q': part,
-                  'from': direction == ClassicalTranslationDirection.toModern
-                      ? 'wyw'
-                      : 'zh',
-                  'to': direction == ClassicalTranslationDirection.toModern
-                      ? 'zh'
-                      : 'wyw',
-                  'appid': appId,
-                  'salt': salt,
-                  'sign': md5
-                      .convert(utf8.encode('$appId$part$salt$key'))
-                      .toString()
-                },
-                options:
-                    Options(contentType: Headers.formUrlEncodedContentType));
-          } finally {
-            // Keep queued requests ordered even when this waiter is cancelled.
-            unawaited(previous.whenComplete(() {
-              if (!released.isCompleted) released.complete();
-            }));
-          }
-          final data = response.data;
-          final rows = data is Map ? data['trans_result'] : null;
-          if (rows is! List ||
-              rows.isEmpty ||
-              rows.any((row) => row is! Map || row['dst'] is! String)) {
-            final code = data is Map ? data['error_code']?.toString() : null;
-            throw StateError(
-                'Baidu translation failed${code != null && RegExp(r"^\d+$").hasMatch(code) ? " ($code)" : ""}');
-          }
-          translated.add(rows.map((row) => row['dst'] as String).join('\n'));
-        } else {
-          final region = config['microsoft_region']?.trim() ?? '';
-          response = await client.post(
-              'https://api.cognitive.microsofttranslator.com/translate',
-              queryParameters: {
-                'api-version': '3.0',
-                'from': direction == ClassicalTranslationDirection.toModern
-                    ? 'lzh'
-                    : 'zh-Hans',
-                'to': direction == ClassicalTranslationDirection.toModern
-                    ? 'zh-Hans'
-                    : 'lzh'
-              },
-              data: [
-                {'Text': part}
-              ],
-              cancelToken: token,
-              options: Options(headers: {
-                'Ocp-Apim-Subscription-Key': key,
-                if (region.isNotEmpty && region != 'global')
-                  'Ocp-Apim-Subscription-Region': region
-              }));
-          final data = response.data;
-          final rows = data is List && data.isNotEmpty && data.first is Map
-              ? data.first['translations']
-              : null;
-          if (rows is! List ||
-              rows.isEmpty ||
-              rows.first is! Map ||
-              rows.first['text'] is! String) {
-            throw StateError('Microsoft Translator returned no translation');
-          }
-          translated.add(rows.first['text'] as String);
-        }
-      }
-      if (!token.isCancelled) yield translated.join();
-    } on DioException catch (error) {
-      if (token.isCancelled) return;
-      // Never expose request bodies, signatures, keys or provider error echoes.
-      throw StateError(
-          '${engine.name} translation failed (HTTP ${error.response?.statusCode ?? "network"})');
-    } finally {
-      if (_client == null) client.close(force: true);
-    }
+    final baidu = engine == ClassicalTranslationEngine.baidu;
+    final modern = direction == ClassicalTranslationDirection.toModern;
+    yield* TranslationApiClient(
+      baidu ? TranslationApiEngine.baidu : TranslationApiEngine.microsoft,
+      config,
+      client: _client,
+    ).translate(text,
+        from: modern ? (baidu ? 'wyw' : 'lzh') : (baidu ? 'zh' : 'zh-Hans'),
+        to: modern ? (baidu ? 'zh' : 'zh-Hans') : (baidu ? 'wyw' : 'lzh'),
+        whenCancelled: runner.whenCancelled);
   }
 }

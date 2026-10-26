@@ -202,7 +202,10 @@ class BookDao extends BaseDao {
   }
 
   Future<List<Book>> selectNotDeleteBooks() {
-    return selectBooks(includeDeleted: false);
+    return rawQueryList('''SELECT b.*, p.clock AS reading_position_clock
+      FROM tb_books b LEFT JOIN $syncRecordsTable p
+      ON p.kind='position' AND p.local_id=b.id AND p.deleted=0
+      WHERE b.is_deleted=0 ORDER BY b.update_time DESC''', mapper: Book.fromDb);
   }
 
   Future<Book> selectBookById(int id) async {

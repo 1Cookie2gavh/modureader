@@ -14,6 +14,7 @@ import 'package:anx_reader/widgets/settings/settings_section.dart';
 
 Future<void> showSelectionToolbarSettings(BuildContext context) =>
     showReaderPopup(context,
+        allowWindowAdjustment: true,
         enableDrag: false,
         builder: (context) => Scaffold(
             appBar: AppBar(

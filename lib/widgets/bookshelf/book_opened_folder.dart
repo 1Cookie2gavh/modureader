@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -137,15 +138,38 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
 
   @override
   Widget build(BuildContext context) {
-    // Re-sort the original folder order so unpinning restores that order.
+    ref.listen(bookListProvider, (_, next) {
+      if (next.isLoading || !next.hasValue || next.hasError) return;
+      final groupId = widget.books.first.groupId;
+      final latest = next.requireValue
+          .expand((group) => group)
+          .where((book) => book.groupId == groupId)
+          .toList();
+      setState(() {
+        books = latest;
+        selectedIds.retainAll(latest.map((book) => book.id));
+      });
+    });
     final pins = ref.watch(bookshelfPinsProvider);
-    final ids = books.map((book) => book.id).toSet();
-    final original =
-        widget.books.where((book) => ids.contains(book.id)).toList();
-    if (original.isNotEmpty) {
-      books = applyBookshelfPins([BookList().sortBooks(original)], pins).single;
+    if (books.isNotEmpty) {
+      books = applyBookshelfPins([BookList().sortBooks(List.of(books))], pins)
+          .single;
     }
+    final media = MediaQuery.of(context);
+    // Size the dialog around its cards, rather than stretching a partial row.
+    final availableWidth = math.max(
+        0.0, math.min(520.0, media.size.width - media.padding.horizontal - 88));
+    final coverWidth = Prefs().bookCoverWidth.clamp(80.0, 260.0);
+    final columns = math.max(
+        1,
+        math.min(math.max(2, books.length),
+            ((availableWidth + 10) / (coverWidth + 10)).round()));
+    final contentWidth = math.min(availableWidth,
+        math.max(240.0, columns * coverWidth + (columns - 1) * 10));
     final dialog = AlertDialog(
+      insetPadding: const EdgeInsets.all(24),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       title: selectionMode
           ? Text(ModuStrings.format(
               context, '已选 {count} 本', '{count} books selected',
@@ -192,11 +216,11 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
                   ),
                 ),
       content: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.7,
+        width: contentWidth,
         child: GridView.builder(
             shrinkWrap: true,
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: Prefs().bookCoverWidth,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
               childAspectRatio: 1 / 2.2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
@@ -244,7 +268,7 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
       ),
       actions: [
         SizedBox(
-          width: MediaQuery.sizeOf(context).width * 0.7,
+          width: contentWidth,
           child: ConstrainedBox(
             constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(context).height * 0.4),
@@ -290,12 +314,14 @@ class _BookOpenedFolderState extends ConsumerState<BookOpenedFolder> {
                   if (books.isNotEmpty)
                     FolderPinMenu(groupId: books.first.groupId),
                   TextButton(
-                      onPressed: () {
-                        ref
-                            .read(bookListProvider.notifier)
-                            .dissolveGroup(books);
-                        Navigator.pop(context);
-                      },
+                      onPressed: books.isEmpty
+                          ? null
+                          : () {
+                              ref
+                                  .read(bookListProvider.notifier)
+                                  .dissolveGroup(books);
+                              Navigator.pop(context);
+                            },
                       child: Text(L10n.of(context).commonDissolve)),
                   TextButton(
                       onPressed: () {

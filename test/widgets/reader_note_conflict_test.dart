@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class ConflictingNoteDao extends BookNoteDao {
+  ConflictingNoteDao({this.initialNote = 'Original comment'});
+  final String? initialNote;
   int attempts = 0;
   @override
   Future<BookNote> selectBookNoteById(int id) async => BookNote(
@@ -17,7 +19,7 @@ class ConflictingNoteDao extends BookNoteDao {
       chapter: 'Test',
       type: 'highlight',
       color: 'FFFF00',
-      readerNote: 'Original comment',
+      readerNote: initialNote,
       updateTime: DateTime(2026));
   @override
   Future<void> updateBookNoteById(BookNote note) async {
@@ -27,37 +29,41 @@ class ConflictingNoteDao extends BookNoteDao {
 }
 
 void main() {
-  testWidgets('conflicting save keeps editor, draft and retry control visible',
-      (tester) async {
-    final dao = ConflictingNoteDao();
-    final key = GlobalKey<ReaderNoteMenuState>();
-    await tester.pumpWidget(MaterialApp(
-        locale: const Locale('zh'),
-        supportedLocales: L10n.supportedLocales,
-        localizationsDelegates: const [
-          L10n.delegate,
-          ...GlobalMaterialLocalizations.delegates
-        ],
-        home: Scaffold(
-            body: Column(children: [
-          ReaderNoteMenu(
-            key: key,
-            noteId: 1,
-            dao: dao,
-            decoration: const BoxDecoration(),
-            axis: Axis.vertical,
-            onVisibilityChange: (_) {},
-            onSizeChanged: () {},
-          )
-        ]))));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'My unsaved local draft');
-    await key.currentState!.saveNote();
-    await tester.pumpAndSettle();
-    expect(dao.attempts, 1);
-    expect(find.text('My unsaved local draft'), findsOneWidget);
-    expect(find.textContaining('未覆盖最新内容'), findsOneWidget);
-    expect(key.currentState!.showSaveButton, true);
-    expect(tester.takeException(), isNull);
-  });
+  for (final standalone in [false, true]) {
+    testWidgets('conflicting save preserves draft, standalone=$standalone',
+        (tester) async {
+      final dao = ConflictingNoteDao(
+          initialNote: standalone ? null : 'Original comment');
+      final key = GlobalKey<ReaderNoteMenuState>();
+      await tester.pumpWidget(MaterialApp(
+          locale: const Locale('zh'),
+          supportedLocales: L10n.supportedLocales,
+          localizationsDelegates: const [
+            L10n.delegate,
+            ...GlobalMaterialLocalizations.delegates
+          ],
+          home: Scaffold(
+              body: Column(children: [
+            ReaderNoteMenu(
+              key: key,
+              noteId: 1,
+              standalone: standalone,
+              dao: dao,
+              decoration: const BoxDecoration(),
+              axis: standalone ? Axis.horizontal : Axis.vertical,
+              onVisibilityChange: (_) {},
+              onSizeChanged: () {},
+            )
+          ]))));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'My unsaved local draft');
+      await key.currentState!.saveNote();
+      await tester.pumpAndSettle();
+      expect(dao.attempts, 1);
+      expect(find.text('My unsaved local draft'), findsOneWidget);
+      expect(find.textContaining('未覆盖最新内容'), findsOneWidget);
+      expect(key.currentState!.showSaveButton, true);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

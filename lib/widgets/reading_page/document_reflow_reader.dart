@@ -1,3 +1,4 @@
+import 'package:anx_reader/service/translate/official_api.dart';
 import 'ocr_precache_settings.dart';
 import 'reader_menu_group.dart';
 import 'package:anx_reader/enums/translation_mode.dart';
@@ -265,12 +266,16 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
                         ? translator.translateStream(text, from, to,
                             isFullText: true,
                             whenCancelled: runner.whenCancelled)
-                        : translator is DeepLTranslateProvider
+                        : translator is OfficialApiTranslateProvider
                             ? translator.translateStream(text, from, to,
                                 isFullText: true,
                                 whenCancelled: runner.whenCancelled)
-                            : translator.translateStream(text, from, to,
-                                isFullText: true)));
+                            : translator is DeepLTranslateProvider
+                                ? translator.translateStream(text, from, to,
+                                    isFullText: true,
+                                    whenCancelled: runner.whenCancelled)
+                                : translator.translateStream(text, from, to,
+                                    isFullText: true)));
     _queueVisibleTranslation();
   }
 

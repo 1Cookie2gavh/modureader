@@ -94,6 +94,46 @@ void main() {
     });
   });
 
+  test(
+      'translation sync transfers service config but keeps device language and appearance',
+      () async {
+    final local = {
+      'translateFrom': 'en',
+      'translateTo': 'zh-CN',
+      'fullTextTranslateFrom': 'Auto',
+      'fullTextTranslateTo': 'ja',
+      'classicalTranslationDirection': 'toClassical',
+      'languageTranslationTextStyle': '{"size":20}',
+      'classicalTranslationTextStyle': '{"italic":true}',
+    };
+    SharedPreferences.setMockInitialValues({
+      ...local,
+      'classicalTranslationEngine': 'baidu',
+      'classicalTranslationAiService': 'model-1',
+      'translateServiceConfig_classical': '{"baidu_key":"secret"}',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final snapshot = collectAiSettingsForSync(prefs);
+    expect(snapshot['classicalTranslationEngine'], 'baidu');
+    expect(snapshot['classicalTranslationAiService'], 'model-1');
+    expect(snapshot['translateServiceConfig_classical'], contains('secret'));
+    for (final key in local.keys) {
+      expect(snapshot, isNot(contains(key)));
+    }
+    await applyAiSettingsFromSync(prefs, {
+      'classicalTranslationEngine': 'microsoft',
+      'translateServiceConfig_classical': '{"microsoft_key":"new-key"}',
+      for (final key in local.keys) key: 'old-device-value',
+    });
+    for (final entry in local.entries) {
+      expect(prefs.get(entry.key), entry.value);
+    }
+    expect(prefs.getString('classicalTranslationEngine'), 'microsoft');
+    expect(prefs.getString('classicalTranslationAiService'), 'model-1');
+    expect(prefs.getString('translateServiceConfig_classical'),
+        contains('new-key'));
+  });
+
   group('AiSettingsSyncCipher', () {
     test('encrypts and authenticates the complete payload', () async {
       final cipher = AiSettingsSyncCipher();

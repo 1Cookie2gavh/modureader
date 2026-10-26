@@ -31,11 +31,9 @@ const Set<String> _aiSettingsPreferenceKeys = {
   'vectorModelConfig',
   // Translation provider settings.
   'translateService',
-  'translateFrom',
-  'translateTo',
   'fullTextTranslateService',
-  'fullTextTranslateFrom',
-  'fullTextTranslateTo',
+  'classicalTranslationEngine',
+  'classicalTranslationAiService',
   'autoTranslateSelection',
   // Online speech provider settings.
   'ttsService',
@@ -84,6 +82,16 @@ Future<void> applyAiSettingsFromSync(
   SharedPreferences preferences,
   Map<String, Object?> values,
 ) async {
+  values = Map.of(values)
+    ..removeWhere((key, _) => const {
+          'translateFrom',
+          'translateTo',
+          'fullTextTranslateFrom',
+          'fullTextTranslateTo',
+          'classicalTranslationDirection',
+          'classicalTranslationTextStyle',
+          'languageTranslationTextStyle',
+        }.contains(key));
   for (final entry in values.entries) {
     if (!isAiSettingsSyncPreference(entry.key) ||
         !_isSupportedPreferenceValue(entry.value) ||
@@ -98,7 +106,14 @@ Future<void> applyAiSettingsFromSync(
   for (final key in localKeys) {
     // Older devices/snapshots do not know this key. Absence must not erase it;
     // an explicit empty string still propagates the user's clear operation.
-    if (key == 'wereadApiKey' && !values.containsKey(key)) continue;
+    if (const {
+          'wereadApiKey',
+          'classicalTranslationEngine',
+          'classicalTranslationAiService'
+        }.contains(key) &&
+        !values.containsKey(key)) {
+      continue;
+    }
     await preferences.remove(key);
   }
   for (final entry in values.entries) {

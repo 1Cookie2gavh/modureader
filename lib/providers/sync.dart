@@ -40,6 +40,7 @@ import 'package:anx_reader/service/sync/sync_asset_listing.dart';
 import 'package:anx_reader/service/sync/sync_maintenance_schedule.dart';
 import 'package:anx_reader/utils/get_path/get_cache_dir.dart';
 import 'package:anx_reader/service/sync/ai_settings_sync.dart';
+import 'package:anx_reader/service/sync/translation_usage_sync.dart';
 import 'package:anx_reader/service/database_sync_manager.dart';
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/utils/get_path/databases_path.dart';
@@ -370,6 +371,10 @@ class Sync extends _$Sync {
         enabled: Prefs().syncAiSettingsToWebdav,
         password: Prefs().syncAiSettingsEncryptionPassword,
       );
+      await TranslationUsageSyncService().prepareLocalDatabase(
+        enabled: Prefs().syncAiSettingsToWebdav,
+        password: Prefs().syncAiSettingsEncryptionPassword,
+      );
     } on AiSyncPasswordMissingException {
       AnxLog.warning('AI settings sync skipped: encryption password missing');
       rethrow;
@@ -567,6 +572,10 @@ class Sync extends _$Sync {
       ref.read(aiProvidersProvider.notifier).refresh();
     }
     await RemoteLibrarySettingsSyncService().restoreFromDownloadedDatabase(
+      enabled: Prefs().syncAiSettingsToWebdav,
+      password: Prefs().syncAiSettingsEncryptionPassword,
+    );
+    await TranslationUsageSyncService().restoreFromDownloadedDatabase(
       enabled: Prefs().syncAiSettingsToWebdav,
       password: Prefs().syncAiSettingsEncryptionPassword,
     );

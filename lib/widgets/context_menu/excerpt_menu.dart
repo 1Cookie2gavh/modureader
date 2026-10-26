@@ -42,7 +42,7 @@ class ExcerptMenu extends StatefulWidget {
   final BoxDecoration decoration;
   final Function() toggleTranslationMenu;
   final void Function({bool? show}) toggleReaderNoteMenu;
-  final Future<void> Function(int noteId) openReaderNoteMenu;
+  final Future<void> Function(int noteId, {bool allowPopup}) openReaderNoteMenu;
   final void Function(int noteId) onNoteCreated;
   final Axis axis;
   final bool reverse;
@@ -130,7 +130,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
       if (!widget.footnote &&
           note.readerNote != null &&
           note.readerNote!.isNotEmpty) {
-        await widget.openReaderNoteMenu(note.id!);
+        await widget.openReaderNoteMenu(note.id!, allowPopup: false);
       }
     } catch (_) {
       // When the note cannot be loaded we keep the defaults from Prefs.
@@ -399,6 +399,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
           await reader.showUnifiedQuery(text, contextText: sourceContext);
         } else if (popupContext.mounted) {
           await showReaderPopup(popupContext,
+              allowWindowAdjustment: true,
               enableDrag: false,
               builder: (_) =>
                   UnifiedQuery(text: text, contextText: sourceContext));
@@ -427,6 +428,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
           await reader.showSelectionDictionary(text);
         } else if (popupContext.mounted) {
           await showReaderPopup(popupContext,
+              allowWindowAdjustment: true,
               builder: (_) => DictionaryLookup(word: text));
         }
         break;
@@ -506,6 +508,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         if (!popupContext.mounted) return;
         ExcerptShareService.showShareExcerpt(
           context: popupContext,
+          allowWindowAdjustment: true,
           bookTitle: book.title,
           author: book.author,
           excerpt: text,

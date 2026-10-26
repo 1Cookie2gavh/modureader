@@ -6,6 +6,7 @@ import 'package:anx_reader/utils/platform_utils.dart';
 import 'package:anx_reader/widgets/common/axis_flex.dart';
 import 'package:anx_reader/widgets/context_menu/excerpt_menu.dart';
 import 'package:anx_reader/widgets/context_menu/reader_note_menu.dart';
+import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
 
 import 'package:anx_reader/dao/book_note.dart';
@@ -484,7 +485,32 @@ class _ContextMenuOverlayState extends State<ReaderContextMenuOverlay>
     );
   }
 
-  Future<void> _openReaderNoteMenu(int noteId) async {
+  Future<void> _openReaderNoteMenu(int noteId, {bool allowPopup = true}) async {
+    if (allowPopup && Prefs().readerPopupAdjustmentEnabled) {
+      final popupContext = Navigator.of(context).context;
+      final player = epubPlayerKey.currentState;
+      widget.onClose();
+      // Let the selection overlay finish releasing its lock before taking over.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!popupContext.mounted) return;
+      player?.setSelectionClearLocked(true);
+      try {
+        await showReaderPopup(popupContext,
+            allowWindowAdjustment: true,
+            builder: (_) => Column(children: [
+                  ReaderNoteMenu(
+                      noteId: noteId,
+                      standalone: true,
+                      decoration: const BoxDecoration(),
+                      axis: Axis.horizontal,
+                      onVisibilityChange: (_) {},
+                      onSizeChanged: () {}),
+                ]));
+      } finally {
+        if (player?.mounted == true) player!.setSelectionClearLocked(false);
+      }
+      return;
+    }
     _toggleReaderNoteMenu(show: true);
     if (_readerNoteMenuKey.currentState == null) {
       await Future.delayed(const Duration(milliseconds: 50));

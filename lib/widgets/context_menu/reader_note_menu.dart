@@ -12,6 +12,7 @@ class ReaderNoteMenu extends StatefulWidget {
     super.key,
     this.noteId,
     this.dao,
+    this.standalone = false,
     required this.decoration,
     required this.axis,
     required this.onVisibilityChange,
@@ -20,6 +21,7 @@ class ReaderNoteMenu extends StatefulWidget {
 
   final int? noteId;
   final BookNoteDao? dao;
+  final bool standalone;
   final BoxDecoration decoration;
   final Axis axis;
   final ValueChanged<bool> onVisibilityChange;
@@ -88,12 +90,12 @@ class ReaderNoteMenuState extends State<ReaderNoteMenu> {
     if (id == null) return;
     try {
       final fetchedNote = await _dao.selectBookNoteById(id);
+      if (!mounted) return;
       note = fetchedNote;
 
       if (note != null &&
-          note!.readerNote != null &&
-          note!.readerNote!.isNotEmpty) {
-        textFieldController.text = note!.readerNote!;
+          (widget.standalone || (note!.readerNote?.isNotEmpty ?? false))) {
+        textFieldController.text = note!.readerNote ?? '';
         _setShowNoteDialog(true);
       }
     } finally {
@@ -155,8 +157,12 @@ class ReaderNoteMenuState extends State<ReaderNoteMenu> {
       curve: Curves.easeOut,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: widget.axis == Axis.vertical ? double.infinity : 200,
-          maxWidth: widget.axis == Axis.vertical ? 100 : double.infinity,
+          maxHeight: widget.standalone || widget.axis == Axis.vertical
+              ? double.infinity
+              : 200,
+          maxWidth: !widget.standalone && widget.axis == Axis.vertical
+              ? 100
+              : double.infinity,
         ),
         child: !_showNoteDialog
             ? null
