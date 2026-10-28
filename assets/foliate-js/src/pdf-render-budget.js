@@ -3,6 +3,8 @@ export class PdfRenderBudget {
     constructor(device = globalThis.navigator ?? {}) {
         this.constrained = (device.deviceMemory > 0 && device.deviceMemory <= 4) ||
             (device.hardwareConcurrency > 0 && device.hardwareConcurrency <= 4)
+        // Budget decoded backing pixels, so small pages can still fill a tall viewport.
+        this.maxBasePixels = (this.constrained ? 3 : 4) * 8388608
         this.samples = 0
         this.elapsed = 0
     }

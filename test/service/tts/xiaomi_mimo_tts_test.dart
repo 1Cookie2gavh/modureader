@@ -93,6 +93,22 @@ void main() {
     }
   });
 
+  test(
+      'instruction fallback distinguishes every pitch setting without changing book text',
+      () async {
+    await config({'stylePrompt': '平稳讲述'});
+    final directions = <String>{};
+    for (final pitch in [0.5, 0.9, 1.1, 1.5, 2.0]) {
+      await provider.speak('原文', null, 1.0, pitch);
+      final body = jsonDecode(request.body);
+      final instruction = body['messages'][0]['content'] as String;
+      expect(instruction, contains(pitch.toStringAsFixed(2)));
+      directions.add(instruction);
+      expect(body['messages'][1]['content'], '原文');
+    }
+    expect(directions.length, 5);
+  });
+
   test('every description template uses instructions and preserves book text',
       () async {
     for (final design in [false, true]) {

@@ -36,6 +36,9 @@ test('sync restore labels navigation callbacks as passive and releases suppressi
   assert.equal(await win.restoreSyncedReadingPosition('synthetic-cfi'), false);
   assert.equal(seen.length, 1);
   renderer.isNavigating = false;
+  view.goTo = async () => false;
+  assert.equal(await win.restoreSyncedReadingPosition('synthetic-cfi'), false);
+  assert.equal(win.readerApplyingSync, false);
   view.goTo = async () => {throw Error('failed');};
   await assert.rejects(win.restoreSyncedReadingPosition('synthetic-cfi'), /failed/);
   assert.equal(win.readerApplyingSync, false);

@@ -1,6 +1,8 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
+#include <algorithm>
+#include <cctype>
 #include "app_links/app_links_plugin_c_api.h"
 
 #include "flutter_window.h"
@@ -10,13 +12,33 @@
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   std::vector<std::string> command_line_arguments = GetCommandLineArguments();
-  // Forward reading links to the existing reader instead of opening a second
-  // database-owning process. Ordinary launches retain their existing behavior.
-  if (!command_line_arguments.empty() &&
-      command_line_arguments.front().rfind("modu://read?", 0) == 0) {
+  // Forward local documents and reading links to the existing database owner.
+  auto is_open_request = [](const std::string& value) {
+    if (value.rfind("modu://read?", 0) == 0) return true;
+    const bool local = value.rfind("file:", 0) == 0 ||
+      (value.size() > 2 && value[1] == ':') || value.rfind("\\\\", 0) == 0;
+    if (!local) return false;
+    auto dot = value.find_last_of('.');
+    if (dot == std::string::npos) return false;
+    auto ext = value.substr(dot + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::vector<std::string> supported = {"epub", "mobi", "azw3", "fb2", "txt", "pdf", "md", "markdown", "umd"};
+    return std::find(supported.begin(), supported.end(), ext) != supported.end();
+  };
+  if (std::any_of(command_line_arguments.begin(), command_line_arguments.end(), is_open_request)) {
     HWND existing = ::FindWindow(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Modu");
     if (existing != nullptr) {
-      SendAppLink(existing);
+      for (const auto& value : command_line_arguments) {
+        if (!is_open_request(value)) continue;
+        // app_links 6.4.1's WM_COPYDATA message carries UTF-8, including paths.
+        COPYDATASTRUCT data = {};
+        data.dwData = WM_USER + 2;
+        data.cbData = static_cast<DWORD>(value.size() + 1);
+        data.lpData = const_cast<char*>(value.c_str());
+        ::SendMessage(existing, WM_COPYDATA, reinterpret_cast<WPARAM>(existing),
+                      reinterpret_cast<LPARAM>(&data));
+      }
       if (::IsIconic(existing)) ::ShowWindow(existing, SW_RESTORE);
       ::SetForegroundWindow(existing);
       return EXIT_SUCCESS;

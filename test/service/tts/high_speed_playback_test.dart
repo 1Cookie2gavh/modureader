@@ -5,6 +5,7 @@ import 'package:anx_reader/service/tts/edge_tts_backend.dart';
 import 'package:anx_reader/service/tts/models/tts_sentence.dart';
 import 'package:anx_reader/service/tts/openai_tts_backend.dart';
 import 'package:anx_reader/service/tts/online_tts.dart';
+import 'package:anx_reader/service/tts/readany_compatible_tts_backend.dart';
 import 'package:anx_reader/service/tts/tts_service_provider.dart';
 import 'package:anx_reader/service/tts/tts_service.dart';
 import 'package:flutter/widgets.dart';
@@ -37,6 +38,12 @@ class RecordedEdge extends RecordedProvider implements EdgeTtsProvider {
 
 class RecordedOpenAi extends RecordedProvider implements OpenAiTtsProvider {}
 
+class RecordedDashScope extends RecordedProvider
+    implements DashScopeTtsProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() async {
@@ -44,11 +51,15 @@ void main() {
     await Prefs().initPrefs();
   });
 
-  for (final speed in [3.0, 4.0]) {
-    for (final edge in [false, true]) {
-      test('${edge ? 'Edge' : 'OpenAI'} preview reaches ${speed}x', () async {
-        final provider = edge ? RecordedEdge() : RecordedOpenAi();
-        final player = RatePlayer()..rates.add(1); // Native default speed.
+  for (final speed in [0.1, 0.2, 0.3, 0.8, 2.1, 3.0, 3.9, 4.0]) {
+    for (final name in ['Edge', 'OpenAI', 'DashScope']) {
+      test('$name preview reaches ${speed}x', () async {
+        final provider = switch (name) {
+          'Edge' => RecordedEdge(),
+          'OpenAI' => RecordedOpenAi(),
+          _ => RecordedDashScope(),
+        };
+        final player = RatePlayer();
         final tts = OnlineTts.forTesting(
           backend: provider,
           createPlayer: () => player,
@@ -56,15 +67,48 @@ void main() {
         );
         addTearDown(tts.stop);
         tts.rate = speed;
-        await tts.speakWithVoice('高倍速回归测试', 'test-voice');
-        final requests = provider.requestedRates;
-        expect(requests, [edge ? 2 : speed]);
-        expect(player.playedRates, [edge ? speed / 2 : 1]);
-        expect(requests.single * player.playedRates.single, speed);
+        await tts.speakWithVoice('倍速回归测试', 'test-voice');
+        final synthesis =
+            name == 'Edge' ? speed.clamp(0.1, 2.0) : speed.clamp(0.25, 4.0);
+        expect(provider.requestedRates, [synthesis]);
+        expect(player.playedRates.single, closeTo(speed / synthesis, 0.000001));
+        expect(synthesis * player.playedRates.single, closeTo(speed, 0.000001));
         expect(Prefs().ttsRate, speed);
       });
     }
   }
+
+  test('low-speed live adjustment reuses synthesis and keeps pause state',
+      () async {
+    final provider = RecordedOpenAi();
+    final player = RatePlayer();
+    final tts = OnlineTts.forTesting(
+      backend: provider,
+      createPlayer: () => player,
+      collect: (_) async => const [TtsSentence(text: '低速调节')],
+    );
+    addTearDown(tts.stop);
+    tts.rate = 0.1;
+    await tts.init(() async => '低速调节', () async => '', () async => '');
+    final reading = tts.speak();
+    await until(() => player.playedRates.isNotEmpty);
+    tts.rate = 0.2;
+    await until(() => player.rates.last == 0.8);
+    expect(provider.requestedRates, [0.25]);
+    await tts.pause();
+    tts.rate = 0.1;
+    await Future<void>.delayed(Duration.zero);
+    expect(player.rates.last, 0.8);
+    expect(player.resumes, 0);
+    await tts.resume();
+    expect(player.rates.last, 0.4);
+    player.completed.add(null);
+    await reading;
+    tts.rate = 0.3;
+    await tts.speakWithVoice('恢复合成速度', 'test-voice');
+    expect(provider.requestedRates, [0.25, 0.3]);
+    expect(player.playedRates.last, 1);
+  });
 
   test('Edge live 3x to 4x preserves audio and lower speed resets acceleration',
       () async {

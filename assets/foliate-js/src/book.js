@@ -2037,7 +2037,7 @@ window.restoreSyncedReadingPosition = async (cfi, preserveInitialPdfPanel = fals
   window.readerApplyingSync = true
   try {
     const resolved = await reader.view.goTo(cfi, { recordHistory: false })
-    return resolved != null
+    return resolved !== false && resolved != null
   } finally {
     window.readerApplyingSync = false
   }

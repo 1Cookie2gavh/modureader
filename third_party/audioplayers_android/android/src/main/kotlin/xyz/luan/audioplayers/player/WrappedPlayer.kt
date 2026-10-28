@@ -73,6 +73,17 @@ class WrappedPlayer internal constructor(
             }
         }
 
+    var pitch = 1.0f
+        set(value) {
+            require(value.isFinite() && value in 0.5f..2.0f) { "pitch must be between 0.5 and 2.0" }
+            require(playerMode == MEDIA_PLAYER) { "Independent pitch requires MEDIA_PLAYER mode" }
+            if (field != value) {
+                field = value
+                // PlaybackParams can start a paused player; apply on resume instead.
+                if (playing && prepared) player?.setRate(rate)
+            }
+        }
+
     var releaseMode = ReleaseMode.RELEASE
         set(value) {
             if (field != value) {

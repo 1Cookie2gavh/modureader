@@ -587,6 +587,9 @@ export class Paginator extends HTMLElement {
   #mediaQueryListener
   #ignoreNativeScroll = false
   #pendingScrollFrame = null
+  #scrollRelocateTimer = null
+  #lastScrollRelocate = -Infinity
+  #harmonyScroll = /OpenHarmony|HarmonyOS/i.test(navigator.userAgent)
   #lineSettleTimer = null
   #scrollPointerDown = false
   #lastScrollTop = 0
@@ -755,6 +758,9 @@ export class Paginator extends HTMLElement {
         this.#afterScroll('scroll')
         if (this.scrolled) this.#handleScrollBoundaries()
       })
+    })
+    this.#container.addEventListener('scrollend', () => {
+      if (this.#scrollRelocateTimer != null) this.#afterScroll('scroll', true)
     })
 
     const opts = { passive: false }
@@ -1023,7 +1029,6 @@ export class Paginator extends HTMLElement {
           if (!this.#preparingView && !this.#destroyed) this.scrollToAnchor(this.#anchor)
         }
         this.#view.render(this.#beforeRender(this.#view.refreshDirection()))
-        this.scrollToAnchor(this.#anchor)
         return
       }
       for (const entry of this.#continuous.ordered)
@@ -1032,8 +1037,8 @@ export class Paginator extends HTMLElement {
       return
     }
     if (!this.#view || this.#preparingView || this.#destroyed) return
+    // View expansion restores the anchor after applying the final geometry.
     this.#view.render(this.#beforeRender(this.#view.refreshDirection()))
-    this.scrollToAnchor(this.#anchor)
   }
   get scrolled() {
     return this.getAttribute('flow') === 'scrolled'
@@ -1552,10 +1557,30 @@ export class Paginator extends HTMLElement {
     return getVisibleRange(this.#view.document,
       this.start - size, this.end - size, this.#getRectMapper())
   }
-  #afterScroll(reason) {
+  #afterScroll(reason, flush = false) {
+    if (reason !== 'scroll' || flush) {
+      clearTimeout(this.#scrollRelocateTimer)
+      this.#scrollRelocateTimer = null
+    }
     if (this.#preparingView || this.#destroyed || !this.#view) return
+    if (reason === 'scroll' && this.#ignoreNativeScroll) return
+    if (reason === 'scroll') this.#continuous?.track()
+    // Keep chapter warming responsive; avoid per-frame text/CFI scans and Flutter rebuilds on ArkWeb.
+    if (reason === 'scroll' && this.scrolled && this.#harmonyScroll && !flush) {
+      const delay = 100 - (performance.now() - this.#lastScrollRelocate)
+      if (delay > 0) {
+        if (this.#scrollRelocateTimer == null)
+          this.#scrollRelocateTimer = setTimeout(() => {
+            this.#scrollRelocateTimer = null
+            this.#afterScroll('scroll')
+          }, delay)
+        return
+      }
+    }
+    clearTimeout(this.#scrollRelocateTimer)
+    this.#scrollRelocateTimer = null
+    this.#lastScrollRelocate = performance.now()
     if (this.#continuous) {
-      if (reason === 'scroll') this.#continuous.track()
       const entry = this.#continuous.current
       if (!entry) return
       const start = this.#container.scrollTop - this.#continuous.top(entry)
@@ -2045,14 +2070,16 @@ export class Paginator extends HTMLElement {
       return
     }
     if (this.#continuous) {
+      let changed = false
       for (const entry of this.#continuous.entries.values()) {
         const view = entry.view
         if (!this.#styleDocument(view.document)) continue
+        changed = true
         waitForReaderFonts(view.document).then(ready => {
           if (ready && this.#continuous?.entries.get(entry.index)?.view === view) view.expand()
         })
       }
-      this.render()
+      if (changed) this.render()
       return
     }
     const $$styles = this.#styleMap.get(this.#view?.document)
@@ -2086,6 +2113,8 @@ export class Paginator extends HTMLElement {
   get isNavigating() { return this.#locked }
   destroy() {
     this.#destroyed = true
+    clearTimeout(this.#scrollRelocateTimer)
+    this.#scrollRelocateTimer = null
     clearTimeout(this.#lineSettleTimer)
     for (const view of this.#pendingViews) view.cancelLoad()
     this.#unlockNavigation()

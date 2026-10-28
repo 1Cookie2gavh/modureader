@@ -43,7 +43,7 @@ class MediaPlayerWrapper(
 
     override fun setRate(rate: Float) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            mediaPlayer.playbackParams = mediaPlayer.playbackParams.setSpeed(rate)
+            mediaPlayer.playbackParams = mediaPlayer.playbackParams.setSpeed(rate).setPitch(wrappedPlayer.pitch)
         } else if (rate == 1.0f) {
             mediaPlayer.start()
         } else {

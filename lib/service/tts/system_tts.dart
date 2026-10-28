@@ -88,6 +88,9 @@ class SystemTts extends BaseTts {
 
   @override
   set pitch(double pitch) {
+    if (!pitch.isFinite || pitch < 0.5 || pitch > 2 || pitch == this.pitch) {
+      return;
+    }
     Prefs().ttsPitch = pitch;
     restart();
   }
@@ -97,6 +100,7 @@ class SystemTts extends BaseTts {
 
   @override
   set rate(double rate) {
+    if (!rate.isFinite || rate < 0.1 || rate > 4 || rate == this.rate) return;
     Prefs().ttsRate = rate;
     restart();
   }

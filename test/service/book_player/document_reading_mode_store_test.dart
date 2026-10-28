@@ -9,6 +9,30 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('force OCR defaults off, persists per book and keeps classification',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    final store = DocumentReadingModeStore(prefs);
+    final pdf = Book.mock().copyWith(filePath: 'a.pdf', md5: 'a');
+    final scanned = Book.mock().copyWith(id: 2, filePath: 'b.epub', md5: 'b');
+    expect(store.forceOcr(pdf), isFalse);
+    expect(store.forceOcr(scanned), isFalse);
+    await store.save(scanned, 'image-epub');
+    await store.setForceOcr(pdf, true);
+    final reopened = DocumentReadingModeStore(prefs);
+    expect(reopened.forceOcr(pdf), isTrue);
+    expect(reopened.forceOcr(scanned), isFalse);
+    expect(reopened.read(pdf), DocumentReadingMode.pdf);
+    await store.setForceOcr(scanned, true);
+    await store.save(scanned, 'image-epub');
+    expect(reopened.read(scanned), DocumentReadingMode.imageEpub);
+    expect(reopened.forceOcr(scanned), isTrue);
+    await store.setForceOcr(pdf, false);
+    expect(reopened.forceOcr(pdf), isFalse);
+    expect(reopened.forceOcr(scanned), isTrue);
+    expect(reopened.forceOcr(scanned.copyWith(md5: 'replaced')), isFalse);
+  });
+
   test('import result survives restart and reads make no preference changes',
       () async {
     final prefs = await SharedPreferences.getInstance();

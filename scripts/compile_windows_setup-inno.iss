@@ -24,6 +24,7 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
+ChangesAssociations=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
@@ -84,6 +85,18 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}";
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
+; Offer Modu in Open with; never overwrite the user's chosen default app.
+Root: HKCU; Subkey: "Software\Classes\Modu.Book"; ValueType: string; ValueData: "Modu Book"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Modu.Book\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.epub\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.mobi\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.azw3\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.fb2\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.txt\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.md\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.markdown\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.umd\OpenWithProgids"; ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\modu"; ValueType: string; ValueData: "URL:Modu Reading Link"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\modu"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\modu\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""

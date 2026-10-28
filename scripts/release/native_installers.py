@@ -132,6 +132,10 @@ def build_dmg(bundle, arch, version, output, work):
 def windows_script(bundle, arch, version, output):
     validate_version(version)
     arch_rule = {'x64': 'x64os', 'arm64': 'arm64'}[arch]
+    book_associations = '\n'.join(
+        f'Root: HKCU; Subkey: "Software\\Classes\\.{ext}\\OpenWithProgids"; '
+        'ValueType: none; ValueName: "Modu.Book"; Flags: uninsdeletevalue'
+        for ext in ('epub', 'mobi', 'azw3', 'fb2', 'txt', 'pdf', 'md', 'markdown', 'umd'))
     # Inno's installer engine architecture is separate from the native payload.
     # The OS restriction prevents installing x64 app files on an ARM64 system.
     return f'''[Setup]
@@ -157,6 +161,7 @@ LicenseFile={bundle}\\LICENSE
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
+ChangesAssociations=yes
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Files]
@@ -165,6 +170,9 @@ Source: "{bundle}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs c
 Name: "{{group}}\\Modu"; Filename: "{{app}}\\modu.exe"; WorkingDir: "{{app}}"
 Name: "{{userdesktop}}\\Modu"; Filename: "{{app}}\\modu.exe"; WorkingDir: "{{app}}"; Tasks: desktopicon
 [Registry]
+{book_associations}
+Root: HKCU; Subkey: "Software\\Classes\\Modu.Book"; ValueType: string; ValueData: "Modu Book"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\\Classes\\Modu.Book\\shell\\open\\command"; ValueType: string; ValueData: """{{app}}\\modu.exe"" ""%1"""
 Root: HKCU; Subkey: "Software\\Classes\\modu"; ValueType: string; ValueData: "URL:Modu Reading Link"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\\Classes\\modu"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
 Root: HKCU; Subkey: "Software\\Classes\\modu\\shell\\open\\command"; ValueType: string; ValueData: """{{app}}\\modu.exe"" ""%1"""
@@ -278,9 +286,23 @@ def build_deb(bundle, arch, version, output, work, build_number=None):
     desktop.mkdir(parents=True)
     (desktop / 'modureader.desktop').write_text(
         '[Desktop Entry]\nType=Application\nName=Modu Reader\nName[zh_CN]=默读\n'
-        'Comment=Read ebooks with AI tools\nExec=modureader %u\nIcon=modureader\n'
-        'MimeType=x-scheme-handler/modu;\n'
+        'Comment=Read ebooks with AI tools\nExec=modureader %U\nIcon=modureader\n'
+        'MimeType=x-scheme-handler/modu;application/pdf;application/epub+zip;'
+        'application/x-mobipocket-ebook;application/vnd.amazon.ebook;'
+        'application/x-fictionbook+xml;text/plain;text/markdown;application/x-umd;\n'
         'Terminal=false\nCategories=Office;Viewer;\nStartupWMClass=com.modu.reader\n', encoding='utf-8')
+    mime = root / 'usr/share/mime/packages'
+    mime.mkdir(parents=True)
+    (mime / 'modureader.xml').write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">'
+        + ''.join(f'<mime-type type="{kind}"><glob pattern="*.{ext}"/></mime-type>'
+                  for ext, kind in {
+                      'epub': 'application/epub+zip', 'pdf': 'application/pdf',
+                      'mobi': 'application/x-mobipocket-ebook', 'azw3': 'application/vnd.amazon.ebook',
+                      'fb2': 'application/x-fictionbook+xml', 'txt': 'text/plain',
+                      'md': 'text/markdown', 'markdown': 'text/markdown', 'umd': 'application/x-umd',
+                  }.items()) + '</mime-info>\n', encoding='utf-8')
     icons = root / 'usr/share/pixmaps'
     icons.mkdir(parents=True)
     shutil.copy2(app / 'data/flutter_assets/assets/icon/modu-app-icon.png', icons / 'modureader.png')

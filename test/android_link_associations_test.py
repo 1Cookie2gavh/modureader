@@ -36,8 +36,13 @@ class AndroidLinkAssociationsTest(unittest.TestCase):
             self.assertEqual(schemes, {'file', 'content'})
             self.assertNotIn('android.intent.category.BROWSABLE',
                              {c.get(ANDROID + 'name') for c in f.findall('category')})
-            self.assertTrue(any(d.get(ANDROID + 'mimeType') == '*/*'
-                                for d in f.findall('data')))
+            mime_types = {d.get(ANDROID + 'mimeType') for d in f.findall('data')
+                          if d.get(ANDROID + 'mimeType')}
+            self.assertIn(mime_types, ({'*/*'}, set()))
+        local_views = [f for f in views if any(d.get(ANDROID + 'scheme') == 'content'
+                                             for d in f.findall('data'))]
+        self.assertTrue(any(not any(d.get(ANDROID + 'mimeType') for d in f.findall('data'))
+                            for f in local_views))
 
     def test_explicit_single_and_multiple_file_sharing_remains(self):
         for action in ('SEND', 'SEND_MULTIPLE'):

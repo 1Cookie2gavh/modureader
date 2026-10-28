@@ -38,6 +38,26 @@ void main() {
         .setMockMethodCallHandler(const MethodChannel('flutter_tts'), null);
   });
 
+  test('speed range reaches native engine and invalid values keep the setting',
+      () async {
+    for (final speed in [0.1, 0.8, 2.1, 3.9, 4.0]) {
+      tts.rate = speed;
+      calls.clear();
+      await tts.speakWithVoice('倍速测试', '');
+      expect(
+          calls.firstWhere((call) => call.method == 'setSpeechRate').arguments,
+          speed);
+      expect(Prefs().ttsRate, speed);
+    }
+    calls.clear();
+    for (final speed in [4.0, 0.0, 0.09, 4.1, double.nan, double.infinity]) {
+      tts.rate = speed;
+    }
+    await Future<void>.delayed(Duration.zero);
+    expect(Prefs().ttsRate, 4.0);
+    expect(calls, isEmpty);
+  });
+
   test('fresh install speaks using native default without selecting a voice',
       () async {
     await tts.speak(content: '默认声线测试');

@@ -1,3 +1,5 @@
+import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
+import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
 import 'package:anx_reader/dao/book.dart';
@@ -26,6 +28,11 @@ Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
   _pickingBooks = true;
   final mobileFolder = folder && (Platform.isAndroid || Platform.isIOS);
   try {
+    if (droppedPaths != null) {
+      final entries = await discoverBookImportFiles(droppedPaths);
+      externalBookInbox.add(entries.map((entry) => entry.id));
+      return;
+    }
     if (inPlace && !Platform.isIOS) return;
     List<BookImportEntry>? entries;
     if (inPlace) {
@@ -33,9 +40,6 @@ Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
           context,
           () => MobileBookFolder.pick(
               files: !folder, extensions: IosLinkedBooks.extensions));
-    } else if (droppedPaths != null) {
-      entries = await _withImportProgress(
-          context, () => discoverBookImportFiles(droppedPaths));
     } else if (mobileFolder) {
       entries = await _withImportProgress(context, MobileBookFolder.pick);
     } else if (folder) {
@@ -143,7 +147,11 @@ Future<void> pickBooksForImport(BuildContext context, WidgetRef ref,
       return;
     }
     importBookList(files, context, ref);
-  } catch (_) {
+  } catch (error, stack) {
+    if (droppedPaths != null) {
+      AnxLog.severe('Dropped book import failed: $error\n$stack');
+      return;
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(ModuStrings.text(
@@ -277,7 +285,7 @@ class _BookImportSelectionState extends State<BookImportSelection> {
 }
 
 /// Used by the reader as well as the bookshelf; directory drops use the same
-/// selection and staging pipeline as the folder picker.
+/// safe staging pipeline, without picker confirmations or result dialogs.
 class BookImportDropTarget extends ConsumerWidget {
   const BookImportDropTarget({super.key, required this.child});
   final Widget child;

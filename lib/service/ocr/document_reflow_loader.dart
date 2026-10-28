@@ -44,7 +44,9 @@ Future<DocumentReflowPage> loadDocumentReflowPage({
           ? await store.read(page, '')
           : await store.readAnchor(anchor);
   cancel.check();
-  if (cached != null) return cached;
+  if (cached != null && (anchor != null || !forceOcr || cached.ocr)) {
+    return cached;
+  }
   final rawRegion =
       info['region'] ?? const {'x': 0.0, 'y': 0.0, 'width': 1.0, 'height': 1.0};
   final region = rawRegion is Map
@@ -86,7 +88,8 @@ Future<DocumentReflowPage> loadDocumentReflowPage({
   }
   final value = DocumentReflowPage(
       page: page, ocr: ocr, rawText: result.text, rawRegions: result.regions);
-  await store.save(value, '', onlyIfAbsent: !refresh);
+  await store.save(value, '',
+      onlyIfAbsent: !refresh, replaceEmbeddedText: forceOcr);
   cancel.check();
   return refresh ? value : (await store.read(page, '') ?? value);
 }

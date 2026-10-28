@@ -77,6 +77,41 @@ Future<List<File>> stageBookImportFiles(
   }
 }
 
+/// Drag-and-drop imports need no confirmation/result UI. Stage one book at a
+/// time so one unreadable or invalid book does not abort the remaining files.
+Future<int> importBookEntriesQuietly(
+  List<BookImportEntry> entries,
+  Directory temp, {
+  required Future<bool> Function(File) isDuplicate,
+  required Future<void> Function(File) importFile,
+  required void Function(BookImportEntry, Object, StackTrace) onError,
+}) async {
+  var imported = 0;
+  for (final entry in entries) {
+    if (!isSupportedBookFile(entry.name)) continue;
+    Directory? session;
+    try {
+      final files = await stageBookImportFiles([entry], temp);
+      final file = files.single;
+      session = file.parent.parent;
+      if (await isDuplicate(file)) continue;
+      await importFile(file);
+      imported++;
+    } catch (error, stack) {
+      onError(entry, error, stack);
+    } finally {
+      if (session != null) {
+        try {
+          if (await session.exists()) await session.delete(recursive: true);
+        } catch (error, stack) {
+          onError(entry, error, stack);
+        }
+      }
+    }
+  }
+  return imported;
+}
+
 /// Mobile document providers require scoped URI access, not filesystem paths.
 class MobileBookFolder {
   static const channel = MethodChannel('com.modu.reader/book_folder');

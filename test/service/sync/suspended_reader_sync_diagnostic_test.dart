@@ -214,6 +214,46 @@ void main() {
         expect((await session.refresh()).position, 'chapter-8');
       });
 
+      for (final speechState in ['playing', 'paused', 'stopped']) {
+        test(
+            'idle open reader adopts remote 40% and $speechState speech cursor',
+            () async {
+          const oldCfi = 'epubcfi(/6/2!/4/2:0)';
+          const newCfi = 'epubcfi(/6/4!/4/2:10)';
+          await einkBooks.updateReadingPosition(1, oldCfi, .2,
+              narration: const NarrationPosition(oldCfi, 'paused'));
+          await einkSync.synchronize();
+          await desktopSync.synchronize();
+          final session = ReaderProgressSession(einkBooks, 1);
+          await session.refresh();
+          final oldGeneration = session.generation;
+          await desktopBooks.updateReadingPosition(77, newCfi, .4,
+              narration: NarrationPosition(newCfi, speechState));
+          await desktopSync.synchronize();
+          await einkSync.synchronize();
+          final downloaded = await position(eink);
+
+          // A paused local session must not request live speech protection.
+          final latest = await session.refresh(preservePosition: () => false);
+          expect(latest.position, newCfi);
+          expect(latest.percentage, .4);
+          expect(latest.narration?.cfi, newCfi);
+          expect(latest.narration?.state, speechState);
+          expect(await session.record(oldCfi, .2, generation: oldGeneration),
+              false);
+          expect(
+              await session.recordNarration(
+                  const NarrationPosition(oldCfi, 'paused'),
+                  generation: oldGeneration),
+              false);
+          await session.flush();
+          expect((await position(eink)).revision, downloaded.revision);
+          await einkSync.synchronize();
+          await desktopSync.synchronize();
+          expect((await desktopBooks.readReadingPosition(77)).position, newCfi);
+        });
+      }
+
       test(
           'queued stale actions fail after conflict, fresh backward action succeeds',
           () async {

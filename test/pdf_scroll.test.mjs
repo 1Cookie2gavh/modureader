@@ -7,6 +7,9 @@ const dom=new JSDOM('<body></body>',{pretendToBeVisual:true});globalThis.documen
 const uri=code=>`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const source=name=>readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url),'utf8');
 const geometry=uri(await source('document-regions'));
+const {regionRenderPlan}=await import(uri((await source('pdf-region-renderer'))
+    .replace("'./document-regions.js'",JSON.stringify(geometry))
+    .replace("'./document-image-processing.js'",JSON.stringify(uri(await source('document-image-processing'))))));
 const viewport=uri((await source('pdf-reading-viewport')).replace("'./document-regions.js'",JSON.stringify(geometry))
     .replace("'./document-reading-options.js'", JSON.stringify(uri(await source('document-reading-options'))))
     .replace("'./document-image-processing.js'",JSON.stringify(uri(await source('document-image-processing')))));
@@ -250,6 +253,63 @@ function nativePdf(h) {
     }};
     return {rendered,frames};
 }
+test('desktop and mobile display densities prepare sharp pages before display without idle sharpening',async()=>{
+    const oldDpr=globalThis.devicePixelRatio;
+    try {
+        for(const [userAgent,width,dpr,memory] of [
+            ['Windows NT 10.0',1920,1,8],['Windows NT 10.0',1536,1.25,8],['Windows NT 10.0',1280,1.5,8],
+            ['Macintosh',1200,2,8],['iPad',1024,2,4],['iPhone',440,3,4],
+            ['Android',412,3.5,4],['OpenHarmony',450,3,4],['Linux',1440,1.25,8],
+        ]) {
+            const h=harness();nativePdf(h);h.bounds.width=width;globalThis.devicePixelRatio=dpr;
+            h.flow.budget=new PdfRenderBudget({userAgent,hardwareConcurrency:8,deviceMemory:memory});
+            const page={getViewport:({scale,rotation=0})=>({width:600*scale,height:800*scale,scale,rotation})};
+            let details=0;
+            h.book.scrollRegionRenderer.render=async request=>({blob:new Blob(['sharp']),...regionRenderPlan(page,request,true)});
+            h.book.readingRegionRenderer.render=async()=>{details++;throw Error('unnecessary refinement')};
+            try {
+                await h.flow.open(10,0);h.flow.activate();await h.flow.ensureNeighbors();
+                for(const e of h.flow.entries) {
+                    assert.ok(e.baseUrl,'backing image decoded before showing a page');
+                    assert.ok(e.baseRaster.width>=e.plan.width*dpr-2,userAgent);
+                }
+                await h.flow.refreshDetail();h.flow.pan(0,500);await h.flow.refreshDetail();
+                assert.equal(details,0,'normal reading never replaces a low-resolution base with a sharp overlay');
+                const bounded=()=>{
+                    assert.ok(h.flow.entries.length<=7);
+                    const pixels=h.flow.entries.reduce((sum,e)=>sum+e.baseRaster.width*e.baseRaster.height,0);
+                    assert.ok(pixels<=h.flow.budget.maxBasePixels);
+                };
+                for(let i=0;i<12;i++){h.flow.pan(0,2000);await h.flow.ensureNeighbors();bounded()}
+                const forward=h.flow.location.page;
+                for(let i=0;i<12;i++){h.flow.pan(0,-2000);await h.flow.ensureNeighbors();bounded()}
+                assert.ok(h.flow.location.page<forward);
+            }finally{h.close()}
+        }
+    }finally{globalThis.devicePixelRatio=oldDpr}
+    const pdf=await source('pdf');
+    assert.match(pdf,/book\.scrollRegionRenderer = createPdfRegionRenderer\(pdf, \{\s*highResolution: true,/);
+});
+
+test('screen-density backing pixels are bounded on all platforms, with a smaller constrained-device budget',()=>{
+    for(const userAgent of ['Windows NT 10.0','Android','OpenHarmony','iPhone','iPad','Macintosh','Linux']) {
+        assert.equal(new PdfRenderBudget({userAgent}).maxBasePixels,4*8388608);
+        assert.equal(new PdfRenderBudget({userAgent,deviceMemory:4,hardwareConcurrency:8}).maxBasePixels,3*8388608);
+        assert.equal(new PdfRenderBudget({userAgent,deviceMemory:8,hardwareConcurrency:4}).maxBasePixels,3*8388608);
+    }
+});
+test('short PDF pages still fill a tall mobile viewport under a constrained raster budget',async()=>{
+    const h=harness();nativePdf(h);h.bounds.width=390;h.bounds.height=844;
+    h.flow.budget=new PdfRenderBudget({userAgent:'Android',deviceMemory:4,hardwareConcurrency:8});
+    const create=h.flow.createFrame;
+    h.flow.createFrame=async(...args)=>({...await create(...args),height:200});
+    try {
+        await h.flow.open(0,0);h.flow.activate();await h.flow.ensureNeighbors();
+        const last=h.flow.entries.at(-1);
+        assert.ok(last.element.offsetTop+last.plan.height>=h.bounds.height,'short prepared pages fill the screen');
+        assert.ok(h.flow.entries.length<=7);
+    }finally{h.close()}
+});
 test('preprocessing depth uses measured time and conservative device limits',()=>{
     for(const device of [{},{deviceMemory:8,hardwareConcurrency:8}]) {
         const budget=new PdfRenderBudget(device);

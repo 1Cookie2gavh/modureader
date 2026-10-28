@@ -4,19 +4,21 @@ import app_links
 import UniformTypeIdentifiers
 
 // app_links 6 uses application callbacks; UIScene delivers URLs to the scene
-// instead. Bridge only reading URLs and leave share/file callbacks untouched.
+// instead. Route books to the import inbox, retaining their security scope.
 @objc class ModuSceneDelegate: FlutterSceneDelegate {
   override func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
                       options connectionOptions: UIScene.ConnectionOptions) {
     super.scene(scene, willConnectTo: session, options: connectionOptions)
+    ExternalBookFiles.shared.receive(connectionOptions.urlContexts.map { $0.url })
     for context in connectionOptions.urlContexts {
       receiveReadingURL(context.url)
     }
   }
 
   override func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    let otherContexts = Set(URLContexts.filter { !isReadingURL($0.url) })
+    let otherContexts = Set(URLContexts.filter { !isReadingURL($0.url) && !$0.url.isFileURL })
     if !otherContexts.isEmpty { super.scene(scene, openURLContexts: otherContexts) }
+    ExternalBookFiles.shared.receive(URLContexts.map { $0.url })
     for context in URLContexts { receiveReadingURL(context.url) }
   }
 
@@ -35,11 +37,29 @@ import UniformTypeIdentifiers
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    if let url = launchOptions?[.url] as? URL, url.isFileURL {
+      ExternalBookFiles.shared.receive([url])
+      var otherOptions = launchOptions
+      otherOptions?.removeValue(forKey: .url)
+      return super.application(application, didFinishLaunchingWithOptions: otherOptions)
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(_ app: UIApplication, open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+    if url.isFileURL {
+      ExternalBookFiles.shared.receive([url])
+      return true
+    }
+    return super.application(app, open: url, options: options)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ExternalBookFiles") {
+      ExternalBookFiles.shared.register(registrar.messenger())
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ReaderVolumeKeysPlugin") {
       ReaderVolumeKeysPlugin.register(with: registrar)
     }
@@ -275,6 +295,72 @@ final class BookFolderPlugin: NSObject, FlutterPlugin, UIDocumentPickerDelegate 
     } catch {
       if accessed { releaseScope(scope) }
       throw error
+    }
+  }
+}
+
+/// Copy while the OS-granted scope is alive; Flutter only receives private files.
+final class ExternalBookFiles {
+  static let shared = ExternalBookFiles()
+  private var channel: FlutterMethodChannel?
+  private var ready = false
+  private var pending = [String]()
+  private var failed = false
+  private let worker = DispatchQueue(label: "com.modu.reader.external-files")
+  private let extensions: Set<String> = ["epub", "mobi", "azw3", "fb2", "txt", "pdf", "md", "markdown", "umd"]
+
+  func register(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "com.modu.reader/external_files", binaryMessenger: messenger)
+    self.channel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self, call.method == "ready" else {
+        result(FlutterMethodNotImplemented); return
+      }
+      self.ready = true
+      result(self.pending)
+      self.pending.removeAll()
+      if self.failed {
+        self.failed = false
+        channel.invokeMethod("error", arguments: "Unable to read the shared document. Check file access and retry.")
+      }
+    }
+  }
+
+  func receive(_ urls: [URL]) {
+    for url in Set(urls) where url.isFileURL && extensions.contains(url.pathExtension.lowercased()) {
+      let scoped = url.startAccessingSecurityScopedResource()
+      worker.async {
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("modu-open-\(UUID().uuidString)")
+        do {
+          try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+          let target = folder.appendingPathComponent(url.lastPathComponent)
+          var coordinationError: NSError?
+          var copyError: Error?
+          NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { source in
+            do {
+              guard try source.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+                throw CocoaError(.fileReadUnsupportedScheme)
+              }
+              try FileManager.default.copyItem(at: source, to: target)
+            } catch { copyError = error }
+          }
+          if let error = coordinationError { throw error }
+          if let error = copyError { throw error }
+          guard FileManager.default.fileExists(atPath: target.path) else { throw CocoaError(.fileReadUnknown) }
+          DispatchQueue.main.async {
+            if self.ready { self.channel?.invokeMethod("files", arguments: [target.path]) }
+            else { self.pending.append(target.path) }
+          }
+        } catch {
+          try? FileManager.default.removeItem(at: folder)
+          DispatchQueue.main.async {
+            if self.ready {
+              self.channel?.invokeMethod("error", arguments: "Unable to read the shared document. Check file access and retry.")
+            } else { self.failed = true }
+          }
+        }
+      }
     }
   }
 }

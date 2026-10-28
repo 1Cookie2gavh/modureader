@@ -1,3 +1,4 @@
+import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
 import 'dart:async';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -112,9 +113,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     if (!mounted) return;
 
-    if (AnxPlatform.isAndroid || AnxPlatform.isIOS || AnxPlatform.isOhos) {
-      receiveShareIntent(ref);
-    }
+    receiveExternalBooks(ref);
 
     if (DBHelper.updatedDB) {
       _showDbUpdatedDialog();
@@ -124,6 +123,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void dispose() {
     readingLinkInbox.detach();
+    externalBookInbox.detach();
     super.dispose();
   }
 

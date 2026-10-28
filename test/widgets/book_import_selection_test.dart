@@ -1,9 +1,46 @@
+import 'dart:io';
+import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:anx_reader/service/book_import_source.dart';
 import 'package:anx_reader/widgets/bookshelf/book_import_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+      'dropping a folder queues books without any confirmation or result dialog',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('modu-drop-ui-');
+    addTearDown(() {
+      externalBookInbox.detach();
+      root.deleteSync(recursive: true);
+    });
+    File('${root.path}/one.epub').writeAsStringSync('one');
+    Directory('${root.path}/nested').createSync();
+    File('${root.path}/nested/two.pdf').writeAsStringSync('two');
+    final received = <String>[];
+    externalBookInbox.attach((paths) async {
+      received.addAll(paths);
+    });
+    late BuildContext dropContext;
+    late WidgetRef dropRef;
+    await tester.pumpWidget(ProviderScope(child: MaterialApp(home: Consumer(
+      builder: (context, ref, _) {
+        dropContext = context;
+        dropRef = ref;
+        return const Scaffold(body: Text('shelf'));
+      },
+    ))));
+    await tester.runAsync(() =>
+        pickBooksForImport(dropContext, dropRef, droppedPaths: [root.path]));
+    await tester.pumpAndSettle();
+    expect(received, hasLength(2));
+    expect(find.byType(BookImportSelection), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('in-place notice and selection fit a small phone',
       (tester) async {
     tester.view.physicalSize = const Size(320, 568);

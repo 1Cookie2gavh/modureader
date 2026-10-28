@@ -1,8 +1,24 @@
-# Modu 1.3.4 beta1
+# Modu 1.3.4
 
-Build / 构建：**10164** · Prerelease / 预发布版
+Build / 构建：**10165** · Stable / 正式版
 
 ### English
+
+- Feat(tts): Use compact minus/value/plus controls for pitch (0.5–2.0×) and speed (0.1–4.0×), with direct input and 0.1 steps. Give each half the row, centering labels above their controls on narrow screens and beside them when space allows.
+
+- Fix(tts): Apply Xiaomi MiMo pitch through Android playback so individual levels affect buffered speech without resynthesis; retain pitch and speed across pause, resume and segment changes. Other platforms send distinct pitch instructions where supported.
+
+- Perf(reader): Batch adjacent generated text-run measurements, remove duplicate position refreshes after layout and skip unchanged continuous-reading styles; preserve text, selection and navigation behavior.
+
+- Perf(harmony): Coalesce continuous-scroll position measurements while keeping chapter preloading responsive and flushing the final position.
+
+- Fix(sync): Restore newer synchronized reading and narration positions when resuming a paused reader; preserve active narration and retry deferred background jumps.
+
+- Feat(bookshelf): Support opening supported books from system file associations and import dropped books without repeated confirmation dialogs, preserving originals and isolating per-file failures.
+
+- Fix(ocr): Remember forced OCR per book and replace embedded-text cache results when OCR is requested, preserving saved revisions and note anchors.
+
+- Fix(pdf): Improve continuous-reading backing-image clarity while bounding decoded pixels and retaining visible or selected pages.
 
 - Feat(reader): Add an optional move-and-resize switch for selection-tool popups, visible only in popup display mode and off by default. Drag the top to move, or the sides, bottom and corners to resize; every opening restores the default position and size.
 
@@ -21,6 +37,22 @@ Build / 构建：**10164** · Prerelease / 预发布版
 - Ci(tests): Align folder-menu fixtures with synchronized group membership so full regression covers folder selection and reader-return transitions.
 
 ### 简体中文
+
+- Feat(tts): 音调与语速改为紧凑的减号／数值／加号控件，分别支持 0.5～2.0 和 0.1～4.0 倍、每次 0.1 及手动输入；两组各占一半，窄屏时名称居中置于对应控件上方，宽屏时名称与控件同行。
+
+- Fix(tts): 安卓端通过本地播放调整小米 MiMo 音调，使不同档位作用于已缓冲语音，无需重新合成；暂停、继续与切段保留音调和语速。其他平台在服务支持时发送不同档位的音高指令。
+
+- Perf(reader): 合并相邻生成文字片段的测量，减少排版后的重复位置刷新，跳过连续阅读中未变化的样式；保留正文、选择及导航功能。
+
+- Perf(harmony): 合并连续滚动中的位置测量，保持章节预加载响应并及时保存最终位置。
+
+- Fix(sync): 暂停的阅读器返回前台时恢复较新的同步阅读及朗读位置；保留正在播放的朗读，重试后台延迟的跳转。
+
+- Feat(bookshelf): 支持从系统文件关联打开可导入的书籍，拖入书籍时减少重复确认，保留原文件并隔离单文件导入失败。
+
+- Fix(ocr): 按书保存强制 OCR 设置，要求 OCR 时替换原文字层缓存，同时保留历史修订及笔记锚点。
+
+- Fix(pdf): 提高连续阅读底图清晰度，同时限制解码总像素，保留可见或已选中的页面。
 
 - Feat(reader): 划词功能弹窗新增可选的移动与缩放开关，仅在选择弹出显示时出现，默认关闭；拖动顶部移动，拖动两侧、底边或四角调整大小，每次打开恢复预设位置和大小。
 
@@ -44,4 +76,4 @@ Android ARM64 · iOS ARM64 · macOS / Windows / Linux ARM64 & x64 · HarmonyOS A
 
 iOS IPA and HarmonyOS HAP require your own signing. macOS uses ad-hoc signing without notarization; Windows has no commercial Authenticode signature. / iOS IPA 与鸿蒙 HAP 需自行签名；macOS 为临时签名、未公证，Windows 无商业 Authenticode 签名。
 
-[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.4-beta.1) · [Installation / 安装说明](https://github.com/sobranie2406/modureader/blob/v1.3.4-beta.1/docs/RELEASING.md) · [License](https://github.com/sobranie2406/modureader/blob/v1.3.4-beta.1/LICENSE) · [Notice](https://github.com/sobranie2406/modureader/blob/v1.3.4-beta.1/NOTICE)
+[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.4) · [Installation / 安装说明](https://github.com/sobranie2406/modureader/blob/v1.3.4/docs/RELEASING.md) · [License](https://github.com/sobranie2406/modureader/blob/v1.3.4/LICENSE) · [Notice](https://github.com/sobranie2406/modureader/blob/v1.3.4/NOTICE)

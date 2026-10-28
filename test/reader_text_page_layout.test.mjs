@@ -219,22 +219,25 @@ test('transformed publisher content retains post-alignment extent measurement', 
   }
 });
 
-test('line fitting skips generated inline style reads without skipping glyph measurements', () => {
+test('line fitting batches reader runs without skipping glyphs or reading generated styles', () => {
   const {doc, dom} = fixture();
   const {runs} = preparePageRuns(doc);
   const computed = dom.window.getComputedStyle.bind(dom.window);
   let generatedReads = 0, glyphReads = 0;
+  const measured = [];
   dom.window.getComputedStyle = el => {
     if (el.__moduPageRun) generatedReads++;
     return computed(el);
   };
-  dom.window.Range.prototype.getClientRects = () => {
+  dom.window.Range.prototype.getClientRects = function() {
     glyphReads++;
+    measured.push(this.toString());
     return [{width: 20, height: 28}];
   };
   fitTextLineSpacing(doc, 759);
   assert.equal(generatedReads, 0);
-  assert.equal(glyphReads, runs.length);
+  assert.equal(glyphReads, doc.querySelectorAll('p').length);
+  assert.equal(measured.join(''), runs.map(run => run.textContent).join(''));
   for (const p of doc.querySelectorAll('p')) assert.ok(parseFloat(p.style.lineHeight) >= 30);
   dom.window.close();
 });
@@ -621,4 +624,23 @@ test('prepare before display, never reflow after a page turn; settle changes onl
   assert.ok(render >= 0 && render < paginator.indexOf("this.#iframe.style.visibility = ''"));
   assert.match(paginator,/reason === 'page' && !this.#vertical/);
   assert.doesNotMatch(source,/requestAnimationFrame|setTimeout|innerHTML/);
+});
+
+test('line spacing measures adjacent reader runs together without losing tall glyphs or inline styles', () => {
+  const dom = new JSDOM('<style>html{--modu-align-pages:1}p{line-height:10px}span{display:inline}</style>' +
+    '<p>' + '普通文字 '.repeat(20) + '<span>高字</span>' + '正文 '.repeat(20) + '<sup>注</sup></p>');
+  const doc = dom.window.document;
+  preparePageRuns(doc);
+  let measurements = 0;
+  dom.window.Range.prototype.getClientRects = function() {
+    measurements++;
+    const text = this.cloneContents().textContent;
+    // Different glyph/font boxes within a range must still contribute their maximum.
+    return [{width:10,height:12}, {width:10,height:text.includes('高') ? 40 : 24}];
+  };
+  fitTextLineSpacing(doc);
+  assert.ok(parseFloat(doc.querySelector('p').style.lineHeight) >= 42);
+  assert.equal(measurements, 3, 'one contiguous run group before, inside and after the styled span');
+  assert.equal(doc.querySelector('sup').style.lineHeight, '', 'notes retain publisher metrics');
+  dom.window.close();
 });

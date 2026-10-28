@@ -153,6 +153,11 @@ class AudioplayersPlugin : FlutterPlugin {
                     player.rate = rate.toFloat()
                 }
 
+                "setPitch" -> {
+                    val pitch = call.argument<Double>("pitch") ?: error("pitch is required")
+                    player.pitch = pitch.toFloat()
+                }
+
                 "getDuration" -> {
                     response.success(player.getDuration())
                     return

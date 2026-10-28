@@ -598,7 +598,9 @@ export const makePDF = async file => {
     // Preview/editor requests must not cancel the visible reading surface.
     book.readingRegionRenderer = createPdfRegionRenderer(pdf)
     // Prepared scroll pages must not cancel the visible high-resolution strip.
-    book.scrollRegionRenderer = createPdfRegionRenderer(pdf)
+    book.scrollRegionRenderer = createPdfRegionRenderer(pdf, {
+        highResolution: true,
+    })
     book.cropRegionRenderer = createPdfRegionRenderer(pdf)
 
     const info = (await pdf.getMetadata())?.info

@@ -327,15 +327,17 @@ class DocumentReflowStore {
     }
   }
 
-  // Profiles are deliberately ignored: mode/model/crop changes never discard a user's saved page.
-  Future<Set<int>> cachedPages(int start, int count) => _locked((root) async {
+  // Forced OCR skips embedded-text heads; old revisions remain available to notes.
+  Future<Set<int>> cachedPages(int start, int count, {bool forceOcr = false}) =>
+      _locked((root) async {
         if (start < 0 || count < 0 || count > 5) {
           throw ArgumentError('Invalid prefetch window');
         }
         final data = await _book(root);
         return {
           for (var page = start; page < start + count; page++)
-            if (_page(data, page) != null) page
+            if (_page(data, page) case final saved? when !forceOcr || saved.ocr)
+              page
         };
       });
 
@@ -367,7 +369,7 @@ class DocumentReflowStore {
       });
 
   Future<void> save(DocumentReflowPage value, String profile,
-          {bool onlyIfAbsent = false}) =>
+          {bool onlyIfAbsent = false, bool replaceEmbeddedText = false}) =>
       _locked((root) async {
         if (bookKey.isEmpty ||
             value.text.trim().isEmpty ||
@@ -378,7 +380,12 @@ class DocumentReflowStore {
           throw const FormatException('Invalid reflow page');
         }
         final data = await _book(root);
-        if (onlyIfAbsent && _page(data, value.page) != null) return;
+        final existing = _page(data, value.page);
+        if (onlyIfAbsent &&
+            existing != null &&
+            !(replaceEmbeddedText && value.ocr && !existing.ocr)) {
+          return;
+        }
         _put(data, value, explicit: !onlyIfAbsent);
         await _write(root, data);
       });

@@ -4,7 +4,7 @@ import { PdfRenderBudget } from './pdf-render-budget.js'
 import './transient-scrollbar.js'
 import { attachPdfZoomInput } from './pdf-zoom-input.js'
 
-const GAP = 16, MAX_FRAMES = 7
+const GAP = 16, MAX_FRAMES = 7, MAX_BASE_PIXELS = 8388608
 
 // Sliding, bounded DOM window. Prepending/removing pages compensates scrollTop;
 // an iframe is inserted at its final position before its src is assigned.
@@ -153,7 +153,7 @@ export class PdfScrollReader {
             width: Math.max(1, (this.element.clientWidth || bounds.width) - 12),
             height: Math.max(1, bounds.height), crop: e.crop, view: this.view })
         const dpr = devicePixelRatio || 1
-        // The renderer caps the whole-panel backing image at 2MP, even at 15x zoom.
+        // Backing pixels stay bounded at 8MP even at high zoom; detail uses visible regions.
         const result = await (this.book.scrollRegionRenderer ?? this.book.readingRegionRenderer).render({
             page: e.index, region: e.crop, enhancement: this.view.enhancement,
             hideWatermarks: this.view.display?.hideWatermarks,
@@ -365,17 +365,22 @@ export class PdfScrollReader {
             { page, panel: direction > 0 ? 0 : readingRegions(this.layout, page).length - 1 }
     }
     trim(direction) {
-        if (this.entries.length < MAX_FRAMES) return true
-        const e = direction > 0 ? this.entries[0] : this.entries.at(-1)
-        if (e === this.current) return false
-        const top = this.element.scrollTop, bottom = top + this.bounds().height
-        if (e.element.offsetTop < bottom && e.element.offsetTop + e.plan.height > top) return false
-        if (e.iframe.contentDocument.getSelection()?.type === 'Range') return false
-        const oldTop = this.current?.element.getBoundingClientRect().top, current = this.current
-        this.entries.splice(this.entries.indexOf(e), 1)
-        this.dispose(e)
-        if (current && oldTop != null) this.programmaticScroll(this.element.scrollLeft,
-            this.element.scrollTop + current.element.getBoundingClientRect().top - oldTop)
+        // Reserve one maximum-sized incoming page; never evict visible/selected content.
+        const pixels = () => this.entries.reduce((sum, e) =>
+            sum + (e.baseRaster ? e.baseRaster.width * e.baseRaster.height : 0), 0)
+        while (this.entries.length >= MAX_FRAMES || pixels() + MAX_BASE_PIXELS > this.budget.maxBasePixels) {
+            const e = direction > 0 ? this.entries[0] : this.entries.at(-1)
+            if (!e) return false
+            if (e === this.current) return false
+            const top = this.element.scrollTop, bottom = top + this.bounds().height
+            if (e.element.offsetTop < bottom && e.element.offsetTop + e.plan.height > top) return false
+            if (e.iframe.contentDocument.getSelection()?.type === 'Range') return false
+            const oldTop = this.current?.element.getBoundingClientRect().top, current = this.current
+            this.entries.splice(this.entries.indexOf(e), 1)
+            this.dispose(e)
+            if (current && oldTop != null) this.programmaticScroll(this.element.scrollLeft,
+                this.element.scrollTop + current.element.getBoundingClientRect().top - oldTop)
+        }
         return true
     }
     async extend(direction) {

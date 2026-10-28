@@ -927,6 +927,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       unawaited(reader.setTtsBackground(state != AppLifecycleState.resumed));
       if (state == AppLifecycleState.resumed) {
         reader.resumeDocumentOcrCache();
+        // A background WebView may have deferred or failed the synced jump.
+        unawaited(reader.refreshReadingAfterSync(retryOnResume: true));
       } else {
         unawaited(reader.pauseDocumentOcrCache());
       }
@@ -1411,11 +1413,24 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     return configuredReadingSkillChips(Localizations.localeOf(context));
   }
 
+  Future<void> setDocumentForceOcr(bool enabled) async {
+    final player = epubPlayerKey.currentState;
+    if (player == null) return;
+    await reflowReader?.stopLoading();
+    await player.setDocumentForceOcr(enabled);
+    if (!mounted || epubPlayerKey.currentState != player) return;
+    if (isReflowReading) {
+      setState(() => _reflowOcr = enabled);
+      await reflowReader?.setMode(enabled);
+    }
+  }
+
   Future<void> openDocumentExtraction(
       {bool reflow = false, bool forceOcr = false}) async {
     final player = epubPlayerKey.currentState;
     if (player == null || !player.supportsDocumentImages) return;
     final bookKey = player.cssBookKey;
+    if (reflow) forceOcr = forceOcr || player.documentForceOcr;
     hideBottomBar();
     if (!reflow) {
       await player.pauseDocumentOcrCache();

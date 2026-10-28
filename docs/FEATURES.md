@@ -30,6 +30,8 @@ Text UMD imports preserve chapters, metadata and supported covers, converting to
 
 Use UTF-8 Markdown. The first level-one heading supplies the title; headings form a table of contents. Common formatting, tables, code and static content are supported. Base64 images can be embedded; adjacent image folders are not read automatically and network images are not downloaded. Use EPUB for complete packaged resources. Markdown files are limited to 64 MiB. See [Markdown books](MARKDOWN_BOOKS.md).
 
+System file associations can open supported books in Modu where available. Desktop drops import without repeated confirmation/result dialogs, preserve originals and skip duplicates; individual failures do not abort the remaining files.
+
 Source: [formats](../lib/service/book_formats.dart), [import picker](../lib/widgets/bookshelf/book_import_picker.dart), [bookshelf](../lib/page/home_page/bookshelf_page.dart), [remote library](../lib/service/remote_library/webdav_library.dart), [Markdown converter](../lib/service/convert_to_epub/markdown/convert_from_markdown.dart).
 
 ## 3. Text-book reading
@@ -70,6 +72,8 @@ PDFs use original-page controls. Import samples EPUB/MOBI/AZW3/FB2 content to cl
 | Text Reflow | Existing current-page text layer | Selectable text in the reader; not whole-book conversion |
 | OCR Reflow | Current-page image, local OCR | Uses the entire cropped page when crop is enabled, not just a panel or zoomed viewport |
 | Extract | User-selected region | Editable AI draft; does not send automatically |
+
+Force OCR is remembered per book. Enabling it replaces embedded-text cache results with recognition results while retaining saved revisions and note anchors.
 
 **Settings → OCR model** recommends PP-OCRv4 Chinese/English; v5 mobile, v3 Chinese/English and v3 English are also available. Download and verify size/SHA-256 first; choose upstream or Gitee. V5 uses ModelScope upstream, v3/v4 Hugging Face. Recognition runs locally without an OCR API key. Complex columns, small text and poor scans need checking.
 
@@ -144,7 +148,7 @@ Source: [models](../lib/service/knowledge/local_embedding_models.dart), [queue](
 
 Choose system speech, Edge TTS, DashScope, Xiaomi MiMo or OpenAI-compatible speech in **Read aloud**. Save endpoint edits before loading voices or previewing. System speech is connected for Android/iOS/macOS/Windows; Linux/OpenHarmony require explicitly selecting an online service.
 
-Reader controls include play/pause, return to narration and read from here. Online audio playback reaches 4×, with discrete 3×/4× above 2×; system/instruction rates are provider-dependent. Background speech and notification controls depend on OS permissions/power management. OpenAI-compatible/MiMo style prompts require provider support; MiMo text-designed voices are not voice cloning.
+Reader controls include play/pause, return to narration and read from here. Pitch (0.5–2.0×) and speed use equal-width compact controls with direct input and 0.1 steps; narrow screens put labels above. The speed control supports 0.1–4.0× in 0.1 steps and direct input; system/instruction rates are provider-dependent. Android MiMo pitch changes local playback without discarding buffered speech; other platforms depend on style-instruction support. Background speech and notification controls depend on OS permissions/power management. OpenAI-compatible/MiMo style prompts require provider support; MiMo text-designed voices are not voice cloning.
 
 **Online speech buffering and cache** exposes these choices:
 

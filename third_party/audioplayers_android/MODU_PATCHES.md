@@ -20,3 +20,9 @@ when upgrading or removing the override.
 The native player also applies the existing `stayAwake` setting during lazy
 creation. Previously only updateContext() applied it, so setting the context
 before the first source (the normal Dart path) never configured a wake lock.
+
+MiMo narration uses the existing channel's `setPitch` method (0.5–2.0) for
+independent local pitch. MediaPlayer receives speed and pitch together on every
+start/source transition. Changes made while paused are stored until resume,
+without re-synthesizing buffered passages or starting playback. Other providers
+retain their synthesis pitch controls. LOW_LATENCY mode rejects this method.

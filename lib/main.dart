@@ -1,3 +1,5 @@
+import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
+import 'package:anx_reader/service/receive_file/receive_share.dart';
 import 'dart:io';
 import 'package:anx_reader/service/feedback/runtime_diagnostics.dart';
 import 'package:anx_reader/service/ios_linked_books.dart';
@@ -62,12 +64,38 @@ final heroineController = HeroineController();
 bool _needsMigration = false;
 MigrationCheckResult? _migrationCheckResult;
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   ModuWidgetsBinding();
+  listenForExternalBooks();
+  externalBookInbox.add(arguments);
   // Listen before storage prompts/migration. The inbox waits for a usable home
   // navigator, and keeps only the latest request rather than dropping cold links.
-  if (!AnxPlatform.isOhos) {
-    AppLinks().stringLinkStream.listen(readingLinkInbox.add, onError: (_) {});
+  if (!AnxPlatform.isOhos && !Platform.isLinux) {
+    AppLinks().stringLinkStream.listen((raw) {
+      readingLinkInbox.add(raw);
+      // Apple native callbacks stage security-scoped documents; Android/Harmony
+      // use share_handler to resolve content providers before reaching Dart.
+      if (Platform.isWindows) externalBookInbox.add([raw]);
+    }, onError: (_) {});
+  }
+  if (Platform.isLinux) {
+    const MethodChannel('gtk/application').setMethodCallHandler((call) async {
+      final List<String> paths;
+      if (call.method == 'command-line') {
+        paths = (call.arguments as List).cast<String>();
+      } else if (call.method == 'open') {
+        paths = ((call.arguments as Map)['files'] as List).cast<String>();
+      } else {
+        return;
+      }
+      for (final value in paths) {
+        readingLinkInbox.add(value);
+      }
+      externalBookInbox.add(paths);
+    });
+  }
+  for (final value in arguments) {
+    readingLinkInbox.add(value);
   }
   String diagnosticVersion = 'unknown';
   try {

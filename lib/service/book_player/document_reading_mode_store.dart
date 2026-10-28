@@ -58,7 +58,19 @@ class DocumentReadingModeStore {
     return _write(book, scannedOverride: enabled);
   }
 
-  Future<void> _write(Book book, {String? mode, bool? scannedOverride}) {
+  bool forceOcr(Book book) {
+    final entry = _read()[customCssBookKey(book)];
+    return entry is Map &&
+        entry['version'] == 1 &&
+        entry['source'] == _source(book) &&
+        entry['forceOcr'] == true;
+  }
+
+  Future<void> setForceOcr(Book book, bool enabled) =>
+      _write(book, forceOcr: enabled);
+
+  Future<void> _write(Book book,
+      {String? mode, bool? scannedOverride, bool? forceOcr}) {
     final identity = customCssBookKey(book), source = _source(book);
     final operation = _writes.then((_) async {
       final previous = prefs.getString(key);
@@ -71,6 +83,7 @@ class DocumentReadingModeStore {
         'source': source,
         if (mode != null) 'mode': mode,
         if (scannedOverride != null) 'scannedOverride': scannedOverride,
+        if (forceOcr != null) 'forceOcr': forceOcr,
       };
       try {
         if (!await prefs.setString(key, jsonEncode(entries))) {

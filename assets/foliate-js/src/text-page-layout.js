@@ -123,11 +123,21 @@ export function fitTextLineSpacing(doc, viewport = 0) {
     let block = node.parentElement
     while (block !== doc.body && (block.__moduPageRun || styleOf(block).display === 'inline')) block = block.parentElement
     if (!['block', 'list-item'].includes(styleOf(block).display)) continue
-    range.selectNodeContents(node)
-    const rect = [...range.getClientRects()].find(r => r.width > 0 && r.height > 0)
-    if (!rect) continue
+    let last = node.parentElement
+    if (last.__moduPageRun && last.childNodes.length === 1) {
+      // Reader-owned runs share inline typography; measure their full range once.
+      while (last.nextSibling?.__moduPageRun && last.nextSibling.childNodes.length === 1 &&
+        last.nextSibling.firstChild.nodeType === 3) last = last.nextSibling
+      range.setStartBefore(node.parentElement)
+      range.setEndAfter(last)
+      walker.currentNode = last.lastChild
+    } else range.selectNodeContents(node)
+    let height = 0
+    for (const rect of range.getClientRects())
+      if (rect.width > 0 && rect.height > 0) height = Math.max(height, rect.height)
+    if (!height) continue
     const item = blocks.get(block) ?? { height: 0, requested: parseFloat(styleOf(block).lineHeight) }
-    item.height = Math.max(item.height, rect.height)
+    item.height = Math.max(item.height, height)
     blocks.set(block, item)
   }
   const originals = []

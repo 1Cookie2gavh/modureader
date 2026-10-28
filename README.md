@@ -116,7 +116,7 @@
 
 ### 听书
 
-支持系统朗读、Edge TTS、小米 MiMo、OpenAI 兼容服务和 DashScope。选择音色与语速，搭配支持的声音风格描述，让故事用喜欢的声音继续；普通文字书支持跨章续读和朗读高亮。
+支持系统朗读、Edge TTS、小米 MiMo、OpenAI 兼容服务和 DashScope。语速支持 0.1～4.0 倍、每次 0.1，可直接输入；安卓 MiMo 支持本地音调调整。选择音色，搭配支持的声音风格描述，让故事用喜欢的声音继续；普通文字书支持跨章续读和朗读高亮。
 
 ![iPhone 与 Mac 朗读同一段文字，展示高亮与完整播放栏](docs/images/showcase/v1.3.0/listening-zh.webp)
 

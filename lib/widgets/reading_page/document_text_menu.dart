@@ -14,6 +14,8 @@ class DocumentTextMenu extends StatelessWidget {
     this.openReflow,
     this.openExtraction,
     this.exportText,
+    this.forceOcr = false,
+    this.onForceOcrChanged,
     this.comparison = false,
     this.onComparisonChanged,
     this.cache,
@@ -22,6 +24,8 @@ class DocumentTextMenu extends StatelessWidget {
   final VoidCallback? openReflow;
   final VoidCallback? openExtraction;
   final VoidCallback? exportText;
+  final bool forceOcr;
+  final ValueChanged<bool>? onForceOcrChanged;
   final bool comparison;
   final ValueChanged<bool>? onComparisonChanged;
   final DocumentOcrPrecache? cache;
@@ -67,9 +71,27 @@ class DocumentTextMenu extends StatelessWidget {
                 key: const ValueKey('document-reflow-entry'),
                 icon: Icons.article_outlined,
                 title: text('文字重排', 'Reflow text'),
-                description: text('优先使用文字层，无文字时自动 OCR',
-                    'Use embedded text, or OCR when no text is available'),
+                description: forceOcr
+                    ? text('忽略文字层，使用 OCR 识别结果',
+                        'Ignore embedded text and use OCR results')
+                    : text('优先使用文字层，无文字时自动 OCR',
+                        'Use embedded text, or OCR when no text is available'),
                 onTap: openReflow,
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              SwitchListTile(
+                key: const ValueKey('document-force-ocr-switch'),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                title: Text(text('强制 OCR 重排', 'Force OCR reflow')),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(text(
+                      '对整本书生效：重排及各页后台预缓存均使用 OCR，忽略文字层及其缓存；需要本地 OCR 模型',
+                      'Applies throughout this book: reflow and background prefetch use OCR on every page, ignoring embedded text and its cache. Requires a local OCR model.')),
+                ),
+                value: forceOcr,
+                onChanged: onForceOcrChanged,
               ),
               if (onComparisonChanged != null) ...[
                 const Divider(height: 1, indent: 16, endIndent: 16),

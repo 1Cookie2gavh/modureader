@@ -39,7 +39,13 @@ class MemoryStore extends DocumentReflowStore {
       revisions[anchor.revision];
   @override
   Future<void> save(DocumentReflowPage value, String profile,
-      {bool onlyIfAbsent = false}) async {
+      {bool onlyIfAbsent = false, bool replaceEmbeddedText = false}) async {
+    final saved = latest['${value.page}'];
+    if (onlyIfAbsent &&
+        saved != null &&
+        !(replaceEmbeddedText && value.ocr && !saved.ocr)) {
+      return;
+    }
     latest['${value.page}'] = value;
     revisions[value.revision] = value;
   }
@@ -204,6 +210,41 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('reflow-text')))
       .controller!
       .text;
+
+  testWidgets(
+      'switching to forced OCR replaces embedded cache and stays active across pages',
+      (tester) async {
+    var extractions = 0, recognitions = 0;
+    await open(tester, extract: (_) async {
+      extractions++;
+      return 'Embedded page';
+    }, recognize: () async {
+      recognitions++;
+      return 'OCR page';
+    });
+    expect(extractions, 1);
+    expect(recognitions, 0);
+    final changed = key.currentState!.setMode(true);
+    await tester.pumpAndSettle();
+    await changed;
+    expect(recognitions, 1);
+    expect(extractions, 1);
+    expect(store.latest['0']!.ocr, isTrue);
+    final next = key.currentState!.goToPage(1);
+    await tester.pumpAndSettle();
+    await next;
+    expect(recognitions, 2);
+    expect(extractions, 1);
+    final normal = key.currentState!.setMode(false);
+    await tester.pumpAndSettle();
+    await normal;
+    final third = key.currentState!.goToPage(2);
+    await tester.pumpAndSettle();
+    await third;
+    expect(extractions, 2);
+    expect(recognitions, 2);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('removing an active reflow font preserves size and spacing',
       (tester) async {
@@ -1074,6 +1115,8 @@ void main() {
     final anchor = original.anchor(0, 3);
     await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Recognize this page again'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Recognize this page again'));
     await tester.pumpAndSettle();
     expect(calls, 1);
@@ -1128,6 +1171,8 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('document-tools-menu')));
         await tester.pumpAndSettle();
       }
+      await tester.ensureVisible(find.text('Recognize this page again'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Recognize this page again'));
       await tester.pumpAndSettle();
     }
@@ -1525,7 +1570,7 @@ void main() {
         const TextSelection(baseOffset: 1, extentOffset: 5));
   });
   testWidgets(
-      'crop and mode changes keep the saved page until explicit recognition',
+      'force OCR replaces embedded cache once; crop changes reuse the recognized page',
       (tester) async {
     var crop = <String, num>{'x': .1, 'y': .2, 'width': .8, 'height': .6};
     final extracted = <Map<String, dynamic>>[],
@@ -1537,7 +1582,8 @@ void main() {
     expect(extracted.single['region'], crop);
     await key.currentState!.setMode(true);
     await tester.pumpAndSettle();
-    expect(rendered, isEmpty);
+    expect(rendered.single['region'], crop);
+    expect(store.latest['0']!.ocr, isTrue);
     expect(find.byType(Dialog), findsNothing);
     expect(find.text('Selected area'), findsNothing);
     await key.currentState!.setMode(false);
@@ -1599,7 +1645,7 @@ void main() {
     expect(pages, [0, 1, 0]);
   });
   testWidgets(
-      'OCR mode bypasses embedded text only on a cache miss; mode switches reuse saved text',
+      'OCR mode bypasses embedded text and mode switches reuse saved OCR',
       (tester) async {
     var extracted = 0, ocr = 0;
     await open(tester, ocr: true, extract: (_) async {

@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show MethodChannel;
+import 'package:anx_reader/utils/platform_utils.dart';
 import 'package:anx_reader/models/tts_buffer_settings.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/service/tts/base_tts.dart';
 import 'package:anx_reader/service/tts/edge_tts_backend.dart';
+import 'package:anx_reader/service/tts/openai_tts_backend.dart';
 import 'package:anx_reader/service/tts/readany_compatible_tts_backend.dart';
 import 'package:anx_reader/service/tts/tts_service.dart';
 import 'package:anx_reader/service/tts/tts_service_provider.dart';
@@ -37,6 +40,7 @@ class OnlineTts extends BaseTts {
     Future<void> Function(TtsSegment)? play,
     AudioPlayer? player,
     AudioPlayer Function()? createPlayer,
+    bool? localPitch,
     Future<void> Function(TtsSegment)? highlight,
     Future<void> Function(TtsSentence, double)? followProgress,
   })  : assert(synthesize != null || backend != null),
@@ -47,7 +51,8 @@ class OnlineTts extends BaseTts {
         _highlightOverride = highlight,
         _followProgressOverride = followProgress,
         _player = player,
-        _createPlayer = createPlayer;
+        _createPlayer = createPlayer,
+        _localPitchOverride = localPitch;
 
   Future<List<TtsSentence>> Function(int)? _collectOverride;
   Future<Uint8List> Function(String)? _synthesizeOverride;
@@ -81,6 +86,18 @@ class OnlineTts extends BaseTts {
   // ============ Audio Player ============
   AudioPlayer? _player;
   AudioPlayer Function()? _createPlayer;
+  bool? _localPitchOverride;
+  bool get _usesLocalPitch =>
+      backend is XiaomiMimoTtsProvider &&
+      (_localPitchOverride ?? AnxPlatform.isAndroid);
+  double get _synthesisPitch => _usesLocalPitch ? 1.0 : pitch;
+
+  Future<void> _applyLocalPitch(AudioPlayer player) async {
+    if (!_usesLocalPitch) return;
+    await const MethodChannel('xyz.luan/audioplayers').invokeMethod<void>(
+        'setPitch', {'playerId': player.playerId, 'pitch': pitch});
+  }
+
   StreamSubscription<void>? _playerCompleteSubscription;
   Future<void>? _stopping;
 
@@ -163,16 +180,30 @@ class OnlineTts extends BaseTts {
       return;
     }
     Prefs().ttsPitch = pitch;
-    // Clear pending audio so it will be re-fetched with new pitch
-    _clearPendingAudio();
+    if (_usesLocalPitch) {
+      final player = _player;
+      final command = _commandVersion;
+      unawaited(_serializeAudioControl(() async {
+        if (command != _commandVersion ||
+            player == null ||
+            !identical(player, _player)) {
+          return;
+        }
+        await player.setPlaybackRate(_playbackRate);
+        await _applyLocalPitch(player);
+      }).catchError((Object error) {
+        if (command == _commandVersion) _controlFailed(error);
+      }));
+    } else {
+      _clearPendingAudio();
+    }
   }
 
   @override
   set rate(double rate) {
-    if (!rate.isFinite || rate < 0 || rate > 4 || rate == this.rate) return;
+    if (!rate.isFinite || rate < 0.1 || rate > 4 || rate == this.rate) return;
     final previousSynthesisRate = _synthesisRate;
-    Prefs().ttsRate =
-        backend is XiaomiMimoTtsProvider ? rate.clamp(0.5, 4.0) : rate;
+    Prefs().ttsRate = rate;
     if (_usesPlaybackRate && _synthesisRate == previousSynthesisRate) {
       // Keep audio when only playback speed changes (MiMo, or Edge above 2x).
       final player = _player;
@@ -199,19 +230,29 @@ class OnlineTts extends BaseTts {
   double get rate => Prefs().ttsRate;
 
   bool get _usesPlaybackRate =>
-      backend is XiaomiMimoTtsProvider || backend is EdgeTtsProvider;
+      backend is XiaomiMimoTtsProvider ||
+      backend is EdgeTtsProvider ||
+      backend is OpenAiTtsProvider ||
+      backend is DashScopeTtsProvider;
   double get _playbackRate {
     if (!rate.isFinite) return 1.0;
-    if (backend is XiaomiMimoTtsProvider) return rate.clamp(0.5, 4.0);
+    if (backend is XiaomiMimoTtsProvider) return rate.clamp(0.1, 4.0);
     // Retain Edge's existing synthesis range. High speeds use 2x synthesis
     // plus local acceleration, rather than an unverified high-speed request.
     if (backend is EdgeTtsProvider) return rate.clamp(2.0, 4.0) / 2;
+    if (backend is OpenAiTtsProvider || backend is DashScopeTtsProvider) {
+      return rate.clamp(0.1, 4.0) / _synthesisRate;
+    }
     return 1.0;
   }
 
   double get _synthesisRate {
     if (backend is XiaomiMimoTtsProvider) return 1.0;
-    if (backend is EdgeTtsProvider) return rate.clamp(0.0, 2.0);
+    if (backend is EdgeTtsProvider) return rate.clamp(0.1, 2.0);
+    // APIs bottom out at 0.25x; local playback supplies the remaining slowdown.
+    if (backend is OpenAiTtsProvider || backend is DashScopeTtsProvider) {
+      return rate.clamp(0.25, 4.0);
+    }
     return rate;
   }
 
@@ -522,7 +563,7 @@ class OnlineTts extends BaseTts {
               _ProviderAdapter(
                 provider: currentBackend,
                 rate: _synthesisRate,
-                pitch: pitch,
+                pitch: _synthesisPitch,
                 voice: voice,
               ),
               TtsRequest(
@@ -531,7 +572,7 @@ class OnlineTts extends BaseTts {
                 model: currentBackend.serviceId,
                 parameters: {
                   'rate': _synthesisRate.toStringAsFixed(4),
-                  'pitch': pitch.toStringAsFixed(4),
+                  'pitch': _synthesisPitch.toStringAsFixed(4),
                   'config': currentBackend.cacheConfiguration(),
                 },
               ),
@@ -677,7 +718,8 @@ class OnlineTts extends BaseTts {
               if (_usesPlaybackRate) {
                 await audioPlayer!.setPlaybackRate(_playbackRate);
               }
-              final stopTracking = _trackSpeechProgress(audioPlayer!, segment);
+              await _applyLocalPitch(audioPlayer!);
+              final stopTracking = _trackSpeechProgress(audioPlayer, segment);
               try {
                 await audioPlayer.play(source);
                 // A new source resets MediaEngine's playback rate on Windows.
@@ -1027,12 +1069,14 @@ class OnlineTts extends BaseTts {
     await stop();
     final audioPlayer = await _ensurePlayer(preview: true);
 
-    final bytes = await backend.speak(content, voice, _synthesisRate, pitch);
+    final bytes =
+        await backend.speak(content, voice, _synthesisRate, _synthesisPitch);
     if (bytes.isNotEmpty) {
       final source = BytesSource(bytes, mimeType: ttsAudioMimeType(bytes));
       if (_usesPlaybackRate) {
         await audioPlayer.setPlaybackRate(_playbackRate);
       }
+      await _applyLocalPitch(audioPlayer);
       await audioPlayer.play(source);
       if (_usesPlaybackRate) {
         // play() installs a new source and resets the native rate.

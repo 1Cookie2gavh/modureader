@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/tts/models/tts_sentence.dart';
@@ -33,6 +34,11 @@ class RatePlayer extends NativePlayer {
       PlayerMode? mode}) async {
     playedRates.add(rates.last);
   }
+}
+
+class NativePitchPlayer extends RatePlayer {
+  @override
+  String get playerId => 'mimo-pitch-test';
 }
 
 /// Windows' MediaEngine resets playback rate when the source changes. Every
@@ -141,21 +147,86 @@ void main() {
     expect(requests.length, 2); // No new synthesis for 3x/4x playback.
     await tts.pause();
     final before = player.rates.length;
-    tts.rate = 0.7;
+    tts.rate = 0.1;
     await Future<void>.delayed(const Duration(milliseconds: 60));
     expect(player.rates.length, before);
     expect(player.resumes, 0);
     await tts.resume();
-    expect(player.rates.last, 0.7);
+    expect(player.rates.last, 0.1);
     expect(player.resumes, 1);
     player.completed.add(null);
     await until(() => player.playedRates.length == 2);
-    expect(player.playedRates, [1.2, 0.7]);
+    expect(player.playedRates, [1.2, 0.1]);
     expect(requests.length, 2);
     for (final request in requests) {
       expect(request.toString(), isNot(contains('语速约为')));
     }
     player.completed.add(null);
+    await reading;
+    expect(tts.playbackError, isNull);
+  });
+
+  test(
+      'Android MiMo pitch applies locally and preserves buffered audio and pause state',
+      () async {
+    const channel = MethodChannel('xyz.luan/audioplayers');
+    final native = NativePitchPlayer();
+    final pitches = <double>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'setPitch');
+      expect(call.arguments['playerId'], native.playerId);
+      pitches.add(call.arguments['pitch'] as double);
+      return null;
+    });
+    addTearDown(() => TestDefaultBinaryMessengerBinding
+        .instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    var cursor = 0;
+    final tts = OnlineTts.forTesting(
+      backend: provider,
+      localPitch: true,
+      createPlayer: () => native,
+      collect: (_) async =>
+          const [TtsSentence(text: '音调第一段'), TtsSentence(text: '音调第二段')],
+    );
+    addTearDown(tts.stop);
+    await tts.init(() async => '音调第一段', () async => ++cursor < 2 ? '音调第二段' : '',
+        () async => '');
+    final reading = tts.speak();
+    await until(() => native.playedRates.length == 1 && requests.length == 2);
+    expect(pitches, [1.0]);
+    for (final value in [0.5, 0.8, 1.1, 1.6, 2.0]) {
+      tts.pitch = value;
+      await until(() => pitches.last == value);
+    }
+    final changes = pitches.length;
+    for (final invalid in [2.0, 0.4, 2.1, double.nan, double.infinity]) {
+      tts.pitch = invalid;
+    }
+    await Future<void>.delayed(Duration.zero);
+    expect(pitches.length, changes);
+    expect(Prefs().ttsPitch, 2);
+    expect(requests.length, 2);
+    await tts.pause();
+    tts.pitch = 1.3;
+    await until(() => pitches.last == 1.3);
+    expect(tts.isPlaying, isFalse);
+    expect(native.resumes, 0);
+    await tts.resume();
+    expect(native.resumes, 1);
+    tts.rate = 1.7;
+    await until(() => native.rates.last == 1.7);
+    expect(pitches.last, 1.3);
+    native.completed.add(null);
+    await until(() => native.playedRates.length == 2);
+    expect(pitches.last, 1.3);
+    expect(requests.length, 2,
+        reason: 'pitch and speed reuse already synthesized passages');
+    for (final request in requests) {
+      expect(request.toString(), isNot(contains('默认的')));
+    }
+    native.completed.add(null);
     await reading;
     expect(tts.playbackError, isNull);
   });
@@ -169,7 +240,7 @@ void main() {
     );
     addTearDown(tts.stop);
     await tts.speakWithVoice('试听正文', 'mimo_default');
-    expect(player.playedRates, [0.5]);
+    expect(player.playedRates, [0.1]);
     tts.rate = 1.6;
     await tts.speakWithVoice('再次试听', 'mimo_default');
     expect(player.playedRates.last, 1.6);
@@ -235,7 +306,7 @@ void main() {
     addTearDown(tts.stop);
     await tts.speakWithVoice('四倍速试听', 'mimo_default');
     expect(player.playedRates, [4]);
-    for (final value in [4.1, -1.0, double.infinity, double.nan]) {
+    for (final value in [0.0, 0.09, 4.1, -1.0, double.infinity, double.nan]) {
       tts.rate = value;
       expect(Prefs().ttsRate, 4);
     }

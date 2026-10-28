@@ -1,4 +1,5 @@
 import 'document_text_menu.dart';
+import 'package:anx_reader/page/reading_page.dart';
 import 'widget_title.dart';
 import 'document_saved_text_actions.dart';
 import 'package:anx_reader/service/ocr/document_reflow_store.dart';
@@ -40,7 +41,22 @@ class DocumentStyleWidget extends StatefulWidget {
 class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
   bool _watermarkAvailable = false;
   Listenable? _documentMode;
-  bool _savedTextBusy = false;
+  bool _savedTextBusy = false, _savingOcrMode = false;
+
+  Future<void> _setForceOcr(bool enabled) async {
+    setState(() => _savingOcrMode = true);
+    try {
+      await readingPageKey.currentState?.setDocumentForceOcr(enabled);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(ModuStrings.text(
+                context, '保存失败，请重试', 'Could not save. Please retry.'))));
+      }
+    } finally {
+      if (mounted) setState(() => _savingOcrMode = false);
+    }
+  }
 
   Future<void> _exportSavedText() async {
     if (_savedTextBusy) return;
@@ -152,6 +168,8 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
       return DocumentTextMenu(
         openReflow:
             widget.openReflow == null ? null : () => widget.openReflow!(false),
+        forceOcr: widget.player.documentForceOcr,
+        onForceOcrChanged: _savingOcrMode ? null : _setForceOcr,
         openExtraction: widget.openExtraction,
         comparison: widget.comparison,
         onComparisonChanged: widget.onComparisonChanged,

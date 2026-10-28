@@ -27,7 +27,7 @@ void main() {
           var reflows = 0;
           var extractions = 0;
           var exports = 0;
-          bool? comparison;
+          bool? comparison, forceOcr;
           await tester.pumpWidget(MaterialApp(
             theme: ThemeData(brightness: brightness),
             locale: Locale(language),
@@ -44,6 +44,7 @@ void main() {
               openExtraction: () => extractions++,
               exportText: () => exports++,
               onComparisonChanged: (value) => comparison = value,
+              onForceOcrChanged: (value) => forceOcr = value,
             )),
           ));
           await tester.pumpAndSettle();
@@ -55,6 +56,7 @@ void main() {
               findsNWidgets(3));
           for (final key in [
             'document-reflow-entry',
+            'document-force-ocr-switch',
             'document-comparison-switch',
             'document-extraction-entry',
             'export-saved-txt'
@@ -66,6 +68,7 @@ void main() {
             await tester.pumpAndSettle();
           }
           expect((reflows, extractions, exports, comparison), (1, 1, 1, true));
+          expect(forceOcr, isTrue);
           expect(Prefs().ocrPrecacheEnabled, isFalse);
           final scroll = find
               .descendant(

@@ -400,12 +400,27 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
             .change('tapPan', false));
   }
 
+  bool get documentForceOcr =>
+      DocumentReadingModeStore(Prefs().prefs).forceOcr(widget.book);
+
+  Future<void> setDocumentForceOcr(bool enabled) async {
+    await pauseDocumentOcrCache();
+    try {
+      await DocumentReadingModeStore(Prefs().prefs)
+          .setForceOcr(widget.book, enabled);
+      // Drop the completed-window bookkeeping, not saved text or revisions.
+      _ocrPrecache.update(_ocrPrecachePage, 0);
+    } finally {
+      resumeDocumentOcrCache();
+    }
+  }
+
   int _ocrPrecachePage = -1;
   int? _ocrPrecacheTotal;
   DocumentOcrPrecache get ocrPrecache => _ocrPrecache;
   late final DocumentOcrPrecache _ocrPrecache = DocumentOcrPrecache(
-      cachedPages: (start, count) =>
-          DocumentReflowStore(cssBookKey).cachedPages(start, count),
+      cachedPages: (start, count) => DocumentReflowStore(cssBookKey)
+          .cachedPages(start, count, forceOcr: documentForceOcr),
       canRun: () =>
           mounted &&
           _readerReady &&
@@ -416,7 +431,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           ModalRoute.of(context)?.isCurrent == true,
       load: (page, cancel) async {
         final store = DocumentReflowStore(cssBookKey);
-        if (await store.read(page, '') != null) return;
+        final forceOcr = documentForceOcr;
+        final saved = await store.read(page, '');
+        if (saved != null && (!forceOcr || saved.ocr)) return;
         cancel.check();
         final info = await documentReflowInfo(page);
         cancel.check();
@@ -428,6 +445,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         final model = OcrModelStore(model: OcrModels.byId(Prefs().ocrModelId));
         try {
           await loadDocumentReflowPage(
+              forceOcr: forceOcr,
               info: info,
               store: store,
               model: model,
@@ -1533,8 +1551,12 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     await readingPageKey.currentState?.reflowReader?.refreshNotes();
   }
 
-  Future<void> refreshReadingAfterSync() {
+  Future<void> refreshReadingAfterSync({bool retryOnResume = false}) {
     if (!mounted || !_readerReady || widget.cfi != null) return Future.value();
+    if (retryOnResume) {
+      _syncRefreshRetry?.cancel();
+      _syncRestoreAttempts = 0;
+    }
     _refreshRequested = true;
     return _syncRefresh ??= _refreshSyncedReader().whenComplete(() {
       _syncRefresh = null;
@@ -1547,9 +1569,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       while (_refreshRequested && mounted) {
         _refreshRequested = false;
         final previous = _progress.current;
-        var preserveNarration = _hasNarrationSession;
+        var preserveNarration = false;
         final latest = await _progress.refresh(preservePosition: () {
-          preserveNarration = preserveNarration || _hasNarrationSession;
+          // A paused cursor may be yesterday's session, not ongoing reading.
+          preserveNarration = _hasActiveNarration;
           return preserveNarration;
         });
         if (previous?.revision != latest.revision) _syncRestoreAttempts = 0;
@@ -1569,6 +1592,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         if (latest.position.isNotEmpty &&
             (_remotePositionPending ||
                 previous?.revision != latest.revision ||
+                previous?.position != latest.position ||
                 !_readerPositionInitialized)) {
           _remotePositionPending = true;
           final result = await webViewController.callAsyncJavaScript(
@@ -1603,10 +1627,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         widget.book.lastReadPosition = latest.position;
         widget.book.readingPercentage = latest.percentage;
         await renderAnnotations(webViewController);
-        if (previous != null &&
-            previous.revision != latest.revision &&
-            previous.narration?.encode() != latest.narration?.encode()) {
-          await restoreNarration(latest.narration);
+        if (_speechPosition?.encode() != latest.narration?.encode()) {
+          await restoreNarration(latest.narration, replacePaused: true);
         }
       }
     } catch (error) {
@@ -1631,12 +1653,18 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         handler.ttsStateNotifier.value != TtsStateEnum.stopped;
   }
 
-  Future<void> restoreNarration(NarrationPosition? saved) async {
+  bool get _hasActiveNarration =>
+      _hasNarrationSession &&
+      const [TtsStateEnum.playing, TtsStateEnum.continued]
+          .contains(TtsHandler().ttsStateNotifier.value);
+
+  Future<void> restoreNarration(NarrationPosition? saved,
+      {bool replacePaused = false}) async {
     if (supportsDocumentImages ||
         !mounted ||
         _narrationDetached ||
         _restoringNarration ||
-        _hasNarrationSession ||
+        (_hasNarrationSession && (!replacePaused || _hasActiveNarration)) ||
         widget.cfi != null ||
         readingPageKey.currentState?.isReflowReading == true) {
       return;
@@ -1663,6 +1691,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     if (!mounted ||
         _narrationDetached ||
         _restoringNarration ||
+        _remotePositionPending ||
         current == null ||
         speech == null ||
         TtsHandler().mediaItem.value?.id != book.id.toString()) {

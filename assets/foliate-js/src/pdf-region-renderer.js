@@ -10,8 +10,8 @@ const androidWebView = () => /Android/i.test(globalThis.navigator?.userAgent ?? 
 export const createDocumentCanvas = () => !androidWebView() && typeof OffscreenCanvas === 'function'
     ? new OffscreenCanvas(1, 1) : document.createElement('canvas')
 export const encodeDocumentCanvas = async canvas => {
-    // Never block the UI with unbounded full-resolution page encoding. Region
-    // rendering already caps its output at 2MP. No lossy JPEG conversion.
+    // Keep Android synchronous encoding within 2MP; larger backing pages use
+    // asynchronous lossless encoding rather than blocking touch handling.
     if (androidWebView() && typeof canvas.toDataURL === 'function' &&
         canvas.width > 0 && canvas.height > 0 &&
         canvas.width <= 2048 && canvas.height <= 2048 &&
@@ -33,7 +33,7 @@ export const encodeDocumentCanvas = async canvas => {
 // A virtual full-page viewport, but ONLY the requested visible rectangle gets
 // a bitmap. High zoom must never allocate a full-page high-resolution canvas.
 export const regionRenderPlan = (page, { region = FULL_PAGE, rotation = 0,
-    width = 1200, height = 1200 } = {}) => {
+    width = 1200, height = 1200 } = {}, highResolution = false) => {
     region = validateRegion(region)
     rotation = normalizeRotation(rotation)
     if (![width, height].every(value => Number.isFinite(value) && value > 0))
@@ -43,8 +43,11 @@ export const regionRenderPlan = (page, { region = FULL_PAGE, rotation = 0,
     const regionWidth = base.width * region.width, regionHeight = base.height * region.height
     if (![regionWidth, regionHeight].every(value => Number.isFinite(value) && value > 0))
         throw new RangeError('Invalid PDF page dimensions')
+    // Scroll bases cover ordinary screen-density pages before display.
+    const maxSide = highResolution ? 4096 : 2048
+    const maxPixels = highResolution ? 8388608 : 2097152
     const scale = Math.min(width / regionWidth, height / regionHeight,
-        2048 / regionWidth, 2048 / regionHeight, Math.sqrt(2097152 / (regionWidth * regionHeight)))
+        maxSide / regionWidth, maxSide / regionHeight, Math.sqrt(maxPixels / (regionWidth * regionHeight)))
     const viewport = page.getViewport({ scale, rotation: base.rotation })
     // Floor (rather than ceil) keeps the hard pixel budget even at its boundary.
     const outputWidth = Math.max(1, Math.floor(regionWidth * scale))
@@ -58,6 +61,7 @@ export const createPdfRegionRenderer = (pdf, {
     createCanvas = createDocumentCanvas,
     encode = encodeDocumentCanvas,
     cacheRaster = false,
+    highResolution = false,
 } = {}) => {
     let current, tail = Promise.resolve(), generation = 0
     // Editor only: one immutable unprocessed raster, <= 2MP / 8MiB. Changing
@@ -98,7 +102,7 @@ export const createPdfRegionRenderer = (pdf, {
                 throw new RangeError('PDF page out of bounds')
             const page = await pdf.getPage(pageNumber + 1)
             check(controller.signal)
-            const plan = regionRenderPlan(page, request)
+            const plan = regionRenderPlan(page, request, highResolution)
             const enhancement = normalizeEnhancement(request.enhancement)
             if (request.analyzeCrop && (plan.rotation !== 0 || Object.keys(FULL_PAGE).some(k => plan.region[k] !== FULL_PAGE[k])))
                 throw new RangeError('Crop detection requires an unrotated full page')

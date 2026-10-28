@@ -1,46 +1,64 @@
+import 'dart:async';
 import 'dart:io';
 
-import 'package:anx_reader/main.dart';
 import 'package:anx_reader/service/book.dart';
+import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
 import 'package:anx_reader/utils/log/common.dart';
+import 'package:anx_reader/utils/platform_utils.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_handler/share_handler.dart';
 
-void receiveShareIntent(WidgetRef ref) {
-  final handler = ShareHandlerPlatform.instance;
+const externalFilesChannel = MethodChannel('com.modu.reader/external_files');
+bool _listening = false;
 
-  // receive sharing intent
-  Future<void> handleShare(SharedMedia? media) async {
-    AnxLog.info('share: Receive share intent called, ${media?.content}');
-    if (media == null ||
-        media.attachments == null ||
-        media.attachments!.isEmpty) {
-      AnxLog.info('share: Receive share intent: no media or empty');
-      return;
-    }
-    AnxLog.info(
-        'share: Receive share intent: ${media.attachments!.map((e) => e?.path).join(', ')}');
-
-    List<File> files = [];
-    for (var item in media.attachments!) {
-      if (item != null && item.path.isNotEmpty) {
-        final sourceFile = File(item.path);
-        files.add(sourceFile);
+/// Start before initialization so native file access and cold deliveries survive
+/// storage/migration prompts. Import itself waits for the home navigator.
+void listenForExternalBooks() {
+  if (_listening) return;
+  _listening = true;
+  if (Platform.isIOS || Platform.isMacOS || AnxPlatform.isOhos) {
+    externalFilesChannel.setMethodCallHandler((call) async {
+      if (call.method == 'files') {
+        externalBookInbox.add((call.arguments as List).cast<String>());
+      } else if (call.method == 'error') {
+        _reportImportError(call.arguments);
       }
-    }
-    importBookList(files, navigatorKey.currentContext!, ref);
-    handler.resetInitialSharedMedia();
+    });
+    externalFilesChannel.invokeListMethod<String>('ready').then((paths) {
+      externalBookInbox.add(paths ?? []);
+    }).catchError((Object error) {
+      _reportImportError(error);
+    });
   }
+  if (AnxPlatform.isAndroid || AnxPlatform.isIOS) {
+    final handler = ShareHandlerPlatform.instance;
+    void receive(SharedMedia? media) {
+      if (media == null) return;
+      externalBookInbox.add([
+        for (final item in media.attachments ?? <SharedAttachment?>[])
+          if (item != null) item.path,
+      ]);
+      unawaited(
+          handler.resetInitialSharedMedia().catchError(_reportImportError));
+    }
 
-  handler.sharedMediaStream.listen((SharedMedia media) {
-    handleShare(media);
-  }, onError: (err) {
-    AnxLog.severe('share: Receive share intent');
-  });
+    handler.sharedMediaStream.listen(receive, onError: _reportImportError);
+    handler.getInitialSharedMedia().then(receive, onError: _reportImportError);
+  }
+}
 
-  handler.getInitialSharedMedia().then((media) {
-    handleShare(media);
-  }, onError: (err) {
-    AnxLog.severe('share: Receive share intent');
+void receiveExternalBooks(WidgetRef ref) {
+  externalBookInbox.attach((paths) async {
+    try {
+      final entries = await externalBookEntries(paths);
+      await importBooksQuietly(entries, ref);
+    } catch (error) {
+      _reportImportError(error);
+    }
   });
+}
+
+void _reportImportError(Object? error) {
+  AnxLog.warning('External book import failed: $error');
 }

@@ -1,3 +1,5 @@
+import 'package:anx_reader/service/book_import_source.dart';
+import 'package:anx_reader/utils/get_path/get_temp_dir.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:io';
 import 'dart:async';
@@ -46,8 +48,35 @@ import 'book_player/book_player_server.dart';
 
 export 'package:anx_reader/service/book_formats.dart' show allowBookExtensions;
 
+Future<void> importBooksQuietly(
+    List<BookImportEntry> entries, WidgetRef ref) async {
+  if (entries.isEmpty) return;
+  // Capture notifiers before awaiting: the user may leave the drop target page.
+  final shelf = ref.read(bookListProvider.notifier);
+  final sync = ref.read(syncProvider.notifier);
+  final imported = await importBookEntriesQuietly(
+    entries,
+    await getAnxTempDir(),
+    isDuplicate: (file) async {
+      final check = (await MD5Service.checkImportFiles([file.path])).single;
+      if (check.md5 == null) {
+        throw const FileSystemException('Cannot verify incoming book');
+      }
+      return check.isDuplicate;
+    },
+    importFile: (file) => importBook(file, ref, onImported: () {}),
+    onError: (entry, error, stack) => AnxLog.severe(
+        'Automatic book import failed: ${entry.label}: $error\n$stack'),
+  );
+  if (imported > 0) {
+    await shelf.refresh();
+    await sync.syncData(SyncDirection.upload, null, trigger: SyncTrigger.auto);
+  }
+}
+
 /// import book list and **delete file**
-void importBookList(List<File> fileList, BuildContext context, WidgetRef ref) {
+Future<void> importBookList(
+    List<File> fileList, BuildContext context, WidgetRef ref) async {
   AnxLog.info('importBook fileList: ${fileList.toString()}');
 
   List<File> supportedFiles = fileList.where((file) {
@@ -60,7 +89,7 @@ void importBookList(List<File> fileList, BuildContext context, WidgetRef ref) {
         .contains(file.path.split('.').last.toLowerCase());
   }).toList();
 
-  _checkDuplicatesAndShowDialog(
+  await _checkDuplicatesAndShowDialog(
     supportedFiles,
     unsupportedFiles,
     fileList,
@@ -69,7 +98,7 @@ void importBookList(List<File> fileList, BuildContext context, WidgetRef ref) {
   );
 }
 
-void _checkDuplicatesAndShowDialog(
+Future<void> _checkDuplicatesAndShowDialog(
     List<File> supportedFiles,
     List<File> unsupportedFiles,
     List<File> fileList,
@@ -79,34 +108,30 @@ void _checkDuplicatesAndShowDialog(
     animationStyle: AppMotion.style,
     context: context,
     barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      title: Text(L10n.of(context).md5Calculating),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const EinkStaticIndicator(child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-          Text(L10n.of(context).md5Calculating),
-        ],
-      ),
-    ),
+    builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(L10n.of(context).md5Calculating),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const EinkStaticIndicator(child: CircularProgressIndicator()),
+              const SizedBox(height: 16),
+              Text(L10n.of(context).md5Calculating),
+            ],
+          ),
+        )),
   );
 
+  List<File> duplicateFiles = [];
+  List<File> uniqueFiles = [];
+  Map<String, Book> duplicateInfo = {};
   try {
-    final filePaths = supportedFiles.map((f) => f.path).toList();
-    final checkResults = await MD5Service.checkImportFiles(filePaths);
-
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-
-    List<File> duplicateFiles = [];
-    List<File> uniqueFiles = [];
-    Map<String, Book> duplicateInfo = {};
-
+    final checkResults = await MD5Service.checkImportFiles(
+        supportedFiles.map((file) => file.path).toList());
     for (int i = 0; i < supportedFiles.length; i++) {
       final file = supportedFiles[i];
       final result = checkResults[i];
-
       if (result.isDuplicate && result.duplicateBook != null) {
         duplicateFiles.add(file);
         duplicateInfo[file.path] = result.duplicateBook!;
@@ -114,40 +139,28 @@ void _checkDuplicatesAndShowDialog(
         uniqueFiles.add(file);
       }
     }
-
-    _showImportDialog(
-      uniqueFiles,
-      duplicateFiles,
-      duplicateInfo,
-      unsupportedFiles,
-      fileList,
-      ref,
-    );
   } catch (e) {
-    Navigator.of(navigatorKey.currentContext!).pop();
     AnxLog.severe('MD5 check failed: $e');
-    _showImportDialog(
-      supportedFiles,
-      [],
-      {},
-      unsupportedFiles,
-      fileList,
-      ref,
-    );
+    uniqueFiles = supportedFiles;
+    duplicateFiles = [];
+    duplicateInfo = {};
   }
+  if (!context.mounted) return;
+  Navigator.of(context, rootNavigator: true).pop();
+  await _showImportDialog(uniqueFiles, duplicateFiles, duplicateInfo,
+      unsupportedFiles, fileList, ref);
 }
 
-void _showImportDialog(
-  List<File> uniqueFiles,
-  List<File> duplicateFiles,
-  Map<String, Book> duplicateInfo,
-  List<File> unsupportedFiles,
-  List<File> fileList,
-  WidgetRef ref,
-) {
+Future<void> _showImportDialog(
+    List<File> uniqueFiles,
+    List<File> duplicateFiles,
+    Map<String, Book> duplicateInfo,
+    List<File> unsupportedFiles,
+    List<File> fileList,
+    WidgetRef ref) async {
   // delete unsupported files
   for (var file in unsupportedFiles) {
-    file.deleteSync();
+    if (file.existsSync()) file.deleteSync();
   }
 
   BuildContext context = navigatorKey.currentContext!;
@@ -231,7 +244,7 @@ void _showImportDialog(
   final supportedFiles = [...uniqueFiles, ...duplicateFiles];
   bool skipDuplicates = true;
 
-  showDialog(
+  await showDialog(
       animationStyle: AppMotion.style,
       context: context,
       barrierDismissible: false,
@@ -244,6 +257,60 @@ void _showImportDialog(
         Map<String, String> errorMessages = {};
 
         return StatefulBuilder(builder: (context, setState) {
+          Future<void> startImport() async {
+            if (finished) {
+              Navigator.of(context).pop('dialog');
+              return;
+            }
+            setState(() => running = true);
+
+            List<File> filesToImport = [...uniqueFiles];
+            if (!skipDuplicates) {
+              filesToImport.addAll(duplicateFiles);
+            }
+
+            for (var file in filesToImport) {
+              AnxToast.show(path.basename(file.path));
+              setState(() {
+                currentHandlingFile = file.path;
+              });
+              try {
+                await importBook(file, ref);
+                succeeded.add(file.path);
+              } catch (e, stackTrace) {
+                AnxLog.severe('Failed to import ${file.path}: $e');
+                AnxLog.severe('Stack trace: $stackTrace');
+                setState(() {
+                  errorFiles.add(file.path);
+                  errorMessages[file.path] = e.toString();
+                });
+              } finally {
+                if (context.mounted) {
+                  setState(() => currentHandlingFile = '');
+                }
+              }
+            }
+
+            // dumplicateFiles will be deleted if skipDuplicates is true
+            // if skipDuplicates is false, they will be imported
+            // and then deleted in the importBook function
+            if (skipDuplicates) {
+              for (var file in duplicateFiles) {
+                if (file.existsSync()) file.deleteSync();
+              }
+            }
+
+            setState(() {
+              finished = true;
+              running = false;
+            });
+            if (succeeded.isNotEmpty) {
+              ref.read(syncProvider.notifier).syncData(
+                  SyncDirection.upload, ref,
+                  trigger: SyncTrigger.auto);
+            }
+          }
+
           return PopScope(
               canPop: !running,
               child: AlertDialog(
@@ -373,64 +440,14 @@ void _showImportDialog(
                           },
                     child: Text(L10n.of(context).commonCancel),
                   ),
-                  if (uniqueFiles.isNotEmpty ||
+                  if (finished ||
+                      uniqueFiles.isNotEmpty ||
                       (duplicateFiles.isNotEmpty && !skipDuplicates))
                     TextButton(
                         onPressed: running
                             ? null
                             : () async {
-                                if (finished) {
-                                  Navigator.of(context).pop('dialog');
-                                  return;
-                                }
-                                setState(() => running = true);
-
-                                List<File> filesToImport = [...uniqueFiles];
-                                if (!skipDuplicates) {
-                                  filesToImport.addAll(duplicateFiles);
-                                }
-
-                                for (var file in filesToImport) {
-                                  AnxToast.show(path.basename(file.path));
-                                  setState(() {
-                                    currentHandlingFile = file.path;
-                                  });
-                                  try {
-                                    await importBook(file, ref);
-                                    succeeded.add(file.path);
-                                  } catch (e, stackTrace) {
-                                    AnxLog.severe(
-                                        'Failed to import ${file.path}: $e');
-                                    AnxLog.severe('Stack trace: $stackTrace');
-                                    setState(() {
-                                      errorFiles.add(file.path);
-                                      errorMessages[file.path] = e.toString();
-                                    });
-                                  } finally {
-                                    if (context.mounted) {
-                                      setState(() => currentHandlingFile = '');
-                                    }
-                                  }
-                                }
-
-                                // dumplicateFiles will be deleted if skipDuplicates is true
-                                // if skipDuplicates is false, they will be imported
-                                // and then deleted in the importBook function
-                                if (skipDuplicates) {
-                                  for (var file in duplicateFiles) {
-                                    if (file.existsSync()) file.deleteSync();
-                                  }
-                                }
-
-                                setState(() {
-                                  finished = true;
-                                  running = false;
-                                });
-                                if (succeeded.isNotEmpty) {
-                                  ref.read(syncProvider.notifier).syncData(
-                                      SyncDirection.upload, ref,
-                                      trigger: SyncTrigger.auto);
-                                }
+                                await startImport();
                               },
                         child: Text(finished
                             ? L10n.of(context).commonOk
@@ -446,6 +463,9 @@ void _showImportDialog(
 
 Future<void> importBook(File file, WidgetRef ref,
     {void Function()? onImported}) async {
+  if (await FileSystemEntity.type(file.path) != FileSystemEntityType.file) {
+    throw FileSystemException('Book source is not a regular file', file.path);
+  }
   String? md5 = await MD5Service.calculateFileMd5(file.path);
   String? sourceMd5;
 

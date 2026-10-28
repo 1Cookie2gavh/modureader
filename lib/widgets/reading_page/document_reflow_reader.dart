@@ -339,7 +339,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   late DocumentTextStyle _style = widget.initialStyle;
   StreamSubscription<String>? _removedFontSubscription;
-  late bool _forceOcr = widget.anchor?.ocr ?? widget.forceOcr;
+  late bool _forceOcr = widget.forceOcr || widget.anchor?.ocr == true;
   DocumentReflowPage? _page;
   TtsPageSource? _narrationSource;
   TtsPageSource? narrationSourceFor(DocumentReflowAnchor anchor) {
@@ -513,12 +513,13 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     if (_busy) {
       cancelLoading();
     }
-    _forceOcr = anchor.ocr;
+    _forceOcr = widget.forceOcr || anchor.ocr;
     await _load(anchor.page, anchor: anchor);
   }
 
   Future<void> setMode(bool ocr) async {
-    if (_busy) return;
+    await stopLoading();
+    if (!mounted) return;
     setState(() => _forceOcr = ocr);
     await _load(_navigationPage);
   }
@@ -803,8 +804,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
               ? await widget.store.read(page, '')
               : await widget.store.readAnchor(anchor);
       check();
-      final result = cached ??
-          await (widget.precache?.runForeground<DocumentReflowPage>(load) ??
+      final result = cached != null &&
+              (anchor != null || !_forceOcr || cached.ocr)
+          ? cached
+          : await (widget.precache?.runForeground<DocumentReflowPage>(load) ??
               load());
       check();
       final notes = await widget.loadNotes();
@@ -877,10 +880,14 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     final page = _navigationPage;
     if (_busy || page == null) return;
     if (!await confirmDocumentRecognition(context) || !mounted) return;
+    final previous = _forceOcr;
     _forceOcr = true;
     closeMenu();
-    await _load(page, refresh: true);
-    _forceOcr = false;
+    try {
+      await _load(page, refresh: true);
+    } finally {
+      _forceOcr = previous;
+    }
   }
 
   Widget _readerPanel(String menu) => switch (menu) {

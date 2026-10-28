@@ -29,6 +29,14 @@ class _Player extends EpubPlayerState {
     documentReadingMode.value = mode;
   }
   bool enabled = true;
+  bool forceOcr = false;
+  @override
+  bool get documentForceOcr => forceOcr;
+  @override
+  Future<void> setDocumentForceOcr(bool enabled) async {
+    forceOcr = enabled;
+  }
+
   int closes = 0;
   final renderSources = <Object?>[];
   final layouts = <DocumentLayoutConfig>[];

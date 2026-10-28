@@ -257,7 +257,7 @@ class XiaomiMimoTtsProvider extends ReadAnyCompatibleTtsProvider {
 
   @override
   String get providerDescription =>
-      '小米官方聊天语音接口：内置音色或文字设计音色。语速滑块控制本地播放倍率；音高通过风格指令控制。仅播放 MP3/WAV，旧 AAC/PCM 配置自动改用 MP3。不支持声音克隆。';
+      '小米官方聊天语音接口：内置音色或文字设计音色。语速设置控制本地播放倍率；安卓直接调整播放音高，其他平台通过风格指令控制音高。仅播放 MP3/WAV，旧 AAC/PCM 配置自动改用 MP3。不支持声音克隆。';
 
   @override
   String get defaultBaseUrl => 'https://api.xiaomimimo.com';
@@ -373,7 +373,8 @@ class XiaomiMimoTtsProvider extends ReadAnyCompatibleTtsProvider {
     }
     final directions = withStableNarration([
       if (style.isNotEmpty) style,
-      if (pitch.isFinite && pitch != 1) pitch > 1 ? '音调适当提高。' : '音调适当降低。',
+      if (pitch.isFinite && pitch != 1)
+        '音高${pitch > 1 ? '提高' : '降低'}至默认的 ${pitch.clamp(0.5, 2.0).toStringAsFixed(2)} 倍，保持语速、音量和音色不变。',
     ].join('\n'));
     final uri = resolveMimoEndpoint(
         config['baseUrl'].toString(), config['endpoint'].toString());

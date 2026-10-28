@@ -94,7 +94,7 @@ Start with presets and visual controls, or fine-tune the page with CSS. Color di
 
 ### Read aloud
 
-Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or DashScope. Choose a voice and speed, with delivery prompts where supported. Reflowable ebooks support continuous listening across chapters and narration highlights.
+Listen with system speech, Edge TTS, Xiaomi MiMo, OpenAI-compatible services or DashScope. Set speed from 0.1× to 4.0× in 0.1 steps or type a value; Android MiMo supports local pitch adjustment. Choose a voice and delivery prompts where supported. Reflowable ebooks support continuous listening across chapters and narration highlights.
 
 ![The same highlighted passage and complete playback toolbar on iPhone and Mac](docs/images/showcase/v1.3.0/listening-en.webp)
 

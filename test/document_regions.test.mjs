@@ -93,6 +93,21 @@ function harness(page = mockPage(), options = {}) {
     });
     return { source, canvases };
 }
+test('screen-density bases retain requested pixels while default region limits stay bounded', async () => {
+    const request = {page: 0, width: 1920, height: 2560};
+    const normal = harness();
+    const desktop = harness(mockPage(), {highResolution:true});
+    const low = await normal.source.render(request);
+    const high = await desktop.source.render(request);
+    assert.ok(low.width < 1920);
+    assert.equal(high.width,1920); assert.equal(high.height,2560);
+    for (const [width,height] of [[600,800],[50000,300],[30,60000]]) {
+        const plan=regionRenderPlan(mockPage({width,height}),{width:1e6,height:1e6},true);
+        assert.ok(plan.width*plan.height<=8388608);
+        assert.ok(Math.max(plan.width,plan.height)<=4096);
+    }
+    normal.source.clear();desktop.source.clear();
+});
 test('actual render request clips with transform, caches hits, and releases its canvas', async () => {
     let calls = 0;
     const { source, canvases } = harness(mockPage({ render: options => {

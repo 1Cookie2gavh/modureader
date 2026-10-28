@@ -8,8 +8,9 @@ import 'package:anx_reader/service/ocr/ocr_model_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class ReadyModel extends OcrModelStore {
+  bool ready = true;
   @override
-  Future<bool> available() async => true;
+  Future<bool> available() async => ready;
 }
 
 void main() {
@@ -30,12 +31,17 @@ void main() {
   });
 
   Future<DocumentReflowPage> load(Map<String, dynamic> info,
-          {bool scanned = false, bool bridgeRegions = false}) =>
+          {bool scanned = false,
+          bool bridgeRegions = false,
+          bool forceOcr = false,
+          DocumentReflowAnchor? anchor}) =>
       loadDocumentReflowPage(
         info: info,
         store: store,
         model: model,
         cancel: OcrCancellation(),
+        forceOcr: forceOcr,
+        anchor: anchor,
         extract: (request) async {
           expect(request['page'], isA<int>());
           stages.add('extract');
@@ -61,6 +67,75 @@ void main() {
           return DocumentTextResult('Recognized text');
         },
       );
+
+  test(
+      'forced OCR skips embedded text and its cache but retains note revisions',
+      () async {
+    final info = {'page': 0, 'total': 3};
+    final original = await load(info);
+    final edited = await store.saveEdit(original, 'Corrected embedded text');
+    final anchor = edited.anchor(0, 5);
+    expect(await store.cachedPages(0, 3), {0});
+    expect(await store.cachedPages(0, 3, forceOcr: true), isEmpty);
+    stages.clear();
+    final result = await load(info, forceOcr: true);
+    expect(stages, ['render', 'recognize']);
+    expect(result.ocr, isTrue);
+    expect(result.text, 'Recognized text');
+    expect((await store.read(0, ''))!.ocr, isTrue);
+    expect(await store.cachedPages(0, 3, forceOcr: true), {0});
+    expect((await store.readAnchor(anchor))!.text, edited.text);
+    final corrected = await store.saveEdit(result, 'Corrected OCR text');
+    stages.clear();
+    expect((await load(info, forceOcr: true)).text, corrected.text);
+    expect(stages, isEmpty);
+    expect(
+        (await load(info, forceOcr: true, anchor: anchor)).text, edited.text);
+    expect(stages, isEmpty);
+  });
+
+  test('forced OCR cache policy applies to windows throughout the book',
+      () async {
+    // Mix embedded-text caches, existing OCR and uncached pages in each window.
+    for (final start in [0, 47, 97]) {
+      await load({'page': start, 'total': 100});
+      final ocr = await load({'page': start + 1, 'total': 100}, forceOcr: true);
+      await store.saveEdit(ocr, 'Corrected OCR page ${start + 1}');
+    }
+    for (final start in [0, 47, 97]) {
+      stages.clear();
+      final cached = await store.cachedPages(start, 3, forceOcr: true);
+      expect(cached, {start + 1});
+      for (var page = start; page < start + 3; page++) {
+        if (!cached.contains(page)) {
+          await load({'page': page, 'total': 100}, forceOcr: true);
+        }
+      }
+      expect(stages, ['render', 'recognize', 'render', 'recognize']);
+      expect(await store.cachedPages(start, 3, forceOcr: true),
+          {start, start + 1, start + 2});
+      expect((await store.read(start + 1, ''))!.text,
+          'Corrected OCR page ${start + 1}');
+    }
+  });
+
+  test('missing model leaves embedded cache intact without silently using it',
+      () async {
+    final info = {'page': 0, 'total': 1};
+    final original = await load(info);
+    model.ready = false;
+    stages.clear();
+    await expectLater(
+        load(info, forceOcr: true), throwsA(isA<ReflowModelUnavailable>()));
+    expect(stages, isEmpty);
+    expect((await store.read(0, ''))!.revision, original.revision);
+    expect((await load(info)).text, original.text);
+  });
+
+  test('forced OCR with no cache never requests embedded text', () async {
+    expect((await load({'page': 0, 'total': 1}, forceOcr: true)).ocr, isTrue);
+    expect(stages, ['render', 'recognize']);
+  });
 
   for (final page in <num>[2, 2.0]) {
     test('accepts ${page.runtimeType} bridge pages and reuses corrected cache',
@@ -121,7 +196,11 @@ void main() {
               return {
                 'text': text,
                 'regions': [
-                  {'start': 0.0, 'end': 3.0, 'rect': [.1, .1, .3, .05]},
+                  {
+                    'start': 0.0,
+                    'end': 3.0,
+                    'rect': [.1, .1, .3, .05]
+                  },
                   {
                     'start': 4.0,
                     'end': text.length.toDouble(),

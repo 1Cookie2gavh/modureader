@@ -354,7 +354,7 @@ class NativeInstallerTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         installer = (root / 'scripts/release/native_installers.py').read_text()
         runner = (root / 'linux/my_application.cc').read_text()
-        self.assertIn('Exec=modureader %u', installer)
+        self.assertIn('Exec=modureader %U', installer)
         self.assertIn('MimeType=x-scheme-handler/modu;', installer)
         self.assertIn('G_APPLICATION_HANDLES_COMMAND_LINE', runner)
         self.assertNotIn('G_APPLICATION_NON_UNIQUE', runner)

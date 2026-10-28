@@ -62,7 +62,11 @@ for (const continuous of [false,true]) {
     const {reader,counts} = fixture(continuous);
     reader.setStyles(['@font-face{}','p{color:red}']);
     assert.deepEqual(counts,{cleared:1,captured:1,waited:1,writes:2});
+    await Promise.resolve();
+    const renders = reader.renders;
     for(let i=0;i<20;i++) reader.setStyles(['@font-face{}','p{color:red}']);
+    await Promise.resolve();
+    assert.equal(reader.renders, renders, 'unchanged styles must not repaginate loaded chapters');
     assert.deepEqual(counts,{cleared:1,captured:1,waited:1,writes:2});
     reader.setStyles(['@font-face{}','p{color:blue}']);
     assert.deepEqual(counts,{cleared:2,captured:2,waited:2,writes:3});

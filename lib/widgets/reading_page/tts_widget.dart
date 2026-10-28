@@ -11,7 +11,7 @@ import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/service/tts/system_tts_support.dart';
 import 'package:anx_reader/service/tts/tts_service.dart' as tts_svc;
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
-import 'package:anx_reader/widgets/reading_page/tts_rate_slider.dart';
+import 'package:anx_reader/widgets/reading_page/tts_value_control.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/page/settings_page/narrate.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
@@ -155,57 +155,26 @@ class _TtsWidgetState extends State<TtsWidget> {
           );
         }
 
-        Widget pitch() {
-          return Row(
-            children: [
-              Text(L10n.of(context).ttsPitch),
-              Expanded(
-                child: Slider(
-                  value: this.pitch,
-                  onChanged: (newPitch) {
-                    setState(() => this.pitch = newPitch);
-                  },
-                  onChangeEnd: (value) => TtsHandler().pitch = value,
-                  min: 0.5,
-                  max: 2.0,
-                  divisions: 15,
-                  label: this.pitch.toStringAsFixed(1),
-                ),
-              ),
-            ],
-          );
-        }
-
-        Widget rate() {
-          final isMimo = Prefs().ttsService == 'xiaomi';
-          return Row(
-            children: [
-              Text(L10n.of(context).ttsRate),
-              Expanded(
-                child: TtsRateSlider(
-                  rate: this.rate,
-                  isMimo: isMimo,
-                  isOnline: tts_svc.getTtsService(Prefs().ttsService).isOnline,
-                  onChanged: (newRate) {
-                    setState(() => this.rate = newRate);
-                  },
-                  // Dragging previews the value; commit once on release so
-                  // each pointer event does not invalidate all speech requests.
-                  onChangeEnd: (value) => TtsHandler().rate = value,
-                ),
-              ),
-            ],
-          );
-        }
+        Widget voiceControls() => TtsVoiceControls(
+              pitch: pitch,
+              rate: rate,
+              onPitchChanged: (value) {
+                setState(() => pitch = value);
+                TtsHandler().pitch = value;
+              },
+              onRateChanged: (value) {
+                setState(() => rate = value);
+                TtsHandler().rate = value;
+              },
+            );
 
         Widget sliders() {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 5, 20, 0),
+            padding: const EdgeInsets.only(top: 5),
             child: Column(
               children: [
                 volume(),
-                pitch(),
-                rate(),
+                voiceControls(),
                 if (_pageSource != null)
                   Text(
                       ModuStrings.text(context, '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
@@ -413,7 +382,8 @@ class _TtsWidgetState extends State<TtsWidget> {
               ReaderMenuGroup(
                   padding: const EdgeInsets.all(12), child: stopTimerWidget()),
               ReaderMenuGroup(
-                  padding: const EdgeInsets.all(12), child: sliders()),
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+                  child: sliders()),
             ],
           ),
         );
