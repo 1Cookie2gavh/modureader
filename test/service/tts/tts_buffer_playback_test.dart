@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show StandardMessageCodec;
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/models/tts_buffer_settings.dart';
@@ -23,6 +24,17 @@ class FirstRequestHangs extends StubEdge {
   }
 }
 
+class SharedAudio extends StubEdge {
+  final audio = Uint8List(1024 * 1024)..setAll(0, [73, 68, 51]);
+  int calls = 0;
+  @override
+  Future<Uint8List> speak(
+      String text, String? voice, double rate, double pitch) async {
+    calls++;
+    return audio;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() async {
@@ -31,6 +43,35 @@ void main() {
     OnlineTts.clearCachedAudio();
   });
   tearDown(OnlineTts.clearCachedAudio);
+
+  test('playback reuses cached audio bytes through a read-only view', () async {
+    Prefs().ttsBufferSettings = const TtsBufferSettings(cacheMinutes: 10);
+    final backend = SharedAudio();
+    var plays = 0;
+    final tts = OnlineTts.forTesting(
+        backend: backend,
+        collect: (_) async => [const TtsSentence(text: '重复播放内存测试')],
+        play: (segment) async {
+          final audio = segment.audio!;
+          expect(audio.length, backend.audio.length);
+          expect(() => audio[5] = 1, throwsUnsupportedError);
+          const codec = StandardMessageCodec();
+          expect(codec.decodeMessage(codec.encodeMessage(audio)), audio);
+          // A test-only write to the provider buffer proves there is no second allocation.
+          backend.audio[5] = 17;
+          expect(audio[5], 17);
+          backend.audio[5] = 0;
+          plays++;
+        });
+    addTearDown(tts.stop);
+    for (var i = 0; i < 2; i++) {
+      await tts.init(() async => '重复播放内存测试', () async => '', () async => '');
+      await tts.speak();
+    }
+    expect(plays, 2);
+    expect(backend.calls, 1);
+    expect(OnlineTts.cachedAudioBytes, backend.audio.length);
+  });
 
   test('a timed-out cached request does not poison synthesis retries',
       () async {

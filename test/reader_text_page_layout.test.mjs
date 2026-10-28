@@ -644,3 +644,18 @@ test('line spacing measures adjacent reader runs together without losing tall gl
   assert.equal(doc.querySelector('sup').style.lineHeight, '', 'notes retain publisher metrics');
   dom.window.close();
 });
+
+test('scroll after pagination measures adjacent runs once and retains only line unions',()=>{
+ const dom=new JSDOM('<p>'+ '甲'.repeat(60) +'</p><p>'+ '乙'.repeat(40) +'</p>');
+ const doc=dom.window.document;preparePageRuns(doc);
+ let calls=0;
+ dom.window.Range.prototype.getClientRects=function(){
+   calls++;const top=this.toString().includes('甲')?10:50;
+   return Array.from({length:this.toString().length},()=>({top,bottom:top+24,width:12,height:24}));
+ };
+ assert.deepEqual(prepareScrollLines(doc),[{top:10,bottom:34},{top:50,bottom:74}]);
+ assert.equal(calls,2,'measure paragraph runs together after switching to scrolling');
+ prepareScrollLines(doc);assert.equal(calls,2,'unchanged scroll geometry is reused');
+ invalidateScrollLines(doc);prepareScrollLines(doc);assert.equal(calls,4);
+ dom.window.close();
+});

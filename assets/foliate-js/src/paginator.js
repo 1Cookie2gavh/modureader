@@ -589,7 +589,7 @@ export class Paginator extends HTMLElement {
   #pendingScrollFrame = null
   #scrollRelocateTimer = null
   #lastScrollRelocate = -Infinity
-  #harmonyScroll = /OpenHarmony|HarmonyOS/i.test(navigator.userAgent)
+  #coalesceScrollProgress = /Android|OpenHarmony|HarmonyOS/i.test(navigator.userAgent)
   #lineSettleTimer = null
   #scrollPointerDown = false
   #lastScrollTop = 0
@@ -1565,8 +1565,8 @@ export class Paginator extends HTMLElement {
     if (this.#preparingView || this.#destroyed || !this.#view) return
     if (reason === 'scroll' && this.#ignoreNativeScroll) return
     if (reason === 'scroll') this.#continuous?.track()
-    // Keep chapter warming responsive; avoid per-frame text/CFI scans and Flutter rebuilds on ArkWeb.
-    if (reason === 'scroll' && this.scrolled && this.#harmonyScroll && !flush) {
+    // Keep chapter warming responsive; avoid per-frame text/CFI scans and Flutter rebuilds on Android/ArkWeb.
+    if (reason === 'scroll' && this.scrolled && this.#coalesceScrollProgress && !flush) {
       const delay = 100 - (performance.now() - this.#lastScrollRelocate)
       if (delay > 0) {
         if (this.#scrollRelocateTimer == null)

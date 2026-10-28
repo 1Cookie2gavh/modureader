@@ -173,3 +173,20 @@ test('region cache evicts old pages and distinguishes rotation, rectangle and ou
     await source.render({ page: 0, region: { x: 0, y: 0, width: .5, height: .5 } });
     assert.equal(calls, 10);
 });
+
+test('identical in-flight region requests share rasterization without cancel/restart',async()=>{
+ let calls=0,cancelled=0,finish;
+ const {source,canvases}=harness(mockPage({render:()=>{
+   calls++;return {promise:new Promise(resolve=>{finish=resolve}),cancel(){cancelled++;finish()}};
+ }}));
+ const request={page:0,width:600,height:800};
+ const first=source.render(request);const outcomes=Promise.allSettled([first]);
+ await new Promise(resolve=>setImmediate(resolve));
+ const second=source.render({...request});
+ const all=Promise.allSettled([first,second]);
+ await new Promise(resolve=>setImmediate(resolve));finish();
+ const results=await all;await outcomes;
+ assert.equal(calls,1);assert.equal(cancelled,0);assert.equal(canvases.length,1);
+ assert.ok(results.every(x=>x.status==='fulfilled'));
+ assert.equal(results[0].value,results[1].value);source.clear();
+});

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
 const uri=code=>`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const source=name=>readFile(new URL(`../assets/foliate-js/src/${name}.js`,import.meta.url),'utf8');
 const processing=uri(await source('document-image-processing'));
@@ -375,4 +376,25 @@ test('watermark filtering changes only named OCGs and never original visibility'
  assert.equal(filtered.getGroups().a.visible,false);assert.equal(filtered.getGroups().b.visible,true);
  assert.equal(configs[0].getGroups().a.visible,true);
  await source.render({page:0});assert.equal(renders.length,2);assert.equal(renders[1].optionalContentConfigPromise,undefined);
+});
+
+test('crop working buffers stay below six bytes per pixel and preserve source pixels', async()=>{
+ const buffers=new Set();
+ const tracked=Type=>new Proxy(Type,{construct(target,args){const result=new target(...args);buffers.add(result.buffer);return result}});
+ const detect=runInNewContext((await source('document-image-processing')).replaceAll('export ','')+';detectContentCrop',{
+   Uint8Array:tracked(Uint8Array),Uint32Array:tracked(Uint32Array),Float64Array:tracked(Float64Array),Int32Array:tracked(Int32Array),
+   DOMException,setTimeout});
+ const image=raster(256,384);rect(image,60,80,140,200,30);
+ const original=image.data.slice();
+ const result=await detect(image,{margin:0});
+ assert.equal(result.detected,true);assert.deepEqual(image.data,original);
+ const allocated=[...buffers].reduce((sum,buffer)=>sum+buffer.byteLength,0);
+ assert.ok(allocated<=image.width*image.height*6,`temporary crop buffers: ${allocated}`);
+});
+test('screen-density enhancement accepts bounded 8MP bases while crop analysis stays at 2MP',async()=>{
+ const image=raster(1024,2304,200);image.data.set([80,100,120,255],0);
+ await enhanceImage(image,{darken:10});
+ assert.ok(image.data[0]<80);assert.equal(image.data[3],255);
+ await assert.rejects(detectContentCrop(image),RangeError);
+ await assert.rejects(enhanceImage({width:4096,height:4096,data:[]},{darken:10}),RangeError);
 });

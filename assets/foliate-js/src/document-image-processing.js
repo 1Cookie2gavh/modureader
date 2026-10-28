@@ -17,9 +17,9 @@ export const hasEnhancement = value => Object.values(normalizeEnhancement(value)
 const check = signal => { if (signal?.aborted) throw new DOMException('Image processing cancelled', 'AbortError') }
 const pause = () => new Promise(resolve => setTimeout(resolve, 0))
 const clamp = n => Math.max(0, Math.min(255, n))
-const validate = ({data, width, height}) => {
+const validate = ({data, width, height}, maxPixels = 2097152) => {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 ||
-        width * height > 2097152 || data?.length !== width * height * 4)
+        width * height > maxPixels || data?.length !== width * height * 4)
         throw new RangeError('Invalid or oversized image')
 }
 
@@ -148,7 +148,7 @@ async function paperField(data, width, height, signal) {
 }
 
 export async function enhanceImage(image, value, {signal} = {}) {
-    validate(image); check(signal)
+    validate(image, 8388608); check(signal)
     const options = normalizeEnhancement(value)
     if (!hasEnhancement(options)) return image
     const {width, height} = image
@@ -216,9 +216,8 @@ export async function detectContentCrop(image, {margin = .03, signal} = {}) {
     const {data, width, height} = image
     const full = reason => ({crop:{x:0,y:0,width:1,height:1}, reason, detected:false})
     const gray = new Uint8Array(width * height), histogram = new Uint32Array(256)
-    // Integral local means cost O(pixels), not a window scan per pixel. Together
-    // with the mask/queue these arrays stay within the existing 2MP budget.
-    const stride = width + 1, integral = new Float64Array(stride * (height + 1))
+    // Integer gray sums fit Uint32 under the 2MP analysis cap (255 * pixels).
+    const stride = width + 1, integral = new Uint32Array(stride * (height + 1))
     for (let y = 0; y < height; y++) {
         if (y % 64 === 0) { await pause(); check(signal) }
         let sum = 0
@@ -236,7 +235,7 @@ export async function detectContentCrop(image, {margin = .03, signal} = {}) {
     }
     if (paper < 140) return full('uncertain-border')
     const radius = Math.max(6, Math.min(40, Math.round(Math.min(width,height) * .025)))
-    const mask = new Uint8Array(width * height)
+    const mask = gray
     for (let y = 0; y < height; y++) {
         if (y % 64 === 0) { await pause(); check(signal) }
         for (let x = 0; x < width; x++) {
@@ -252,7 +251,8 @@ export async function detectContentCrop(image, {margin = .03, signal} = {}) {
     let left = width, top = height, right = -1, bottom = -1
     const smallComponents = []
     const minimumInk = Math.max(8, Math.round(Math.min(width,height) * .012))
-    const queue = new Int32Array(width * height)
+    // Local means are finished; reuse their storage for component traversal.
+    const queue = new Int32Array(integral.buffer, 0, width * height)
     for (let y = 0; y < height; y++) {
         if (y % 64 === 0) { await pause(); check(signal) }
         for (let x = 0; x < width; x++) {

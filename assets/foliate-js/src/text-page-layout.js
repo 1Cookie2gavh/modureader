@@ -105,6 +105,19 @@ export function fittedLineHeight(requested, glyphHeight, viewport) {
   return Math.abs(fitted - natural) <= Math.min(8, natural * .2) ? fitted : natural
 }
 
+// Generated adjacent runs can share one range without changing font/line coverage.
+function selectTextRuns(range, node, walker) {
+  let last = node.parentElement
+  if (last.__moduPageRun && last.childNodes.length === 1) {
+    // Reader-owned runs share inline typography; measure their full range once.
+    while (last.nextSibling?.__moduPageRun && last.nextSibling.childNodes.length === 1 &&
+      last.nextSibling.firstChild.nodeType === 3) last = last.nextSibling
+    range.setStartBefore(node.parentElement)
+    range.setEndAfter(last)
+    walker.currentNode = last.lastChild
+  } else range.selectNodeContents(node)
+}
+
 // Measure the actual font after it loads, before the chapter becomes visible.
 // CSS line-height may be smaller than the font's range boxes (even zero).
 export function fitTextLineSpacing(doc, viewport = 0) {
@@ -123,15 +136,7 @@ export function fitTextLineSpacing(doc, viewport = 0) {
     let block = node.parentElement
     while (block !== doc.body && (block.__moduPageRun || styleOf(block).display === 'inline')) block = block.parentElement
     if (!['block', 'list-item'].includes(styleOf(block).display)) continue
-    let last = node.parentElement
-    if (last.__moduPageRun && last.childNodes.length === 1) {
-      // Reader-owned runs share inline typography; measure their full range once.
-      while (last.nextSibling?.__moduPageRun && last.nextSibling.childNodes.length === 1 &&
-        last.nextSibling.firstChild.nodeType === 3) last = last.nextSibling
-      range.setStartBefore(node.parentElement)
-      range.setEndAfter(last)
-      walker.currentNode = last.lastChild
-    } else range.selectNodeContents(node)
+    selectTextRuns(range, node, walker)
     let height = 0
     for (const rect of range.getClientRects())
       if (rect.width > 0 && rect.height > 0) height = Math.max(height, rect.height)
@@ -328,21 +333,22 @@ export function prepareScrollLines(doc) {
   }
   if (state.observer?.takeRecords().length) state.dirty = true
   if (!state.dirty) return state.edges
-  const edges = []
+  const edges = new Map()
   if (doc.body.textContent.length <= 300000) {
     const range = doc.createRange()
     const walker = doc.createTreeWalker(doc.body, 4)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (!node.textContent.trim() || node.parentElement.closest('script, style')) continue
-      range.selectNodeContents(node)
+      selectTextRuns(range, node, walker)
       for (const rect of range.getClientRects()) {
-        if (rect.height > 0 && rect.width > 0) edges.push({ top: rect.top, bottom: rect.bottom })
+        if (rect.height > 0 && rect.width > 0)
+          edges.set(rect.top, Math.max(edges.get(rect.top) ?? -Infinity, rect.bottom))
       }
     }
   }
   // Inline runs share line boxes; retain their union instead of per-glyph rects.
   const merged = []
-  for (const edge of edges.sort((a, b) => a.top - b.top)) {
+  for (const edge of Array.from(edges, ([top, bottom]) => ({top, bottom})).sort((a, b) => a.top - b.top)) {
     const last = merged.at(-1)
     // Overlapping font boxes on adjacent lines are not one paragraph-sized row.
     if (last && (edge.bottom <= last.bottom || Math.abs(edge.top - last.top) < .5))

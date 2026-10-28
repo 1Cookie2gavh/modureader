@@ -485,11 +485,14 @@ export class PdfScrollReader {
             let url
             try {
                 const dpr = devicePixelRatio || 1
-                const result = await this.book.readingRegionRenderer.render({ page: e.index, region,
+                const request = { page: e.index, region,
                     enhancement: this.view.enhancement,
                     hideWatermarks: this.view.display?.hideWatermarks,
                     width: region.width * e.width * e.plan.scale * dpr,
-                    height: region.height * e.height * e.plan.scale * dpr })
+                    height: region.height * e.height * e.plan.scale * dpr }
+                const key = JSON.stringify(request)
+                if (e.detailKey === key) continue
+                const result = await this.book.readingRegionRenderer.render(request)
                 if (!active() || !this.entries.includes(e)) return
                 url = URL.createObjectURL(result.blob)
                 const img = e.iframe.contentDocument.createElement('img')
@@ -504,6 +507,7 @@ export class PdfScrollReader {
                 e.iframe.contentDocument.body.append(img); e.detail = img
                 if (e.url) URL.revokeObjectURL(e.url)
                 e.url = url; url = null
+                e.detailKey = key
             } catch (_) { /* Keep the base page visible; later scroll/resize retries. */ }
             finally { if (url) URL.revokeObjectURL(url) }
         }

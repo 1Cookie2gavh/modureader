@@ -16,7 +16,9 @@ Older sections retain their original version scope; they are not current accepta
 
 - Perf(reader): Batch adjacent generated text-run measurements, remove duplicate position refreshes after layout and skip unchanged continuous-reading styles; preserve text, selection and navigation behavior.
 
-- Perf(harmony): Coalesce continuous-scroll position measurements while keeping chapter preloading responsive and flushing the final position.
+- Perf(memory): Reuse crop-analysis buffers and encoded TTS audio, group scroll-line measurements, reuse identical pending PDF renders and unchanged detail images, and release the final PDF bitmap after clearing caches.
+
+- Perf(reader): Coalesce Android and HarmonyOS continuous-scroll position measurements while keeping chapter preloading responsive and flushing the final position.
 
 - Fix(sync): Restore newer synchronized reading and narration positions when resuming a paused reader; preserve active narration and retry deferred background jumps.
 
@@ -24,7 +26,7 @@ Older sections retain their original version scope; they are not current accepta
 
 - Fix(ocr): Remember forced OCR per book and replace embedded-text cache results when OCR is requested, preserving saved revisions and note anchors.
 
-- Fix(pdf): Improve continuous-reading backing-image clarity while bounding decoded pixels and retaining visible or selected pages.
+- Fix(pdf): Improve continuous-reading backing-image clarity while bounding decoded pixels and retaining visible or selected pages; allow enhancement throughout the supported 8 MP backing-image budget.
 
 - Feat(reader): Add an optional move-and-resize switch for selection-tool popups, visible only in popup display mode and off by default. Drag the top to move, or the sides, bottom and corners to resize; every opening restores the default position and size.
 
@@ -50,7 +52,9 @@ Older sections retain their original version scope; they are not current accepta
 
 - Perf(reader): 合并相邻生成文字片段的测量，减少排版后的重复位置刷新，跳过连续阅读中未变化的样式；保留正文、选择及导航功能。
 
-- Perf(harmony): 合并连续滚动中的位置测量，保持章节预加载响应并及时保存最终位置。
+- Perf(memory): 复用裁边分析缓冲区和 TTS 音频数据，合并滚动行测量，复用相同的待处理 PDF 渲染及未变化的清晰图层，清空缓存后释放最后一张 PDF 图片。
+
+- Perf(reader): 合并安卓与鸿蒙连续滚动中的位置测量，保持章节预加载响应并及时保存最终位置。
 
 - Fix(sync): 暂停的阅读器返回前台时恢复较新的同步阅读及朗读位置；保留正在播放的朗读，重试后台延迟的跳转。
 
@@ -58,7 +62,7 @@ Older sections retain their original version scope; they are not current accepta
 
 - Fix(ocr): 按书保存强制 OCR 设置，要求 OCR 时替换原文字层缓存，同时保留历史修订及笔记锚点。
 
-- Fix(pdf): 提高连续阅读底图清晰度，同时限制解码总像素，保留可见或已选中的页面。
+- Fix(pdf): 提高连续阅读底图清晰度，同时限制解码总像素，保留可见或已选中的页面；允许在支持的 8 MP 底图范围内应用图像增强。
 
 - Feat(reader): 划词功能弹窗新增可选的移动与缩放开关，仅在选择弹出显示时出现，默认关闭；拖动顶部移动，拖动两侧、底边或四角调整大小，每次打开恢复预设位置和大小。
 

@@ -431,3 +431,21 @@ test('scroll recycles prepared bitmap URLs and close releases every retained bas
     }finally{h.close();URL.revokeObjectURL=revoke}
 });
 test.after(()=>{children.forEach(child=>child.window.close());dom.window.close()});
+
+test('unchanged detail reuses its image while pan and enhancement refresh it',async()=>{
+ const h=harness();nativePdf(h);h.flow.view.zoom=3;
+ h.flow.ensureNeighbors=async()=>{};
+ let renders=0,fail=false;
+ h.book.readingRegionRenderer.render=async()=>{renders++;if(fail)throw Error('retry');return {blob:new Blob(['detail'])}};
+ try{
+   await h.flow.open(10,0);h.flow.activate();clearTimeout(h.flow.timer);
+   const e=h.flow.current;e.baseRaster=null;
+   await h.flow.refreshDetail();assert.equal(renders,1);const image=e.detail,url=e.url;
+   for(let i=0;i<5;i++)await h.flow.refreshDetail();
+   assert.equal(renders,1);assert.equal(e.detail,image);assert.equal(e.url,url);
+   h.flow.view.enhancement={contrast:10};fail=true;
+   await h.flow.refreshDetail();assert.equal(renders,2);assert.equal(e.detail,image);
+   fail=false;await h.flow.refreshDetail();assert.equal(renders,3);assert.notEqual(e.detail,image);
+   h.flow.element.scrollTop+=30;await h.flow.refreshDetail();assert.equal(renders,4);
+ }finally{h.close()}
+});

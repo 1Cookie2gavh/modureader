@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm'
 
 const source = readFileSync(new URL('../assets/foliate-js/src/paginator.js', import.meta.url), 'utf8')
 const method = source.slice(source.indexOf('  #afterScroll('), source.indexOf('  #handleScrollBoundaries('))
-const platform = source.match(/  #harmonyScroll = .*/)[0]
+const platform = source.match(/  #coalesceScrollProgress = .*/)[0]
 function fixture(userAgent = 'Mozilla/5.0 (Phone; OpenHarmony 5.0) ArkWeb/114') {
   let now = 0, id = 0
   const timers = new Map()
@@ -55,18 +55,20 @@ function fixture(userAgent = 'Mozilla/5.0 (Phone; OpenHarmony 5.0) ArkWeb/114') 
   return {reader, advance, timers}
 }
 
-test('120 Hz Harmony scroll bounds text scans and reports the final viewport without scrollend support', () => {
-  const {reader, advance, timers} = fixture()
-  for (let frame = 0; frame < 120; frame++) {
-    advance(frame * 1000 / 120); reader.move(frame * 10)
-  }
-  advance(1100)
-  assert.equal(reader.scans, 11)
-  assert.equal(reader.events.at(-1).range.position, 1190)
-  assert.equal(reader.events.at(-1).fraction, .119)
-  assert.equal(reader.events.at(-1).readingAction, true)
-  assert.equal(timers.size, 0)
-})
+for (const ua of ['OpenHarmony', 'HarmonyOS', 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36']) {
+  test(`120 Hz ${ua} scroll bounds text scans and reports the final viewport without scrollend support`, () => {
+    const {reader, advance, timers} = fixture(ua)
+    for (let frame = 0; frame < 120; frame++) {
+      advance(frame * 1000 / 120); reader.move(frame * 10)
+    }
+    advance(1100)
+    assert.equal(reader.scans, 11)
+    assert.equal(reader.events.at(-1).range.position, 1190)
+    assert.equal(reader.events.at(-1).fraction, .119)
+    assert.equal(reader.events.at(-1).readingAction, true)
+    assert.equal(timers.size, 0)
+  })
+}
 
 test('chapter activation remains per frame even while precise progress is coalesced', () => {
   const {reader, advance} = fixture()
@@ -117,10 +119,10 @@ test('an animated page turn suppresses old scroll work until its final position 
   assert.equal(reader.events.length, 2)
 })
 
-test('Android, Apple and desktop scrolling, and Harmony paginated mode keep existing cadence', () => {
+test('Apple and desktop scrolling, and Android/Harmony paginated mode keep existing cadence', () => {
   for (const ua of ['Android', 'iPhone', 'Macintosh', 'Windows', 'OpenHarmony']) {
     const {reader} = fixture(ua)
-    if (ua === 'OpenHarmony') reader.scrolled = false
+    if (ua === 'OpenHarmony' || ua === 'Android') reader.scrolled = false
     for (let i = 0; i < 10; i++) reader.move(i)
     assert.equal(reader.scans, 10, ua)
   }

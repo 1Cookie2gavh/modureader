@@ -63,7 +63,7 @@ export const createPdfRegionRenderer = (pdf, {
     cacheRaster = false,
     highResolution = false,
 } = {}) => {
-    let current, tail = Promise.resolve(), generation = 0
+    let current, currentRequest, currentSignal, currentPromise, tail = Promise.resolve(), generation = 0
     // Editor only: one immutable unprocessed raster, <= 2MP / 8MiB. Changing
     // enhancement parameters must not decode/rasterize the PDF again.
     let originalRaster
@@ -87,9 +87,12 @@ export const createPdfRegionRenderer = (pdf, {
         return { page, total: pdf.numPages, width: viewport.width, height: viewport.height, watermarks }
     }
     const render = (request, { signal } = {}) => {
+        const requestKey = JSON.stringify(request)
+        if (current && !current.signal.aborted && currentRequest === requestKey && currentSignal === signal)
+            return currentPromise
         cancel()
         const controller = new AbortController(), version = generation
-        current = controller
+        current = controller; currentRequest = requestKey; currentSignal = signal
         const abort = () => controller.abort()
         signal?.addEventListener('abort', abort, { once: true })
         if (signal?.aborted) abort()
@@ -183,9 +186,11 @@ export const createPdfRegionRenderer = (pdf, {
             }
         }).finally(() => {
             signal?.removeEventListener('abort', abort)
-            if (current === controller) current = null
+            if (current === controller) current = currentRequest = currentSignal = currentPromise = null
         })
-        tail = pending.catch(() => {})
+        currentPromise = pending
+        // The serialization tail must not retain a completed bitmap after cache clear.
+        tail = pending.then(() => {}, () => {})
         return pending
     }
     return { info, render, cancel, clear }

@@ -593,7 +593,10 @@ class OnlineTts extends BaseTts {
           throw TtsSynthesisError(
               TtsFailureReason.invalidAudio, 'Empty speech audio');
         } else {
-          segment.audio = Uint8List.fromList(bytes);
+          // Cache and playback share encoded bytes; consumers cannot mutate them.
+          segment.audio = bytes is Uint8List
+              ? bytes.asUnmodifiableView()
+              : Uint8List.fromList(bytes).asUnmodifiableView();
         }
         if (attempt > 0) {
           AnxLog.info(
