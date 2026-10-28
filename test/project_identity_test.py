@@ -57,7 +57,6 @@ class ProjectIdentityTest(unittest.TestCase):
             "docs/RELEASING.md", "docs/SETTINGS.md", "docs/SETTINGS_zh.md",
             "docs/troubleshooting.md", "docs/issue-triage.md",
         )]
-        paths += list((ROOT / "fastlane/metadata/android").glob("*/*.txt"))
         prohibited = re.compile(
             r"github\.com/anxcye/anx-reader/(?:releases|issues)"
             r"|anx\.anxcye\.com|t\.me/AnxReader|id6743196413"

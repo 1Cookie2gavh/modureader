@@ -63,7 +63,7 @@ If an older in-app macOS update reports that Modu cannot open and system logs in
 
 ### Windows unattended installation and capture troubleshooting
 
-Modu release installers use Inno Setup, not NSIS. Use `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`, not `/S`. The current release generator rejects the exact `/S` or `/s` option during initialization (exit code 1) and writes the correct command to the setup log. This change does not apply retroactively to downloaded older installers or the legacy `scripts/build_windows_exe.ps1` path. Older installers can fall back to a wizard and wait for input. Unknown options other than `/S` retain Inno Setup's behavior.
+Modu release installers use Inno Setup, not NSIS. Use `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`, not `/S`. The current release generator rejects the exact `/S` or `/s` option during initialization (exit code 1) and writes the correct command to the setup log. This change does not apply retroactively to downloaded older installers or installers from the retired standalone packaging path. Older installers can fall back to a wizard and wait for input. Unknown options other than `/S` retain Inno Setup's behavior.
 
 In PowerShell, replace `VERSION` and choose the correct architecture, then wait for the installer and check both its exit status and output:
 
@@ -150,7 +150,7 @@ The dedicated ModuReader bot posts to channel `-1004343451406`. Give it only the
 
 For the initial announcement or recovery, run **Modu Telegram Release** with a published `release_tag` (or `latest` for the latest stable version). Manual runs and reruns send a new announcement, so check the channel before retrying a timeout or rerunning an already successful job. Automatic retries occur only after an explicit Telegram rate-limit rejection. Editing release notes alone does not send a second post.
 
-Current automation is .github/workflows/build.yaml, pr-check.yml and scripts/release/. Fastlane/store files are historical templates, not Modu's distribution path.
+Current automation is .github/workflows/build.yaml, pr-check.yml and scripts/release/. Retired Fastlane/store templates and standalone packaging scripts were removed from the active tree on 2026-10-28; Git history retains them.
 
 The historical Native desktop installers workflow can repackage existing assets after verifying their hashes and tag identity, without recompiling the app or moving tags. INSTALLER-SOURCE.txt records packaging-script source and original hashes. This requires old assets to remain available; new releases use the normal build workflow.
 

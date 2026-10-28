@@ -1,6 +1,0 @@
-默读是基于 Anx Reader 和 ReadAny 的独立开源 AI 阅读器，支持本地书架、EPUB/PDF 等电子书阅读、笔记、统计、WebDAV 同步、远程书库、移动端快速标记、翻译、朗读和十个可编辑 AI 阅读技能。
-
-四个本地 ONNX 模型内嵌，默认使用中文 BGE，导入后自动索引默认关闭；在线服务需要自行配置，并会接收所需文本。API Key 同步独立开启并加密。
-
-请从本项目 GitHub Releases 下载：https://github.com/sobranie2406/modureader/releases
-此文件是元数据草稿，不表示已在应用商店发布。安装限制及已知问题见对应 Release。

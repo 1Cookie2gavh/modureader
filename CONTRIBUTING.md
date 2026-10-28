@@ -7,6 +7,7 @@ Reviewed for Modu 1.2.0 on 2026-10-04. Modu derives from Anx Reader and ReadAny;
 - Search existing issues before reporting a bug. Include version, OS, CPU architecture, reproduction steps, expected and actual behavior. Use the feature-request template for new capabilities.
 - Do not upload API keys, WebDAV passwords, private books, chat history or unsanitized logs. Security vulnerabilities follow [Security](SECURITY.md), not public bug reports.
 - Explain a pull request's purpose, test results and platform limitations. Add regression coverage for new behavior.
+- Localization maintenance tools live in `scripts/localization/`; run them from the repository root.
 - Use the pinned Flutter version, generate localization and build_runner code, then run the relevant tests. See [release/build instructions](docs/RELEASING.md).
 - Contributions must be yours to provide under GPL-3.0-or-later. Preserve third-party licenses and copyright notices.
 - Keep current user guides aligned with the released version. English is the default; core user documents also have Chinese editions. Singleton guides use English. Retain historical evidence and third-party originals.

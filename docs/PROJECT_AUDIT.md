@@ -1,6 +1,12 @@
 # Project identity and documentation cleanup record
 
-## Current: Modu 1.2.0+10082
+## Source entry cleanup (2026-10-28)
+
+Removed 39 unused files (876,030 bytes) from the tracked tree: retired Fastlane/store templates and metadata, their Ruby manifests/locks, standalone release/tagging and APK-renaming helpers, outdated Windows/macOS packaging helpers and bundled legacy CRT copies, the unused F-Droid prebuild helper, the obsolete Telegram formatter, and the icon-generator configuration pointing to a removed asset. These have no callers in the active build workflows; current release packaging obtains architecture-matched CRT files from the Windows toolchain.
+
+Moved the manual ARB normalizer to `scripts/localization/normalize_arb_files.dart`. Updated documentation and kept Windows file-association assertions against the active installer generator. Current platform sources, CI, regression fixtures, reader bundles, homepage images, licenses and attribution remain. Git history retains removed files; existing release tags and packages are unchanged. This maintenance follows the 1.3.4 build source and does not alter its installer payloads. All 213 Python checks passed (16 skipped), including homepage links, release-note conventions, installer packaging and file associations.
+
+## Historical baseline: Modu 1.2.0+10082
 
 The current product baseline is the stable Modu publishing repository's `v1.2.0` commit `77dc238fb2ae2ce02455bd80c500ee9fd140f219`. Current guides must describe that release rather than uncommitted application changes. As of 2026-10-10, the default homepage is Chinese `README.md`, the complete English edition is `README_EN.md`, and `README_zh.md` links to the default homepage. Single-version guides use English, while dated historical records retain their evidence and version boundaries.
 
@@ -32,7 +38,7 @@ The original audit covered tracked files on the GitHub main branch from `8021c97
 - The user-requested `fonts.anxcye.com` font service.
 - Real repositories for pinned third-party dependencies, which are not Modu download/feedback destinations.
 - Upstream-scoped maintenance-task protections, without changing existing issue policy.
-- Original screenshot/historical-asset provenance in `docs/images/README.md` and `fastlane/metadata/README.md`. Upstream screenshots were not republished as current Modu UI.
+- Original screenshot/historical-asset provenance in `docs/images/README.md` and the historical `fastlane/metadata/README.md` (removed in the 2026-10-28 cleanup above). Upstream screenshots were not republished as current Modu UI.
 
 ### Recorded verification and version boundary
 

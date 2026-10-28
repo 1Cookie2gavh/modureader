@@ -63,4 +63,4 @@ Dated tests, earlier preview notes and implementation milestones retain their or
 - [Per-feature test records](testing/)
 - [Preview 3](releases/1.1.12-preview.3.md) · [Preview 4](releases/1.1.12-preview.4.md)
 
-Upstream changelogs, vendored dependency documentation and license texts remain in their original form. Historical Fastlane/store templates are not current Modu distribution instructions.
+Upstream changelogs, vendored dependency documentation and license texts remain in their original form. Retired Fastlane/store templates remain recoverable in Git history; current distribution instructions are in [RELEASING.md](RELEASING.md).

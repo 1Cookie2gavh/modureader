@@ -23,9 +23,6 @@ class ExternalBookAssociationsTest(unittest.TestCase):
                 self.assertIn('NSFileCoordinator()', source)
 
     def test_windows_open_with_keeps_user_defaults(self):
-        source = (ROOT / 'scripts/compile_windows_setup-inno.iss').read_text()
-        extensions = set(re.findall(r'Classes\\\.([a-z0-9]+)\\OpenWithProgids', source))
-        self.assertEqual(extensions, EXTENSIONS)
         sys.path.insert(0, str(ROOT / 'scripts/release'))
         spec = importlib.util.spec_from_file_location('native_installers', ROOT / 'scripts/release/native_installers.py')
         module = importlib.util.module_from_spec(spec)
@@ -33,8 +30,7 @@ class ExternalBookAssociationsTest(unittest.TestCase):
         generated = module.windows_script(Path('bundle'), 'x64', '1.3.4-beta.1', Path('output'))
         self.assertEqual(set(re.findall(r'Classes\\\.([a-z0-9]+)\\OpenWithProgids', generated)), EXTENSIONS)
         self.assertNotIn('UserChoice', generated)
-        self.assertNotIn('UserChoice', source)
-        self.assertIn('Modu.Book\\shell\\open\\command', source)
+        self.assertIn('Modu.Book\\shell\\open\\command', generated)
 
     def test_linux_and_harmony_cover_all_formats(self):
         linux = (ROOT / 'scripts/release/native_installers.py').read_text()

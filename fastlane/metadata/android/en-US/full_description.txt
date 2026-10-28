@@ -1,6 +1,0 @@
-Modu is an independent open-source AI reader derived from Anx Reader and ReadAny. It provides a local bookshelf, EPUB/PDF and other ebook reading, notes, statistics, WebDAV sync, a remote library, mobile quick marking, translation, TTS and ten editable AI reading skills.
-
-Four local ONNX embedding models are bundled. Chinese BGE is the default; automatic indexing after import is off by default. Online services require configuration and receive the relevant text. API-key sync is separately enabled and encrypted.
-
-Download from https://github.com/sobranie2406/modureader/releases
-This is a metadata draft, not evidence of app-store availability. See the corresponding Release for installation requirements and known limitations.
