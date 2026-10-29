@@ -7,8 +7,8 @@ project(':audio_service').afterEvaluate { audioProject ->
         def builderAnchor = '.setShowWhen(false)'
         def channelAnchor = 'channel.setShowBadge(config.androidShowNotificationBadge);'
         // Flutter forwards --dart-define as base64 Gradle properties. Ordinary
-        // builds do not opt into experimental play routing/compact layout.
-        // The Android 13+ vivo/iQOO stop-action fix is independent of this flag.
+        // builds do not opt into the experimental compact layout.
+        // Android 13+ vivo/iQOO play routing and stop fixes are enabled in release.
         def defines = (rootProject.findProperty('dart-defines') ?: '').split(',')
             .findAll { it }.collect { new String(it.decodeBase64(), 'UTF-8') }
         def iqooTest = defines.contains('MODU_IQOO_MEDIA_COMPAT=true')
@@ -17,13 +17,14 @@ project(':audio_service').afterEvaluate { audioProject ->
         def compactAnchor = 'if (Build.VERSION.SDK_INT < 33) {'
         def stopAnchor = 'public void stop() {'
         def playAnchor = 'listener.onPlay();'
+        def bypassPlayAnchor = 'public static final int KEYCODE_BYPASS_PLAY = KeyEvent.KEYCODE_MUTE;'
         def receiver = new File(upstream, 'com/ryanheise/audioservice/MediaButtonReceiver.java')
         def receiveAnchor = 'super.onReceive(context, intent);'
         def generated = audioProject.layout.buildDirectory.dir('generated/moduAudioService/java')
         def patchTask = audioProject.tasks.register('prepareModuSilentAudioService', Sync) {
             inputs.property('moduSilentNotificationPolicy', 1)
             inputs.property('moduIqooMediaCompat', iqooTest)
-            inputs.property('moduIqooMediaCompatRevision', 3)
+            inputs.property('moduIqooMediaCompatRevision', 4)
             from(rootProject.file('audio_service/ModuNotificationPlay.java')) {
                 into('com/ryanheise/audioservice')
             }
@@ -47,12 +48,15 @@ project(':audio_service').afterEvaluate { audioProject ->
                 filesMatching('**/AudioService.java') {
                     filter { String line ->
                         if (line.trim() == playAnchor) {
-                            return '            if (moduMediaCompatEnabled()) ModuMediaNotificationPolicy.sessionPlayCallbacks++;' +
+                            return '            if (moduPlayCompatEnabled()) ModuMediaNotificationPolicy.sessionPlayCallbacks++;' +
                                 '\n' + line
                         }
                         if (line.trim() == classAnchor) {
                             return line + '\n    public static boolean moduMediaCompatEnabled() {' +
                                 '\n        return ModuMediaNotificationPolicy.enabled(ModuMediaNotificationPolicy.TEST_BUILD, Build.BRAND, Build.MANUFACTURER);' +
+                                '\n    }' +
+                                '\n    public static boolean moduPlayCompatEnabled() {' +
+                                '\n        return ModuMediaNotificationPolicy.playActionEnabled(ModuMediaNotificationPolicy.TEST_BUILD, Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER);' +
                                 '\n    }' +
                                 '\n    public static boolean moduStopCompatEnabled() {' +
                                 '\n        return ModuMediaNotificationPolicy.stopActionEnabled(Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER);' +
@@ -99,7 +103,7 @@ project(':audio_service').afterEvaluate { audioProject ->
                 if (lines.count(builderAnchor) != 1 || lines.count(channelAnchor) != 1) {
                     throw new GradleException('audio_service notification code changed; review Modu silent policy before building')
                 }
-                if ([classAnchor, customAnchor, compactAnchor, stopAnchor, playAnchor].any { lines.count(it) != 1 } ||
+                if ([classAnchor, customAnchor, compactAnchor, stopAnchor, playAnchor, bypassPlayAnchor].any { lines.count(it) != 1 } ||
                         receiver.readLines('UTF-8').count { it.trim() == receiveAnchor } != 1) {
                     throw new GradleException('audio_service media controls changed; review iQOO compatibility before building')
                 }

@@ -30,9 +30,15 @@ void main() {
     await tester.pump();
     Navigator.of(home).pop();
     await tester.pumpAndSettle();
+    Prefs().readerMenuOpacityPercent = 80;
     AnxToast.show('sync success');
     await tester.pumpAndSettle();
     expect(find.text('sync success'), findsOneWidget);
+    final capsule =
+        tester.widget<FilledContainer>(find.byType(FilledContainer));
+    expect(capsule.fill, isTrue);
+    expect(capsule.color!.a, closeTo(.5, .001));
+    expect(tester.widget<Text>(find.text('sync success')).style!.color!.a, 1);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
     expect(find.text('sync success'), findsNothing);
@@ -54,7 +60,8 @@ void main() {
       expect(theme.snackBarTheme.shape, isA<StadiumBorder>());
       expect(theme.snackBarTheme.contentTextStyle?.color,
           theme.colorScheme.onSurface);
-      if (eink) expect(theme.snackBarTheme.backgroundColor, Colors.white);
+      expect(theme.snackBarTheme.backgroundColor!.a, closeTo(.5, .001));
+      expect(theme.snackBarTheme.elevation, 0);
     }, variant: TargetPlatformVariant.all());
 
     testWidgets(
@@ -69,11 +76,14 @@ void main() {
         Prefs().eInkMode = false;
         tester.binding.setSurfaceSize(null);
       });
+      Prefs().readerMenuOpacityPercent = 20;
       late BuildContext context;
-      await tester.pumpWidget(MaterialApp(home: Builder(builder: (value) {
-        context = value;
-        return const Scaffold(body: Text('remote library'));
-      })));
+      await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(cardTheme: const CardThemeData(elevation: 4)),
+          home: Builder(builder: (value) {
+            context = value;
+            return const Scaffold(body: Text('remote library'));
+          })));
       AnxToast.show('old message', context: context);
       await tester.pump();
       const message = '已下载并导入本地书架。Downloaded and imported to your bookshelf.';
@@ -82,6 +92,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       expect(find.text('old message'), findsNothing);
       expect(find.text(message), findsOneWidget);
+      final background = tester.widget<AnimatedContainer>(find
+          .descendant(
+              of: find.byType(FilledContainer),
+              matching: find.byType(AnimatedContainer))
+          .first);
+      expect((background.decoration! as ShapeDecoration).color!.a,
+          closeTo(.5, .001));
+      expect(tester.widget<Text>(find.text(message)).style!.color!.a, 1);
       expect(
           tester.widget<FilledContainer>(find.byType(FilledContainer)).radius,
           1000);

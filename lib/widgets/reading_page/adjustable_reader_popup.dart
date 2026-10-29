@@ -1,4 +1,7 @@
+import 'reader_menu_appearance.dart';
 import 'dart:math' as math;
+
+import 'package:anx_reader/config/shared_preference_provider.dart';
 
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/utils/app_motion.dart';
@@ -8,8 +11,12 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 Future<void> showAdjustableReaderPopup(BuildContext context,
     {required WidgetBuilder builder,
+    bool readerAppearance = true,
     double initialHeightFraction = 0.8}) async {
   final navigator = Navigator.of(context);
+  final menuTheme = readerAppearance
+      ? ReaderMenuAppearance.theme(context)
+      : Theme.of(context);
   final themes = InheritedTheme.capture(from: context, to: navigator.context);
   // The builder and its state must survive dragging, keyboard and viewport changes.
   final content = Builder(builder: builder);
@@ -20,8 +27,10 @@ Future<void> showAdjustableReaderPopup(BuildContext context,
         Theme.of(context).bottomSheetTheme.modalBarrierColor ?? Colors.black54,
     transitionDuration: AppMotion.duration(const Duration(milliseconds: 200)),
     pageBuilder: (context, animation, secondaryAnimation) => themes.wrap(
-      AdjustableReaderPopup(
-          initialHeightFraction: initialHeightFraction, child: content),
+      Theme(
+          data: menuTheme,
+          child: AdjustableReaderPopup(
+              initialHeightFraction: initialHeightFraction, child: content)),
     ),
   );
   await navigator.push(route);
@@ -45,12 +54,18 @@ class _AdjustableReaderPopupState extends State<AdjustableReaderPopup> {
   Rect? _gestureRect;
   Offset? _gestureOrigin;
 
+  double _maxHeight(Size available) => math.min(
+      available.height,
+      MediaQuery.sizeOf(context).height *
+          Prefs().readerPopupMaxHeightPercent /
+          100);
+
   Rect _fit(Rect rect, Size available) {
     final width = rect.width
         .clamp(math.min(320.0, available.width), available.width)
         .toDouble();
     final height = rect.height
-        .clamp(math.min(320.0, available.height), available.height)
+        .clamp(math.min(320.0, _maxHeight(available)), _maxHeight(available))
         .toDouble();
     return Rect.fromLTWH(rect.left.clamp(0.0, available.width - width),
         rect.top.clamp(0.0, available.height - height), width, height);
@@ -66,7 +81,7 @@ class _AdjustableReaderPopupState extends State<AdjustableReaderPopup> {
       next = _fit(start.shift(delta), available);
     } else {
       final minWidth = math.min(320.0, available.width);
-      final minHeight = math.min(320.0, available.height);
+      final minHeight = math.min(320.0, _maxHeight(available));
       var left = start.left, right = start.right;
       var top = start.top, bottom = start.bottom;
       if (edge.contains('left')) {
@@ -76,10 +91,12 @@ class _AdjustableReaderPopupState extends State<AdjustableReaderPopup> {
         right = (right + delta.dx).clamp(left + minWidth, available.width);
       }
       if (edge.contains('top')) {
-        top = (top + delta.dy).clamp(0.0, bottom - minHeight);
+        top = (top + delta.dy).clamp(
+            math.max(0.0, bottom - _maxHeight(available)), bottom - minHeight);
       }
       if (edge.contains('bottom')) {
-        bottom = (bottom + delta.dy).clamp(top + minHeight, available.height);
+        bottom = (bottom + delta.dy).clamp(top + minHeight,
+            math.min(available.height, top + _maxHeight(available)));
       }
       next = Rect.fromLTRB(left, top, right, bottom);
     }

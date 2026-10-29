@@ -203,3 +203,7 @@
 默读按 **GPL-3.0-or-later** 发布，基于 Anx Reader，并包含 ReadAny 的相关代码。原项目的版权与许可均予以保留。
 
 [项目许可](LICENSE) · [Anx Reader 许可](LICENSES/Anx-Reader-MIT.txt) · [ReadAny 许可](LICENSES/ReadAny-GPL-3.0-or-later.txt) · [上游与修改说明](UPSTREAM.md) · [第三方声明](NOTICE)
+
+## 1.3.5 更新
+
+阅读弹窗支持本机高度与不透明度设置；改进锁屏恢复同步和阅读位置记忆，PDF 重排支持跨页连续朗读，并移除 Windows 启动时多余的定位监听。

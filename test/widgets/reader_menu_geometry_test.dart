@@ -1,3 +1,5 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
 import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
@@ -7,6 +9,10 @@ import 'package:anx_reader/widgets/reading_page/reader_menu_group.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   for (final width in [320.0, 390.0, 1200.0]) {
     testWidgets('three menu levels retain symmetric gutters at $width',
         (tester) async {

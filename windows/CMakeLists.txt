@@ -63,6 +63,7 @@ add_subdirectory("runner")
 include(cmake/modu_onnxruntime.cmake)
 include(flutter/generated_plugins.cmake)
 include(cmake/modu_system_tts.cmake)
+include(cmake/modu_permissions.cmake)
 include(cmake/modu_onnx_worker.cmake)
 
 

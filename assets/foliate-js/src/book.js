@@ -2162,11 +2162,12 @@ window.ttsHere = () => {
   return ttsNavigator.start(reader.view.lastLocation?.range)
 }
 
-window.ttsFromCfi = cfi => ttsNavigator.startFromCfi(cfi)
+window.ttsFromCfi = (cfi, preserveReadingPosition = false) =>
+  ttsNavigator.startFromCfi(cfi, { preserveReadingPosition })
 
 // Restore the audible passage's presentation without seeking or restarting
 // the speech iterator, including while playback is paused.
-window.ttsReturnToPosition = () => reader.view.syncTTSHighlight()
+window.ttsReturnToPosition = () => reader.view.syncTTSHighlight({ forceFollow: true })
 
 window.ttsCurrentDetail = () => {
   initTts()

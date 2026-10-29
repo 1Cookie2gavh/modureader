@@ -234,7 +234,7 @@ void main() {
           final downloaded = await position(eink);
 
           // A paused local session must not request live speech protection.
-          final latest = await session.refresh(preservePosition: () => false);
+          final latest = await session.refresh();
           expect(latest.position, newCfi);
           expect(latest.percentage, .4);
           expect(latest.narration?.cfi, newCfi);

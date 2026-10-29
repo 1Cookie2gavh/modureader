@@ -25,9 +25,9 @@ export class TtsNavigator {
         for (const cancel of this.#pendingReads) cancel()
     }
     start(range) { return this.move(1, { start: true, range }) }
-    startFromCfi(cfi) {
+    startFromCfi(cfi, { preserveReadingPosition = false } = {}) {
         this.stop() // invalidate queued speech from the old selection/session
-        return this.move(1, { start: true, cfi })
+        return this.move(1, { start: true, cfi, preserveReadingPosition })
     }
     async #loadDetachedSection(view, index, generation) {
         // Retry only a timed-out text extraction, never advance to a different
@@ -89,7 +89,7 @@ export class TtsNavigator {
         }
         return false
     }
-    move(direction, { section = false, paragraph = false, last = direction < 0, start = false, range, cfi } = {}) {
+    move(direction, { section = false, paragraph = false, last = direction < 0, start = false, range, cfi, preserveReadingPosition = false } = {}) {
         const generation = this.#generation
         const operation = async () => {
             if (generation !== this.#generation) return ''
@@ -110,7 +110,14 @@ export class TtsNavigator {
                 if (!range) throw new Error('Cannot resolve the selected reading range')
             } else if (start || !view.tts) view.initTTS(false, { force: start })
             if (start) {
-                const text = range ? view.tts.from(range, { exactStart: !!cfi }) : view.tts.start()
+                let text
+                // Restoring a paused cursor must not move the independently saved page.
+                view.ttsRestoring = preserveReadingPosition
+                try {
+                    text = range ? view.tts.from(range, { exactStart: true }) : view.tts.start()
+                } finally {
+                    view.ttsRestoring = false
+                }
                 if (text?.trim()) return text
             } else if (!section) {
                 const text = paragraph ? view.tts.moveParagraph(direction)

@@ -16,42 +16,45 @@ class AnxToast {
     });
   }
 
+  /// Shared by both toast hosts. Keep the background fixed and text opaque.
+  static Widget content(BuildContext context, String message, {Icon? icon}) {
+    final theme = Theme.of(context);
+    return Semantics(
+      liveRegion: true,
+      child: Theme(
+        // Rounded containers otherwise blend their translucent fill over an
+        // opaque surface to cover the card shadow.
+        data: theme.copyWith(cardTheme: theme.cardTheme.copyWith(elevation: 0)),
+        child: FilledContainer(
+          fill: true,
+          color: theme.colorScheme.surface.withValues(alpha: .5),
+          radius: 1000,
+          constraints: const BoxConstraints(maxWidth: 560),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              icon ?? const Icon(Icons.info_outline),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(message,
+                    style: TextStyle(color: theme.colorScheme.onSurface)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   static void show(String message,
       {Icon? icon, int duration = 2000, BuildContext? context}) {
     final toastContext = context ?? _context ?? fToast.context;
     if (toastContext == null || !toastContext.mounted) return;
     fToast.init(toastContext);
-    Widget toast = Semantics(
-        liveRegion: true,
-        child: FilledContainer(
-          radius: 1000,
-          constraints: const BoxConstraints(maxWidth: 560),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              icon ?? const Icon(Icons.info_outline),
-              const SizedBox(
-                width: 12.0,
-              ),
-              Flexible(
-                child: Text(
-                  message,
-                  // wrap
-                  style: TextStyle(
-                    color: Theme.of(toastContext).colorScheme.onSurface,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ));
-
-    // close previous toast
     fToast.removeQueuedCustomToasts();
-
     fToast.showToast(
-      child: toast,
+      child: content(toastContext, message, icon: icon),
       gravity: ToastGravity.BOTTOM,
       toastDuration: Duration(milliseconds: duration),
       fadeDuration: AppMotion.duration(const Duration(milliseconds: 200)),

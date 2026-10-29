@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:anx_reader/enums/bgimg_fit.dart';
@@ -97,7 +98,8 @@ class DocumentReaderSurfaceState extends State<DocumentReaderSurface> {
               color: background,
               child: SafeArea(
                   child: Column(children: [
-                readingColors(widget.header),
+                ReaderMenuAppearance.wrap(
+                    context, readingColors(widget.header)),
                 Expanded(flex: 5, child: readingColors(widget.body)),
                 widget.navigation,
                 Expanded(
@@ -205,8 +207,11 @@ class DocumentReaderSurfaceState extends State<DocumentReaderSurface> {
                                                   maintainState: true,
                                                   maintainAnimation: true,
                                                   maintainSize: true,
-                                                  child: readingColors(
-                                                      widget.header)),
+                                                  child:
+                                                      ReaderMenuAppearance.wrap(
+                                                          context,
+                                                          readingColors(
+                                                              widget.header))),
                                               Expanded(
                                                   child: readingColors(
                                                       widget.body)),
@@ -223,50 +228,61 @@ class DocumentReaderSurfaceState extends State<DocumentReaderSurface> {
                                               Align(
                                                   alignment:
                                                       Alignment.bottomCenter,
-                                                  child: BottomSheet(
-                                                      enableDrag: false,
-                                                      onClosing: closeMenu,
-                                                      constraints: ReaderPopup
-                                                          .constraints(context),
-                                                      builder: (context) => ConstrainedBox(
-                                                          constraints: BoxConstraints(maxHeight: math.max(0, ReaderPopup.height(context) - (viewport.maxHeight - bodySpace.maxHeight))),
-                                                          child: ReaderQuickStylePanel(
-                                                              content: Padding(
-                                                                  padding: _menu == 'style' ? EdgeInsets.zero : const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                                                                  child: _menu == 'style'
-                                                                      ? widget.style
-                                                                      : ReaderSettingsScrollView(
-                                                                          child: _menu == 'brightness'
-                                                                              ? widget.brightness!
-                                                                              : _menu == 'narration'
-                                                                                  ? widget.narration!
-                                                                                  : widget.extraMenus[_menu] ?? widget.tools)),
-                                                              toolbar: const SizedBox.shrink())))),
+                                                  child: ReaderMenuAppearance.wrap(
+                                                      context,
+                                                      BottomSheet(
+                                                          enableDrag: false,
+                                                          onClosing: closeMenu,
+                                                          constraints: ReaderPopup.constraints(context),
+                                                          builder: (context) => ConstrainedBox(
+                                                              constraints: BoxConstraints(maxHeight: math.max(0, ReaderPopup.height(context) - (viewport.maxHeight - bodySpace.maxHeight))),
+                                                              child: ReaderQuickStylePanel(
+                                                                  content: Padding(
+                                                                      padding: _menu == 'style' ? EdgeInsets.zero : const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                                                                      child: _menu == 'style'
+                                                                          ? widget.style
+                                                                          : ReaderSettingsScrollView(
+                                                                              child: _menu == 'brightness'
+                                                                                  ? widget.brightness!
+                                                                                  : _menu == 'narration'
+                                                                                      ? widget.narration!
+                                                                                      : widget.extraMenus[_menu] ?? widget.tools)),
+                                                                  toolbar: const SizedBox.shrink()))))),
                                             ],
                                           ]))),
                               Material(
                                   animationDuration: Duration.zero,
-                                  color: _menu == null
-                                      ? background
-                                      : Theme.of(context).colorScheme.surface,
-                                  child: ConstrainedBox(
-                                      constraints:
-                                          ReaderPopup.constraints(context),
-                                      child: _menu == null
-                                          ? readingColors(Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                  widget.navigation,
-                                                  if (!widget.readerContentOnly)
-                                                    toolbar
-                                                ]))
-                                          : Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                  widget.navigation,
-                                                  if (!widget.readerContentOnly)
-                                                    toolbar
-                                                ]))),
+                                  color: ReaderMenuAppearance.background(
+                                      context,
+                                      _menu == null
+                                          ? background
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .surface),
+                                  child: ReaderMenuAppearance.wrap(
+                                      context,
+                                      ConstrainedBox(
+                                          constraints:
+                                              ReaderPopup.constraints(context),
+                                          child: _menu == null
+                                              ? readingColors(Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                      widget.navigation,
+                                                      if (!widget
+                                                          .readerContentOnly)
+                                                        toolbar
+                                                    ]))
+                                              : Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                      widget.navigation,
+                                                      if (!widget
+                                                          .readerContentOnly)
+                                                        toolbar
+                                                    ])))),
                             ])))));
       });
 }

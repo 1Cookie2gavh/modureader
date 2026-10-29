@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'reader_menu_group.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -876,7 +877,7 @@ class _ThemeChangeWidgetState extends State<ThemeChangeWidget> {
       {required bool background}) async {
     Color pickedColor = Color(int.parse('0x$currColor'));
 
-    return showDialog<String>(
+    return showReaderDialog<String>(
       animationStyle: AppMotion.style,
       context: context,
       builder: (BuildContext context) {

@@ -12,8 +12,10 @@ import 'package:anx_reader/widgets/reading_page/reader_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 
-Future<void> showSelectionToolbarSettings(BuildContext context) =>
+Future<void> showSelectionToolbarSettings(BuildContext context,
+        {bool readerAppearance = false}) =>
     showReaderPopup(context,
+        readerAppearance: readerAppearance,
         allowWindowAdjustment: true,
         enableDrag: false,
         builder: (context) => Scaffold(

@@ -1,10 +1,16 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_zoom_toolbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({'readerMenuOpacityPercent': 60});
+    await Prefs().initPrefs();
+  });
   testWidgets(
-      'zoom bar drags, is 80 percent transparent and hides after five idle seconds',
+      'zoom bar ignores menu opacity, drags and hides after five idle seconds',
       (tester) async {
     final zoom = ValueNotifier<double>(1);
     addTearDown(zoom.dispose);

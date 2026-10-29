@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'package:anx_reader/service/translate/official_api.dart';
 import 'package:anx_reader/service/ocr/document_ocr_precache.dart';
 import 'package:anx_reader/service/ocr/document_reflow_loader.dart';
@@ -1177,7 +1178,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     webViewController.evaluateJavascript(source: "clearSearch()");
   }
 
-  Future<String> initTts({String? fromCfi}) async {
+  Future<String> initTts(
+      {String? fromCfi, bool preserveReadingPosition = false}) async {
     if (readingPageKey.currentState?.isReflowReading == true) return '';
     _ttsMaxCharacters = Prefs().ttsBufferSettings.maxCharacters;
     final result = await waitForTtsReader(
@@ -1185,7 +1187,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         () => webViewController.callAsyncJavaScript(
               functionBody: _ttsModeScript +
                   (fromCfi != null && fromCfi.isNotEmpty
-                      ? 'return await window.ttsFromCfi(${jsonEncode(fromCfi)})'
+                      ? 'return await window.ttsFromCfi(${jsonEncode(fromCfi)}, $preserveReadingPosition)'
                       : 'return await window.ttsHere()'),
             ));
     if (result?.error != null) {
@@ -1440,7 +1442,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       return;
     }
 
-    final shouldOpen = await showDialog<bool>(
+    final shouldOpen = await showReaderDialog<bool>(
       animationStyle: AppMotion.style,
       context: context,
       builder: (dialogContext) {
@@ -1558,6 +1560,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       _syncRestoreAttempts = 0;
     }
     _refreshRequested = true;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) {
+      return Future.value();
+    }
     return _syncRefresh ??= _refreshSyncedReader().whenComplete(() {
       _syncRefresh = null;
       if (_refreshRequested && mounted) unawaited(refreshReadingAfterSync());
@@ -1568,13 +1574,19 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     try {
       while (_refreshRequested && mounted) {
         _refreshRequested = false;
+        // Compare against completed local writes, not a stale pre-flush snapshot.
+        await _progress.flush();
         final previous = _progress.current;
-        var preserveNarration = false;
-        final latest = await _progress.refresh(preservePosition: () {
-          // A paused cursor may be yesterday's session, not ongoing reading.
-          preserveNarration = _hasActiveNarration;
-          return preserveNarration;
-        });
+        final latest = await _progress.refresh();
+        final restorePosition = !supportsDocumentImages &&
+                readingPageKey.currentState?.isReflowReading != true
+            ? latest.resumePosition
+            : latest.position;
+        final preserveNarration = _hasActiveNarration &&
+            !_remotePositionPending &&
+            previous?.revision == latest.revision &&
+            previous?.position == latest.position &&
+            previous?.narration?.encode() == latest.narration?.encode();
         if (previous?.revision != latest.revision) _syncRestoreAttempts = 0;
         if (!mounted) return;
         if (latest.deleted) {
@@ -1589,36 +1601,36 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
           await renderAnnotations(webViewController);
           continue;
         }
-        if (latest.position.isNotEmpty &&
+        if (restorePosition.isNotEmpty &&
             (_remotePositionPending ||
                 previous?.revision != latest.revision ||
                 previous?.position != latest.position ||
+                previous?.narration?.encode() != latest.narration?.encode() ||
                 !_readerPositionInitialized)) {
           _remotePositionPending = true;
-          final result = await webViewController.callAsyncJavaScript(
-              functionBody: 'return await window.restoreSyncedReadingPosition('
-                  '${jsonEncode(latest.position)}, ${!_readerPositionInitialized});');
+          // Stop the old audio before moving the page. Its stop/progress callbacks
+          // are suppressed until both remote cursors have been restored.
+          if (_hasNarrationSession) await TtsHandler().stop();
           if (!mounted) return;
-          if (result?.value != true) {
-            _syncRefreshRetry?.cancel();
-            if (++_syncRestoreAttempts >= 3) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ModuStrings.text(
-                      context,
-                      '同步后的阅读位置暂时无法打开，请重新打开书籍。未覆盖云端进度。',
-                      'Could not open the synced position. Reopen the book; the synced progress was not overwritten.'))));
-              return;
-            }
-            _syncRefreshRetry = Timer(const Duration(milliseconds: 400), () {
-              if (mounted) unawaited(refreshReadingAfterSync());
-            });
+          final lifecycle = WidgetsBinding.instance.lifecycleState;
+          if (lifecycle != null && lifecycle != AppLifecycleState.resumed) {
             return;
           }
-          _remotePositionPending = false;
-          _syncRestoreAttempts = 0;
-          setState(() {
-            percentage = latest.percentage;
-          });
+          final result = await webViewController.callAsyncJavaScript(
+              functionBody: 'return await window.restoreSyncedReadingPosition('
+                  '${jsonEncode(restorePosition)}, ${!_readerPositionInitialized});');
+          if (!mounted) return;
+          if (result?.value != true) {
+            _retrySyncedPosition();
+            return;
+          }
+          // The relocation callback supplies the destination's percentage when
+          // narration and the separately saved reading page differ.
+          if (restorePosition == latest.position) {
+            setState(() {
+              percentage = latest.percentage;
+            });
+          }
           ref
               .read(currentReadingProvider.notifier)
               .update(percentage: percentage);
@@ -1626,15 +1638,42 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         _readerPositionInitialized = true;
         widget.book.lastReadPosition = latest.position;
         widget.book.readingPercentage = latest.percentage;
-        await renderAnnotations(webViewController);
-        if (_speechPosition?.encode() != latest.narration?.encode()) {
-          await restoreNarration(latest.narration, replacePaused: true);
+        if (!supportsDocumentImages &&
+            readingPageKey.currentState?.isReflowReading != true &&
+            (_speechPosition?.encode() != latest.narration?.encode() ||
+                (_remotePositionPending &&
+                    latest.narration?.canResume == true))) {
+          if (!await restoreNarration(latest.narration, replacePaused: true)) {
+            _retrySyncedPosition();
+            return;
+          }
         }
+        _remotePositionPending = false;
+        _syncRestoreAttempts = 0;
+        _syncRefreshRetry?.cancel();
+        await renderAnnotations(webViewController);
       }
     } catch (error) {
       // No private CFI, note content or server data in diagnostics.
       AnxLog.warning('Reader sync refresh failed: ${error.runtimeType}');
+      if (mounted && _remotePositionPending) _retrySyncedPosition();
     }
+  }
+
+  void _retrySyncedPosition() {
+    _remotePositionPending = true;
+    _syncRefreshRetry?.cancel();
+    if (++_syncRestoreAttempts >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ModuStrings.text(
+              context,
+              '同步后的阅读或朗读位置暂时无法打开，请重新打开书籍。未覆盖云端进度。',
+              'Could not restore the synced reading or narration position. Reopen the book; synced progress was not overwritten.'))));
+      return;
+    }
+    _syncRefreshRetry = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) unawaited(refreshReadingAfterSync());
+    });
   }
 
   bool _readerPositionInitialized = false;
@@ -1658,7 +1697,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
       const [TtsStateEnum.playing, TtsStateEnum.continued]
           .contains(TtsHandler().ttsStateNotifier.value);
 
-  Future<void> restoreNarration(NarrationPosition? saved,
+  Future<bool> restoreNarration(NarrationPosition? saved,
       {bool replacePaused = false}) async {
     if (supportsDocumentImages ||
         !mounted ||
@@ -1667,17 +1706,28 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
         (_hasNarrationSession && (!replacePaused || _hasActiveNarration)) ||
         widget.cfi != null ||
         readingPageKey.currentState?.isReflowReading == true) {
-      return;
+      return false;
     }
     _restoringNarration = true;
     try {
-      await TtsHandler().stop();
-      if (!mounted || _narrationDetached) return;
-      _speechPosition = saved;
-      if (saved?.canResume != true) return;
-      await TtsHandler().restorePaused(saved!.cfi);
+      if (_hasNarrationSession) {
+        await TtsHandler().stop();
+      } else {
+        // Clearing a page highlight must not initialize an unconfigured engine.
+        await ttsStop();
+      }
+      if (!mounted || _narrationDetached) return false;
+      if (saved?.canResume == true &&
+          !await TtsHandler().restorePaused(saved!.cfi)) {
+        return false;
+      }
+      // With no paused/playing cursor, leave speech stopped and invisible.
+      // The existing page anchor is the start point for the next explicit play.
+      _speechPosition = saved?.canResume == true ? saved : null;
+      return true;
     } catch (error) {
       AnxLog.warning('Narration restore failed: ${error.runtimeType}');
+      return false;
     } finally {
       _restoringNarration = false;
     }
@@ -1706,7 +1756,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     try {
       final accepted = await _progress.recordNarration(next,
           generation: _progress.generation);
-      if (!accepted && mounted) await refreshReadingAfterSync();
+      if (!accepted && mounted) {
+        _remotePositionPending = true;
+        await refreshReadingAfterSync();
+      }
     } catch (error) {
       AnxLog.warning('Narration save failed: ${error.runtimeType}');
     }
@@ -2013,6 +2066,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
               !mounted ||
               _narrationDetached ||
               _restoringNarration ||
+              _remotePositionPending ||
               TtsHandler().mediaItem.value?.id != book.id.toString() ||
               TtsHandler().ttsStateNotifier.value == TtsStateEnum.stopped ||
               args.isEmpty ||
@@ -2493,7 +2547,23 @@ class EpubPlayerState extends ConsumerState<EpubPlayer> {
     super.initState();
   }
 
-  Future<void> saveReadingProgress() async {
+  Future<void> saveReadingProgress({bool captureVisiblePage = false}) async {
+    // On exit, commit the last displayed page even if its relocation was a
+    // passive reflow. Wake/timed sync must only drain writes, never stamp stale UI.
+    if (captureVisiblePage &&
+        _readerReady &&
+        _readerPositionInitialized &&
+        !_remotePositionPending &&
+        !_restoringNarration &&
+        !_narrationDetached &&
+        !supportsDocumentImages &&
+        readingPageKey.currentState?.isReflowReading != true &&
+        widget.cfi == null &&
+        cfi.isNotEmpty &&
+        !_hasNarrationSession) {
+      await _progress.checkpointPage(cfi, percentage,
+          generation: _progress.generation);
+    }
     await _progress.flush();
   }
 

@@ -29,8 +29,16 @@ void main() {
         home: const Scaffold(body: ReadingSettings()),
       )));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('reader-popup-height-percent')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('reader-menu-opacity-percent')),
+          findsOneWidget);
       final entry = find.byKey(const ValueKey('reading-css-settings'));
+      await tester.scrollUntilVisible(entry.hitTestable(), 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(entry);
+      await tester.pumpAndSettle();
       await tester.tap(entry);
       await tester.pumpAndSettle();
       expect(find.byType(CssSettings), findsOneWidget);

@@ -212,6 +212,70 @@ void main() {
       .text;
 
   testWidgets(
+      'continuous narration uses edited cache then extracts the next page',
+      (tester) async {
+    store.latest['1'] = DocumentReflowPage(
+        page: 1, ocr: false, rawText: '旧识别文字。', editedText: '已校对的下一页。');
+    final extracted = <int>[], invalidated = <TtsPageSource>[];
+    await open(tester, extract: (page) async {
+      extracted.add(page);
+      return '第$page页。';
+    }, narrationInvalidated: invalidated.add);
+    final source = key.currentState!.narrationSource!;
+    expect(source.currentText(), '第0页。');
+    source.collect(100);
+    expect(pages, [0]);
+    final next = source.nextTextContinuous();
+    expect(source.nextTextContinuous(), same(next));
+    await tester.pumpAndSettle();
+    expect(await next, '已校对的下一页。');
+    expect(key.currentState!.narrationSource, same(source));
+    expect(source.chapter, contains('2'));
+    expect(extracted, [0]);
+    final last = source.nextTextContinuous();
+    await tester.pumpAndSettle();
+    expect(await last, '第2页。');
+    expect(extracted, [0, 2]);
+    expect(pages, [0, 1, 2]);
+    expect(await source.nextTextContinuous(), isEmpty);
+    expect(invalidated, isEmpty);
+  });
+
+  testWidgets(
+      'stop while next page loads prevents late navigation and can retry',
+      (tester) async {
+    final gate = Completer<String>();
+    await open(tester,
+        extract: (page) async => page == 0 ? '当前页。' : gate.future);
+    final source = key.currentState!.narrationSource!;
+    final next = source.nextTextContinuous();
+    await tester.pump();
+    source.cancelAdvance();
+    gate.complete('下一页。');
+    await tester.pumpAndSettle();
+    expect(await next, isEmpty);
+    expect(pages, [0]);
+    expect(text(tester), '当前页。');
+    final retry = source.nextTextContinuous();
+    await tester.pumpAndSettle();
+    expect(await retry, '下一页。');
+    expect(pages, [0, 1]);
+  });
+
+  testWidgets(
+      'missing OCR model preserves the current page and reports failure',
+      (tester) async {
+    await open(tester, extract: (page) async => page == 0 ? '当前页。' : '');
+    model.ready = false;
+    final source = key.currentState!.narrationSource!;
+    final result = expectLater(source.nextTextContinuous(), throwsStateError);
+    await tester.pumpAndSettle();
+    await result;
+    expect(pages, [0]);
+    expect(source.currentText(), '当前页。');
+  });
+
+  testWidgets(
       'switching to forced OCR replaces embedded cache and stays active across pages',
       (tester) async {
     var extractions = 0, recognitions = 0;

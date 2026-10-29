@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
 import 'package:anx_reader/service/ai/answer_presentation.dart';
@@ -1106,7 +1107,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final chips = _readingChips;
     return Material(
       key: const ValueKey('ai-skill-picker'),
-      color: Theme.of(context).colorScheme.surface,
+      color: ReaderMenuAppearance.translucent(context)
+          ? Colors.transparent
+          : Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
@@ -1499,7 +1502,9 @@ class AiChatStreamState extends ConsumerState<AiChatStream> {
     final constrainedWidth = maxWidth > 500 ? 500.0 : maxWidth;
 
     return Container(
-      color: theme.colorScheme.surface,
+      color: ReaderMenuAppearance.translucent(context)
+          ? Colors.transparent
+          : theme.colorScheme.surface,
       child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

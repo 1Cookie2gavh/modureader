@@ -298,3 +298,7 @@ Advanced contains logs, network and JavaScript options. Enable book scripts and 
 - Both reader translation panels offer a **Translation appearance** shortcut for font, colour, size, bold, italic and preview in ordinary and reflow reading. Opening or editing appearance neither stops translation nor sends another request.
 
 - Both translation font sizes use the Style slider range and steps (0.5–3.0, in 0.1 steps; 1.0 uses the same 16 px base as body reading), with live preview and an independent **Follow original** reset. The language preview uses a fixed translation of “学而时习之，不亦乐乎？” in the selected translation target language, independently of the app language and without a service request.
+
+### 1.3.5 additions
+
+Settings → Reading: popup height limit 40–80% (default 80%); reading popup opacity 20–100% (default 100%). Both stay on this device and are excluded from sync. Opacity is disabled in E-Ink mode; narration and zoom floating bars retain their original appearance.

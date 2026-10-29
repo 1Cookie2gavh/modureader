@@ -73,6 +73,9 @@ void main() {
     slider.onChanged!(100);
     slider.onChangeEnd!(100);
     await tester.pump();
+    expect(find.textContaining('0% overlap'), findsNothing);
+    await tester.tap(find.byIcon(Icons.help_outline));
+    await tester.pumpAndSettle();
     expect(find.textContaining('0% overlap'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

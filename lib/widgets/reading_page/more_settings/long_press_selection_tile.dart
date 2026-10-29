@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/settings/setting_help_title.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:flutter/material.dart';
 
@@ -14,10 +15,11 @@ class LongPressSelectionTile extends StatelessWidget {
     return SwitchListTile(
       key: const ValueKey('long-press-select-paragraph'),
       contentPadding: EdgeInsets.zero,
-      title: Text(ModuStrings.value(locale, 'reading_long_press_paragraph',
-          'Select paragraph on long press')),
-      subtitle: Text(ModuStrings.value(locale, 'reading_long_press_help',
-          'Off: select the word. On: select the paragraph. Drag the selection handles to adjust either range.')),
+      title: SettingHelpTitle(
+          title: ModuStrings.value(locale, 'reading_long_press_paragraph',
+              'Select paragraph on long press'),
+          description: ModuStrings.value(locale, 'reading_long_press_help',
+              'Off: select the word. On: select the paragraph. Drag the selection handles to adjust either range.')),
       value: value,
       onChanged: onChanged,
     );

@@ -1,5 +1,7 @@
+import 'package:anx_reader/widgets/settings/setting_help_title.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'reader_menu_group.dart';
+import 'reader_settings_scroll_view.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -83,7 +85,7 @@ class _TtsWidgetState extends State<TtsWidget> {
         await audioHandler.stop();
         if (!mounted || !source.valid) return;
         await TtsHandler().init(
-            source.currentText, source.nextText, source.previousText,
+            source.currentText, source.nextTextContinuous, source.previousText,
             pageSource: source);
       } else {
         await TtsHandler().init(reader.initTts, reader.ttsNext, reader.ttsPrev);
@@ -175,23 +177,27 @@ class _TtsWidgetState extends State<TtsWidget> {
               children: [
                 volume(),
                 voiceControls(),
-                if (_pageSource != null)
-                  Text(
-                      ModuStrings.text(context, '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
-                          'Read this reflow page only, then stop. Changing pages or leaving reflow stops narration.'),
-                      style: Theme.of(context).textTheme.bodySmall)
-                else if (tts_svc.getTtsService(Prefs().ttsService).isOnline)
-                  Text(
-                      ModuStrings.text(
-                          context,
-                          '连贯朗读：同段相邻句合成，高亮和前后跳转按小段；长段自动拆分。',
-                          'Continuous narration: adjacent sentences are grouped. Highlighting and Previous/Next follow each group; long paragraphs are split.'),
-                      style: Theme.of(context).textTheme.bodySmall),
                 Row(
                   children: [
-                    Text(L10n.of(context).ttsType),
-                    const Spacer(),
-                    GestureDetector(
+                    Expanded(
+                        child: (_pageSource != null ||
+                                tts_svc
+                                    .getTtsService(Prefs().ttsService)
+                                    .isOnline)
+                            ? SettingHelpTitle(
+                                title: L10n.of(context).ttsType,
+                                description: _pageSource != null
+                                    ? ModuStrings.text(
+                                        context,
+                                        '仅朗读当前重排页，读完停止；换页或退出重排会停止朗读。',
+                                        'Read this reflow page only, then stop. Changing pages or leaving reflow stops narration.')
+                                    : ModuStrings.text(
+                                        context,
+                                        '连贯朗读：同段相邻句合成，高亮和前后跳转按小段；长段自动拆分。',
+                                        'Continuous narration: adjacent sentences are grouped. Highlighting and Previous/Next follow each group; long paragraphs are split.'))
+                            : Text(L10n.of(context).ttsType)),
+                    Flexible(
+                        child: GestureDetector(
                       onTap: () {
                         showModalBottomSheet(
                           sheetAnimationStyle: AppMotion.style,
@@ -199,7 +205,10 @@ class _TtsWidgetState extends State<TtsWidget> {
                           isScrollControlled: true,
                           builder: (context) {
                             return FractionallySizedBox(
-                              heightFactor: 0.7,
+                              heightFactor: Prefs()
+                                      .readerPopupMaxHeightPercent
+                                      .clamp(40, 70) /
+                                  100,
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
                                 child: const ReaderMenuGroup(
@@ -213,14 +222,16 @@ class _TtsWidgetState extends State<TtsWidget> {
                         });
                       },
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
+                          Flexible(
+                              child: Text(
                             _getTtsServiceLabel(context),
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
-                          ),
+                          )),
                           const SizedBox(width: 4),
                           Icon(
                             Icons.arrow_forward_ios,
@@ -229,7 +240,7 @@ class _TtsWidgetState extends State<TtsWidget> {
                           ),
                         ],
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ],
@@ -360,8 +371,7 @@ class _TtsWidgetState extends State<TtsWidget> {
           );
         }
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        return ReaderSettingsScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

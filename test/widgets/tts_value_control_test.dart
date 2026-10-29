@@ -1,5 +1,6 @@
 import 'package:anx_reader/widgets/reading_page/tts_value_control.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -55,11 +56,8 @@ void main() {
         48);
     expect(tester.getSize(find.byKey(const ValueKey('tts-rate-border'))).height,
         28);
-    expect(tester.getSize(find.byKey(input)).width, 42);
     expect(tester.widget<TextField>(find.byKey(input)).textAlign,
         TextAlign.center);
-    expect(tester.getSize(find.byKey(const ValueKey('tts-rate-border'))).width,
-        140);
     expect(tester.widget<IconButton>(find.byKey(increase)).onPressed, isNull);
     await tester.tap(find.byKey(decrease));
     await tester.pump();
@@ -130,7 +128,7 @@ void main() {
 
   testWidgets('narrow layout and large text retain input and touch targets',
       (tester) async {
-    await showControl(tester, [], width: 232, scale: 2);
+    await showControl(tester, [], width: 244, scale: 2);
     expect(value(tester), '0.8');
     expect(
         tester.getSize(find.byKey(increase)).width, greaterThanOrEqualTo(48));
@@ -219,6 +217,32 @@ void main() {
                     : 'tts-pitch-increase')))
                 .onPressed,
             isNull);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final scale in [1.0, 1.5, 2.0]) {
+    testWidgets('complete numeric value and suffix fit at scale $scale',
+        (tester) async {
+      await showControl(tester, [], initial: 1.4, width: 300, scale: scale);
+      for (final text in ['0.6', '1.4', '4.0']) {
+        await tester.enterText(find.byKey(input), text);
+        await tester.pump();
+        final RenderEditable editable = tester
+            .state<EditableTextState>(find.descendant(
+                of: find.byKey(input), matching: find.byType(EditableText)))
+            .renderEditable;
+        final first =
+            editable.getLocalRectForCaret(const TextPosition(offset: 0));
+        final last =
+            editable.getLocalRectForCaret(TextPosition(offset: text.length));
+        expect(first.left, greaterThanOrEqualTo(0));
+        expect(last.right, lessThanOrEqualTo(editable.size.width));
+        final suffix = tester.getRect(find.text('×'));
+        final field = tester.getRect(find.byKey(input));
+        expect(suffix.left, greaterThanOrEqualTo(field.left));
+        expect(suffix.right, lessThanOrEqualTo(field.right));
       }
       expect(tester.takeException(), isNull);
     });

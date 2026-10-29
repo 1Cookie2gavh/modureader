@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'dart:async';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
@@ -186,7 +187,9 @@ class _UnifiedQueryState extends State<UnifiedQuery> {
             iconTheme: theme.iconTheme.copyWith(size: 20),
             cardTheme: CardThemeData(
                 elevation: 0,
-                color: colors.surface,
+                color: ReaderMenuAppearance.translucent(context)
+                    ? Colors.transparent
+                    : colors.surface,
                 surfaceTintColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(17),

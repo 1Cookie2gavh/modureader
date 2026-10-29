@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -6,7 +7,7 @@ import 'package:anx_reader/service/ocr/document_reflow_store.dart';
 import 'package:anx_reader/utils/save_file_to_download.dart';
 
 Future<bool> confirmDocumentRecognition(BuildContext context) async =>
-    await showDialog<bool>(
+    await showReaderDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
               title: Text(ModuStrings.text(
@@ -33,7 +34,7 @@ Future<DocumentReflowPage?> editSavedDocumentPage(BuildContext context,
   final input = TextEditingController(text: page.text);
   var saving = false;
   String? error;
-  final result = await showDialog<DocumentReflowPage>(
+  final result = await showReaderDialog<DocumentReflowPage>(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(builder: (context, update) {
@@ -105,7 +106,7 @@ Future<void> exportSavedDocumentText(
     BuildContext context, DocumentReflowStore store) async {
   String t(String zh, String en) => ModuStrings.text(context, zh, en);
   try {
-    final format = await showDialog<DocumentTextExportFormat>(
+    final format = await showReaderDialog<DocumentTextExportFormat>(
         context: context,
         builder: (context) => SimpleDialog(
               title: Text(t('选择导出格式', 'Choose export format')),

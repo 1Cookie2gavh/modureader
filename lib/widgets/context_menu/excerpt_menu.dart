@@ -509,6 +509,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
         ExcerptShareService.showShareExcerpt(
           context: popupContext,
           allowWindowAdjustment: true,
+          readerAppearance: true,
           bookTitle: book.title,
           author: book.author,
           excerpt: text,
@@ -521,7 +522,9 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   void _openSettings() {
     final popupContext = Navigator.of(context).context;
     widget.onClose();
-    if (popupContext.mounted) showSelectionToolbarSettings(popupContext);
+    if (popupContext.mounted) {
+      showSelectionToolbarSettings(popupContext, readerAppearance: true);
+    }
   }
 
   Widget _annotationAction(SelectionToolbarItem item, List<String> colors) {

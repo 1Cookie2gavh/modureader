@@ -1,3 +1,5 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
 import 'package:anx_reader/widgets/reading_page/reader_settings_scroll_view.dart';
 import 'package:anx_reader/widgets/reading_page/document_panel_widgets.dart';
@@ -6,6 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   for (final panel in ['ebook', 'document', 'quick']) {
     testWidgets(
         '$panel descriptions are smaller without changing headings or text scaling',

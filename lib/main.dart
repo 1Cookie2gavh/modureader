@@ -1,3 +1,4 @@
+import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/service/receive_file/external_book_inbox.dart';
 import 'package:anx_reader/service/receive_file/receive_share.dart';
 import 'dart:io';
@@ -28,6 +29,7 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/l10n/app_language.dart';
 import 'package:anx_reader/models/window_info.dart';
 import 'package:anx_reader/page/home_page.dart';
+import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/page/android_storage_startup.dart';
 import 'package:anx_reader/page/migration_page.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
@@ -259,6 +261,11 @@ class _MyAppState extends ConsumerState<MyApp>
         !Prefs().autoSync) {
       return;
     }
+    final reader = readingPageKey.currentState;
+    if (reader != null) {
+      unawaited(reader.syncAndRefreshReading());
+      return;
+    }
     unawaited(ref.read(syncProvider.notifier).syncData(SyncDirection.both, null,
         trigger: SyncTrigger.auto, immediate: true));
   }
@@ -427,6 +434,9 @@ class _MyAppState extends ConsumerState<MyApp>
                     child: AppBrightnessLayer(
                       controller: AppBrightness.instance,
                       child: FlutterSmartDialog.init(
+                        toastBuilder: (message) => Builder(
+                            builder: (context) =>
+                                AnxToast.content(context, message)),
                         loadingBuilder: prefsNotifier.eInkMotionDisabled
                             ? (message) => Material(
                                   color: Colors.white,

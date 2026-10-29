@@ -1,3 +1,5 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'dart:io';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/search_result_model.dart';
@@ -33,6 +35,10 @@ Widget app(Widget child, {ProviderContainer? container}) {
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   for (final viewport in [
     const Size(1200, 800),
     const Size(390, 800),

@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/settings/setting_help_title.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:flutter/material.dart';
@@ -23,11 +24,12 @@ class _ScrollPagePercentTileState extends State<ScrollPagePercentTile> {
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: Text(ModuStrings.text(context, '滚动翻页幅度', 'Scroll page step')),
+          title: SettingHelpTitle(
+              title: ModuStrings.text(context, '滚动翻页幅度', 'Scroll page step'),
+              description: zh
+                  ? '滚动模式下，每次翻页移动一屏的 $_percent%，保留 ${100 - _percent}% 重叠内容。不影响手指自由滚动。'
+                  : 'Move $_percent% of a screen per page turn, with ${100 - _percent}% overlap. Free scrolling is unchanged.'),
           trailing: Text('$_percent%'),
-          subtitle: Text(zh
-              ? '滚动模式下，每次翻页移动一屏的 $_percent%，保留 ${100 - _percent}% 重叠内容。不影响手指自由滚动。'
-              : 'Move $_percent% of a screen per page turn, with ${100 - _percent}% overlap. Free scrolling is unchanged.'),
         ),
         Slider(
           key: const ValueKey('scroll-page-percent'),

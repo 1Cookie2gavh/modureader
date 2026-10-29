@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/settings/setting_help_title.dart';
 import 'package:anx_reader/utils/platform_utils.dart';
 import '../reader_menu_group.dart';
 
@@ -254,16 +255,19 @@ class _OtherSettingsState extends State<OtherSettings> {
             Prefs().autoMarkSelection = value;
           }),
         ),
-        title: Text(L10n.of(context).readingPageAutoMarkSelection),
-        subtitle: Text(L10n.of(context).readingPageAutoMarkSelectionTips),
+        title: SettingHelpTitle(
+            title: L10n.of(context).readingPageAutoMarkSelection,
+            description: L10n.of(context).readingPageAutoMarkSelectionTips),
       );
     }
 
     ListTile autoAdjustReadingTheme() {
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(L10n.of(context).readingPageAutoAdjustReadingTheme),
-        subtitle: Text(L10n.of(context).readingPageAutoAdjustReadingThemeTips),
+        title: SettingHelpTitle(
+            title: L10n.of(context).readingPageAutoAdjustReadingTheme,
+            description:
+                L10n.of(context).readingPageAutoAdjustReadingThemeTips),
         trailing: Switch(
           value: Prefs().autoAdjustReadingTheme,
           onChanged: (bool value) => setState(() {
@@ -297,8 +301,9 @@ class _OtherSettingsState extends State<OtherSettings> {
     ListTile swapPageTurnArea() {
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(L10n.of(context).readingPageSwapPageTurnArea),
-        subtitle: Text(L10n.of(context).readingPageSwapPageTurnAreaTips),
+        title: SettingHelpTitle(
+            title: L10n.of(context).readingPageSwapPageTurnArea,
+            description: L10n.of(context).readingPageSwapPageTurnAreaTips),
         trailing: Switch(
           value: Prefs().swapPageTurnArea,
           onChanged: (bool value) => setState(() {
@@ -311,8 +316,9 @@ class _OtherSettingsState extends State<OtherSettings> {
     ListTile showMenuOnHover() {
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(L10n.of(context).readingPageShowMenuOnHover),
-        subtitle: Text(L10n.of(context).readingPageShowMenuOnHoverTips),
+        title: SettingHelpTitle(
+            title: L10n.of(context).readingPageShowMenuOnHover,
+            description: L10n.of(context).readingPageShowMenuOnHoverTips),
         trailing: Switch(
           value: Prefs().showMenuOnHover,
           onChanged: (bool value) => setState(() {

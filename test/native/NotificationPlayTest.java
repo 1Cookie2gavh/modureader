@@ -24,10 +24,13 @@ public class NotificationPlayTest {
 
     public static void main(String[] args) {
         boolean testBuild = Boolean.parseBoolean(args[0]);
-        for (String vendor : new String[] {"vivo", "iQOO", "samsung", "HUAWEI", "HONOR", "google", null}) {
+        for (int sdk : new int[] {23, 32, 33, 34, 35, 36}) {
+          Build.VERSION.SDK_INT = sdk;
+          for (String vendor : new String[] {"vivo", "iQOO", "VIVO", "IQOO", "samsung", "HUAWEI", "HONOR", "google", null}) {
             Build.BRAND = vendor;
             Build.MANUFACTURER = vendor;
-            boolean active = testBuild && ("vivo".equals(vendor) || "iQOO".equals(vendor));
+            boolean active = (testBuild || sdk >= 33) &&
+                    ("vivo".equalsIgnoreCase(vendor) || "iqoo".equalsIgnoreCase(vendor));
             check(play, token, active);
             check(play, token, active); // Repeated pause/resume must remain available.
             check(null, token, false);
@@ -39,6 +42,7 @@ public class NotificationPlayTest {
             for (int code : new int[] {130, 86, 87, 88, 79, 85, 126, 127}) {
                 check(new Intent(Intent.ACTION_MEDIA_BUTTON, new KeyEvent(0, code)), token, false);
             }
+          }
         }
     }
 }

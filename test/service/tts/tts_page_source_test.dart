@@ -199,6 +199,109 @@ void main() {
     expect(played, ['校对第一句。', '第二句。', '校对第一句。', '第二句。']);
   });
 
+  test('online playback continues through new page text without restarting',
+      () async {
+    var pageNumber = 0;
+    final source = TtsPageSource('第一页。', chapter: '1',
+        onNextPage: (source, current) async {
+      if (pageNumber == 1) return false;
+      pageNumber++;
+      source.replacePage('第二页。末句。', chapter: '2');
+      return true;
+    });
+    final played = <String>[];
+    final tts = OnlineTts.forTesting(
+        collect: (_) async => throw StateError('original reader'),
+        synthesize: (_) async => Uint8List.fromList([1]),
+        play: (segment) async => played.add(segment.sentence.text))
+      ..pageSource = source;
+    addTearDown(tts.stop);
+    await tts.init(
+        source.currentText, source.nextTextContinuous, source.previousText);
+    await tts.speak().timeout(const Duration(seconds: 5));
+    expect(played, ['第一页。', '第二页。', '末句。']);
+    expect(tts.ttsStateNotifier.value, TtsStateEnum.stopped);
+  });
+
+  for (final stop in [false, true]) {
+    test('page loading respects ${stop ? "stop" : "pause and resume"}',
+        () async {
+      final gate = Completer<void>();
+      var loading = false, loaded = false;
+      final source = TtsPageSource('第一页。', chapter: '1',
+          onNextPage: (source, current) async {
+        if (loaded) return false;
+        loading = true;
+        await gate.future;
+        if (!current()) return false;
+        loaded = true;
+        source.replacePage('第二页。', chapter: '2');
+        return true;
+      });
+      final played = <String>[];
+      final tts = OnlineTts.forTesting(
+          collect: (_) async => throw StateError('original reader'),
+          synthesize: (_) async => Uint8List.fromList([1]),
+          play: (segment) async => played.add(segment.sentence.text))
+        ..pageSource = source;
+      addTearDown(tts.stop);
+      await tts.init(
+          source.currentText, source.nextTextContinuous, source.previousText);
+      final speaking = tts.speak();
+      await until(() => loading);
+      if (stop) {
+        // Stop must complete even when extraction never resolves.
+        await tts.stop().timeout(const Duration(seconds: 2));
+        gate.complete();
+        await speaking;
+        expect(loaded, isFalse);
+        expect(played, ['第一页。']);
+      } else {
+        await tts.pause();
+        gate.complete();
+        await until(() => loaded);
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        expect(tts.ttsStateNotifier.value, TtsStateEnum.paused);
+        expect(played, ['第一页。']);
+        await tts.resume();
+        await speaking.timeout(const Duration(seconds: 5));
+        expect(played, ['第一页。', '第二页。']);
+      }
+    });
+  }
+
+  test('system narration automatically reads the next original page', () async {
+    final spoken = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel('flutter_tts'),
+        (call) async {
+      if (call.method == 'speak')
+        spoken.add(call.arguments is String
+            ? call.arguments as String
+            : call.arguments['text'] as String);
+      return 1;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(
+        const MethodChannel('flutter_tts'), null));
+    var loaded = false;
+    final source = TtsPageSource('第一页。', chapter: '1',
+        onNextPage: (source, current) async {
+      if (loaded) return false;
+      loaded = true;
+      source.replacePage('第二页。', chapter: '2');
+      return true;
+    });
+    final tts = SystemTts.forTesting(supported: true)..pageSource = source;
+    await tts.init(
+        source.currentText, source.nextTextContinuous, source.previousText);
+    tts.updateTtsState(TtsStateEnum.playing);
+    await tts.speak();
+    expect(spoken, ['第一页。', '第二页。']);
+    expect(tts.ttsStateNotifier.value, TtsStateEnum.stopped);
+    await tts.stop();
+  });
+
   test('leaving page during online synthesis cancels late audio', () async {
     final page = TtsPageSource('尚在生成的本页。', chapter: '');
     final gate = Completer<Uint8List>();

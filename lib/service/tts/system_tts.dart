@@ -328,6 +328,7 @@ class SystemTts extends BaseTts {
 
   @override
   Future<dynamic> stop({bool forNavigation = false}) async {
+    pageSource?.cancelAdvance();
     clearBuffering();
     ++_generation;
     _cancelNativeSpeech?.call();

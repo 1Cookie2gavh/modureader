@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:anx_reader/page/settings_page/sync.dart';
 import 'package:anx_reader/utils/platform_utils.dart';
+import 'package:anx_reader/utils/get_path/get_download_path.dart';
 import 'package:anx_reader/utils/save_file_to_download.dart';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
@@ -19,17 +20,35 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory root;
   late PathProviderPlatform oldPaths;
+  late List<MethodCall> permissionCalls;
+  const permissions = MethodChannel('flutter.baseflow.com/permissions/methods');
   setUp(() async {
+    permissionCalls = [];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(permissions, (call) async {
+      permissionCalls.add(call);
+      return call.method == 'requestPermissions' ? <int, int>{} : 0;
+    });
     root = await Directory.systemTemp.createTemp('modu-export-test-');
     oldPaths = PathProviderPlatform.instance;
     PathProviderPlatform.instance = _Paths(root.path);
   });
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(permissions, null);
+    expect(permissionCalls, isEmpty,
+        reason:
+            'Path lookup and document export must not request storage access');
     PathProviderPlatform.instance = oldPaths;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
             const MethodChannel('flutter_file_dialog'), null);
     await root.delete(recursive: true);
+  });
+  test('Android download path lookup does not request all-files access',
+      () async {
+    expect(await getDownloadPath(platform: AnxPlatformEnum.android),
+        '/storage/emulated/0/Download');
   });
   test('ZIP worker uses explicit paths without prefs or platform channels',
       () async {

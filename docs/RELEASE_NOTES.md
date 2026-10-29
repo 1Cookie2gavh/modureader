@@ -1,78 +1,46 @@
-# Modu 1.3.4
+# Modu 1.3.5
 
-Build / 构建：**10165** · Stable / 正式版
+Build / 构建：**10167** · Stable / 正式版
 
 ### English
 
-- Feat(tts): Use compact minus/value/plus controls for pitch (0.5–2.0×) and speed (0.1–4.0×), with direct input and 0.1 steps. Give each half the row, centering labels above their controls on narrow screens and beside them when space allows.
+- Feat(reader): Add device-local popup height limits (40–80%, default 80%) and reading popup opacity (20–100%, default 100%); E-Ink mode keeps popups opaque.
 
-- Fix(tts): Apply Xiaomi MiMo pitch through Android playback so individual levels affect buffered speech without resynthesis; retain pitch and speed across pause, resume and segment changes. Other platforms send distinct pitch instructions where supported.
+- Fix(reader): Prevent clipping in narration controls and nested reading menus; keep narration and zoom floating bars at their original opacity.
 
-- Perf(reader): Batch adjacent generated text-run measurements, remove duplicate position refreshes after layout and skip unchanged continuous-reading styles; preserve text, selection and navigation behavior.
+- Fix(sync): Refresh retained readers after unlocking and apply newer synchronized page and paused narration positions.
 
-- Perf(memory): Reuse crop-analysis buffers and encoded TTS audio, group scroll-line measurements, reuse identical pending PDF renders and unchanged detail images, and release the final PDF bitmap after clearing caches.
+- Fix(sync): Save the visible page anchor when leaving ordinary reading; preserve resumable narration anchors and highlights without starting playback or initializing an unconfigured engine.
 
-- Perf(reader): Coalesce Android and HarmonyOS continuous-scroll position measurements while keeping chapter preloading responsive and flushing the final position.
+- Feat(tts): Continue PDF reflow narration onto the next original page, preferring cached and corrected text and waiting for extraction or OCR when needed; PDF narration remains session-only.
 
-- Fix(sync): Restore newer synchronized reading and narration positions when resuming a paused reader; preserve active narration and retry deferred background jumps.
+- Fix(tts): Restore playback from paused vivo/iQOO media notifications.
 
-- Feat(bookshelf): Support opening supported books from system file associations and import dropped books without repeated confirmation dialogs, preserving originals and isolating per-file failures.
+- Fix(windows): Remove the permission plugin’s unnecessary startup location subscription.
 
-- Fix(ocr): Remember forced OCR per book and replace embedded-text cache results when OCR is requested, preserving saved revisions and note anchors.
+- Chore(android): Remove the obsolete all-files access request and block its inclusion by transitive dependencies; retain system document-picker exports.
 
-- Fix(pdf): Improve continuous-reading backing-image clarity while bounding decoded pixels and retaining visible or selected pages; allow enhancement throughout the supported 8 MP backing-image budget.
-
-- Feat(reader): Add an optional move-and-resize switch for selection-tool popups, visible only in popup display mode and off by default. Drag the top to move, or the sides, bottom and corners to resize; every opening restores the default position and size.
-
-- Feat(translation): Add Baidu Translation API and Microsoft Translator to ordinary language translation, sharing service credentials with Classical Chinese translation. Translate visible paragraphs progressively and support cancellation while keeping each translation mode’s language and appearance preferences independent.
-
-- Feat(translation): Show separate character-use estimates and editable reference-allowance progress for Baidu and Microsoft only. Aggregate updated devices through encrypted settings sync without double-counting repeated syncs; AI and Google usage are excluded. Estimates count successful Modu requests in UTC calendar months and are not official balances; Microsoft Key 1 and Key 2 are counted separately.
-
-- Fix(bookshelf): Size folder dialogs around the configured cover width and available screen space, avoiding oversized covers in partially filled rows.
-
-- Fix(sync): Refresh shelf and open-folder ordering after reading-position synchronization when sorting by last read, using the synchronized reading timestamp and preserving pinning.
-
-- Fix(translation): Fix translation startup failing when an expired chapter document remains in the reader, including the macOS “Translation is not available for this book” error. Discard detached paragraph work and prevent late results from changing removed documents.
-
-- Fix(sync): Synchronize translation service configuration and credentials through the existing encrypted settings channel while keeping language, translation direction and output appearance local, including when importing older snapshots.
-
-- Ci(tests): Align folder-menu fixtures with synchronized group membership so full regression covers folder selection and reader-return transitions.
+- Fix(appearance): Use fixed 50% opacity for transient messages, independently of reading popup settings.
 
 ### 简体中文
 
-- Feat(tts): 音调与语速改为紧凑的减号／数值／加号控件，分别支持 0.5～2.0 和 0.1～4.0 倍、每次 0.1 及手动输入；两组各占一半，窄屏时名称居中置于对应控件上方，宽屏时名称与控件同行。
+- Feat(reader): 新增本机阅读弹窗高度上限（40～80%，默认 80%）和阅读弹出界面不透明度（20～100%，默认 100%）；电子墨水模式保持完全不透明。
 
-- Fix(tts): 安卓端通过本地播放调整小米 MiMo 音调，使不同档位作用于已缓冲语音，无需重新合成；暂停、继续与切段保留音调和语速。其他平台在服务支持时发送不同档位的音高指令。
+- Fix(reader): 修复朗读调节控件与下级阅读菜单遮挡、裁切，朗读浮动条和缩放浮动条保留原有不透明度。
 
-- Perf(reader): 合并相邻生成文字片段的测量，减少排版后的重复位置刷新，跳过连续阅读中未变化的样式；保留正文、选择及导航功能。
+- Fix(sync): 锁屏恢复到未退出的阅读界面后触发同步，跳转到较新的页面及暂停朗读位置。
 
-- Perf(memory): 复用裁边分析缓冲区和 TTS 音频数据，合并滚动行测量，复用相同的待处理 PDF 渲染及未变化的清晰图层，清空缓存后释放最后一张 PDF 图片。
+- Fix(sync): 普通阅读退出时保存当前页位置，有朗读记录时保留朗读起点与高亮；恢复同步状态不自动播放，也不初始化未配置的朗读引擎。
 
-- Perf(reader): 合并安卓与鸿蒙连续滚动中的位置测量，保持章节预加载响应并及时保存最终位置。
+- Feat(tts): PDF 重排朗读到页末自动翻到下一原始页继续，优先使用缓存及校对文字，缺失时等待提取或 OCR；PDF 不保存跨会话朗读断点。
 
-- Fix(sync): 暂停的阅读器返回前台时恢复较新的同步阅读及朗读位置；保留正在播放的朗读，重试后台延迟的跳转。
+- Fix(tts): 修复 vivo／iQOO 通知栏暂停后点击三角播放按钮无法继续的问题。
 
-- Feat(bookshelf): 支持从系统文件关联打开可导入的书籍，拖入书籍时减少重复确认，保留原文件并隔离单文件导入失败。
+- Fix(windows): 移除 Windows 权限插件在启动时自动订阅位置变化的多余行为。
 
-- Fix(ocr): 按书保存强制 OCR 设置，要求 OCR 时替换原文字层缓存，同时保留历史修订及笔记锚点。
+- Chore(android): 删除遗留的所有文件访问权限申请并阻止依赖引入该权限，保留系统文件选择器导出。
 
-- Fix(pdf): 提高连续阅读底图清晰度，同时限制解码总像素，保留可见或已选中的页面；允许在支持的 8 MP 底图范围内应用图像增强。
-
-- Feat(reader): 划词功能弹窗新增可选的移动与缩放开关，仅在选择弹出显示时出现，默认关闭；拖动顶部移动，拖动两侧、底边或四角调整大小，每次打开恢复预设位置和大小。
-
-- Feat(translation): 语种翻译接入百度翻译 API 和 Microsoft Translator，与文言文翻译共用服务凭据；仅翻译可见段落、逐段呈现并可随时停止，两类翻译的语言和外观设置仍各自独立。
-
-- Feat(translation): 仅为百度和微软分别显示字符用量估算与可调整的参考额度进度，通过加密设置同步汇总已更新设备，重复同步不重复累计，AI 和 Google 不计入。按 UTC 自然月统计 Modu 成功请求，不代表官方剩余额度；微软 Key 1 与 Key 2 分别计数。
-
-- Fix(bookshelf): 文件夹弹窗根据封面宽度设置和屏幕空间确定布局，避免未填满一行时封面被过度放大。
-
-- Fix(sync): 按最后阅读排序时，阅读进度同步后使用同步的阅读时间刷新书架及已打开文件夹的顺序，保留置顶规则。
-
-- Fix(translation): 修复阅读器残留已失效章节文档导致翻译无法启动的问题，包括 macOS 提示“此书无法翻译”；清理失效段落任务，避免迟到结果写入已移除页面。
-
-- Fix(sync): 翻译服务配置及凭据通过现有加密设置通道同步，语言、翻译方向和译文外观保留本机设置，旧快照导入也不覆盖这些选项。
-
-- Ci(tests): 统一文件夹菜单测试中的分组数据，使完整回归覆盖同步后的文件夹选择和阅读返回动画。
+- Fix(appearance): 短时提示统一使用固定 50% 不透明度，不随阅读弹窗设置变化。
 
 ### Downloads / 下载
 
@@ -80,4 +48,4 @@ Android ARM64 · iOS ARM64 · macOS / Windows / Linux ARM64 & x64 · HarmonyOS A
 
 iOS IPA and HarmonyOS HAP require your own signing. macOS uses ad-hoc signing without notarization; Windows has no commercial Authenticode signature. / iOS IPA 与鸿蒙 HAP 需自行签名；macOS 为临时签名、未公证，Windows 无商业 Authenticode 签名。
 
-[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.4) · [Installation / 安装说明](https://github.com/sobranie2406/modureader/blob/v1.3.4/docs/RELEASING.md) · [License](https://github.com/sobranie2406/modureader/blob/v1.3.4/LICENSE) · [Notice](https://github.com/sobranie2406/modureader/blob/v1.3.4/NOTICE)
+[Source / 源码](https://github.com/sobranie2406/modureader/tree/v1.3.5) · [Installation / 安装说明](https://github.com/sobranie2406/modureader/blob/v1.3.5/docs/RELEASING.md) · [License](https://github.com/sobranie2406/modureader/blob/v1.3.5/LICENSE) · [Notice](https://github.com/sobranie2406/modureader/blob/v1.3.5/NOTICE)

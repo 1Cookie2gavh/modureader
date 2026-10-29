@@ -78,7 +78,8 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(L10n.of(context).storagePathNotEmpty),
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor:
+                Theme.of(context).colorScheme.error.withValues(alpha: .5),
           ),
         );
       }
@@ -96,7 +97,8 @@ class _StorageSettingsState extends ConsumerState<StorageSettings>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(L10n.of(context).storagePathNoPermission),
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor:
+                Theme.of(context).colorScheme.error.withValues(alpha: .5),
           ),
         );
       }

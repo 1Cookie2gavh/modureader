@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'document_text_menu.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'widget_title.dart';
@@ -103,7 +104,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
       return;
     }
     try {
-      await showDialog<DocumentLayoutConfig>(
+      await showReaderDialog<DocumentLayoutConfig>(
         animationStyle: AppMotion.style,
         context: context,
         builder: (_) => PdfRegionPreview(
@@ -136,7 +137,7 @@ class _DocumentStyleWidgetState extends State<DocumentStyleWidget> {
       return;
     }
     try {
-      await showDialog<DocumentLayoutConfig>(
+      await showReaderDialog<DocumentLayoutConfig>(
           animationStyle: AppMotion.style,
           context: context,
           builder: (_) => PdfRegionPreview(

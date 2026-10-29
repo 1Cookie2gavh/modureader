@@ -234,6 +234,16 @@ void main() {
     expect(resume, contains('AppLifecycleState.resumed'));
     expect(resume, contains('immediate: true'));
     expect(resume, contains('Prefs().autoSync'));
+    expect(resume, contains('reader.syncAndRefreshReading()'));
+    final reader = File('lib/page/reading_page.dart').readAsStringSync();
+    final wake = reader.substring(
+        reader.indexOf('Future<void> _syncAndRefreshReading()'),
+        reader.indexOf('@override',
+            reader.indexOf('Future<void> _syncAndRefreshReading()')));
+    expect(wake.indexOf('await ref.read(syncProvider.notifier).syncData('),
+        lessThan(wake.indexOf('await reader?.refreshReadingAfterSync(')));
+    expect(wake, contains('savedReading: reader?.saveReadingProgress()'));
+    expect(reader, contains('unawaited(syncAndRefreshReading())'));
     final network = source.substring(source.indexOf('_syncConnectivity ='),
         source.indexOf('@override', source.indexOf('_syncConnectivity =')));
     expect(network, contains('_resumeAutomaticSync()'));

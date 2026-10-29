@@ -806,16 +806,17 @@ export class View extends HTMLElement {
   }
   // Never awaited by the speech cursor. A suspended WebView layout must not
   // prevent synthesis/playback of subsequent chapters.
-  async syncTTSHighlight() {
+  async syncTTSHighlight({ forceFollow = false } = {}) {
     if (this.ttsBackground || document.hidden || this.#ttsPresenting || !this.#ttsPresentation) return
     this.#ttsPresenting = true
     const current = this.#ttsPresentation
     try {
       const { cfi, tts } = current
+      const follow = forceFollow || current.follow !== false
       const resolved = this.resolveNavigation(cfi)
       if (!resolved) return
       const { index, anchor } = resolved
-      if (this.renderer.getContents()[0]?.index !== index)
+      if (follow && this.renderer.getContents()[0]?.index !== index)
         await this.renderer.goTo(resolved)
       if (this.tts !== tts || this.#ttsPresentation !== current || this.ttsBackground || document.hidden) return
       const content = this.renderer.getContents().find(x => x.index === index)
@@ -827,7 +828,7 @@ export class View extends HTMLElement {
         obj.overlayer.add(cfi, range, Overlayer.highlight, { color: '#39c5bc83' })
         this.oldValue = cfi
       }
-      await this.renderer.scrollToAnchor(range)
+      if (follow) await this.renderer.scrollToAnchor(range)
     } catch (error) {
       console.warn('Speech presentation could not follow the cursor', error)
     } finally {
@@ -896,7 +897,7 @@ export class View extends HTMLElement {
       textWalker,
       (range) => {
         const value = this.getCFI(index, range)
-        this.#ttsPresentation = { cfi: value, tts: this.tts }
+        this.#ttsPresentation = { cfi: value, tts: this.tts, follow: !this.ttsRestoring }
         // Metadata follows the speech document, not the visible page. This is
         // synchronous and must not wait for a suspended background renderer.
         const chapterTitle = this.getProgressOf(index, range)?.tocItem?.label ?? ''

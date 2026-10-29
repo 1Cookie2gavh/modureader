@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/widgets/reading_page/adjustable_reader_popup.dart';
@@ -21,7 +22,7 @@ class ReaderPopup extends StatelessWidget {
     final media = MediaQuery.of(context);
     return math.max(
         0.0,
-        math.min(media.size.height * 0.8,
+        math.min(media.size.height * Prefs().readerPopupMaxHeightPercent / 100,
             media.size.height - media.viewInsets.bottom - media.padding.top));
   }
 
@@ -82,19 +83,29 @@ class ReaderQuickStylePanel extends StatelessWidget {
 Future<void> showReaderPopup(BuildContext context,
     {required WidgetBuilder builder,
     bool enableDrag = true,
+    bool readerAppearance = true,
     bool allowWindowAdjustment = false,
     double initialHeightFraction = 0.8}) async {
   if (allowWindowAdjustment && Prefs().readerPopupAdjustmentEnabled) {
     await showAdjustableReaderPopup(context,
-        builder: builder, initialHeightFraction: initialHeightFraction);
+        builder: builder,
+        initialHeightFraction: initialHeightFraction,
+        readerAppearance: readerAppearance);
     return;
   }
+  final menuTheme = readerAppearance
+      ? ReaderMenuAppearance.theme(context)
+      : Theme.of(context);
   ModalRoute<dynamic>? route;
   // Keep the content widget stable while the bottom-sheet route responds to
   // keyboard metrics; build it below the consumed-inset MediaQuery.
   final content = Builder(builder: builder);
   await showModalBottomSheet<void>(
     sheetAnimationStyle: AppMotion.style,
+    backgroundColor: menuTheme.bottomSheetTheme.modalBackgroundColor ??
+        menuTheme.bottomSheetTheme.backgroundColor,
+    elevation: menuTheme.bottomSheetTheme.modalElevation ??
+        menuTheme.bottomSheetTheme.elevation,
     context: context,
     constraints: ReaderPopup.constraints(context),
     isScrollControlled: true,
@@ -103,7 +114,7 @@ Future<void> showReaderPopup(BuildContext context,
     clipBehavior: Clip.antiAlias,
     builder: (context) {
       route = ModalRoute.of(context);
-      return ReaderPopup(child: content);
+      return Theme(data: menuTheme, child: ReaderPopup(child: content));
     },
   );
   // Native reader views must not regain focus during the reverse animation.

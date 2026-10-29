@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -268,7 +269,7 @@ class _PdfRegionPreviewState extends State<PdfRegionPreview> {
     _generation++;
     _timer?.cancel();
     widget.cancelRender();
-    final result = await showDialog<DocumentLayoutConfig>(
+    final result = await showReaderDialog<DocumentLayoutConfig>(
         animationStyle: AppMotion.style,
         context: context,
         builder: (_) => DocumentLayoutEditor(
@@ -390,7 +391,7 @@ class _PdfRegionPreviewState extends State<PdfRegionPreview> {
                           _timer?.cancel();
                           _generation++;
                           widget.cancelRender();
-                          final result = await showDialog<DocumentEnhancement>(
+                          final result = await showReaderDialog<DocumentEnhancement>(
                               animationStyle: AppMotion.style,
                               context: context,
                               builder: (_) => DocumentEnhancementPanel(

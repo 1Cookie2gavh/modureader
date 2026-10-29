@@ -1,3 +1,4 @@
+import '../reader_menu_appearance.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import '../reader_menu_group.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -370,7 +371,10 @@ class _ReadingMoreSettingsState extends State<ReadingMoreSettings> {
               }
             },
             underline: Container(),
-            dropdownColor: Theme.of(context).colorScheme.surfaceContainer,
+            dropdownColor: ReaderMenuAppearance.translucent(context)
+                ? ReaderMenuAppearance.background(
+                    context, Theme.of(context).colorScheme.surfaceContainer)
+                : Theme.of(context).colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(8),
             items: ReadingInfoEnum.values.map((info) {
               return DropdownMenuItem<ReadingInfoEnum>(

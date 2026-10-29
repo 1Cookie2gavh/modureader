@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show TextRange;
 
 import 'models/tts_sentence.dart';
@@ -6,7 +7,18 @@ import 'tts_pipeline.dart';
 /// A page-local speech cursor. Prefetch can inspect it but cannot advance it.
 class TtsPageSource {
   TtsPageSource(String text,
-      {required this.chapter, this.onPosition, this.onHighlight}) {
+      {required this.chapter,
+      this.onPosition,
+      this.onHighlight,
+      this.onNextPage,
+      this.onCancelAdvance}) {
+    _setText(text);
+  }
+
+  void _setText(String text) {
+    _sentences.clear();
+    _offsets.clear();
+    _index = 0;
     var offset = 0;
     for (final sentence in TtsPipeline(text).sentences) {
       // Bound unpunctuated OCR text for system engines and online providers.
@@ -24,7 +36,13 @@ class TtsPageSource {
     }
   }
 
-  final String chapter;
+  String chapter;
+  final Future<bool> Function(TtsPageSource source, bool Function() isCurrent)?
+      onNextPage;
+  final void Function()? onCancelAdvance;
+  Future<String>? _continuation;
+  Completer<bool>? _advanceCancellation;
+  int _generation = 0;
   final void Function(int offset)? onPosition;
   final void Function(TextRange? range)? onHighlight;
   final _sentences = <TtsSentence>[];
@@ -35,6 +53,7 @@ class TtsPageSource {
   bool get atEnd => _index >= _sentences.length;
 
   void invalidate() {
+    cancelAdvance();
     _valid = false;
     clearHighlight();
   }
@@ -62,6 +81,53 @@ class TtsPageSource {
     if (!valid) return '';
     if (_index < _sentences.length) _index++;
     return _current();
+  }
+
+  /// Only the playback consumer may load another original page. Prefetch and
+  /// selection-only speech keep using this page's non-mutating/synchronous API.
+  Future<String> nextTextContinuous() {
+    return _continuation ??= _nextContinuous().whenComplete(() {
+      _continuation = null;
+    });
+  }
+
+  Future<String> _nextContinuous() async {
+    final generation = _generation, previous = _index;
+    final next = nextText();
+    if (next.isNotEmpty || !valid || onNextPage == null) return next;
+    bool current() => valid && generation == _generation;
+    final cancelled = Completer<bool>();
+    _advanceCancellation = cancelled;
+    try {
+      final loaded = await Future.any<bool>([
+        onNextPage!(this, current),
+        cancelled.future,
+      ]);
+      return current() && loaded ? _current() : '';
+    } catch (_) {
+      // Retry the last sentence, not the entire page, after OCR/load failure.
+      if (current()) _index = previous;
+      rethrow;
+    } finally {
+      if (identical(_advanceCancellation, cancelled)) {
+        _advanceCancellation = null;
+      }
+    }
+  }
+
+  void replacePage(String text, {required String chapter}) {
+    clearHighlight();
+    this.chapter = chapter;
+    _setText(text);
+  }
+
+  void cancelAdvance() {
+    _generation++;
+    final cancelled = _advanceCancellation;
+    if (cancelled != null && !cancelled.isCompleted) {
+      cancelled.complete(false);
+      onCancelAdvance?.call();
+    }
   }
 
   String previousText() {

@@ -2,16 +2,13 @@ import 'dart:io';
 import 'package:anx_reader/utils/platform_utils.dart';
 
 import 'package:path_provider/path_provider.dart' as path;
-import 'package:permission_handler/permission_handler.dart';
 
 // from localsend
 Future<String> getDownloadPath({AnxPlatformEnum? platform}) async {
   switch (platform ?? AnxPlatform.type) {
     case AnxPlatformEnum.android:
-      var status = await Permission.manageExternalStorage.status;
-      if (!status.isGranted) {
-        await Permission.manageExternalStorage.request();
-      }
+      // Resolving a path must not request access; Android exports use the
+      // system document picker in saveFileToDownload.
       return '/storage/emulated/0/Download';
     case AnxPlatformEnum.ios:
       return (await path.getApplicationDocumentsDirectory()).path;

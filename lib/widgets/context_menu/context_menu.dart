@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'dart:math' as math;
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
@@ -136,9 +137,11 @@ Future<void> showContextMenu(
   }
 
   final decoration = BoxDecoration(
-    color: Prefs().eInkMode
-        ? Theme.of(context).colorScheme.surface
-        : Theme.of(context).colorScheme.secondaryContainer,
+    color: ReaderMenuAppearance.background(
+        context,
+        Prefs().eInkMode
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.secondaryContainer),
     borderRadius: BorderRadius.circular(10),
     boxShadow: [
       if (!Prefs().eInkMode)
@@ -158,31 +161,33 @@ Future<void> showContextMenu(
   );
 
   playerKey.contextMenuEntry = OverlayEntry(builder: (context) {
-    return ReaderContextMenuOverlay(
-      axis: axis,
-      selectionRect: selectionRect,
-      viewportRect: viewportRect,
-      annoContent: annoContent,
-      annoCfi: annoCfi,
-      annoId: annoId,
-      annotationIds: annotationIds,
-      bookId: playerKey.book.id,
-      footnote: footnote,
-      contextText: contextText,
-      allowAnnotations: allowAnnotations,
-      onNarrate: onNarrate,
-      decoration: decoration,
-      onClose: onClose,
-      menuConstraints: menuConstraints,
-      initialPosition: initialPlacement.offset,
-      initialReverse: initialPlacement.shouldReverse,
-      showTranslationDefault: !isNewNote && Prefs().autoTranslateSelection,
-      horizontalMargin: horizontalMargin,
-      verticalMargin: verticalMargin,
-      gap: gap,
-      initialBottomInset: keyboardInset,
-      parentRoute: parentRoute,
-    );
+    return ReaderMenuAppearance.wrap(
+        context,
+        ReaderContextMenuOverlay(
+          axis: axis,
+          selectionRect: selectionRect,
+          viewportRect: viewportRect,
+          annoContent: annoContent,
+          annoCfi: annoCfi,
+          annoId: annoId,
+          annotationIds: annotationIds,
+          bookId: playerKey.book.id,
+          footnote: footnote,
+          contextText: contextText,
+          allowAnnotations: allowAnnotations,
+          onNarrate: onNarrate,
+          decoration: decoration,
+          onClose: onClose,
+          menuConstraints: menuConstraints,
+          initialPosition: initialPlacement.offset,
+          initialReverse: initialPlacement.shouldReverse,
+          showTranslationDefault: !isNewNote && Prefs().autoTranslateSelection,
+          horizontalMargin: horizontalMargin,
+          verticalMargin: verticalMargin,
+          gap: gap,
+          initialBottomInset: keyboardInset,
+          parentRoute: parentRoute,
+        ));
   });
 
   Overlay.of(context).insert(playerKey.contextMenuEntry!);

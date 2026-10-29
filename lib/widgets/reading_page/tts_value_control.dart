@@ -13,6 +13,27 @@ class TtsValueControl extends StatefulWidget {
   final bool pitch;
   final ValueChanged<double> onChanged;
 
+  static TextStyle? _valueStyle(BuildContext context) =>
+      Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontSize: 16,
+          height: 1.2,
+          fontWeight: FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()]);
+
+  static double _inputWidth(BuildContext context) {
+    final painter = TextPainter(
+        text: TextSpan(text: '0.0×', style: _valueStyle(context)),
+        textScaler: MediaQuery.textScalerOf(context),
+        textDirection: Directionality.of(context))
+      ..layout();
+    // Include field padding and caret space; fixed widths clip some fonts.
+    final width = painter.width.ceilToDouble() + 12;
+    painter.dispose();
+    return width;
+  }
+
+  static double width(BuildContext context) => 98 + _inputWidth(context);
+
   @override
   State<TtsValueControl> createState() => _TtsValueControlState();
 }
@@ -95,11 +116,7 @@ class _TtsValueControlState extends State<TtsValueControl> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final value = _input ?? _lastCommitted;
-    final textStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontSize: 16,
-        height: 1.2,
-        fontWeight: FontWeight.w600,
-        fontFeatures: const [FontFeature.tabularFigures()]);
+    final textStyle = TtsValueControl._valueStyle(context);
     return TextFieldTapRegion(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Stack(
@@ -133,7 +150,7 @@ class _TtsValueControlState extends State<TtsValueControl> {
                   child:
                       VerticalDivider(width: 1, color: colors.outlineVariant)),
               SizedBox(
-                  width: 42 * MediaQuery.textScalerOf(context).scale(1),
+                  width: TtsValueControl._inputWidth(context),
                   child: Semantics(
                       label: ModuStrings.format(context,
                           '{label}，{min} 至 {max}', '{label}, {min} to {max}',
@@ -226,13 +243,14 @@ class TtsVoiceControls extends StatelessWidget {
         final scale = MediaQuery.textScalerOf(context).scale(1);
         final inline = constraints.maxWidth >= 480 * scale;
         // Very large accessibility text can scroll without shrinking text or touch targets.
+        final controlWidth = TtsValueControl.width(context);
         final width =
-            constraints.maxWidth.clamp(2 * (98 + 42 * scale), double.infinity);
+            constraints.maxWidth.clamp(2 * controlWidth, double.infinity);
         Widget half(bool isPitch) {
           final label = Text(
               isPitch ? L10n.of(context).ttsPitch : L10n.of(context).ttsRate);
           final control = SizedBox(
-              width: 98 + 42 * scale,
+              width: controlWidth,
               child: TtsValueControl(
                   pitch: isPitch,
                   value: isPitch ? pitch : rate,

@@ -11,8 +11,8 @@ import android.support.v4.media.session.MediaSessionCompat;
 public final class ModuNotificationPlay {
     @SuppressWarnings("deprecation")
     public static boolean handle(Context context, Intent intent, MediaSessionCompat.Token token) {
-        if (!ModuMediaNotificationPolicy.enabled(ModuMediaNotificationPolicy.TEST_BUILD,
-                Build.BRAND, Build.MANUFACTURER)
+        if (!ModuMediaNotificationPolicy.playActionEnabled(ModuMediaNotificationPolicy.TEST_BUILD,
+                Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER)
                 || token == null || intent == null
                 || !Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) return false;
         KeyEvent event = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);

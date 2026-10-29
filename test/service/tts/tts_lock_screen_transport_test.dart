@@ -28,6 +28,7 @@ class PausableBackend extends Fake implements BaseTts {
   final reading = Completer<void>();
   Completer<void>? pauseGate;
   int resumes = 0;
+  int initializations = 0;
   int pauses = 0;
   bool audible = false;
   @override
@@ -35,7 +36,10 @@ class PausableBackend extends Fake implements BaseTts {
   @override
   void updateTtsState(TtsStateEnum state) => ttsStateNotifier.value = state;
   @override
-  Future<void> init(Function a, Function b, Function c) async {}
+  Future<void> init(Function a, Function b, Function c) async {
+    initializations++;
+  }
+
   @override
   Future<void> pause() async {
     pauses++;
@@ -100,6 +104,26 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Prefs().initPrefs();
     binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+  });
+
+  test(
+      'restoring position does not initialize an engine or request audio focus',
+      () async {
+    final backend = PausableBackend();
+    var focusRequests = 0;
+    final handler = TtsHandler.forTesting(
+        factory: TtsFactory.forTesting(() => backend),
+        activateSession: () async {
+          focusRequests++;
+          return true;
+        });
+    await handler.init(() => 'saved text', () => '', () => '',
+        prepareBackend: false);
+    expect(backend.initializations, 0);
+    expect(focusRequests, 0);
+    expect(backend.audible, isFalse);
+    await handler.init(() => 'saved text', () => '', () => '');
+    expect(backend.initializations, 1);
   });
 
   test('lock screen updates buffering without requiring a playing-state change',

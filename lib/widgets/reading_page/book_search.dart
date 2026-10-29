@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'dart:math' as math;
@@ -17,7 +18,7 @@ Future<void> showBookSearchDialog(
   required Future<void> Function(String) onNavigate,
 }) {
   final container = ProviderScope.containerOf(context);
-  return showDialog<void>(
+  return showReaderDialog<void>(
     animationStyle: AppMotion.style,
     context: context,
     useRootNavigator: false,

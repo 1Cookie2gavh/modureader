@@ -404,10 +404,13 @@ Future<void> showExcerptShareBottomSheet({
   required String excerpt,
   String? chapter,
   bool allowWindowAdjustment = false,
+  bool readerAppearance = false,
 }) async {
-  if (allowWindowAdjustment && Prefs().readerPopupAdjustmentEnabled) {
+  if (readerAppearance ||
+      (allowWindowAdjustment && Prefs().readerPopupAdjustmentEnabled)) {
     await showReaderPopup(context,
-        allowWindowAdjustment: true,
+        allowWindowAdjustment: allowWindowAdjustment,
+        readerAppearance: readerAppearance,
         initialHeightFraction: 0.85,
         builder: (_) => ExcerptShareBottomSheet(
             bookTitle: bookTitle,

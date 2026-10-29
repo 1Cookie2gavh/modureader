@@ -42,7 +42,7 @@ test('foreground service and media controls are retained across pauses', () => {
         /androidWillPauseWhenDucked: true/);
 });
 
-test('release stop compatibility is scoped to vivo/iQOO Android 13+; play remains opt-in', () => {
+test('release play and stop compatibility is scoped to vivo/iQOO Android 13+', () => {
     const output = mkdtempSync(join(tmpdir(), 'modu-media-policy-'));
     try {
         execFileSync('javac', ['-d', output,
@@ -54,7 +54,7 @@ test('release stop compatibility is scoped to vivo/iQOO Android 13+; play remain
     }
 });
 
-test('only opted-in vivo/iQOO notification play bypasses media key forwarding', () => {
+test('release vivo/iQOO notification play bypasses media key forwarding exactly once', () => {
     const output = mkdtempSync(join(tmpdir(), 'modu-notification-play-'));
     const root = fileURLToPath(new URL('../', import.meta.url));
     const stubs = join(root, 'test/native/media_notification_stubs');
@@ -82,6 +82,7 @@ test('workaround retains MediaSession and gates each notification change', () =>
     assert.match(patch, /ModuMediaNotificationPolicy.enabled\(ModuMediaNotificationPolicy.TEST_BUILD, Build.BRAND, Build.MANUFACTURER\)/);
     assert.match(patch, /TEST_BUILD = \$\{iqooTest\}/);
     assert.match(read('android/audio_service/ModuMediaNotificationPolicy.java'), /TEST_BUILD = false/);
+    assert.match(patch, /ModuMediaNotificationPolicy.playActionEnabled\(ModuMediaNotificationPolicy.TEST_BUILD, Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER\)/);
     assert.match(patch, /Build.VERSION.SDK_INT < 33 \|\| moduMediaCompatEnabled\(\)/);
     assert.match(patch, /ModuMediaNotificationPolicy.stopActionEnabled\(Build.VERSION.SDK_INT, Build.BRAND, Build.MANUFACTURER\)/);
     assert.match(patch, /moduStopCompatEnabled\(\) && control.actionCode == PlaybackStateCompat.ACTION_STOP/);
@@ -91,10 +92,10 @@ test('workaround retains MediaSession and gates each notification change', () =>
         'getNotificationManager().cancel(NOTIFICATION_ID)', 'releaseWakeLock()']) {
         assert.ok(patch.includes(action));
     }
-    assert.match(patch, /\[classAnchor, customAnchor, compactAnchor, stopAnchor, playAnchor\].any/);
+    assert.match(patch, /\[classAnchor, customAnchor, compactAnchor, stopAnchor, playAnchor, bypassPlayAnchor\].any/);
     assert.match(patch, /receiver.readLines\('UTF-8'\).count/);
     assert.match(patch, /ModuNotificationPlay.handle\(/);
     assert.match(patch, /AudioService.instance.getSessionToken\(\)/);
-    assert.match(patch, /moduMediaCompatEnabled\(\)\) ModuMediaNotificationPolicy.sessionPlayCallbacks\+\+/);
+    assert.match(patch, /moduPlayCompatEnabled\(\)\) ModuMediaNotificationPolicy.sessionPlayCallbacks\+\+/);
     assert.doesNotMatch(patch, /mediaSession\.release|setPlaybackState|androidStopForegroundOnPause/);
 });

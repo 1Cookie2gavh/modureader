@@ -876,6 +876,7 @@ class OnlineTts extends BaseTts {
 
   @override
   Future<void> stop({bool forNavigation = false}) async {
+    pageSource?.cancelAdvance();
     if (!forNavigation) {
       _navigationPlaying = null;
       // Explicit Stop wins even when navigation is already cleaning up.

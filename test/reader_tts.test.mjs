@@ -107,6 +107,23 @@ test('selected start binds the selected continuous chapter, never the first visi
   await assert.rejects(nav.startFromCfi('invalid'), /selected reading position/)
 })
 
+test('starting without paused speech uses the visible first line without repeating the previous page', async () => {
+  const doc = documentFor('<p>上一页文字，本页第一行继续。下一句。</p>')
+  const range = doc.createRange()
+  range.setStart(doc.querySelector('p').firstChild, 6)
+  range.setEnd(doc.querySelector('p').firstChild, 12)
+  const view = {
+    book: {sections:[{}]},
+    renderer: {getContents:()=>[{index:0, doc}]},
+    initTTS() {this.tts = speech(doc); this.tts.sectionIndex = 0},
+  }
+  const nav = new TtsNavigator(() => view)
+  assert.equal(view.tts, undefined, 'remembering a page does not initialize speech or highlighting')
+  assert.equal(await nav.start(range), '本页第一行继续。')
+  assert.equal(view.tts.resume(), '本页第一行继续。')
+  assert.equal(await nav.move(1), '下一句。')
+})
+
 test('previous across separator-only chapters reaches real body text', async () => {
   const {nav} = reader(['<p>前章正文。</p>', '<p>……</p>', '<p>后章正文。</p>'])
   assert.equal(await nav.start(),'前章正文。')
@@ -721,3 +738,30 @@ test('turning beyond the last chapter never loads an undefined section or leaves
   assert.equal(page.visits.length, 0)
   assert.equal(page.locked, false)
 })
+
+for (const speechChapter of [0, 1]) {
+  test(`restore paused speech in chapter ${speechChapter} preserves the synced page, including visibility refresh`, async () => {
+    const fixture = backgroundReader(['<p>页面正文。</p>', '<p>另一章朗读。</p>'])
+    const {view, nav} = fixture
+    view.ttsBackground = false
+    let scrolls = 0
+    view.renderer.scrollToAnchor = async () => { scrolls++ }
+    const text = await nav.startFromCfi(`${speechChapter}:saved`, {preserveReadingPosition: true})
+    assert.ok(text.length > 0)
+    assert.equal(view.tts.sectionIndex, speechChapter)
+    assert.equal(view.progressEvents.at(-1).cfi, `${speechChapter}:${text}`)
+    assert.equal(scrolls, 0)
+    await view.syncTTSHighlight()
+    assert.equal(scrolls, 0, 'wake must not follow a restored paused cursor')
+    assert.equal(fixture.loads, 0, 'restoring speech must not navigate chapters')
+    assert.equal(view.renderer.getContents()[0].index, 0)
+    assert.equal(view.ttsRestoring, false)
+    if (speechChapter === 0) {
+      await view.syncTTSHighlight({forceFollow: true})
+      assert.equal(scrolls, 1, 'explicit return still follows the narration')
+      view.tts.highlightCfi(view.tts.currentDetail().cfi)
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(scrolls, 2, 'actual audio highlighting resumes normal following')
+    }
+  })
+}

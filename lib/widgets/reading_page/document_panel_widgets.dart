@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'package:flutter/material.dart';
 import 'package:anx_reader/widgets/common/app_scroll_behavior.dart';
 
@@ -10,7 +11,9 @@ class DocumentPanelTheme extends StatelessWidget {
   Widget build(BuildContext context) => ScrollConfiguration(
       behavior: const AppScrollBehavior(symmetricGutter: true),
       child: Material(
-          color: Theme.of(context).colorScheme.surface,
+          color: ReaderMenuAppearance.translucent(context)
+              ? Colors.transparent
+              : Theme.of(context).colorScheme.surface,
           child: ListTileTheme.merge(
               subtitleTextStyle: Theme.of(context).textTheme.bodySmall,
               child: child)));

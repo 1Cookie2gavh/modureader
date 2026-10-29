@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'package:anx_reader/utils/app_motion.dart';
 import 'package:anx_reader/widgets/reading_page/reader_top_actions.dart';
 import 'package:anx_reader/widgets/reading_page/harmony_reader_toolbar.dart';
@@ -167,7 +168,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         await player.pauseDocumentOcrCache();
         await reflowReader?.stopLoading();
         if (!mounted) return;
-        await showDialog<void>(
+        await showReaderDialog<void>(
             context: context,
             builder: (_) => DocumentOriginalNote(
                 anchor: anchor,
@@ -255,8 +256,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   await audioHandler.stop();
                   if (!mounted || !source.valid) return;
                   source.seekToOffset(start);
-                  await TtsHandler().init(
-                      source.currentText, source.nextText, source.previousText,
+                  await TtsHandler().init(source.currentText,
+                      source.nextTextContinuous, source.previousText,
                       pageSource: source);
                   if (mounted && source.valid) await audioHandler.play();
                 });
@@ -357,6 +358,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       onClose: closeDocumentReflow,
       clearMenu: player.removeOverlay,
       selectionInvalidated: player.reflowSelectionInvalidated,
+      onNarrationPageChanged: player.goToDocumentPage,
       onPageChanged: (page) async {
         await audioHandler.stop();
         await player.goToDocumentPage(page);
@@ -705,6 +707,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     unawaited(_documentRotation.close().catchError((Object error) {
       AnxLog.warning('Reader rotation restore failed: ${error.runtimeType}');
     }));
+    // Queue the visible page before detach/stop; the player drains it before
+    // its exit sync, so switching books cannot upload an earlier page.
+    unawaited(epubPlayerKey.currentState
+        ?.saveReadingProgress(captureVisiblePage: true));
     epubPlayerKey.currentState?.detachNarration();
     FocusManager.instance.removeListener(_updatePageKeys);
     _pageKeys.dispose();
@@ -919,6 +925,33 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     }
   }
 
+  Future<void>? _readerWakeSync;
+
+  /// App-level and reader-level resume notifications share one request.
+  Future<void> syncAndRefreshReading() => _readerWakeSync ??=
+      _syncAndRefreshReading().whenComplete(() => _readerWakeSync = null);
+
+  Future<void> _syncAndRefreshReading() async {
+    if (!mounted) return;
+    final reader = epubPlayerKey.currentState;
+    try {
+      if (Prefs().webdavStatus && Prefs().autoSync) {
+        await ref.read(syncProvider.notifier).syncData(
+              SyncDirection.both,
+              ref,
+              trigger: SyncTrigger.auto,
+              immediate: true,
+              savedReading: reader?.saveReadingProgress(),
+            );
+      }
+      if (mounted && identical(reader, epubPlayerKey.currentState)) {
+        await reader?.refreshReadingAfterSync(retryOnResume: true);
+      }
+    } catch (error) {
+      AnxLog.warning('Reader wake sync failed: ${error.runtimeType}');
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -927,8 +960,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       unawaited(reader.setTtsBackground(state != AppLifecycleState.resumed));
       if (state == AppLifecycleState.resumed) {
         reader.resumeDocumentOcrCache();
-        // A background WebView may have deferred or failed the synced jump.
-        unawaited(reader.refreshReadingAfterSync(retryOnResume: true));
+        // Pull first; only then restore the retained reader and speech cursor.
+        unawaited(syncAndRefreshReading());
       } else {
         unawaited(reader.pauseDocumentOcrCache());
       }
@@ -1147,7 +1180,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       if (!mounted || !source.valid) return;
       source.rewind();
       await TtsHandler().init(
-          source.currentText, source.nextText, source.previousText,
+          source.currentText, source.nextTextContinuous, source.previousText,
           pageSource: source);
       if (mounted && source.valid) await audioHandler.play();
       return;
@@ -1688,6 +1721,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
         showAiChat();
       },
     );
+    final menuBarColor = Theme.of(context).appBarTheme.backgroundColor ??
+        Theme.of(context).colorScheme.surface;
     Offstage controller = Offstage(
       offstage: bottomBarOffstage,
       child: PointerInterceptor(
@@ -1712,6 +1747,8 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                     enabled: AnxPlatform.isOhos,
                     child: LayoutBuilder(
                         builder: (context, constraints) => AppBar(
+                              backgroundColor: ReaderMenuAppearance.background(
+                                  context, menuBarColor),
                               title: Text(_book.title,
                                   overflow: TextOverflow.ellipsis),
                               leading: IconButton(
@@ -1840,6 +1877,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   onClosing: () {},
                   enableDrag: false,
                   constraints: _currentPage is StyleWidget ||
+                          _currentPage is TtsWidget ||
                           isReflowReading ||
                           documentSettings
                       ? ReaderPopup.constraints(context)
@@ -1848,6 +1886,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                     top: false,
                     child: Container(
                       constraints: _currentPage is StyleWidget ||
+                              _currentPage is TtsWidget ||
                               isReflowReading ||
                               documentSettings
                           ? ReaderPopup.constraints(context)
@@ -1935,6 +1974,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                           );
                           // Short settings fit their content; long ones scroll.
                           return content is StyleWidget ||
+                                  content is TtsWidget ||
                                   isReflowReading ||
                                   documentSettings
                               ? ReaderQuickStylePanel(
@@ -2203,7 +2243,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                         )
                     ],
                   ),
-                  controller,
+                  ReaderMenuAppearance.wrap(context, controller),
                   // Paint controls above the book without changing WebView
                   // dimensions, pagination or reader margins.
                   if (!documentMenu &&

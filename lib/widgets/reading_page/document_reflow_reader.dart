@@ -1,3 +1,4 @@
+import 'reader_menu_appearance.dart';
 import 'package:anx_reader/service/translate/official_api.dart';
 import 'ocr_precache_settings.dart';
 import 'reader_menu_group.dart';
@@ -59,6 +60,7 @@ class DocumentReflowReader extends StatefulWidget {
       required this.cancelRender,
       required this.onClose,
       required this.onPageChanged,
+      this.onNarrationPageChanged,
       required this.onSelection,
       this.onTranslatedSelection,
       required this.clearMenu,
@@ -111,6 +113,7 @@ class DocumentReflowReader extends StatefulWidget {
   final VoidCallback cancelRender, onClose, clearMenu;
   final VoidCallback? selectionInvalidated;
   final Future<void> Function(int) onPageChanged;
+  final Future<void> Function(int)? onNarrationPageChanged;
   final ReflowSelection onSelection;
   final ReflowTranslatedSelection? onTranslatedSelection;
   final Future<List<BookNote>> Function() loadNotes;
@@ -362,8 +365,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       return null;
     }
     final controller = _readingController;
-    return _narrationSource ??=
-        TtsPageSource(controller.text, chapter: chapter, onHighlight: (range) {
+    return _narrationSource ??= TtsPageSource(controller.text,
+        chapter: chapter,
+        onNextPage: _showTranslation ? null : _continueNarration,
+        onCancelAdvance: cancelLoading, onHighlight: (range) {
       if (mounted) controller.setNarrationRange(range);
     }, onPosition: (offset) {
       if (!mounted ||
@@ -373,6 +378,29 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       }
       _textState?.bringIntoView(TextPosition(offset: offset));
     });
+  }
+
+  Future<bool> _continueNarration(
+      TtsPageSource source, bool Function() isCurrent) async {
+    if (!mounted ||
+        _busy ||
+        _showTranslation ||
+        !identical(source, _narrationSource) ||
+        !isCurrent()) {
+      return false;
+    }
+    final page = _page;
+    if (page == null || page.page + 1 >= _total) return false;
+    final target = page.page + 1;
+    await _load(target, narrationCurrent: isCurrent);
+    if (!mounted || !isCurrent() || !identical(source, _narrationSource)) {
+      return false;
+    }
+    if (_error != null || _needsModel || _page?.page != target) {
+      throw StateError('Next reflow page is unavailable');
+    }
+    source.replacePage(_controller.text, chapter: chapter);
+    return true;
   }
 
   void _invalidateNarration() {
@@ -595,7 +623,7 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
 
   Future<void> _jumpToPage() async {
     final input = TextEditingController(text: '${(_navigationPage ?? 0) + 1}');
-    final target = await showDialog<int>(
+    final target = await showReaderDialog<int>(
         context: context,
         builder: (context) => AlertDialog(
               title: Text(t('跳转原书页码', 'Go to original page')),
@@ -705,9 +733,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   Future<void> _load(int? target,
       {DocumentReflowAnchor? anchor,
       bool refresh = false,
-      bool followOriginal = false}) async {
-    stopTranslation();
-    _invalidateNarration();
+      bool followOriginal = false,
+      bool Function()? narrationCurrent}) async {
+    if (narrationCurrent == null) {
+      stopTranslation();
+      _invalidateNarration();
+    }
     final request = ++_loadRequest;
     if (target != null) _requestedPage = target;
     while (_pendingLoad != null) {
@@ -717,7 +748,10 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     }
     if (!mounted) return;
     final pending = _performLoad(target,
-        anchor: anchor, refresh: refresh, followOriginal: followOriginal);
+        anchor: anchor,
+        refresh: refresh,
+        followOriginal: followOriginal,
+        narrationCurrent: narrationCurrent);
     _pendingLoad = pending;
     try {
       await pending;
@@ -729,7 +763,8 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
   Future<void> _performLoad(int? target,
       {DocumentReflowAnchor? anchor,
       bool refresh = false,
-      bool followOriginal = false}) async {
+      bool followOriginal = false,
+      bool Function()? narrationCurrent}) async {
     _resetSelectionGesture();
     final generation = ++_generation, cancel = OcrCancellation();
     _cancel?.cancel();
@@ -747,7 +782,11 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
     _panels.value++;
     final model = widget.modelStore ??
         OcrModelStore(model: OcrModels.byId(Prefs().ocrModelId));
-    bool active() => mounted && generation == _generation && !cancel.cancelled;
+    bool active() =>
+        mounted &&
+        generation == _generation &&
+        !cancel.cancelled &&
+        (narrationCurrent?.call() ?? true);
     void check() {
       cancel.check();
       if (!active()) throw StateError('Reader changed');
@@ -813,7 +852,12 @@ class DocumentReflowReaderState extends State<DocumentReflowReader> {
       final notes = await widget.loadNotes();
       check();
       // Commit page and reader progress together only after successful loading.
-      if (!followOriginal) await widget.onPageChanged(page);
+      if (!followOriginal) {
+        final navigate = narrationCurrent == null
+            ? widget.onPageChanged
+            : widget.onNarrationPageChanged ?? widget.onPageChanged;
+        await navigate(page);
+      }
       check();
       widget.onSourcePageChanged?.call(page, total);
       _page = result;

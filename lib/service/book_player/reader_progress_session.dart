@@ -9,7 +9,6 @@ class ReaderProgressSession {
   final BookDao dao;
   final int bookId;
   ReadingPositionSnapshot? current;
-  ReadingPositionSnapshot? _positionBeforeConflict;
   int generation = 0;
   Future<void> _pending = Future.value();
 
@@ -19,20 +18,11 @@ class ReaderProgressSession {
     return result;
   }
 
-  Future<ReadingPositionSnapshot> refresh(
-          {bool Function()? preservePosition}) =>
-      _serial(() async {
+  Future<ReadingPositionSnapshot> refresh() => _serial(() async {
         final next = await dao.readReadingPosition(bookId);
         if (current?.revision != next.revision) generation++;
-        final live = _positionBeforeConflict ?? current;
-        _positionBeforeConflict = null;
-        // Keep an active speech cursor, but accept the revision for its next
-        // real progress write. Refresh itself must never publish a local edit.
-        if (preservePosition?.call() == true && live != null && !next.deleted) {
-          return current = ReadingPositionSnapshot(
-              live.position, live.percentage, next.revision,
-              narration: live.narration);
-        }
+        // The merged database is authoritative, including its speech cursor.
+        // Keeping an old cursor with the new revision would let it overwrite sync.
         return current = next;
       });
 
@@ -44,14 +34,34 @@ class ReaderProgressSession {
             bookId, position, percentage,
             expectedRevision: current!.revision, narration: narration);
         if (next == null) {
-          _positionBeforeConflict ??= current;
           current = await dao.readReadingPosition(bookId);
           this.generation++;
           return false;
         }
         current = next;
-        _positionBeforeConflict = null;
         return true;
+      });
+
+  /// Exit checkpoints use the displayed page, unless a speech cursor owns the
+  /// resume point. CAS still prevents an old open reader from overwriting sync.
+  Future<void> checkpointPage(String position, double percentage,
+          {required int generation}) =>
+      _serial(() async {
+        final latest = current;
+        if (latest == null ||
+            generation != this.generation ||
+            latest.narration?.canResume == true) {
+          return;
+        }
+        final next = await dao.updateReadingPosition(
+            bookId, position, percentage,
+            expectedRevision: latest.revision);
+        if (next != null) {
+          current = next;
+        } else {
+          current = await dao.readReadingPosition(bookId);
+          this.generation++;
+        }
       });
 
   Future<void> flush() => _pending;
@@ -65,13 +75,11 @@ class ReaderProgressSession {
             bookId, latest.position, latest.percentage,
             expectedRevision: latest.revision, narration: narration);
         if (next == null) {
-          _positionBeforeConflict ??= current;
           current = await dao.readReadingPosition(bookId);
           this.generation++;
           return false;
         }
         current = next;
-        _positionBeforeConflict = null;
         return true;
       });
 }

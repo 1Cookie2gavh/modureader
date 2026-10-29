@@ -1,3 +1,5 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 import 'package:anx_reader/l10n/generated/L10n.dart';
@@ -20,7 +22,9 @@ void main() {
     }
   });
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({'readerMenuOpacityPercent': 60});
+    await Prefs().initPrefs();
     state = ValueNotifier(TtsStateEnum.playing);
     actions = [];
   });
@@ -207,7 +211,7 @@ void main() {
         viewport);
   });
 
-  testWidgets('floating background is 80% transparent but icons stay opaque',
+  testWidgets('floating background ignores menu opacity and icons stay opaque',
       (tester) async {
     await mount(tester, floating: true);
     final material = tester.widget<Material>(find

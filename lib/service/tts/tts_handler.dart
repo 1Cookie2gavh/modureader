@@ -83,7 +83,10 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       bookId: current.id,
       title: current.title,
       author: current.extras?['bookAuthor'] as String? ?? '',
-      chapter: chapter ?? current.extras?['ttsChapter'] as String? ?? '',
+      chapter: chapter ??
+          tts.pageSource?.chapter ??
+          current.extras?['ttsChapter'] as String? ??
+          '',
       coverPath: current.extras?['ttsCoverPath'] as String? ?? '',
       state: tts.ttsStateNotifier.value,
       buffering: tts.bufferingNotifier.value,
@@ -125,18 +128,20 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   /// Rebuild only the speech cursor and highlight. Never synthesize or play.
-  Future<void> restorePaused(String cfi) async {
+  Future<bool> restorePaused(String cfi) async {
     final reader = epubPlayerKey.currentState;
-    if (reader == null) return;
+    if (reader == null) return false;
     final command = ++_transportCommand;
     await init(() async => (await reader.ttsCurrentDetail())?.text ?? '',
-        reader.ttsNext, reader.ttsPrev);
-    final text = await reader.initTts(fromCfi: cfi);
+        reader.ttsNext, reader.ttsPrev,
+        prepareBackend: false);
+    final text =
+        await reader.initTts(fromCfi: cfi, preserveReadingPosition: true);
     if (command != _transportCommand ||
         !reader.mounted ||
         epubPlayerKey.currentState != reader ||
         text.trim().isEmpty) {
-      return;
+      return false;
     }
     _restoredSession = true;
     _publishMetadata(ttsMediaItem(
@@ -149,11 +154,12 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       chinese: _chinese,
     ));
     tts.updateTtsState(TtsStateEnum.paused);
+    return true;
   }
 
   Future<void> init(
       Function getCurrentText, Function getNextText, Function getPrevText,
-      {TtsPageSource? pageSource}) async {
+      {TtsPageSource? pageSource, bool prepareBackend = true}) async {
     if (!identical(tts.pageSource, pageSource)) {
       tts.pageSource?.clearHighlight();
     }
@@ -161,10 +167,13 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _getCurrentText = getCurrentText;
     _getNextText = getNextText;
     _getPrevText = getPrevText;
-    AnxLog.info('TTS initialization; backend=${tts.runtimeType}');
-    unawaited(_logNetwork());
-    await waitForTtsReader('backend-init',
-        () => tts.init(getCurrentText, getNextText, getPrevText));
+    // Restoring a saved cursor needs no native voice, credentials or network.
+    if (prepareBackend) {
+      AnxLog.info('TTS initialization; backend=${tts.runtimeType}');
+      unawaited(_logNetwork());
+      await waitForTtsReader('backend-init',
+          () => tts.init(getCurrentText, getNextText, getPrevText));
+    }
     _observePlayback();
   }
 
@@ -303,6 +312,9 @@ class TtsHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // Dispatch resume only after that pause completes, otherwise a late pause
     // can silence a player whose Dart/notification state already says playing.
     try {
+      if (_restoredSession) {
+        await init(_getCurrentText!, _getNextText!, _getPrevText!);
+      }
       await _pendingPause;
       if (command != _transportCommand || !identical(tts, backend)) return;
       final active = focusAlreadyGained ||

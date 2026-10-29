@@ -1,3 +1,4 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/service/ocr/document_text_style.dart';
 import 'package:anx_reader/service/book_player/pdf_reading_state_store.dart';
 import 'package:anx_reader/widgets/reading_page/document_text_style_dialog.dart';
@@ -6,6 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   test('shared settings round trip and legacy controls remain compatible', () {
     final old =
         DocumentTextStyle.fromJson({'verticalMargin': 26, 'justify': false});

@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/settings/setting_help_title.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import '../reader_menu_group.dart';
 import 'package:anx_reader/enums/text_alignment.dart';
@@ -110,11 +111,9 @@ class _StyleSettingsState extends State<StyleSettings> {
   Widget build(BuildContext context) {
     Widget useBookStylesSwitch() {
       return SwitchListTile(
-        title: Text(L10n.of(context).useBookStyles),
-        subtitle: Text(
-          L10n.of(context).useBookStylesDescription,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        title: SettingHelpTitle(
+            title: L10n.of(context).useBookStyles,
+            description: L10n.of(context).useBookStylesDescription),
         value: Prefs().useBookStyles,
         onChanged: (bool value) {
           setState(() {

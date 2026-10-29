@@ -181,3 +181,7 @@ Help improve Modu with bug reports, code or documentation. If you enjoy the app,
 Modu is released under **GPL-3.0-or-later**, based on Anx Reader and incorporating code from ReadAny. Original copyright notices and licenses are retained.
 
 [Project license](LICENSE) · [Anx Reader license](LICENSES/Anx-Reader-MIT.txt) · [ReadAny license](LICENSES/ReadAny-GPL-3.0-or-later.txt) · [Upstream and modifications](UPSTREAM.md) · [Third-party notices](NOTICE)
+
+## 1.3.5 updates
+
+Device-local reading popup height and opacity controls, improved resume synchronization and reading anchors, continuous PDF reflow narration, and removal of the unnecessary Windows startup location subscription.

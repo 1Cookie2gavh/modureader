@@ -1,3 +1,4 @@
+import 'package:anx_reader/widgets/reading_page/reader_menu_appearance.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/modu_strings.dart';
 import 'package:anx_reader/models/unified_query.dart';
@@ -124,7 +125,8 @@ class _UnifiedQuerySettingsState extends State<UnifiedQuerySettings> {
               title: Text(t('独立划词按钮开关', 'Standalone selection actions')),
               subtitle: Text(t('字典、翻译、AI 知识等入口仍可单独开启。',
                   'Dictionary, translation and AI knowledge shortcuts remain available.')),
-              onTap: () => showSelectionToolbarSettings(context)),
+              onTap: () => showSelectionToolbarSettings(context,
+                  readerAppearance: ReaderMenuAppearance.translucent(context))),
         ],
         if (section == null ||
             section == QuerySection.knowledge ||

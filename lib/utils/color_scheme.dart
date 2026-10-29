@@ -279,7 +279,9 @@ ThemeData colorSchema(
                     ? BorderSide(color: einkForeground)
                     : BorderSide.none),
             backgroundColor:
-                isEinkMode ? einkBackground : colorScheme.surfaceContainer,
+                (isEinkMode ? einkBackground : colorScheme.surfaceContainer)
+                    .withValues(alpha: .5),
+            elevation: 0,
             contentTextStyle: themeData.textTheme.bodyMedium
                 ?.copyWith(color: colorScheme.onSurface),
             actionTextColor: colorScheme.primary,

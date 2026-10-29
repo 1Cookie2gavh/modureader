@@ -86,6 +86,8 @@ const Set<String> _prefsImportSkipKeys = {
   // Brightness is a device-local preference, not transferable configuration.
   'appBrightnessLevel',
   'appBrightnessFollowSystem',
+  'readerPopupMaxHeightPercent',
+  'readerMenuOpacityPercent',
   'iapPurchaseStatus',
   'iapLastCheckTime',
   // Enabling sensitive sync requires an explicit risk confirmation on each
@@ -120,6 +122,8 @@ const Set<String> _prefsExportSkipKeys = {
   'bookCustomCssSelections',
   'appBrightnessLevel',
   'appBrightnessFollowSystem',
+  'readerPopupMaxHeightPercent',
+  'readerMenuOpacityPercent',
   // The encryption password must remain local and must not be copied into an
   // app backup or uploaded alongside the encrypted payload.
   'syncAiSettingsEncryptionPassword',
@@ -2672,6 +2676,26 @@ class Prefs extends ChangeNotifier {
 
   set aiChatDisplayMode(AiChatDisplayMode mode) {
     prefs.setString('aiChatDisplayMode', mode.code);
+    notifyListeners();
+  }
+
+  int get readerMenuOpacityPercent {
+    final value = prefs.get('readerMenuOpacityPercent');
+    return value is num && value.isFinite ? value.round().clamp(20, 100) : 100;
+  }
+
+  set readerMenuOpacityPercent(int value) {
+    prefs.setInt('readerMenuOpacityPercent', value.clamp(20, 100));
+    notifyListeners();
+  }
+
+  int get readerPopupMaxHeightPercent {
+    final value = prefs.get('readerPopupMaxHeightPercent');
+    return value is num && value.isFinite ? value.round().clamp(40, 80) : 80;
+  }
+
+  set readerPopupMaxHeightPercent(int value) {
+    prefs.setInt('readerPopupMaxHeightPercent', value.clamp(40, 80));
     notifyListeners();
   }
 
