@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:anx_reader/widgets/reading_page/pdf_region_preview.dart';
 import 'package:anx_reader/models/document_page_layout.dart';
 import 'package:anx_reader/widgets/reading_page/document_layout_editor.dart';
@@ -16,6 +18,10 @@ Future<void> ready(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs().initPrefs();
+  });
   testWidgets(
       'direct image editor preserves text pages and permits explicit navigation to image pages',
       (tester) async {
